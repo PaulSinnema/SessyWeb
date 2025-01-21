@@ -5,7 +5,7 @@ VisualStudioVersion = 17.12.35527.113
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SessyController", "SessyController\SessyController.csproj", "{C88C0BEF-C785-433C-BDFA-650582184011}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SessyWeb", "SessyWeb\SessyWeb.csproj", "{F5552C86-2CB9-4FE3-9CD1-0401C7052414}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SessyWeb", "SessyWeb\SessyWeb.csproj", "{0D1AE6BD-A1C0-448C-9917-9AA3829AF621}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -17,10 +17,10 @@ Global
 		{C88C0BEF-C785-433C-BDFA-650582184011}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C88C0BEF-C785-433C-BDFA-650582184011}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C88C0BEF-C785-433C-BDFA-650582184011}.Release|Any CPU.Build.0 = Release|Any CPU
-		{F5552C86-2CB9-4FE3-9CD1-0401C7052414}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{F5552C86-2CB9-4FE3-9CD1-0401C7052414}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{F5552C86-2CB9-4FE3-9CD1-0401C7052414}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{F5552C86-2CB9-4FE3-9CD1-0401C7052414}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0D1AE6BD-A1C0-448C-9917-9AA3829AF621}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0D1AE6BD-A1C0-448C-9917-9AA3829AF621}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0D1AE6BD-A1C0-448C-9917-9AA3829AF621}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0D1AE6BD-A1C0-448C-9917-9AA3829AF621}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
