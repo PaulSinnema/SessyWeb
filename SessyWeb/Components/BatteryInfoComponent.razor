@@ -1,0 +1,36 @@
+﻿@inherits BatteryInfo
+
+@{
+	var powerStatus = Battery.GetPowerStatus().GetAwaiter().GetResult();
+}
+
+<div>
+	<table>
+		<thead>
+			<tr>
+				<th>Description</th>
+				<th>Result</th>
+			</tr>
+		</thead>
+		<tbody>
+			<tr>
+				<td>Power status</td>
+				<td>@powerStatus?.Status</td>
+			</tr>
+			<tr>
+				<td>Power</td>
+				<td>@powerStatus?.Sessy?.Power</td>
+			</tr>
+			<tr>
+				<td>Setpoint</td>
+				<td>@powerStatus?.Sessy?.PowerSetpoint</td>
+			</tr>
+			<tr>
+				<td>State of charge</td>
+				<td>@powerStatus?.Sessy?.StateOfCharge</td>
+			</tr>
+		</tbody>
+	</table>
+
+</div>
+

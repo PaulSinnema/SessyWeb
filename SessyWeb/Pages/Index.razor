@@ -3,6 +3,7 @@
 @using System
 @using SessyController.Services
 @using SessyController.Services.Items
+@using SessyWeb.Components
 
 <PageTitle>Sessy</PageTitle>
 
@@ -10,9 +11,11 @@
 <body>
 	<div>
 		@{
-			foreach (var capacity in GetFreeCapacity().GetAwaiter().GetResult())
+			foreach (var battery in GetBatteries())
 			{
-				<a>@capacity</a><br/>
+				<BatteryInfoComponent Battery=@battery>
+				
+				</BatteryInfoComponent>
 			}
 		}
 	</div>
