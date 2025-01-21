@@ -1,0 +1,35 @@
+﻿version: '3.8'
+services:
+  uw_service_naam:
+    image: uw_image_naam
+    environment:
+      - ENTSO-E__InDomain=10YNL----------L
+      - ENTSO-E__ResolutionFormat=PT60M
+      - Sessy__Batteries__Batteries__1__Name=Battery 1
+      - Sessy__Batteries__Batteries__1__BaseUrl=http://192.168.1.241
+      - Sessy__Batteries__Batteries__1__MaxCharge=2000
+      - Sessy__Batteries__Batteries__1__MaxDischarge=1700
+      - Sessy__Batteries__Batteries__1__Capacity=5400
+      - Sessy__Batteries__Batteries__2__Name=Battery 2
+      - Sessy__Batteries__Batteries__2__BaseUrl=http://192.168.1.242
+      - Sessy__Batteries__Batteries__2__MaxCharge=2000
+      - Sessy__Batteries__Batteries__2__MaxDischarge=1700
+      - Sessy__Batteries__Batteries__2__Capacity=5400
+      - Sessy__Batteries__Batteries__3__Name=Battery 3
+      - Sessy__Batteries__Batteries__3__BaseUrl=http://192.168.1.243
+      - Sessy__Batteries__Batteries__3__MaxCharge=2000
+      - Sessy__Batteries__Batteries__3__MaxDischarge=1700
+      - Sessy__Batteries__Batteries__3__Capacity=5400
+      - Sessy__Meters__Endpoints__P1__Name=P1
+      - Sessy__Meters__Endpoints__P1__BaseUrl=http://192.168.1.240
+      - PowerSystems__Endpoints__SolarEdge__IpAddress=192.168.1.217
+      - PowerSystems__Endpoints__SolarEdge__Port=1502
+      - PowerSystems__Endpoints__SolarEdge__SlaveId=1
+      - WeerOnline__BaseUrl=https://weerlive.nl/api/weerlive_api_v2.php
+      - WeerOnline__Location=52.21,5.947
+      - ManagementSettings__ManualChargingHours=0,1,2,11,12,13
+      - ManagementSettings__ManualDischargingHours=7,8,9,17,18
+      - ManagementSettings__ManualNetZeroHomeHours=2,3,4,5,6,10,19,20,21,23
+      - ManagementSettings__Timezone=Europe/Amsterdam
+      - ManagementSettings__CycleCost=0.08
+      - ManagementSettings__RequiredHomeEnergy=16000
