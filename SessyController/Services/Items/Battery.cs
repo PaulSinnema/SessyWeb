@@ -37,7 +37,7 @@ namespace SessyController.Services.Items
         public async Task<PowerStatus?> GetPowerStatus()
         {
             EnsureInitialized();
-            return await _sessyService.GetPowerStatusAsync(Id);
+            return await _sessyService.GetPowerStatusAsync(Id).ConfigureAwait(false);
         }
 
         public async Task<ActivePowerStrategy?> GetActivePowerStrategy()
@@ -102,11 +102,14 @@ namespace SessyController.Services.Items
             lastPowerSetpoint = powerSetpoint;
         }
 
+        /// <summary>
+        /// Get the remaining capacity for a battery
+        /// </summary>
         public async Task<double> GetFreeCapacity()
         {
             EnsureInitialized();
 
-            PowerStatus? powerStatus = await GetPowerStatus();
+            PowerStatus? powerStatus = await GetPowerStatus().ConfigureAwait(false);
 
             var remaining = _endpoint.Capacity * (1 - powerStatus.Sessy.StateOfCharge);
 

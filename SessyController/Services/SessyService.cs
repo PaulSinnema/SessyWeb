@@ -52,7 +52,7 @@ namespace SessyController.Services
 
             SessyBatteryEndpoint battery = GetBatteryConfiguration(id);
             using var client = CreateHttpClient(battery);
-            var response = await client.GetAsync("/api/v1/power/status");
+            var response = await client.GetAsync("/api/v1/power/status").ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
             var content = await response.Content.ReadAsStringAsync();
             return JsonConvert.DeserializeObject<PowerStatus>(content);
