@@ -1,21 +1,15 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>b87a08cd-ae9c-43e7-b676-116656fc5805</UserSecretsId>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
-    <UserSecretsId>234bc2ef-ed66-4132-aa41-bce2b9f42c7a</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.21.0" />
-    <PackageReference Include="Radzen.Blazor" Version="5.7.10" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\SessyController\SessyController.csproj" />
   </ItemGroup>
 
 </Project>
-            
