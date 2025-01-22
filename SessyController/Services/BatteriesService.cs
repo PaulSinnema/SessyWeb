@@ -99,6 +99,7 @@ namespace SessyController.Services
 
                 HourlyPrice? currentHourlyPrice = GetCurrentHourlyPrice();
 
+#if !DEBUG
                 if (!(_dayAheadMarketService.PricesAvailable && currentHourlyPrice != null))
                 {
                     _logger.LogWarning("No prices available from ENTSO-E, switching to manual charging");
@@ -109,6 +110,7 @@ namespace SessyController.Services
                 {
                     await HandleAutomaticCharging();
                 }
+#endif
             }
         }
 
@@ -389,7 +391,7 @@ namespace SessyController.Services
 
             CheckCapacity(hourlyPrices);
 
-            OptimizeChargingSessions(hourlyPrices);
+            // OptimizeChargingSessions(hourlyPrices);
         }
 
         public static void OptimizeChargingSessions(List<HourlyPrice> hourlyPrices)

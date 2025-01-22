@@ -4,7 +4,7 @@ using SessyController.Services.Items;
 using static P1MeterService;
 using static SessyController.Services.SunExpectancyService;
 
-namespace SessyController.Controllers
+namespace SessyWeb.Controllers
 {
     /// <summary>
     /// This class is the main API entry for testing all functionality.

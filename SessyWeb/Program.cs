@@ -1,10 +1,12 @@
 ﻿using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
 using Radzen;
 using SessyController.Configurations;
 using SessyController.Extensions;
 using SessyController.Providers;
 using SessyController.Services;
 using SessyController.Services.Items;
+using SessyWeb.Controllers;
 using SessyWeb.Data;
 
 
@@ -40,6 +42,10 @@ else
     Console.WriteLine("⚠️ Waarschuwing: secrets.json ontbreekt, geheimen worden niet geladen.");
 }
 
+// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
 // Voeg omgevingsvariabelen toe (voor Synology NAS en Docker)
 builder.Configuration.AddEnvironmentVariables();
 
@@ -67,6 +73,7 @@ builder.Services.AddHostedService(provider => provider.GetRequiredService<DayAhe
 builder.Services.AddHostedService(provider => provider.GetRequiredService<BatteriesService>());
 
 // Add services to the container.
+
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
 builder.Services.AddSingleton<WeatherForecastService>();
@@ -76,7 +83,20 @@ builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<TooltipService>();
 builder.Services.AddScoped<ContextMenuService>();
 
+builder.Services.AddScoped<BatteryManagementController>();
+builder.Services.AddControllers();
+
 var app = builder.Build();
+
+if (app.Environment.IsDevelopment())
+{
+    Console.WriteLine("Development environment");
+
+#if SWAGGER
+    app.UseSwagger();
+    app.UseSwaggerUI();
+#endif
+}
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
@@ -94,5 +114,6 @@ app.UseRouting();
 
 app.MapBlazorHub();
 app.MapFallbackToPage("/_Host");
+app.MapControllers();
 
 app.Run();

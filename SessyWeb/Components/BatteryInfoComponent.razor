@@ -61,7 +61,7 @@ else
 			@if (powerStatus?.Sessy?.SystemState == Sessy.SystemStates.SYSTEM_STATE_ERROR)
 			{
 				<RadzenColumn class="rz-background-color-danger rz-color-white rz-p-4">
-					@powerStatus?.Sessy?.SystemState.ToString()
+					@powerStatus?.Sessy?.SystemStateString
 				</RadzenColumn>
 			}
 			else

@@ -1,7 +1,7 @@
 ﻿@page "/charginghours"
 @inherits PageBase
 
-@if (HourlyPrices != null)
+@if (HourlyPrices != null && HourlyPrices.Count() != 0)
 {
 	<RadzenChart>
 		<RadzenChartTooltipOptions Shared="false" />
@@ -22,4 +22,10 @@
 		</RadzenValueAxis>
 		<RadzenBarOptions Radius="5" />
 	</RadzenChart>
+}
+else
+{
+	<div>
+		No prices yet, just a moment .....
+	</div>
 }

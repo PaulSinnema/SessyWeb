@@ -227,11 +227,36 @@ namespace SessyController.Services
             SYSTEM_STATE_OVERRIDE_BATTERY_UNDERVOLTAGE = 13,
         };
 
+        private string _systemStateString;
+        private SystemStates _systemState;
+
         /// <summary>
         /// The current system state (e.g., "SYSTEM_STATE_STANDBY").
         /// </summary>
+        // [JsonProperty("system_state")]
+        public SystemStates SystemState 
+        {
+            get
+            {
+                var names = Enum.GetNames(typeof(SystemStates));
+                return (SystemStates)Enum.Parse(typeof(SystemStates), SystemStateString);
+            }
+        }
+
         [JsonProperty("system_state")]
-        public SystemStates SystemState { get; set; }
+        public string SystemStateString
+        {
+            get
+            {
+                return _systemStateString;
+            }
+            set
+            {
+                _systemStateString = value;
+                var names = Enum.GetNames(typeof(SystemStates));
+                _systemState = (SystemStates)Enum.Parse(typeof(SystemStates), _systemStateString);
+            }
+        }
 
         /// <summary>
         /// Detailed information about the current system state.
