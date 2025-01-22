@@ -7,12 +7,12 @@
 @if (HourlyPrices != null && HourlyPrices.Count() != 0)
 {
 	<div style="overflow-x: auto; width: 100%; overflow-y: auto; height:100%;">
-		<RadzenChart Style="min-height: 4000px; min-width: 600px;">
+		<RadzenChart Style="min-height: 3000px; min-width: 600px;" >
 			<RadzenChartTooltipOptions Shared="false" Visible="true" />
-			<RadzenBarSeries Data="@HourlyPrices" CategoryProperty="Time" Title="Price" LineType="LineType.Dashed" ValueProperty="Price">
+			<RadzenBarSeries Data="@HourlyPrices" CategoryProperty="Time" Title="Price" LineType="LineType.Dashed" ValueProperty="Price" >
 				<RadzenSeriesDataLabels Visible="true" />
 			</RadzenBarSeries>
-			<RadzenBarSeries Data="@HourlyPrices" CategoryProperty="Time" Title="Charging" ValueProperty="VisualizeInChart">
+				<RadzenBarSeries Data="@HourlyPrices" CategoryProperty="Time" Title="Charging" ValueProperty="VisualizeInChart" >
 				<RadzenMarkers Visible="true" MarkerType="MarkerType.Circle" />
 				<RadzenSeriesDataLabels Visible="false" />
 			</RadzenBarSeries>
