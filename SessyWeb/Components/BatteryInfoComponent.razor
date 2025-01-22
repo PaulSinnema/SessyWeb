@@ -3,128 +3,128 @@
 
 @if (powerStatus == null)
 {
-					<p>Bezig met laden...</p>
+	<p>Bezig met laden...</p>
 }
 else
 {
-					<Radzen.Blazor.RadzenCard title="Sessy battery">
-						<Radzen.Blazor.RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
-							<Radzen.Blazor.RadzenColumn Size="6" class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
-								Title
-							</Radzen.Blazor.RadzenColumn>
-							<Radzen.Blazor.RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
-								Value
-							</Radzen.Blazor.RadzenColumn>
-						</Radzen.Blazor.RadzenRow>
+	<RadzenCard title="Sessy battery">
+		<RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
+			<RadzenColumn Size="6" class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
+				Title
+			</RadzenColumn>
+			<RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
+				Value
+			</RadzenColumn>
+		</RadzenRow>
 
-						<Radzen.Blazor.RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
-							<Radzen.Blazor.RadzenColumn Size="6" class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
-								Power status
-							</Radzen.Blazor.RadzenColumn>
-							<Radzen.Blazor.RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
+		<RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
+			<RadzenColumn Size="6" class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
+				Power status
+			</RadzenColumn>
+			<RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
 				@powerStatus?.Status
-							</Radzen.Blazor.RadzenColumn>
-						</Radzen.Blazor.RadzenRow>
+			</RadzenColumn>
+		</RadzenRow>
 
-						<Radzen.Blazor.RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
-							<Radzen.Blazor.RadzenColumn Size="6" class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
-								Power
-							</Radzen.Blazor.RadzenColumn>
-							<Radzen.Blazor.RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
+		<RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
+			<RadzenColumn Size="6" class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
+				Power
+			</RadzenColumn>
+			<RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
 				@powerStatus?.Sessy?.Power
-							</Radzen.Blazor.RadzenColumn>
-						</Radzen.Blazor.RadzenRow>
+			</RadzenColumn>
+		</RadzenRow>
 
-						<Radzen.Blazor.RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
-							<Radzen.Blazor.RadzenColumn Size="6" class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
-								Setpoint
-							</Radzen.Blazor.RadzenColumn>
-							<Radzen.Blazor.RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
+		<RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
+			<RadzenColumn Size="6" class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
+				Setpoint
+			</RadzenColumn>
+			<RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
 				@powerStatus?.Sessy?.PowerSetpoint
-							</Radzen.Blazor.RadzenColumn>
-						</Radzen.Blazor.RadzenRow>
+			</RadzenColumn>
+		</RadzenRow>
 
-						<Radzen.Blazor.RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
-							<Radzen.Blazor.RadzenColumn Size="6" class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
-								State of charge
-							</Radzen.Blazor.RadzenColumn>
-							<Radzen.Blazor.RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
-								<Radzen.Blazor.RadzenProgressBarCircular ProgressBarStyle="ProgressBarStyle.Primary" value=@powerStatus.Sessy.StateOfCharge100 />
-							</Radzen.Blazor.RadzenColumn>
-						</Radzen.Blazor.RadzenRow>
+		<RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
+			<RadzenColumn Size="6" class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
+				State of charge
+			</RadzenColumn>
+			<RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
+				<RadzenProgressBarCircular ProgressBarStyle="ProgressBarStyle.Primary" value=@powerStatus.Sessy.StateOfCharge100 />
+			</RadzenColumn>
+		</RadzenRow>
 
-						<Radzen.Blazor.RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
-							<Radzen.Blazor.RadzenColumn Size="6" class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
-								System state
-							</Radzen.Blazor.RadzenColumn>
+		<RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
+			<RadzenColumn Size="6" class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
+				System state
+			</RadzenColumn>
 
-				@if (powerStatus?.Sessy?.SystemState == Sessy.SystemStates.SYSTEM_STATE_ERROR.ToString())
-				{
-									<Radzen.Blazor.RadzenColumn class="rz-background-color-danger rz-color-white rz-p-4">
-						@powerStatus?.Sessy?.SystemState
-									</Radzen.Blazor.RadzenColumn>
-				}
-				else
-				{
-										<Radzen.Blazor.RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
-						@powerStatus?.Sessy?.SystemState
-										</Radzen.Blazor.RadzenColumn>
-				}
+			@if (powerStatus?.Sessy?.SystemState == Sessy.SystemStates.SYSTEM_STATE_ERROR)
+			{
+				<RadzenColumn class="rz-background-color-danger rz-color-white rz-p-4">
+					@powerStatus?.Sessy?.SystemState.ToString()
+				</RadzenColumn>
+			}
+			else
+			{
+				<RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
+					@powerStatus?.Sessy?.SystemState.ToString()
+				</RadzenColumn>
+			}
 
-						</Radzen.Blazor.RadzenRow>
+		</RadzenRow>
 
-						<Radzen.Blazor.RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
-							<Radzen.Blazor.RadzenColumn Size="6" class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
-								System state details
-							</Radzen.Blazor.RadzenColumn>
-							<Radzen.Blazor.RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
-					@powerStatus?.Sessy?.SystemStateDetails
-							</Radzen.Blazor.RadzenColumn>
-						</Radzen.Blazor.RadzenRow>
+		<RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
+			<RadzenColumn Size="6" class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
+				System state details
+			</RadzenColumn>
+			<RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
+				@powerStatus?.Sessy?.SystemStateDetails
+			</RadzenColumn>
+		</RadzenRow>
 
-						<Radzen.Blazor.RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
-							<Radzen.Blazor.RadzenColumn Size="6" class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
-								Inverted current in mAmpere
-							</Radzen.Blazor.RadzenColumn>
-							<Radzen.Blazor.RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
-					@powerStatus?.Sessy?.Frequency
-							</Radzen.Blazor.RadzenColumn>
-						</Radzen.Blazor.RadzenRow>
+		<RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
+			<RadzenColumn Size="6" class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
+				Inverted current in mAmpere
+			</RadzenColumn>
+			<RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
+				@powerStatus?.Sessy?.Frequency
+			</RadzenColumn>
+		</RadzenRow>
 
-						<Radzen.Blazor.RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
-							<Radzen.Blazor.RadzenColumn Size="6" class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
-								Frequency
-							</Radzen.Blazor.RadzenColumn>
-							<Radzen.Blazor.RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
-					@powerStatus?.Sessy?.InverterCurrentMa
-							</Radzen.Blazor.RadzenColumn>
-						</Radzen.Blazor.RadzenRow>
+		<RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
+			<RadzenColumn Size="6" class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
+				Frequency
+			</RadzenColumn>
+			<RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
+				@powerStatus?.Sessy?.InverterCurrentMa
+			</RadzenColumn>
+		</RadzenRow>
 
-						<Radzen.Blazor.RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
-							<Radzen.Blazor.RadzenColumn Size="6" class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
-								Renewable Phase 1 Power
-							</Radzen.Blazor.RadzenColumn>
-							<Radzen.Blazor.RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
-					@powerStatus?.RenewableEnergyPhase1?.Power
-							</Radzen.Blazor.RadzenColumn>
-						</Radzen.Blazor.RadzenRow>
+		<RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
+			<RadzenColumn Size="6" class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
+				Renewable Phase 1 Power
+			</RadzenColumn>
+			<RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
+				@powerStatus?.RenewableEnergyPhase1?.Power
+			</RadzenColumn>
+		</RadzenRow>
 
-						<Radzen.Blazor.RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
-							<Radzen.Blazor.RadzenColumn Size="6" class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
-								Renewable Phase 2 Power
-							</Radzen.Blazor.RadzenColumn>
-							<Radzen.Blazor.RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
-					@powerStatus?.RenewableEnergyPhase2?.Power
-							</Radzen.Blazor.RadzenColumn>
-						</Radzen.Blazor.RadzenRow>
+		<RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
+			<RadzenColumn Size="6" class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
+				Renewable Phase 2 Power
+			</RadzenColumn>
+			<RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
+				@powerStatus?.RenewableEnergyPhase2?.Power
+			</RadzenColumn>
+		</RadzenRow>
 
-						<Radzen.Blazor.RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
-							<Radzen.Blazor.RadzenColumn Size="6" class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
-								Renewable Phase 3 Power
-							</Radzen.Blazor.RadzenColumn>
-							<Radzen.Blazor.RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
-					@powerStatus?.RenewableEnergyPhase3?.Power
-							</Radzen.Blazor.RadzenColumn>
-						</Radzen.Blazor.RadzenRow>
-					</Radzen.Blazor.RadzenCard>
+		<RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
+			<RadzenColumn Size="6" class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
+				Renewable Phase 3 Power
+			</RadzenColumn>
+			<RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
+				@powerStatus?.RenewableEnergyPhase3?.Power
+			</RadzenColumn>
+		</RadzenRow>
+	</RadzenCard>
 }

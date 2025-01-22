@@ -206,18 +206,32 @@ namespace SessyController.Services
         [JsonProperty("power_setpoint")]
         public int PowerSetpoint { get; set; }
 
+        /// <summary>
+        /// System states
+        /// </summary>
         public enum SystemStates
         {
-            SYSTEM_STATE_BATTERY_FULL,
-            SYSTEM_STATE_ERROR,
-            SYSTEM_STATE_RUNNING_SAFE
+            SYSTEM_STATE_INIT = 0,
+            SYSTEM_STATE_WAIT_FOR_PERIPHERALS = 1,
+            SYSTEM_STATE_STANDBY = 2,
+            SYSTEM_STATE_WAITING_FOR_SAFE_SITUATION = 3,
+            SYSTEM_STATE_WAITING_IN_SAFE_SITUATION = 4,
+            SYSTEM_STATE_RUNNING_SAFE = 5,
+            SYSTEM_STATE_OVERRIDE_OVERFREQUENCY = 6,
+            SYSTEM_STATE_OVERRIDE_UNDERFREQUENCY = 7,
+            SYSTEM_STATE_DISCONNECT = 8,
+            SYSTEM_STATE_RECONNECT = 9,
+            SYSTEM_STATE_ERROR = 10,
+            SYSTEM_STATE_BATTERY_FULL = 11,
+            SYSTEM_STATE_BATTERY_EMPTY = 12,
+            SYSTEM_STATE_OVERRIDE_BATTERY_UNDERVOLTAGE = 13,
         };
 
         /// <summary>
         /// The current system state (e.g., "SYSTEM_STATE_STANDBY").
         /// </summary>
         [JsonProperty("system_state")]
-        public string? SystemState { get; set; }
+        public SystemStates SystemState { get; set; }
 
         /// <summary>
         /// Detailed information about the current system state.

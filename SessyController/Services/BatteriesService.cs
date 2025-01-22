@@ -126,7 +126,7 @@ namespace SessyController.Services
 
             if (currentHourlyPrice != null)
             {
-                await CheckIfBatteriesAreFull(currentHourlyPrice);
+                await CancelSessionIfStateRequiresIt(currentHourlyPrice);
 
                 if (currentHourlyPrice.Charging)
                     _batteryContainer.StartCharging();
@@ -163,23 +163,40 @@ namespace SessyController.Services
 
         /// <summary>
         /// If batteries are full stop charging this session
+        /// If batteries are empty stop discharging this session
         /// </summary>
-        private async Task CheckIfBatteriesAreFull(HourlyPrice currentHourlyPrice)
+        private async Task CancelSessionIfStateRequiresIt(HourlyPrice currentHourlyPrice)
         {
-            var stateOfCharge = await _batteryContainer.GetStateOfCharge();
+            if (currentHourlyPrice.Charging)
+            {
+                bool batteriesAreFull = await AreAllBattiesFull(currentHourlyPrice);
 
-            if (currentHourlyPrice.Charging && stateOfCharge == 1) // Batteries are full
+                if (batteriesAreFull) // Batteries are full
+                    StopChargingSession(currentHourlyPrice);
+            }
+            else if (currentHourlyPrice.Discharging)
+            {
+                bool batteriesAreEmpty = await AreAllBattiesEmpty(currentHourlyPrice);
+
+                if (batteriesAreEmpty)
+                    StopDischargingSession(currentHourlyPrice);
+            }
+        }
+
+        /// <summary>
+        /// Cancel charging for current and future consequtive charging hours.
+        /// </summary>
+        private static void StopChargingSession(HourlyPrice currentHourlyPrice)
+        {
+            if (hourlyPrices != null)
             {
                 var enumPrices = hourlyPrices.GetEnumerator();
 
-                do
-                {
+                while (enumPrices.Current.Time.Hour < currentHourlyPrice.Time.Hour)
                     if (!enumPrices.MoveNext())
                         return;
 
-                } while (enumPrices.Current.Time.Hour < currentHourlyPrice.Time.Hour);
-
-                while (enumPrices.Current.Charging == true)
+                while (enumPrices.Current.Charging)
                 {
                     enumPrices.Current.Charging = false; // Stop charging
 
@@ -187,6 +204,90 @@ namespace SessyController.Services
                         return;
                 }
             }
+        }
+
+        /// <summary>
+        /// Cancel discharging for current and future consequtive discharging hours.
+        /// </summary>
+        private static void StopDischargingSession(HourlyPrice currentHourlyPrice)
+        {
+            if (hourlyPrices != null)
+            {
+                var enumPrices = hourlyPrices.GetEnumerator();
+
+                while (enumPrices.Current.Time.Hour < currentHourlyPrice.Time.Hour)
+                    if (!enumPrices.MoveNext())
+                        return;
+
+                while (enumPrices.Current.Discharging)
+                {
+                    enumPrices.Current.Discharging = false; // Stop charging
+
+                    if (!enumPrices.MoveNext())
+                        return;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Returns true if all batteries have state SYSTEM_STATE_BATTERY_FULL
+        /// </summary>
+        private async Task<bool> AreAllBattiesFull(HourlyPrice currentHourlyPrice)
+        {
+            var batteriesAreFull = true;
+
+            foreach (var battery in _batteryContainer.Batteries)
+            {
+                var systemState = await battery.GetPowerStatus();
+
+                if (systemState.Sessy.SystemState != Sessy.SystemStates.SYSTEM_STATE_BATTERY_FULL)
+                {
+                    batteriesAreFull = false;
+                    break;
+                }
+            }
+
+            return batteriesAreFull;
+        }
+
+        /// <summary>
+        /// Returns true if all batteries have state SYSTEM_STATE_BATTERY_EMPTY
+        /// </summary>
+        private async Task<bool> AreAllBattiesEmpty(HourlyPrice currentHourlyPrice)
+        {
+            var batteriesAreEmpty = true;
+
+            foreach (var battery in _batteryContainer.Batteries)
+            {
+                var systemState = await battery.GetPowerStatus();
+
+                if (systemState.Sessy.SystemState != Sessy.SystemStates.SYSTEM_STATE_BATTERY_EMPTY)
+                {
+                    batteriesAreEmpty = false;
+                    break;
+                }
+            }
+
+            return batteriesAreEmpty;
+        }
+
+        private async Task<double> GetTotalStateOfCharge()
+        {
+            double stateOfCharge = 0.0;
+            double count = 0;
+
+            foreach (var battery in _batteryContainer.Batteries.ToList())
+            {
+                PowerStatus? powerStatus = await battery.GetPowerStatus();
+
+                stateOfCharge += powerStatus.Sessy.StateOfCharge;
+                count++;
+            }
+
+            if (count > 0)
+                return stateOfCharge / count;
+
+            return 0.0;
         }
 
         private bool hasCheckedLastDate1600 = false;
