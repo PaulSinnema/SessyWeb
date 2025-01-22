@@ -184,6 +184,17 @@ namespace SessyController.Services
         public double StateOfCharge { get; set; }
 
         /// <summary>
+        /// State of charge in %
+        /// </summary>
+        public double StateOfCharge100
+        {
+            get
+            {
+                return  Math.Round(StateOfCharge * 100.0, 1);
+            }
+        }
+
+        /// <summary>
         /// The current power output in watts.
         /// </summary>
         [JsonProperty("power")]
@@ -194,6 +205,13 @@ namespace SessyController.Services
         /// </summary>
         [JsonProperty("power_setpoint")]
         public int PowerSetpoint { get; set; }
+
+        public enum SystemStates
+        {
+            SYSTEM_STATE_BATTERY_FULL,
+            SYSTEM_STATE_ERROR,
+            SYSTEM_STATE_RUNNING_SAFE
+        };
 
         /// <summary>
         /// The current system state (e.g., "SYSTEM_STATE_STANDBY").
