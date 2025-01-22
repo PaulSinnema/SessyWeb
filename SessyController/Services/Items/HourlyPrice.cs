@@ -95,9 +95,9 @@
             get
             {
                 if (Charging)
-                    return -0.01;
+                    return -0.03;
                 else if (Discharging)
-                    return 0.01;
+                    return 0.03;
 
                 return 0.0;
             }
