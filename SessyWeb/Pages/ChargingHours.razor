@@ -1,2 +1,25 @@
 ﻿@page "/charginghours"
 @inherits PageBase
+
+@if (HourlyPrices != null)
+{
+	<RadzenChart>
+		<RadzenChartTooltipOptions Shared="false" />
+		<RadzenColumnSeries Data="@HourlyPrices" CategoryProperty="Time" Title="Price" LineType="LineType.Dashed" ValueProperty="Price">
+			<RadzenSeriesDataLabels Visible="true" />
+		</RadzenColumnSeries>
+		<RadzenLineSeries Smooth="false" Data="@HourlyPrices" CategoryProperty="Time" Title="Charging" ValueProperty="VisualizeInChart">
+			<RadzenMarkers Visible="true" MarkerType="MarkerType.Circle" />
+			<RadzenSeriesDataLabels Visible="false" />
+		</RadzenLineSeries>
+		<RadzenCategoryAxis Padding="20" Formatter="@FormatAsDayHour">
+			<RadzenGridLines Visible="true" />
+			<RadzenAxisTitle Text="Time" />
+		</RadzenCategoryAxis>
+		<RadzenValueAxis Formatter="@FormatAsPrice">
+			<RadzenGridLines Visible="true" />
+			<RadzenAxisTitle Text="Price" />
+		</RadzenValueAxis>
+		<RadzenBarOptions Radius="5" />
+	</RadzenChart>
+}

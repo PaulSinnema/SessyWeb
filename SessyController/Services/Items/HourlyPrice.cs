@@ -88,6 +88,22 @@
         }
 
         /// <summary>
+        /// Helper for visualization
+        /// </summary>
+        public double VisualizeInChart
+        {
+            get
+            {
+                if (Charging)
+                    return -0.2;
+                else if (Discharging)
+                    return 0.2;
+
+                return 0.0;
+            }
+        }
+
+        /// <summary>
         /// If nog (dis)charging is in progress Net Zero Home is requested.
         /// </summary>
         public bool ZeroNetHome

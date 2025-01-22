@@ -11,11 +11,51 @@ namespace SessyWeb.Pages
 
         public List<HourlyPrice>? HourlyPrices { get; set; }
 
-        protected override Task OnInitializedAsync()
+        private CancellationTokenSource _cts = new();
+
+        protected override async Task OnInitializedAsync()
         {
             HourlyPrices = BatteriesService?.GetHourlyPrices();
 
-            return base.OnInitializedAsync();
+            await StartLoop();
+
+            await base.OnInitializedAsync();
+        }
+
+        private async Task StartLoop()
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+
+            try
+            {
+                while (await timer.WaitForNextTickAsync(_cts.Token))
+                {
+                    // Zorg ervoor dat de UI wordt bijgewerkt in de render-thread
+                    await InvokeAsync(() =>
+                    {
+                        HourlyPrices = BatteriesService?.GetHourlyPrices()?.ToList();
+                        StateHasChanged();
+                    });
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                Console.WriteLine("Timer gestopt.");
+            }
+        }
+
+        public string FormatAsPrice(object value)
+        {
+            var price = (double)value;
+
+            return $"{price:c3}";
+        }
+
+        public string FormatAsDayHour(object value)
+        {
+            var dateTime = (DateTime)value;
+
+            return $"{dateTime.Day}-{dateTime.Month}/{dateTime.Hour}";
         }
     }
 }

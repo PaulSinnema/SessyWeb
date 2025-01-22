@@ -388,6 +388,124 @@ namespace SessyController.Services
             HighestHoursLeftAndRight(hourlyPrices, highestPrices, maxDischargingHours);
 
             CheckCapacity(hourlyPrices);
+
+            OptimizeChargingSessions(hourlyPrices);
+        }
+
+        public static void OptimizeChargingSessions(List<HourlyPrice> hourlyPrices)
+        {
+            var chargingSessions = new List<List<HourlyPrice>>();
+            var chargingAbundance = new List<List<HourlyPrice>>();
+
+            List<HourlyPrice> currentSession = new();
+
+            // 🔍 Stap 1: Groepeer aaneengesloten charging-uren in sessies
+            foreach (var hour in hourlyPrices)
+            {
+                if (hour.Charging)
+                {
+                    currentSession.Add(hour);
+                }
+                else if (currentSession.Count > 0)
+                {
+                    chargingSessions.Add(new List<HourlyPrice>(currentSession));
+                    currentSession.Clear();
+                }
+            }
+
+            if (currentSession.Count > 0) chargingSessions.Add(currentSession);
+
+            chargingSessions = chargingSessions.OrderBy(cs => cs.Min(hp => hp.Time)).ToList();
+
+            if (chargingSessions.Count > 1)
+            {
+                for (var i = 1; i < chargingSessions.Count; i++)
+                {
+                    var last = chargingSessions[i - 1].Last().Time;
+                    var first = chargingSessions[i].First().Time;
+
+                    var hasDischargeBetween = hourlyPrices
+                        .Any(hp => hp.Time > last && hp.Time < first && hp.Discharging);
+
+                    if (!hasDischargeBetween)
+                    {
+                        if (!chargingAbundance.Contains(chargingSessions[i - 1]))
+                            chargingAbundance.Add(chargingSessions[i - 1]);
+                    }
+                }
+
+                if (chargingAbundance.Count > 1)
+                {
+                    var chargingToDiscard = chargingAbundance
+                        .OrderBy(ca => ca.Average(av => av.Price));
+
+                    for (var i = 1; i < chargingAbundance.Count; i++)
+                    {
+                        foreach(HourlyPrice hourlyPrice in chargingAbundance[i])
+                        {
+                            hourlyPrice.Charging = false;
+                        }
+                    }
+                }
+            }
+        }
+
+        static void CheckChargingWithoutDischargingHours(List<HourlyPrice> hourlyPrices)
+        {
+            List<List<HourlyPrice>> chargingSessions = new List<List<HourlyPrice>>();
+            List<HourlyPrice> currentSession = new List<HourlyPrice>();
+
+            // Stap 1: Groepeer de charging sessies
+            foreach (var entry in hourlyPrices)
+            {
+                if (entry.Charging)
+                {
+                    currentSession.Add(entry);
+                }
+                else
+                {
+                    if (currentSession.Count > 0)
+                    {
+                        chargingSessions.Add(new List<HourlyPrice>(currentSession));
+                        currentSession.Clear();
+                    }
+                }
+            }
+            if (currentSession.Count > 0)
+            {
+                chargingSessions.Add(new List<HourlyPrice>(currentSession));
+            }
+
+            // Stap 2: Check of er een discharging session tussen zit
+            for (int i = 0; i < chargingSessions.Count - 1; i++)
+            {
+                DateTime endHour = chargingSessions[i].Last().Time;
+                DateTime startNextSession = chargingSessions[i + 1].First().Time;
+
+                // Controleer of er een discharging sessie tussen de twee charging sessies zit
+                bool hasDischargingBetween = hourlyPrices.Any(h => h.Time > endHour && h.Time < startNextSession && h.Discharging);
+
+                if (!hasDischargingBetween)
+                {
+                    // Bereken de gemiddelde prijs van beide charging sessions
+                    double avgPriceFirst = chargingSessions[i].Average(h => h.Price);
+                    double avgPriceSecond = chargingSessions[i + 1].Average(h => h.Price);
+
+                    // Verwijder de charging session met de hoogste gemiddelde prijs
+                    var sessionToRemove = avgPriceFirst > avgPriceSecond ? chargingSessions[i] : chargingSessions[i + 1];
+
+                    foreach (var entry in sessionToRemove)
+                    {
+                        entry.Charging = false; // Zet deze op nzh (of een andere neutrale status)
+                    }
+
+                    // Verwijder de session uit de lijst om verdere checks correct uit te voeren
+                    chargingSessions.Remove(sessionToRemove);
+
+                    // Omdat we de lijst hebben aangepast, moeten we opnieuw door de lijst lopen
+                    i--;
+                }
+            }
         }
 
         /// <summary>
@@ -603,27 +721,48 @@ namespace SessyController.Services
                                 if (hourlyPrices[prevPrice].Price < hourlyPrices[nextPrice].Price)
                                 {
                                     hourlyPrices[nextPrice].Discharging = CheckPrices(hourlyPrices[nextPrice], hourlyPrices[price]);
-                                    hourlyPrices[nextPrice].HoursCharging = (hourlyPrices[price].HoursCharging);
-                                    highestPrices.Add(nextPrice++);
+
+                                    if (hourlyPrices[nextPrice].Discharging)
+                                    {
+                                        hourlyPrices[nextPrice].HoursCharging = (hourlyPrices[price].HoursCharging);
+                                        highestPrices.Add(nextPrice);
+                                    }
+                                    nextPrice++;
                                 }
                                 else
                                 {
                                     hourlyPrices[prevPrice].Discharging = CheckPrices(hourlyPrices[prevPrice], hourlyPrices[price]);
-                                    hourlyPrices[prevPrice].HoursCharging = (hourlyPrices[price].HoursCharging);
-                                    highestPrices.Add(prevPrice--);
+
+                                    if (hourlyPrices[prevPrice].Discharging)
+                                    {
+                                        hourlyPrices[prevPrice].HoursCharging = (hourlyPrices[price].HoursCharging);
+                                        highestPrices.Add(prevPrice);
+                                    }
+                                    prevPrice--;
                                 }
                             }
                             else if (prevPrice < 0)
                             {
                                 hourlyPrices[nextPrice].Discharging = CheckPrices(hourlyPrices[nextPrice], hourlyPrices[price]);
-                                hourlyPrices[nextPrice].HoursCharging = (hourlyPrices[price].HoursCharging);
-                                highestPrices.Add(nextPrice++);
+
+                                if (hourlyPrices[nextPrice].Discharging)
+                                {
+                                    hourlyPrices[nextPrice].HoursCharging = (hourlyPrices[price].HoursCharging);
+                                    highestPrices.Add(nextPrice);
+                                }
+
+                                nextPrice++;
                             }
                             else
                             {
                                 hourlyPrices[prevPrice].Discharging = CheckPrices(hourlyPrices[prevPrice], hourlyPrices[price]);
-                                hourlyPrices[prevPrice].HoursCharging = (hourlyPrices[price].HoursCharging);
-                                highestPrices.Add(prevPrice--);
+
+                                if (hourlyPrices[prevPrice].Discharging)
+                                {
+                                    hourlyPrices[prevPrice].HoursCharging = (hourlyPrices[price].HoursCharging);
+                                    highestPrices.Add(prevPrice);
+                                }
+                                prevPrice--;
                             }
 
                             maxPrice--;
