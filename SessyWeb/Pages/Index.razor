@@ -7,18 +7,17 @@
 
 <PageTitle>Sessy</PageTitle>
 
-<html>
-<body>
-	<div>
-		@{
-			foreach (var battery in GetBatteries())
+<div>
+	@{
+		if (Batteries != null)
+		{
+			foreach (var battery in Batteries)
 			{
-				<BatteryInfoComponent Battery=@battery>
-				
-				</BatteryInfoComponent>
+				<div>
+					<BatteryInfoComponent Battery=@battery />
+				</div>
 			}
 		}
-	</div>
-</body>
-</html>
+	}
+</div>
 

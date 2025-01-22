@@ -1,36 +1,68 @@
 ﻿@inherits BatteryInfo
 
-@{
-	var powerStatus = Battery.GetPowerStatus().GetAwaiter().GetResult();
+
+@if (powerStatus == null)
+{
+	<p>Bezig met laden...</p>
 }
+else
+{
 
-<div>
-	<table>
-		<thead>
-			<tr>
-				<th>Description</th>
-				<th>Result</th>
-			</tr>
-		</thead>
-		<tbody>
-			<tr>
-				<td>Power status</td>
-				<td>@powerStatus?.Status</td>
-			</tr>
-			<tr>
-				<td>Power</td>
-				<td>@powerStatus?.Sessy?.Power</td>
-			</tr>
-			<tr>
-				<td>Setpoint</td>
-				<td>@powerStatus?.Sessy?.PowerSetpoint</td>
-			</tr>
-			<tr>
-				<td>State of charge</td>
-				<td>@powerStatus?.Sessy?.StateOfCharge</td>
-			</tr>
-		</tbody>
-	</table>
+	<div>
+		<table>
+			<thead>
+				<tr>
+					<th>Title</th>
+					<th>Value</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<td>Power status</td>
+					<td>@powerStatus?.Status</td>
+				</tr>
+				<tr>
+					<td>Power</td>
+					<td>@powerStatus?.Sessy?.Power</td>
+				</tr>
+				<tr>
+					<td>Setpoint</td>
+					<td>@powerStatus?.Sessy?.PowerSetpoint</td>
+				</tr>
+				<tr>
+					<td>State of charge</td>
+					<td>@powerStatus?.Sessy?.StateOfCharge</td>
+				</tr>
+				<tr>
+					<td>System state</td>
+					<td>@powerStatus?.Sessy?.SystemState</td>
+				</tr>
+				<tr>
+					<td>System state details</td>
+					<td>@powerStatus?.Sessy?.SystemStateDetails</td>
+				</tr>
+				<tr>
+					<td>Inverted current in mAmpere</td>
+					<td>@powerStatus?.Sessy?.Frequency</td>
+				</tr>
+				<tr>
+					<td>Frequency</td>
+					<td>@powerStatus?.Sessy?.InverterCurrentMa</td>
+				</tr>
+				<tr>
+					<td>Renewable Phase 1 Power</td>
+					<td>@powerStatus?.RenewableEnergyPhase1?.Power</td>
+				</tr>
+				<tr>
+					<td>Renewable Phase 2 Power</td>
+					<td>@powerStatus?.RenewableEnergyPhase2?.Power</td>
+				</tr>
+				<tr>
+					<td>Renewable Phase 3 Power</td>
+					<td>@powerStatus?.RenewableEnergyPhase3?.Power</td>
+				</tr>
+			</tbody>
+		</table>
+	</div>
 
-</div>
-
+}

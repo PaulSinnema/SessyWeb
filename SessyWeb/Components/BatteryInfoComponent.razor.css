@@ -1,4 +1,5 @@
-﻿table {
+﻿/* Algemene tabelstijl voor grote schermen */
+table {
     width: 100%;
     border-collapse: collapse;
     margin: 20px 0;
@@ -7,10 +8,14 @@
     border-radius: 8px;
     overflow: hidden;
     box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+    background-color: #1E1E1E; /* Donkere achtergrond */
+    color: white;
 }
 
+/* Stijlen voor de tabelkop */
 th, td {
     padding: 12px 15px;
+    white-space: nowrap;
 }
 
 thead {
@@ -19,18 +24,76 @@ thead {
     font-weight: bold;
 }
 
+/* Om-en-om achtergrondkleuren */
 tbody tr {
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid #444;
 }
 
     tbody tr:nth-child(even) {
-        background-color: #f3f3f3;
+        background-color: #2A2A2A;
     }
 
     tbody tr:hover {
-        background-color: #d6eaff;
+        background-color: #007BFF;
+        color: white;
     }
 
-th {
-    text-transform: uppercase;
+/* Responsieve weergave: Scrollbare tabel op kleine schermen */
+.table-container {
+    width: 100%;
+    overflow-x: auto;
+    padding: 10px;
+}
+
+/* 🔹 Mobiele weergave: Tabel in ‘kaartvorm’ weergeven op kleine schermen */
+@media (max-width: 1000px) {
+    table, thead, tbody, th, td, tr {
+        display: block;
+    }
+
+    thead {
+        display: none; /* Verberg de koptekst */
+    }
+
+    tr {
+        margin-bottom: 15px;
+        border: 1px solid #444;
+        border-radius: 12px;
+        padding: 15px;
+        background: #222;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Betere schaduw voor visueel effect */
+        transition: transform 0.2s ease-in-out;
+    }
+
+        tr:hover {
+            transform: scale(1.02); /* Kleine vergroting bij hover voor een modern effect */
+        }
+
+    td {
+        display: flex;
+        justify-content: space-between;
+        padding: 12px;
+        font-size: 16px;
+        border-bottom: 1px solid #444;
+        position: relative;
+    }
+
+        td:last-child {
+            border-bottom: none;
+        }
+
+        /* Verbeterde labels voor mobile view */
+        td::before {
+            content: attr(data-label);
+            font-weight: bold;
+            text-transform: uppercase;
+            color: #007BFF;
+            flex: 1; /* Zorgt ervoor dat het label netjes wordt uitgelijnd */
+        }
+
+        /* Betere leesbaarheid */
+        td span {
+            flex: 2;
+            text-align: right;
+        }
 }
