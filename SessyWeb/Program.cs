@@ -1,13 +1,8 @@
-﻿using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.Extensions.DependencyInjection;
-using Radzen;
-using SessyController.Configurations;
-using SessyController.Extensions;
+﻿using SessyController.Configurations;
 using SessyController.Providers;
 using SessyController.Services;
 using SessyController.Services.Items;
 using SessyWeb.Controllers;
-using SessyWeb.Data;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -76,12 +71,11 @@ builder.Services.AddHostedService(provider => provider.GetRequiredService<Batter
 
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
-builder.Services.AddSingleton<WeatherForecastService>();
 
-builder.Services.AddScoped<DialogService>();
-builder.Services.AddScoped<NotificationService>();
-builder.Services.AddScoped<TooltipService>();
-builder.Services.AddScoped<ContextMenuService>();
+builder.Services.AddScoped<Radzen.DialogService>();
+builder.Services.AddScoped<Radzen.NotificationService>();
+builder.Services.AddScoped<Radzen.TooltipService>();
+builder.Services.AddScoped<Radzen.ContextMenuService>();
 
 builder.Services.AddScoped<BatteryManagementController>();
 builder.Services.AddControllers();

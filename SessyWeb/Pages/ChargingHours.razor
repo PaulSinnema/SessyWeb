@@ -1,27 +1,32 @@
 ﻿@page "/charginghours"
 @inherits PageBase
+@inject TooltipService tooltipService
+
+@using SessyController.Services.Items
 
 @if (HourlyPrices != null && HourlyPrices.Count() != 0)
 {
-	<RadzenChart>
-		<RadzenChartTooltipOptions Shared="false" />
-		<RadzenColumnSeries Data="@HourlyPrices" CategoryProperty="Time" Title="Price" LineType="LineType.Dashed" ValueProperty="Price">
-			<RadzenSeriesDataLabels Visible="true" />
-		</RadzenColumnSeries>
-		<RadzenLineSeries Smooth="false" Data="@HourlyPrices" CategoryProperty="Time" Title="Charging" ValueProperty="VisualizeInChart">
-			<RadzenMarkers Visible="true" MarkerType="MarkerType.Circle" />
-			<RadzenSeriesDataLabels Visible="false" />
-		</RadzenLineSeries>
-		<RadzenCategoryAxis Padding="20" Formatter="@FormatAsDayHour">
-			<RadzenGridLines Visible="true" />
-			<RadzenAxisTitle Text="Time" />
-		</RadzenCategoryAxis>
-		<RadzenValueAxis Formatter="@FormatAsPrice">
-			<RadzenGridLines Visible="true" />
-			<RadzenAxisTitle Text="Price" />
-		</RadzenValueAxis>
-		<RadzenBarOptions Radius="5" />
-	</RadzenChart>
+	<div style="overflow-x: auto; width: 100%; overflow-y: auto; height:100%;">
+		<RadzenChart Style="min-height: 4000px; min-width: 600px;">
+			<RadzenChartTooltipOptions Shared="false" Visible="true" />
+			<RadzenBarSeries Data="@HourlyPrices" CategoryProperty="Time" Title="Price" LineType="LineType.Dashed" ValueProperty="Price">
+				<RadzenSeriesDataLabels Visible="true" />
+			</RadzenBarSeries>
+			<RadzenBarSeries Data="@HourlyPrices" CategoryProperty="Time" Title="Charging" ValueProperty="VisualizeInChart">
+				<RadzenMarkers Visible="true" MarkerType="MarkerType.Circle" />
+				<RadzenSeriesDataLabels Visible="false" />
+			</RadzenBarSeries>
+			<RadzenCategoryAxis Padding="20" Formatter="@FormatAsDayHour">
+				<RadzenGridLines Visible="true" />
+				<RadzenAxisTitle Text="Time" />
+			</RadzenCategoryAxis>
+			<RadzenValueAxis Formatter="@FormatAsPrice">
+				<RadzenGridLines Visible="true" />
+				<RadzenAxisTitle Text="Price" />
+			</RadzenValueAxis>
+			<RadzenBarOptions Radius="5" />
+		</RadzenChart>
+	</div>
 }
 else
 {
@@ -29,3 +34,5 @@ else
 		No prices yet, just a moment .....
 	</div>
 }
+
+
