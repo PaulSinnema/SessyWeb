@@ -8,6 +8,6 @@ namespace SessyWeb.Pages
     public class PageBase : ComponentBase
     {
         [Inject]
-        public BatteryContainer batteryContainer { get; set; }
+        public BatteryContainer? batteryContainer { get; set; }
     }
 }

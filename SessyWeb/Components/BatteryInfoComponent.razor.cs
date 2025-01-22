@@ -1,5 +1,4 @@
-﻿using System.ComponentModel;
-using Microsoft.AspNetCore.Components;
+﻿using Microsoft.AspNetCore.Components;
 using SessyController.Services;
 using SessyController.Services.Items;
 
@@ -41,8 +40,11 @@ namespace SessyWeb.Components
 
         private async Task LoadPowerStatus()
         {
-            powerStatus = await Battery.GetPowerStatus();
-            await InvokeAsync(StateHasChanged);
+            if (Battery != null)
+            {
+                powerStatus = await Battery.GetPowerStatus();
+                await InvokeAsync(StateHasChanged);
+            }
         }
 
         public void Dispose()

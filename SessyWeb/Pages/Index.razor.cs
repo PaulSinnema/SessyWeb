@@ -8,7 +8,7 @@ namespace SessyWeb.Pages
 
         private CancellationTokenSource _cts = new();
 
-        protected override async Task OnInitializedAsync()
+        protected override void OnInitialized()
         {
             // Laad initiële data
             Batteries = batteryContainer?.Batteries?.ToList();
