@@ -103,6 +103,17 @@
             }
         }
 
+        public string DisplayState
+        {
+            get
+            {
+                return Charging ? "Charging" :
+                          Discharging ? "Discharging" :
+                          ZeroNetHome ? "Net zero home" :
+                          "Disabled";
+            }
+        }
+
         /// <summary>
         /// If nog (dis)charging is in progress Net Zero Home is requested.
         /// </summary>
