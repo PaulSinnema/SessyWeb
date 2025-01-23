@@ -391,7 +391,7 @@ namespace SessyController.Services
 
             CheckCapacity(hourlyPrices);
 
-            // OptimizeChargingSessions(hourlyPrices);
+            OptimizeChargingSessions(hourlyPrices);
         }
 
         public static void OptimizeChargingSessions(List<HourlyPrice> hourlyPrices)
@@ -415,38 +415,18 @@ namespace SessyController.Services
                 }
             }
 
-            if (currentSession.Count > 0) chargingSessions.Add(currentSession);
+            if (currentSession.Count > 0)
+                chargingSessions.Add(currentSession);
 
-            chargingSessions = chargingSessions.OrderBy(cs => cs.Min(hp => hp.Time)).ToList();
-
-            if (chargingSessions.Count > 1)
+            foreach (var chargingSession in chargingSessions)
             {
-                for (var i = 1; i < chargingSessions.Count; i++)
+                if (chargingSession.Count > 3)
                 {
-                    var last = chargingSessions[i - 1].Last().Time;
-                    var first = chargingSessions[i].First().Time;
+                    var session = chargingSession.OrderBy(cs => cs.Price).ToList();
 
-                    var hasDischargeBetween = hourlyPrices
-                        .Any(hp => hp.Time > last && hp.Time < first && hp.Discharging);
-
-                    if (!hasDischargeBetween)
+                    for (int i = 3; i < session.Count; i++)
                     {
-                        if (!chargingAbundance.Contains(chargingSessions[i - 1]))
-                            chargingAbundance.Add(chargingSessions[i - 1]);
-                    }
-                }
-
-                if (chargingAbundance.Count > 1)
-                {
-                    var chargingToDiscard = chargingAbundance
-                        .OrderBy(ca => ca.Average(av => av.Price));
-
-                    for (var i = 1; i < chargingAbundance.Count; i++)
-                    {
-                        foreach(HourlyPrice hourlyPrice in chargingAbundance[i])
-                        {
-                            hourlyPrice.Charging = false;
-                        }
+                        session[i].Charging = false;
                     }
                 }
             }

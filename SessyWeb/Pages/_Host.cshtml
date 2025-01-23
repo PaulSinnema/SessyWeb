@@ -7,10 +7,6 @@
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
 @inject Radzen.ThemeService ThemeService
 @inject Microsoft.AspNetCore.Http.IHttpContextAccessor HttpContextAccessor
-@inject ThemeService ThemeService
-@inject RadzenTheme RadzenTheme
-
-<RadzenTheme Theme="@MainLayout.NewTheme" />
 
 @{
 	Layout = "_Layout";
@@ -23,3 +19,13 @@
 <component type="typeof(App)" render-mode="ServerPrerendered" />
 
 
+@inject Microsoft.AspNetCore.Http.IHttpContextAccessor HttpContextAccessor
+
+
+<script>
+    // Read the SessyTheme cookie for later use.
+    var theme = '@HttpContextAccessor.HttpContext?.Request.Cookies["SessyTheme"]';
+    if (theme) {
+        localStorage.setItem('MyApplicationTheme', theme);
+    }
+</script>

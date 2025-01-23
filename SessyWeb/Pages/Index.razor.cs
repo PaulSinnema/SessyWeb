@@ -25,8 +25,6 @@ namespace SessyWeb.Pages
             {
                 while (await timer.WaitForNextTickAsync(_cts.Token))
                 {
-                    Console.WriteLine("Timer tick - Batterijen verversen");
-
                     // Zorg ervoor dat de UI wordt bijgewerkt in de render-thread
                     await InvokeAsync(() =>
                     {
@@ -37,7 +35,7 @@ namespace SessyWeb.Pages
             }
             catch (OperationCanceledException)
             {
-                Console.WriteLine("Timer gestopt.");
+                Console.WriteLine("Index: Timer stopped.");
             }
         }
 

@@ -17,15 +17,22 @@
 	</RadzenHeader>
 	<RadzenSidebar @bind-Expanded="@sidebar1Expanded">
 		<RadzenPanelMenu>
-			<RadzenPanelMenuItem Text="Home" Path="" Icon="home" />
-			<RadzenPanelMenuItem Text="Charging hours" Path="charginghours" Icon="account_box" />
-			<RadzenDropDown Name="ThemeDropDown"
-			TValue="string"
-			Value="@ThemeService.Theme"
-			ValueChanged="@ChangeTheme"
-			Data="@Themes.All"
-			TextProperty=@nameof(Theme.Text)
-			ValueProperty=@nameof(Theme.Value) />
+			<RadzenPanelMenuItem 
+				Text="Home"
+				Path="" Icon="home" />
+			<RadzenPanelMenuItem 
+				Text="Charging hours"
+				Path="charginghours"
+				Icon="account_box" />
+			<RadzenDropDown
+				Style="width: 100%;"
+				Name="ThemeDropDown"
+				TValue="string"
+				Value="@ThemeService.Theme"
+				ValueChanged="@ChangeTheme"
+				Data="@Themes.Free"
+				TextProperty=@nameof(Theme.Text)
+				ValueProperty=@nameof(Theme.Value) />
 
 		</RadzenPanelMenu>
 	</RadzenSidebar>
@@ -47,7 +54,32 @@
 	void ChangeTheme(string theme)
 	{
 		NewTheme = theme;
-		// ThemeService.SetTheme(theme, true);
+		ThemeService.SetTheme(theme, true);
 	}
 }
 
+@inject IJSRuntime JSRuntime
+@inject Radzen.ThemeService ThemeService
+
+@code {
+	private bool _initialized;
+
+	protected override async Task OnAfterRenderAsync(bool firstRender)
+	{
+		if (firstRender && !_initialized)
+		{
+			_initialized = true; // Prevents multiple calls
+
+			// Haal het thema op uit localStorage
+			var theme = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "SessyTheme");
+
+			if (!string.IsNullOrEmpty(theme))
+			{
+				NewTheme = theme;
+
+				// Pas het thema toe
+				ThemeService.SetTheme(theme, true);
+			}
+		}
+	}
+}
