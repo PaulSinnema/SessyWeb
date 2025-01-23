@@ -1,4 +1,6 @@
-﻿using SessyController.Configurations;
+﻿using Radzen;
+using Radzen.Blazor;
+using SessyController.Configurations;
 using SessyController.Providers;
 using SessyController.Services;
 using SessyController.Services.Items;
@@ -76,9 +78,21 @@ builder.Services.AddScoped<Radzen.DialogService>();
 builder.Services.AddScoped<Radzen.NotificationService>();
 builder.Services.AddScoped<Radzen.TooltipService>();
 builder.Services.AddScoped<Radzen.ContextMenuService>();
+builder.Services.AddScoped<Radzen.ThemeService>();
+builder.Services.AddScoped<RadzenTheme>();
+builder.Services.AddHttpContextAccessor();
 
+// For swagger. Use https://<baseurl>/swagger in a browser to see this page.
 builder.Services.AddScoped<BatteryManagementController>();
+
 builder.Services.AddControllers();
+builder.Services.AddRadzenComponents();
+
+builder.Services.AddRadzenCookieThemeService(options =>
+{
+    options.Name = "SessyTheme"; // The name of the cookie
+    options.Duration = TimeSpan.FromDays(365); // The duration of the cookie
+});
 
 var app = builder.Build();
 
@@ -86,10 +100,8 @@ if (app.Environment.IsDevelopment())
 {
     Console.WriteLine("Development environment");
 
-#if SWAGGER
     app.UseSwagger();
     app.UseSwaggerUI();
-#endif
 }
 
 // Configure the HTTP request pipeline.

@@ -1,19 +1,53 @@
 ﻿@inherits LayoutComponentBase
+@inject CookieThemeService CookieThemeService
+@inject ThemeService ThemeService
+@inject RadzenTheme RadzenTheme
+@inject IJSRuntime JSRuntime
 
-<PageTitle>SessyWeb</PageTitle>
+<RadzenTooltip />
+<RadzenChartTooltip />
+<RadzenTheme Theme="@NewTheme" />
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
+<RadzenLayout>
+	<RadzenHeader>
+		<RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0">
+			<RadzenSidebarToggle Click="@(() => sidebar1Expanded = !sidebar1Expanded)" />
+			<RadzenImage Path="..\SessyWeb\images\sessy.svg" />
+		</RadzenStack>
+	</RadzenHeader>
+	<RadzenSidebar @bind-Expanded="@sidebar1Expanded">
+		<RadzenPanelMenu>
+			<RadzenPanelMenuItem Text="Home" Path="" Icon="home" />
+			<RadzenPanelMenuItem Text="Charging hours" Path="charginghours" Icon="account_box" />
+			<RadzenDropDown Name="ThemeDropDown"
+			TValue="string"
+			Value="@ThemeService.Theme"
+			ValueChanged="@ChangeTheme"
+			Data="@Themes.All"
+			TextProperty=@nameof(Theme.Text)
+			ValueProperty=@nameof(Theme.Value) />
 
-    <main>
-        <div class="top-row px-4">
-            <a href="https://docs.microsoft.com/aspnet/" target="_blank">About</a>
-        </div>
+		</RadzenPanelMenu>
+	</RadzenSidebar>
+	<RadzenBody>
+		<div class="rz-p-4">
+			@Body
+		</div>
+	</RadzenBody>
+	<RadzenFooter>
 
-        <article class="content px-4">
-            @Body
-        </article>
-    </main>
-</div>
+	</RadzenFooter>
+</RadzenLayout>
+
+@code {
+	public static string NewTheme { get; set; } = "Dark";
+
+	bool sidebar1Expanded = true;
+
+	void ChangeTheme(string theme)
+	{
+		NewTheme = theme;
+		// ThemeService.SetTheme(theme, true);
+	}
+}
+

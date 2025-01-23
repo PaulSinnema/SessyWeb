@@ -1,16 +1,25 @@
 ﻿@page "/"
 @namespace SessyWeb.Pages
+@using Microsoft.AspNetCore.Components
+@using Radzen
+@using Radzen.Blazor
+@using SessyWeb.Shared
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@inject Radzen.ThemeService ThemeService
+@inject Microsoft.AspNetCore.Http.IHttpContextAccessor HttpContextAccessor
+@inject ThemeService ThemeService
+@inject RadzenTheme RadzenTheme
+
+<RadzenTheme Theme="@MainLayout.NewTheme" />
+
 @{
 	Layout = "_Layout";
 }
 
 <head>
 	<link rel="stylesheet" href="_content/Radzen.Blazor/css/material-base.css">
-
-	@*  <link rel="stylesheet" href="_content/Radzen.Blazor/css/dark-base.css">
- *@
-	<script src="_content/Radzen.Blazor/Radzen.Blazor.js"></script>
 </head>
 
 <component type="typeof(App)" render-mode="ServerPrerendered" />
+
+
