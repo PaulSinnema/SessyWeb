@@ -1,6 +1,9 @@
-﻿using Microsoft.Extensions.Options;
+﻿using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Options;
 using SessyController.Configurations;
 using SessyController.Services.Items;
+using static SessyController.Services.Items.Session;
+using static SessyController.Services.Items.Sessions;
 
 namespace SessyController.Services
 {
@@ -19,7 +22,7 @@ namespace SessyController.Services
         private readonly BatteryContainer _batteryContainer;
         private readonly LoggingService<BatteriesService> _logger;
         private readonly TimeZoneInfo _timeZone;
-        private static List<HourlyPrice>? hourlyPrices { get; set; }
+        private static List<HourlyPrice> hourlyPrices { get; set; } = new List<HourlyPrice>();
 
         public BatteriesService(LoggingService<BatteriesService> logger,
                                 IOptions<SettingsConfig> settingsConfig,
@@ -52,7 +55,6 @@ namespace SessyController.Services
                 _dayAheadMarketService = scope.ServiceProvider.GetRequiredService<DayAheadMarketService>();
                 _solarEdgeService = scope.ServiceProvider.GetRequiredService<SolarEdgeService>();
                 _batteryContainer = scope.ServiceProvider.GetRequiredService<BatteryContainer>();
-                hourlyPrices = new List<HourlyPrice>();
             }
         }
 
@@ -364,34 +366,24 @@ namespace SessyController.Services
             int maxChargingHours = (int)Math.Ceiling(totalBatteryCapacity / chargingPower);
             int maxDischargingHours = (int)Math.Ceiling(totalBatteryCapacity / dischargingPower);
 
-            var pricesSortedByDate = hourlyPrices?.OrderBy(hp => hp.Time).ToList();
+            hourlyPrices = hourlyPrices.OrderBy(hp => hp.Time).ToList();
 
             List<int> lowestPrices = new List<int>();
             List<int> highestPrices = new List<int>();
 
-            var averagePrice = hourlyPrices == null ? 0.0 : hourlyPrices.Average(hp => hp.Price);
+            var averagePrice = hourlyPrices.Average(hp => hp.Price);
 
-            SearchForLowestAndHighestPrices(hourlyPrices, lowestPrices, highestPrices, averagePrice);
+            Sessions sessions = CreateChargingAndDischargingSessions(hourlyPrices, averagePrice);
 
-            foreach (var price in lowestPrices)
-            {
-                hourlyPrices[price].Charging = true;
-            }
+            //CheckDischargeHours(hourlyPrices, lowestPrices, highestPrices);
 
-            foreach (var price in highestPrices)
-            {
-                hourlyPrices[price].Discharging = true;
-            }
+            //LowestHoursLeftAndRight(hourlyPrices, lowestPrices, maxChargingHours);
 
-            CheckDischargeHours(hourlyPrices, lowestPrices, highestPrices);
+            //HighestHoursLeftAndRight(hourlyPrices, highestPrices, maxDischargingHours);
 
-            LowestHoursLeftAndRight(hourlyPrices, lowestPrices, maxChargingHours);
+            //CheckCapacity(hourlyPrices);
 
-            HighestHoursLeftAndRight(hourlyPrices, highestPrices, maxDischargingHours);
-
-            CheckCapacity(hourlyPrices);
-
-            OptimizeChargingSessions(hourlyPrices);
+            //OptimizeChargingSessions(hourlyPrices);
         }
 
         public static void OptimizeChargingSessions(List<HourlyPrice> hourlyPrices)
@@ -541,18 +533,24 @@ namespace SessyController.Services
         /// <summary>
         /// Determine when the prices are the highest en the lowest.
         /// </summary>
-        private static void SearchForLowestAndHighestPrices(List<HourlyPrice>? hourlyPrices, List<int> lowestPrices, List<int> highestPrices, double averagePrice)
+        private static Sessions CreateChargingAndDischargingSessions(List<HourlyPrice> hourlyPrices, double averagePrice)
         {
+            Sessions sessions = new Sessions();
+
             if (hourlyPrices != null && hourlyPrices.Count > 0)
             {
                 // Controleer eerste element
                 if (hourlyPrices.Count > 1)
                 {
                     if (hourlyPrices[0].Price < hourlyPrices[1].Price && hourlyPrices[0].Price < averagePrice)
-                        lowestPrices.Add(0);
+                    {
+                        sessions.AddNewSession(Modes.Charging, hourlyPrices[0]);
+                    }
 
                     if (hourlyPrices[0].Price > hourlyPrices[1].Price && hourlyPrices[0].Price > averagePrice)
-                        highestPrices.Add(0);
+                    {
+                        sessions.AddNewSession(Modes.Discharging, hourlyPrices[0]);
+                    }
                 }
 
                 // Controleer de tussenliggende elementen
@@ -561,13 +559,13 @@ namespace SessyController.Services
                     if (hourlyPrices[i].Price < hourlyPrices[i - 1].Price && hourlyPrices[i].Price < hourlyPrices[i + 1].Price)
                     {
                         if (hourlyPrices[i].Price < averagePrice)
-                            lowestPrices.Add(i);
+                            sessions.AddNewSession(Modes.Charging, hourlyPrices[i]);
                     }
 
                     if (hourlyPrices[i].Price > hourlyPrices[i - 1].Price && hourlyPrices[i].Price > hourlyPrices[i + 1].Price)
                     {
                         if (hourlyPrices[i].Price > averagePrice)
-                            highestPrices.Add(i);
+                            sessions.AddNewSession(Modes.Discharging, hourlyPrices[i]);
                     }
                 }
 
@@ -575,12 +573,14 @@ namespace SessyController.Services
                 if (hourlyPrices.Count > 1)
                 {
                     if (hourlyPrices[hourlyPrices.Count - 1].Price < hourlyPrices[hourlyPrices.Count - 2].Price && hourlyPrices[hourlyPrices.Count - 1].Price < averagePrice)
-                        lowestPrices.Add(hourlyPrices.Count - 1);
+                        sessions.AddNewSession(Modes.Charging, hourlyPrices[hourlyPrices.Count - 1]);
 
                     if (hourlyPrices[hourlyPrices.Count - 1].Price > hourlyPrices[hourlyPrices.Count - 2].Price && hourlyPrices[hourlyPrices.Count - 1].Price > averagePrice)
-                        highestPrices.Add(hourlyPrices.Count - 1);
+                        sessions.AddNewSession(Modes.Discharging, hourlyPrices[hourlyPrices.Count - 1]);
                 }
             }
+
+            return sessions;
         }
 
         /// <summary>
