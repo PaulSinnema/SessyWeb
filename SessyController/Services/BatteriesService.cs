@@ -378,15 +378,11 @@ namespace SessyController.Services
 
             Sessions sessions = CreateSessions(hourlyPrices, averagePrice);
 
-            MergeSessions(sessions, averagePrice);
+            EvaluateSessions(averagePrice, sessions);
 
-            RemoveEmptySessions(sessions);
-
-            OptimizeSessions(sessions);
-
-            foreach(var session in sessions.SessionList)
+            foreach (var session in sessions.SessionList.ToList())
             {
-                foreach(var hourlyPrice in session.PriceList)
+                foreach (var hourlyPrice in session.PriceList)
                 {
                     hourlyPrice.Charging = session.Mode == Modes.Charging;
                     hourlyPrice.Discharging = session.Mode == Modes.Discharging;
@@ -404,8 +400,101 @@ namespace SessyController.Services
             //OptimizeChargingSessions(hourlyPrices);
         }
 
-        private void OptimizeSessions(Sessions sessions)
+        private void EvaluateSessions(double averagePrice, Sessions sessions)
         {
+            var changed = false;
+
+            do
+            {
+                changed = false;
+
+                changed = MergeSessions(sessions, averagePrice);
+
+                changed = changed || RemoveExtraSessions(sessions);
+
+                changed = changed || RemoveEmptySessions(sessions);
+
+                changed = changed || CheckProfetability(sessions);
+            } while (changed);
+        }
+
+        private bool CheckProfetability(Sessions sessions)
+        {
+            var changed = false;
+
+            var sessionList = sessions.SessionList.OrderBy(se => se.First).ToList();
+
+            for (int currentSession = 0; currentSession < sessionList.Count; currentSession++)
+            {
+                switch (sessionList[currentSession].Mode)
+                {
+                    case Modes.Charging:
+                        {
+                            if(currentSession + 1 < sessionList.Count)
+                            {
+                                if (sessionList[currentSession + 1].Mode == Modes.Discharging)
+                                {
+                                    var chargingHours = sessionList[currentSession].PriceList.OrderBy(hp => hp.Price).ToList();
+                                    var dischargingHours = sessionList[currentSession + 1].PriceList.OrderByDescending(hp => hp.Price).ToList();
+                                    var maxHours = Math.Min(chargingHours.Count, dischargingHours.Count);
+
+                                    var chargingEnumerator = chargingHours.GetEnumerator();
+                                    var dischargingEnumerator = dischargingHours.GetEnumerator();
+
+                                    var hasCharging = chargingEnumerator.MoveNext();
+                                    var hasDischarging = dischargingEnumerator.MoveNext();
+
+                                    while (hasCharging || hasDischarging)
+                                    {
+                                        if (hasCharging)
+                                        {
+                                            if (hasDischarging)
+                                            {
+                                                if (chargingEnumerator.Current.Price + _settingsConfig.CycleCost > dischargingEnumerator.Current.Price)
+                                                {
+                                                    sessions.SessionList[currentSession + 1].PriceList.Remove(dischargingEnumerator.Current);
+                                                    hasDischarging = dischargingEnumerator.MoveNext();
+                                                    changed = true;
+                                                }
+                                                else
+                                                {
+                                                    hasDischarging = dischargingEnumerator.MoveNext();
+                                                    hasCharging = chargingEnumerator.MoveNext();
+                                                }
+                                            }
+                                            else
+                                                break;
+                                        }
+                                        else
+                                        {
+                                            if (hasDischarging)
+                                            {
+                                                sessions.SessionList[currentSession + 1].PriceList.Remove(dischargingEnumerator.Current);
+                                                hasDischarging = dischargingEnumerator.MoveNext();
+                                                changed = true;
+                                            }
+                                        }
+                                    }
+                                }
+                                else
+                                    _logger.LogWarning($"Charging session with discharging session {sessionList[currentSession]}");
+                            }
+                        }
+                        break;
+
+                    case Modes.Discharging:
+                    default:
+                        break;
+                }
+            }
+
+            return changed;
+        }
+
+        private bool RemoveExtraSessions(Sessions sessions)
+        {
+            var changed = false;
+
             List<HourlyPrice> listToRemove;
 
             foreach (var session in sessions.SessionList.ToList())
@@ -432,35 +521,53 @@ namespace SessyController.Services
                 for (int i = session.MaxHours; i < listToRemove.Count; i++)
                 {
                     session.PriceList.Remove(listToRemove[i]);
+                    changed = true;
                 }
             }
+
+            return changed;
         }
 
-        private void RemoveEmptySessions(Sessions sessions)
+        private bool RemoveEmptySessions(Sessions sessions)
         {
+            var changed = false;
+
             foreach (var session in sessions.SessionList.ToList())
             {
-                if (session.PriceList.Count == 0)
-                    sessions.SessionList.Remove(session);
+                if (session.PriceList.Count() == 0)
+                {
+                    var index = sessions.SessionList.Remove(session);
+                    changed = true;
+                }
             }
+
+            return changed;
         }
 
-        private void MergeSessions(Sessions sessions, double averagePrice)
+        private bool MergeSessions(Sessions sessions, double averagePrice)
         {
-            Session? lastSession = null;
+            var changed = false;
 
-            foreach (var session in sessions.SessionList)
+            Session? lastSession = null;
+            var list = sessions.SessionList
+                        .Where(se => se.PriceList.Count > 0)
+                        .OrderBy(se => se.First).ToList();
+
+            foreach (var session in list)
             {
                 if(lastSession != null)
                 {
                     if(lastSession.Mode == session.Mode)
                     {
                         MergeSessions(session, lastSession);
+                        changed = true;
                     }
                 }
 
                 lastSession = session;
             }
+
+            return changed;
         }
 
         private void MergeSessions(Session lastSession, Session session)

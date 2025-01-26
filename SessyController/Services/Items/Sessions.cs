@@ -19,7 +19,7 @@ namespace SessyController.Services.Items
             _cycleCost = cycleCost;
         }
 
-        public List<Session> SessionList => _sessionList.ToList();
+        public List<Session> SessionList => _sessionList;
 
         public bool InAnySession(HourlyPrice hourlyPrice)
         {

@@ -109,7 +109,7 @@ namespace SessyController.Services
         public async Task Process(CancellationToken cancellationToken)
         {
             // Fetch day-ahead market prices
-            _prices = await FetchDayAheadPricesAsync(DateTime.UtcNow.AddDays(-1), cancellationToken);
+            _prices = await FetchDayAheadPricesAsync(DateTime.UtcNow.AddDays(-1), 2, cancellationToken);
 
             PricesAvailable = _prices != null && _prices.Count > 0;
 
@@ -138,11 +138,11 @@ namespace SessyController.Services
         /// <summary>
         /// Get the day-ahead-prices from ENTSO-E Api.
         /// </summary>
-        private static async Task<ConcurrentDictionary<DateTime, double>> FetchDayAheadPricesAsync(DateTime date, CancellationToken cancellationToken)
+        private static async Task<ConcurrentDictionary<DateTime, double>> FetchDayAheadPricesAsync(DateTime date, int futureDays, CancellationToken cancellationToken)
         {
             date = new DateTime(date.Year, date.Month, date.Day, 0, 0, 0);
             string periodStart = date.ToString(FormatDate) + FormatTime;
-            string periodEnd = date.AddDays(2).ToString(FormatDate) + FormatTime;
+            string periodEnd = date.AddDays(futureDays).ToString(FormatDate) + FormatTime;
             string url = $"{ApiUrl}?documentType=A44&in_Domain={_inDomain}&out_Domain={_inDomain}&periodStart={periodStart}&periodEnd={periodEnd}&securityToken={_securityToken}";
 
             var client = _httpClientFactory?.CreateClient();
