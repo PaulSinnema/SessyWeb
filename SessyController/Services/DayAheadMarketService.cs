@@ -109,7 +109,7 @@ namespace SessyController.Services
         public async Task Process(CancellationToken cancellationToken)
         {
             // Fetch day-ahead market prices
-            _prices = await FetchDayAheadPricesAsync(DateTime.UtcNow, cancellationToken);
+            _prices = await FetchDayAheadPricesAsync(DateTime.UtcNow.AddDays(-1), cancellationToken);
 
             PricesAvailable = _prices != null && _prices.Count > 0;
 

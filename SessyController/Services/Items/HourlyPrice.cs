@@ -12,6 +12,11 @@
         /// </summary>
         public DateTime Time { get; set; }
 
+        /// <summary>
+        /// How much profit does this (dis)charge give?
+        /// </summary>
+        public double Profit { get; set; }
+
         private bool _charging = false;
 
         /// <summary>

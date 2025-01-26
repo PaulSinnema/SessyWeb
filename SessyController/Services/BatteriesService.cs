@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Options;
 using SessyController.Configurations;
 using SessyController.Services.Items;
+using System.Collections.Generic;
 using static SessyController.Services.Items.Session;
 using static SessyController.Services.Items.Sessions;
 
@@ -70,7 +71,10 @@ namespace SessyController.Services
             {
                 try
                 {
-                    await Process(cancelationToken);
+#if !DEBUG
+                    await
+#endif
+                    Process(cancelationToken);
                 }
                 catch (Exception ex)
                 {
@@ -93,7 +97,13 @@ namespace SessyController.Services
         /// <summary>
         /// This routine is called periodicly as a background task.
         /// </summary>
-        public async Task Process(CancellationToken cancellationToken)
+        public
+#if !DEBUG
+            async Task
+#else
+            void
+#endif
+            Process(CancellationToken cancellationToken)
         {
             if (_dayAheadMarketService.PricesInitialized)
             {
@@ -359,13 +369,6 @@ namespace SessyController.Services
         /// </summary>
         private void GetChargingHours()
         {
-            double totalBatteryCapacity = _batteryContainer.GetTotalCapacity();
-            double chargingPower = _batteryContainer.GetChargingCapacity();
-            double dischargingPower = _batteryContainer.GetDischargingCapacity();
-
-            int maxChargingHours = (int)Math.Ceiling(totalBatteryCapacity / chargingPower);
-            int maxDischargingHours = (int)Math.Ceiling(totalBatteryCapacity / dischargingPower);
-
             hourlyPrices = hourlyPrices.OrderBy(hp => hp.Time).ToList();
 
             List<int> lowestPrices = new List<int>();
@@ -373,7 +376,22 @@ namespace SessyController.Services
 
             var averagePrice = hourlyPrices.Average(hp => hp.Price);
 
-            Sessions sessions = CreateChargingAndDischargingSessions(hourlyPrices, averagePrice);
+            Sessions sessions = CreateSessions(hourlyPrices, averagePrice);
+
+            MergeSessions(sessions, averagePrice);
+
+            RemoveEmptySessions(sessions);
+
+            OptimizeSessions(sessions);
+
+            foreach(var session in sessions.SessionList)
+            {
+                foreach(var hourlyPrice in session.PriceList)
+                {
+                    hourlyPrice.Charging = session.Mode == Modes.Charging;
+                    hourlyPrice.Discharging = session.Mode == Modes.Discharging;
+                }
+            }
 
             //CheckDischargeHours(hourlyPrices, lowestPrices, highestPrices);
 
@@ -386,43 +404,167 @@ namespace SessyController.Services
             //OptimizeChargingSessions(hourlyPrices);
         }
 
-        public static void OptimizeChargingSessions(List<HourlyPrice> hourlyPrices)
+        private void OptimizeSessions(Sessions sessions)
         {
-            var chargingSessions = new List<List<HourlyPrice>>();
-            var chargingAbundance = new List<List<HourlyPrice>>();
+            List<HourlyPrice> listToRemove;
 
-            List<HourlyPrice> currentSession = new();
-
-            // 🔍 Stap 1: Groepeer aaneengesloten charging-uren in sessies
-            foreach (var hour in hourlyPrices)
+            foreach (var session in sessions.SessionList.ToList())
             {
-                if (hour.Charging)
+                switch (session.Mode)
                 {
-                    currentSession.Add(hour);
+                    case Modes.Charging:
+                        {
+                            listToRemove = session.PriceList.OrderBy(hp => hp.Price).ToList();
+
+                            break;
+                        }
+
+                    case Modes.Discharging:
+                        {
+                            listToRemove = session.PriceList.OrderByDescending(hp => hp.Price).ToList();
+                            break;
+                        }
+
+                    default:
+                        throw new InvalidOperationException($"Unknown mode {session.Mode}");
                 }
-                else if (currentSession.Count > 0)
+
+                for (int i = session.MaxHours; i < listToRemove.Count; i++)
                 {
-                    chargingSessions.Add(new List<HourlyPrice>(currentSession));
-                    currentSession.Clear();
-                }
-            }
-
-            if (currentSession.Count > 0)
-                chargingSessions.Add(currentSession);
-
-            foreach (var chargingSession in chargingSessions)
-            {
-                if (chargingSession.Count > 3)
-                {
-                    var session = chargingSession.OrderBy(cs => cs.Price).ToList();
-
-                    for (int i = 3; i < session.Count; i++)
-                    {
-                        session[i].Charging = false;
-                    }
+                    session.PriceList.Remove(listToRemove[i]);
                 }
             }
         }
+
+        private void RemoveEmptySessions(Sessions sessions)
+        {
+            foreach (var session in sessions.SessionList.ToList())
+            {
+                if (session.PriceList.Count == 0)
+                    sessions.SessionList.Remove(session);
+            }
+        }
+
+        private void MergeSessions(Sessions sessions, double averagePrice)
+        {
+            Session? lastSession = null;
+
+            foreach (var session in sessions.SessionList)
+            {
+                if(lastSession != null)
+                {
+                    if(lastSession.Mode == session.Mode)
+                    {
+                        MergeSessions(session, lastSession);
+                    }
+                }
+
+                lastSession = session;
+            }
+        }
+
+        private void MergeSessions(Session lastSession, Session session)
+        {
+            foreach (var hourlyPrice in session.PriceList)
+            {
+                lastSession.PriceList.Add(hourlyPrice);
+            }
+
+            session.PriceList.Clear();
+        }
+
+        /// <summary>
+        /// Determine when the prices are the highest en the lowest.
+        /// </summary>
+        private Sessions CreateSessions(List<HourlyPrice> hourlyPrices, double averagePrice)
+        {
+            double totalBatteryCapacity = _batteryContainer.GetTotalCapacity();
+            double chargingPower = _batteryContainer.GetChargingCapacity();
+            double dischargingPower = _batteryContainer.GetDischargingCapacity();
+            int maxChargingHours = (int)Math.Ceiling(totalBatteryCapacity / chargingPower);
+            int maxDischargingHours = (int)Math.Ceiling(totalBatteryCapacity / dischargingPower);
+
+            Sessions sessions = new Sessions(hourlyPrices, maxChargingHours, maxDischargingHours, _settingsConfig.CycleCost);
+
+            if (hourlyPrices != null && hourlyPrices.Count > 0)
+            {
+                // Controleer eerste element
+                if (hourlyPrices.Count > 1)
+                {
+                    if (hourlyPrices[0].Price < hourlyPrices[1].Price && hourlyPrices[0].Price < averagePrice)
+                    {
+                        sessions.AddNewSession(Modes.Charging, hourlyPrices[0], averagePrice);
+                    }
+
+                    if (hourlyPrices[0].Price > hourlyPrices[1].Price && hourlyPrices[0].Price > averagePrice)
+                    {
+                        sessions.AddNewSession(Modes.Discharging, hourlyPrices[0], averagePrice);
+                    }
+                }
+
+                // Controleer de tussenliggende elementen
+                for (var i = 1; i < hourlyPrices.Count - 1; i++)
+                {
+                    if (hourlyPrices[i].Price < hourlyPrices[i - 1].Price && hourlyPrices[i].Price < hourlyPrices[i + 1].Price)
+                    {
+                        if (hourlyPrices[i].Price < averagePrice)
+                            sessions.AddNewSession(Modes.Charging, hourlyPrices[i], averagePrice);
+                    }
+
+                    if (hourlyPrices[i].Price > hourlyPrices[i - 1].Price && hourlyPrices[i].Price > hourlyPrices[i + 1].Price)
+                    {
+                        if (hourlyPrices[i].Price > averagePrice)
+                            sessions.AddNewSession(Modes.Discharging, hourlyPrices[i], averagePrice);
+                    }
+                }
+
+                // Controleer laatste element
+                if (hourlyPrices.Count > 1)
+                {
+                    if (hourlyPrices[hourlyPrices.Count - 1].Price < hourlyPrices[hourlyPrices.Count - 2].Price && hourlyPrices[hourlyPrices.Count - 1].Price < averagePrice)
+                        sessions.AddNewSession(Modes.Charging, hourlyPrices[hourlyPrices.Count - 1], averagePrice);
+
+                    if (hourlyPrices[hourlyPrices.Count - 1].Price > hourlyPrices[hourlyPrices.Count - 2].Price && hourlyPrices[hourlyPrices.Count - 1].Price > averagePrice)
+                        sessions.AddNewSession(Modes.Discharging, hourlyPrices[hourlyPrices.Count - 1], averagePrice);
+                }
+            }
+
+            OptimizeChargingSessions(sessions);
+
+            return sessions;
+        }
+
+        private void OptimizeChargingSessions(Sessions sessions)
+        {
+        }
+
+        //public static void OptimizeChargingSessions(Sessions sessions)
+        //{
+        //    foreach (var chargingSession in sessions.SessionList)
+        //    {
+        //        if (chargingSession.PriceList.Count > chargingSession.MaxHours)
+        //        {
+        //            var priceList = chargingSession.PriceList.OrderBy(cs => cs.Price).ToList();
+
+        //            for (int i = 3; i < priceList.Count; i++)
+        //            {
+        //                switch (chargingSession.Mode)
+        //                {
+        //                    case Modes.Charging:
+        //                        priceList[i].Charging = false;
+        //                        break;
+
+        //                    case Modes.Discharging:
+        //                        priceList[i].Discharging = false;
+        //                        break;
+
+        //                    default:
+        //                        break;
+        //                }
+        //            }
+        //        }
+        //    }
+        //}
 
         static void CheckChargingWithoutDischargingHours(List<HourlyPrice> hourlyPrices)
         {
@@ -530,58 +672,6 @@ namespace SessyController.Services
             return dischargingHours;
         }
 
-        /// <summary>
-        /// Determine when the prices are the highest en the lowest.
-        /// </summary>
-        private static Sessions CreateChargingAndDischargingSessions(List<HourlyPrice> hourlyPrices, double averagePrice)
-        {
-            Sessions sessions = new Sessions();
-
-            if (hourlyPrices != null && hourlyPrices.Count > 0)
-            {
-                // Controleer eerste element
-                if (hourlyPrices.Count > 1)
-                {
-                    if (hourlyPrices[0].Price < hourlyPrices[1].Price && hourlyPrices[0].Price < averagePrice)
-                    {
-                        sessions.AddNewSession(Modes.Charging, hourlyPrices[0]);
-                    }
-
-                    if (hourlyPrices[0].Price > hourlyPrices[1].Price && hourlyPrices[0].Price > averagePrice)
-                    {
-                        sessions.AddNewSession(Modes.Discharging, hourlyPrices[0]);
-                    }
-                }
-
-                // Controleer de tussenliggende elementen
-                for (var i = 1; i < hourlyPrices.Count - 1; i++)
-                {
-                    if (hourlyPrices[i].Price < hourlyPrices[i - 1].Price && hourlyPrices[i].Price < hourlyPrices[i + 1].Price)
-                    {
-                        if (hourlyPrices[i].Price < averagePrice)
-                            sessions.AddNewSession(Modes.Charging, hourlyPrices[i]);
-                    }
-
-                    if (hourlyPrices[i].Price > hourlyPrices[i - 1].Price && hourlyPrices[i].Price > hourlyPrices[i + 1].Price)
-                    {
-                        if (hourlyPrices[i].Price > averagePrice)
-                            sessions.AddNewSession(Modes.Discharging, hourlyPrices[i]);
-                    }
-                }
-
-                // Controleer laatste element
-                if (hourlyPrices.Count > 1)
-                {
-                    if (hourlyPrices[hourlyPrices.Count - 1].Price < hourlyPrices[hourlyPrices.Count - 2].Price && hourlyPrices[hourlyPrices.Count - 1].Price < averagePrice)
-                        sessions.AddNewSession(Modes.Charging, hourlyPrices[hourlyPrices.Count - 1]);
-
-                    if (hourlyPrices[hourlyPrices.Count - 1].Price > hourlyPrices[hourlyPrices.Count - 2].Price && hourlyPrices[hourlyPrices.Count - 1].Price > averagePrice)
-                        sessions.AddNewSession(Modes.Discharging, hourlyPrices[hourlyPrices.Count - 1]);
-                }
-            }
-
-            return sessions;
-        }
 
         /// <summary>
         /// Check the discharging hours if the cycle cost can be earned. If not, don't charge.

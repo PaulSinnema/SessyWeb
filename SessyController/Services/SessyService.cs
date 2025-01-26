@@ -227,7 +227,7 @@ namespace SessyController.Services
             SYSTEM_STATE_OVERRIDE_BATTERY_UNDERVOLTAGE = 13,
         };
 
-        private string _systemStateString;
+        private string _systemStateString = string.Empty;
         private SystemStates _systemState;
 
         /// <summary>

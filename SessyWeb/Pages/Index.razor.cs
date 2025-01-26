@@ -25,6 +25,9 @@ namespace SessyWeb.Pages
             {
                 while (await timer.WaitForNextTickAsync(_cts.Token))
                 {
+                    if (!IsComponentActive)
+                        break;
+
                     // Zorg ervoor dat de UI wordt bijgewerkt in de render-thread
                     await InvokeAsync(() =>
                     {
@@ -39,7 +42,7 @@ namespace SessyWeb.Pages
             }
         }
 
-        public void Dispose()
+        public override void Dispose()
         {
             _cts.Cancel();
             _cts.Dispose();
