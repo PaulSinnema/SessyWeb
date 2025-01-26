@@ -185,7 +185,7 @@ namespace SessyController.Services
             {
                 bool batteriesAreFull = await AreAllBattiesFull(currentHourlyPrice);
 
-                if (batteriesAreFull) // Batteries are full
+                if (batteriesAreFull)
                     StopChargingSession(currentHourlyPrice);
             }
             else if (currentHourlyPrice.Discharging)
@@ -198,7 +198,7 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Cancel charging for current and future consequtive charging hours.
+        /// Cancel charging for current and future consecutive charging hours.
         /// </summary>
         private static void StopChargingSession(HourlyPrice currentHourlyPrice)
         {
@@ -285,6 +285,9 @@ namespace SessyController.Services
             return batteriesAreEmpty;
         }
 
+        /// <summary>
+        /// Get the total state of charge. 1 = 100%
+        /// </summary>
         private async Task<double> GetTotalStateOfCharge()
         {
             double stateOfCharge = 0.0;
@@ -344,6 +347,9 @@ namespace SessyController.Services
             return true;
         }
 
+        /// <summary>
+        /// Get the local time with the timezone from the settings.
+        /// </summary>
         private DateTime GetLocalTime()
         {
             return TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _timeZone);
@@ -353,7 +359,6 @@ namespace SessyController.Services
         /// Get the day-ahead-prices from ENTSO-E.
         /// </summary>
         /// <param name="localTime"></param>
-        /// <returns></returns>
         private bool FetchPricesFromENTSO_E(DateTime localTime)
         {
             // Get the available hourly prices from now.
@@ -388,18 +393,15 @@ namespace SessyController.Services
                     hourlyPrice.Discharging = session.Mode == Modes.Discharging;
                 }
             }
-
-            //CheckDischargeHours(hourlyPrices, lowestPrices, highestPrices);
-
-            //LowestHoursLeftAndRight(hourlyPrices, lowestPrices, maxChargingHours);
-
-            //HighestHoursLeftAndRight(hourlyPrices, highestPrices, maxDischargingHours);
-
-            //CheckCapacity(hourlyPrices);
-
-            //OptimizeChargingSessions(hourlyPrices);
         }
 
+        /// <summary>
+        /// In this fase all session are created. Now it's time to evaluate which
+        /// ones to keep. The following sessions are filtered out.
+        /// - Charging sessions without a discharging session.
+        /// - Charging sessions larger than the max charging hours
+        /// - Discharging sessions that are not profetable.
+        /// </summary>
         private void EvaluateSessions(double averagePrice, Sessions sessions)
         {
             var changed = false;
@@ -414,11 +416,14 @@ namespace SessyController.Services
 
                 changed = changed || RemoveEmptySessions(sessions);
 
-                changed = changed || CheckProfetability(sessions);
+                changed = changed || CheckProfitability(sessions);
             } while (changed);
         }
 
-        private bool CheckProfetability(Sessions sessions)
+        /// <summary>
+        /// Check if discharging sessions are profitable.
+        /// </summary>
+        private bool CheckProfitability(Sessions sessions)
         {
             var changed = false;
 
@@ -491,6 +496,10 @@ namespace SessyController.Services
             return changed;
         }
 
+        /// <summary>
+        /// If there are Charging session succeeding each other the most expensive are removed.
+        /// </summary>
+        /// <exception cref="InvalidOperationException"></exception>
         private bool RemoveExtraSessions(Sessions sessions)
         {
             var changed = false;
@@ -528,6 +537,9 @@ namespace SessyController.Services
             return changed;
         }
 
+        /// <summary>
+        /// Remove sessions without (dis)charging hours.
+        /// </summary>
         private bool RemoveEmptySessions(Sessions sessions)
         {
             var changed = false;
@@ -544,6 +556,9 @@ namespace SessyController.Services
             return changed;
         }
 
+        /// <summary>
+        /// Merge succeeding sessions of the same type.
+        /// </summary>
         private bool MergeSessions(Sessions sessions, double averagePrice)
         {
             var changed = false;
@@ -559,7 +574,12 @@ namespace SessyController.Services
                 {
                     if(lastSession.Mode == session.Mode)
                     {
-                        MergeSessions(session, lastSession);
+                        foreach (var hourlyPrice in session.PriceList)
+                        {
+                            lastSession.PriceList.Add(hourlyPrice);
+                        }
+
+                        session.PriceList.Clear();
                         changed = true;
                     }
                 }
@@ -568,16 +588,6 @@ namespace SessyController.Services
             }
 
             return changed;
-        }
-
-        private void MergeSessions(Session lastSession, Session session)
-        {
-            foreach (var hourlyPrice in session.PriceList)
-            {
-                lastSession.PriceList.Add(hourlyPrice);
-            }
-
-            session.PriceList.Clear();
         }
 
         /// <summary>
@@ -595,7 +605,7 @@ namespace SessyController.Services
 
             if (hourlyPrices != null && hourlyPrices.Count > 0)
             {
-                // Controleer eerste element
+                // Check the first element
                 if (hourlyPrices.Count > 1)
                 {
                     if (hourlyPrices[0].Price < hourlyPrices[1].Price && hourlyPrices[0].Price < averagePrice)
@@ -609,7 +619,7 @@ namespace SessyController.Services
                     }
                 }
 
-                // Controleer de tussenliggende elementen
+                // Check the elements in between.
                 for (var i = 1; i < hourlyPrices.Count - 1; i++)
                 {
                     if (hourlyPrices[i].Price < hourlyPrices[i - 1].Price && hourlyPrices[i].Price < hourlyPrices[i + 1].Price)
@@ -625,7 +635,7 @@ namespace SessyController.Services
                     }
                 }
 
-                // Controleer laatste element
+                // Check the last element
                 if (hourlyPrices.Count > 1)
                 {
                     if (hourlyPrices[hourlyPrices.Count - 1].Price < hourlyPrices[hourlyPrices.Count - 2].Price && hourlyPrices[hourlyPrices.Count - 1].Price < averagePrice)
@@ -636,324 +646,7 @@ namespace SessyController.Services
                 }
             }
 
-            OptimizeChargingSessions(sessions);
-
             return sessions;
-        }
-
-        private void OptimizeChargingSessions(Sessions sessions)
-        {
-        }
-
-        //public static void OptimizeChargingSessions(Sessions sessions)
-        //{
-        //    foreach (var chargingSession in sessions.SessionList)
-        //    {
-        //        if (chargingSession.PriceList.Count > chargingSession.MaxHours)
-        //        {
-        //            var priceList = chargingSession.PriceList.OrderBy(cs => cs.Price).ToList();
-
-        //            for (int i = 3; i < priceList.Count; i++)
-        //            {
-        //                switch (chargingSession.Mode)
-        //                {
-        //                    case Modes.Charging:
-        //                        priceList[i].Charging = false;
-        //                        break;
-
-        //                    case Modes.Discharging:
-        //                        priceList[i].Discharging = false;
-        //                        break;
-
-        //                    default:
-        //                        break;
-        //                }
-        //            }
-        //        }
-        //    }
-        //}
-
-        static void CheckChargingWithoutDischargingHours(List<HourlyPrice> hourlyPrices)
-        {
-            List<List<HourlyPrice>> chargingSessions = new List<List<HourlyPrice>>();
-            List<HourlyPrice> currentSession = new List<HourlyPrice>();
-
-            // Stap 1: Groepeer de charging sessies
-            foreach (var entry in hourlyPrices)
-            {
-                if (entry.Charging)
-                {
-                    currentSession.Add(entry);
-                }
-                else
-                {
-                    if (currentSession.Count > 0)
-                    {
-                        chargingSessions.Add(new List<HourlyPrice>(currentSession));
-                        currentSession.Clear();
-                    }
-                }
-            }
-            if (currentSession.Count > 0)
-            {
-                chargingSessions.Add(new List<HourlyPrice>(currentSession));
-            }
-
-            // Stap 2: Check of er een discharging session tussen zit
-            for (int i = 0; i < chargingSessions.Count - 1; i++)
-            {
-                DateTime endHour = chargingSessions[i].Last().Time;
-                DateTime startNextSession = chargingSessions[i + 1].First().Time;
-
-                // Controleer of er een discharging sessie tussen de twee charging sessies zit
-                bool hasDischargingBetween = hourlyPrices.Any(h => h.Time > endHour && h.Time < startNextSession && h.Discharging);
-
-                if (!hasDischargingBetween)
-                {
-                    // Bereken de gemiddelde prijs van beide charging sessions
-                    double avgPriceFirst = chargingSessions[i].Average(h => h.Price);
-                    double avgPriceSecond = chargingSessions[i + 1].Average(h => h.Price);
-
-                    // Verwijder de charging session met de hoogste gemiddelde prijs
-                    var sessionToRemove = avgPriceFirst > avgPriceSecond ? chargingSessions[i] : chargingSessions[i + 1];
-
-                    foreach (var entry in sessionToRemove)
-                    {
-                        entry.Charging = false; // Zet deze op nzh (of een andere neutrale status)
-                    }
-
-                    // Verwijder de session uit de lijst om verdere checks correct uit te voeren
-                    chargingSessions.Remove(sessionToRemove);
-
-                    // Omdat we de lijst hebben aangepast, moeten we opnieuw door de lijst lopen
-                    i--;
-                }
-            }
-        }
-
-        /// <summary>
-        /// This routine estimates how much power must remain for discharging
-        /// </summary>
-        private void CheckCapacity(List<HourlyPrice>? hourlyPrices)
-        {
-            if (hourlyPrices != null)
-            {
-                HourlyPrice? currentHourlyPrice = GetCurrentHourlyPrice();
-
-                if (currentHourlyPrice != null)
-                {
-                    List<HourlyPrice> dischargingHours = GetNextDischargingSession(hourlyPrices, currentHourlyPrice);
-
-                    var list = dischargingHours.ToList();
-                }
-            }
-        }
-
-        private static List<HourlyPrice> GetNextDischargingSession(List<HourlyPrice> hourlyPrices, HourlyPrice currentHourlyPrice)
-        {
-            // Find all discharging hours after the current time.
-            var dischargingHours = hourlyPrices
-                .Where(hp => hp.Time > currentHourlyPrice.Time && hp.Discharging)
-                .ToList();
-
-            // Filter out discharging hours not belonging to the first discharging session.
-            var dischargingEnumerator = dischargingHours.ToList().GetEnumerator();
-
-            if (dischargingEnumerator.MoveNext()) // Load first
-            {
-                var first = dischargingEnumerator.Current;
-
-                while (dischargingEnumerator.MoveNext()) // Load next
-                {
-                    if (dischargingEnumerator.Current.Time.Hour - first.Time.Hour > 1) // Not contiguous?
-                    {
-                        dischargingHours.Remove(dischargingEnumerator.Current);
-                    }
-                    else
-                    {
-                        first = dischargingEnumerator.Current;
-                    }
-                }
-            }
-
-            return dischargingHours;
-        }
-
-
-        /// <summary>
-        /// Check the discharging hours if the cycle cost can be earned. If not, don't charge.
-        /// </summary>
-        private void CheckDischargeHours(List<HourlyPrice>? hourlyPrices, List<int> lowestPrices, List<int> highestPrices)
-        {
-            if (hourlyPrices != null)
-            {
-                var cycleCost = _settingsConfig.CycleCost;
-                var intersecting = lowestPrices.Intersect(highestPrices);
-
-                foreach (var item in intersecting)
-                {
-                    var index = highestPrices.IndexOf(item);
-
-                    highestPrices.Remove(index);
-                }
-
-                lowestPrices.Sort();
-                highestPrices.Sort();
-
-                var lowestEnumerator = lowestPrices.GetEnumerator();
-                var highestEnumerator = highestPrices.GetEnumerator();
-
-                var hasLow = lowestEnumerator.MoveNext();
-                var hasHigh = highestEnumerator.MoveNext();
-
-                while (hasLow && hasHigh)
-                {
-                    var high = hourlyPrices[highestEnumerator.Current];
-                    var low = hourlyPrices[lowestEnumerator.Current];
-
-                    if (low.Time < high.Time)
-                    {
-                        // The lowest price is earlier then the highest price
-                        if (!CheckPrices(low, high)) // The price does not justify discharging.
-                            high.Discharging = false;
-
-                        if (high.Discharging)
-                        {
-                            if (high.HoursCharging == null)
-                                high.HoursCharging = new List<HourlyPrice>();
-
-                            high.HoursCharging.Add(low);
-                        }
-
-                        hasLow = lowestEnumerator.MoveNext();
-                    }
-                    else
-                        hasHigh = highestEnumerator.MoveNext();
-                }
-            }
-        }
-
-        /// <summary>
-        /// Look at the prices before and after the lowest prices and add them for the duration
-        /// of this charge session.
-        /// </summary>
-        private void LowestHoursLeftAndRight(List<HourlyPrice>? hourlyPrices, List<int> lowestPrices, int maxChargingHours)
-        {
-            if (hourlyPrices != null)
-            {
-                foreach (var price in lowestPrices.ToList())
-                {
-                    var maxPrice = maxChargingHours - 1;
-                    var prevPrice = price - 1;
-                    var nextPrice = price + 1;
-
-                    while (maxPrice > 0)
-                    {
-                        if (prevPrice >= 0 && nextPrice < hourlyPrices.Count)
-                        {
-                            if (hourlyPrices[prevPrice].Price > hourlyPrices[nextPrice].Price)
-                            {
-                                hourlyPrices[nextPrice].Charging = hourlyPrices[price].Charging;
-                                lowestPrices.Add(nextPrice++);
-                            }
-                            else
-                            {
-                                hourlyPrices[prevPrice].Charging = hourlyPrices[price].Charging;
-                                lowestPrices.Add(prevPrice--);
-                            }
-                        }
-                        else if (prevPrice < 0)
-                        {
-                            lowestPrices.Add(nextPrice++);
-                        }
-                        else
-                        {
-                            lowestPrices.Add(prevPrice--);
-                        }
-
-                        maxPrice--;
-                    }
-                }
-            }
-        }
-
-        /// <summary>
-        /// Look at the prices before and after the highest prices and add them for the duration
-        /// of this charge session.
-        /// </summary>
-        private void HighestHoursLeftAndRight(List<HourlyPrice>? hourlyPrices, List<int> highestPrices, int maxChargingHours)
-        {
-            if (hourlyPrices != null)
-            {
-                foreach (var price in highestPrices.ToList())
-                {
-                    if (hourlyPrices[price].Discharging)
-                    {
-                        var maxPrice = maxChargingHours - 1;
-                        var prevPrice = price - 1;
-                        var nextPrice = price + 1;
-
-                        while (maxPrice > 0)
-                        {
-                            if (prevPrice >= 0 && nextPrice <= hourlyPrices.Count - 1)
-                            {
-                                if (hourlyPrices[prevPrice].Price < hourlyPrices[nextPrice].Price)
-                                {
-                                    hourlyPrices[nextPrice].Discharging = CheckPrices(hourlyPrices[nextPrice], hourlyPrices[price]);
-
-                                    if (hourlyPrices[nextPrice].Discharging)
-                                    {
-                                        hourlyPrices[nextPrice].HoursCharging = (hourlyPrices[price].HoursCharging);
-                                        highestPrices.Add(nextPrice);
-                                    }
-                                    nextPrice++;
-                                }
-                                else
-                                {
-                                    hourlyPrices[prevPrice].Discharging = CheckPrices(hourlyPrices[prevPrice], hourlyPrices[price]);
-
-                                    if (hourlyPrices[prevPrice].Discharging)
-                                    {
-                                        hourlyPrices[prevPrice].HoursCharging = (hourlyPrices[price].HoursCharging);
-                                        highestPrices.Add(prevPrice);
-                                    }
-                                    prevPrice--;
-                                }
-                            }
-                            else if (prevPrice < 0)
-                            {
-                                hourlyPrices[nextPrice].Discharging = CheckPrices(hourlyPrices[nextPrice], hourlyPrices[price]);
-
-                                if (hourlyPrices[nextPrice].Discharging)
-                                {
-                                    hourlyPrices[nextPrice].HoursCharging = (hourlyPrices[price].HoursCharging);
-                                    highestPrices.Add(nextPrice);
-                                }
-
-                                nextPrice++;
-                            }
-                            else
-                            {
-                                hourlyPrices[prevPrice].Discharging = CheckPrices(hourlyPrices[prevPrice], hourlyPrices[price]);
-
-                                if (hourlyPrices[prevPrice].Discharging)
-                                {
-                                    hourlyPrices[prevPrice].HoursCharging = (hourlyPrices[price].HoursCharging);
-                                    highestPrices.Add(prevPrice);
-                                }
-                                prevPrice--;
-                            }
-
-                            maxPrice--;
-                        }
-                    }
-                }
-            }
-        }
-
-        private bool CheckPrices(HourlyPrice hourlyPrice1, HourlyPrice hourlyPrice2)
-        {
-            return hourlyPrice1.Price + _settingsConfig.CycleCost <= hourlyPrice2.Price;
         }
     }
 }
