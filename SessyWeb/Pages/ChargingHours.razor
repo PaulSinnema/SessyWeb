@@ -12,19 +12,25 @@
 @if (HourlyPrices != null && HourlyPrices.Count() != 0)
 {
 	<div style="width: 100%; height:100%;">
-		<RadzenChart Style="min-height: 2000px; min-width: 600px;">
+		<RadzenChart Style="min-height: 5000px; min-width: 600px;">
 			<RadzenChartTooltipOptions Shared="false" Visible="true" />
 			<RadzenBarSeries Data="@HourlyPrices" CategoryProperty="Time" Title="Price" LineType="LineType.Dashed" ValueProperty="Price">
 				<TooltipTemplate Context="data">
 					<RadzenCard>
 						<div>
-							Date @data?.Time
+							Date: @data?.Time	
 						</div>
 						<div>
-							Price :@data?.Price
+							Price: @data?.Price
 						</div>
 						<div>
 							State @data?.DisplayState;
+						</div>
+						<div>
+							Profit: @data?.Profit
+						</div>
+						<div>
+							Charge left: @data?.ChargeLeft
 						</div>
 					</RadzenCard>
 				</TooltipTemplate>
@@ -33,17 +39,73 @@
 					<RadzenSeriesDataLabels Visible="true" />
 				</ChildContent>
 			</RadzenBarSeries>
-			<RadzenBarSeries Data="@HourlyPrices" CategoryProperty="Time" Title="Charging" ValueProperty="VisualizeInChart">
+			<RadzenBarSeries Data="@HourlyPrices" CategoryProperty="Time" Title="Charging" ValueProperty="VisualizeInChart" >
 				<TooltipTemplate Context="data">
 					<RadzenCard>
 						<div>
-							Date @data?.Time
+							Date: @data?.Time
 						</div>
 						<div>
-							Price :@data?.Price
+							Price: @data?.Price
 						</div>
 						<div>
 							State @data?.DisplayState;
+						</div>
+						<div>
+							Profit: @data?.Profit
+						</div>
+						<div>
+							Charge left: @data?.ChargeLeft
+						</div>
+					</RadzenCard>
+				</TooltipTemplate>
+				<ChildContent>
+					<RadzenMarkers Visible="false" />
+					<RadzenSeriesDataLabels Visible="false" />
+				</ChildContent>
+			</RadzenBarSeries>
+			<RadzenBarSeries Data="@HourlyPrices" CategoryProperty="Time" Title="Profit" ValueProperty="ProfitVisual">
+				<TooltipTemplate Context="data">
+					<RadzenCard>
+						<div>
+							Date: @data?.Time
+						</div>
+						<div>
+							Price: @data?.Price
+						</div>
+						<div>
+							State @data?.DisplayState;
+						</div>
+						<div>
+							Profit: @data?.Profit
+						</div>
+						<div>
+							Charge left: @data?.ChargeLeft
+						</div>
+					</RadzenCard>
+				</TooltipTemplate>
+				<ChildContent>
+					<RadzenMarkers Visible="false" />
+					<RadzenSeriesDataLabels Visible="false" />
+				</ChildContent>
+			</RadzenBarSeries>
+			<RadzenBarSeries Data="@HourlyPrices" CategoryProperty="Time" Title="Charge" ValueProperty="ChargeLeftVisual">
+				<TooltipTemplate Context="data">
+					<RadzenCard>
+						<div>
+							Date: @data?.Time
+						</div>
+						<div>
+							Price: @data?.Price
+						</div>
+						<div>
+							State @data?.DisplayState;
+						</div>
+						<div>
+							Profit: @data?.Profit
+						</div>
+						<div>
+							Charge left: @data?.ChargeLeft
 						</div>
 					</RadzenCard>
 				</TooltipTemplate>

@@ -15,7 +15,17 @@
         /// <summary>
         /// How much profit does this (dis)charge give?
         /// </summary>
-        public double Profit { get; set; }
+        public double Profit => Selling - Buying;
+
+        public double ProfitVisual => Profit / 10;
+
+        public double Buying { get; set; }
+
+        public double Selling { get; set; }
+
+        public double ChargeLeft { get; set; }
+
+        public double ChargeLeftVisual => ChargeLeft / 100000;
 
         private bool _charging = false;
 

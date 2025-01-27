@@ -31,12 +31,12 @@
         /// <summary>
         /// The first date in the session
         /// </summary>
-        public DateTime First => PriceList.Max(hp => hp.Time);
+        public DateTime First => PriceList.Count > 0 ? PriceList.Min(hp => hp.Time) : DateTime.MinValue;
 
         /// <summary>
         /// The last date in the session
         /// </summary>
-        public DateTime Last => PriceList.Min(hp => hp.Time);
+        public DateTime Last => PriceList.Count > 0 ? PriceList.Max(hp => hp.Time) : DateTime.MaxValue;
 
         public Session(Modes mode, int maxHours)
         {
@@ -51,98 +51,6 @@
         public void AddHourlyPrice(HourlyPrice price)
         {
             PriceList.Add(price);
-        }
-
-        /// <summary>
-        /// Add neighbouring hours to the Session
-        /// </summary>
-        public void CompleteSession(List<HourlyPrice> hourlyPrices, int maxHours, double cycleCost, double averagePrice)
-        {
-            if (PriceList.Count != 1)
-                throw new InvalidOperationException($"Session has zero or more than 1 hourly price.");
-
-            var index = hourlyPrices.IndexOf(PriceList[0]);
-            var prev = index - 1;
-            var next = index + 1;
-
-            for (var i = 0; i < maxHours - 1; i++)
-            {
-                switch (Mode)
-                {
-                    case Modes.Charging:
-                        {
-                            if (prev >= 0)
-                            {
-                                if (next < hourlyPrices.Count)
-                                {
-                                    if (hourlyPrices[next].Price < hourlyPrices[prev].Price)
-                                    {
-                                        if(hourlyPrices[next].Price < averagePrice)
-                                            AddHourlyPrice(hourlyPrices[next++]);
-                                    }
-                                    else
-                                    {
-                                        if (hourlyPrices[prev].Price < averagePrice)
-                                            AddHourlyPrice(hourlyPrices[prev--]);
-                                    }
-                                }
-                                else
-                                {
-                                        if (hourlyPrices[prev].Price < averagePrice)
-                                            AddHourlyPrice(hourlyPrices[prev--]);
-                                }
-                            }
-                            else
-                            {
-                                if (next < hourlyPrices.Count)
-                                {
-                                    if (hourlyPrices[next].Price < averagePrice)
-                                        AddHourlyPrice(hourlyPrices[next++]);
-                                }
-                            }
-
-                            break;
-                        }
-
-                    case Modes.Discharging:
-                        {
-                            if (prev >= 0)
-                            {
-                                if (next < hourlyPrices.Count)
-                                {
-                                    if (hourlyPrices[next].Price > hourlyPrices[prev].Price)
-                                    {
-                                        if (hourlyPrices[next].Price > averagePrice)
-                                            AddHourlyPrice(hourlyPrices[next++]);
-                                    }
-                                    else
-                                    {
-                                        if (hourlyPrices[prev].Price > averagePrice)
-                                            AddHourlyPrice(hourlyPrices[prev--]);
-                                    }
-                                }
-                                else
-                                {
-                                    if (hourlyPrices[prev].Price > averagePrice)
-                                        AddHourlyPrice(hourlyPrices[prev--]); 
-                                }
-                            }
-                            else
-                            {
-                                if (next < hourlyPrices.Count)
-                                {
-                                     if (hourlyPrices[next].Price > averagePrice)
-                                        AddHourlyPrice(hourlyPrices[next++]);
-                                }
-                            }
-
-                            break;
-                        }
-
-                    default:
-                        break;
-                }
-            }
         }
     }
 }

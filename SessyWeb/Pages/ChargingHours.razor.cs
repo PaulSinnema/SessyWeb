@@ -46,16 +46,26 @@ namespace SessyWeb.Pages
 
         public string FormatAsPrice(object value)
         {
-            var price = (double)value;
+            if (value is double)
+            {
+                var price = (double)value;
 
-            return $"{price:c3}";
+                return $"{price:c3}";
+            }
+
+            return "";
         }
 
         public string FormatAsDayHour(object value)
         {
-            var dateTime = (DateTime)value;
+            if (value is DateTime)
+            { 
+                var dateTime = (DateTime)value;
 
-            return $"{dateTime.Day}-{dateTime.Month}/{dateTime.Hour}";
+                return $"{dateTime.Day}-{dateTime.Month}/{dateTime.Hour}";
+            }
+
+            return "";
         }
     }
 }

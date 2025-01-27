@@ -71,10 +71,7 @@ namespace SessyController.Services
             {
                 try
                 {
-#if !DEBUG
-                    await
-#endif
-                    Process(cancelationToken);
+                    await Process(cancelationToken);
                 }
                 catch (Exception ex)
                 {
@@ -97,17 +94,11 @@ namespace SessyController.Services
         /// <summary>
         /// This routine is called periodicly as a background task.
         /// </summary>
-        public
-#if !DEBUG
-            async Task
-#else
-            void
-#endif
-            Process(CancellationToken cancellationToken)
+        public async Task Process(CancellationToken cancellationToken)
         {
             if (_dayAheadMarketService.PricesInitialized)
             {
-                DetermineChargingHours();
+                await DetermineChargingHours();
 
                 HourlyPrice? currentHourlyPrice = GetCurrentHourlyPrice();
 
@@ -314,7 +305,7 @@ namespace SessyController.Services
         /// Determine when to charge the batteries.
         /// </summary>
         /// <returns></returns>
-        public bool DetermineChargingHours()
+        public async Task<bool> DetermineChargingHours()
         {
             DateTime localTime = GetLocalTime();
 
@@ -339,7 +330,7 @@ namespace SessyController.Services
                 if (!FetchPricesFromENTSO_E(localTime))
                     return false;
 
-                GetChargingHours();
+                await GetChargingHours();
                 hasCheckedLastDate1600 = true;
                 lastDateChecked = localTime;
             }
@@ -372,7 +363,7 @@ namespace SessyController.Services
         /// <summary>
         /// In this routine is determined when to charge the batteries.
         /// </summary>
-        private void GetChargingHours()
+        private async Task GetChargingHours()
         {
             hourlyPrices = hourlyPrices.OrderBy(hp => hp.Time).ToList();
 
@@ -383,8 +374,15 @@ namespace SessyController.Services
 
             Sessions sessions = CreateSessions(hourlyPrices, averagePrice);
 
-            EvaluateSessions(averagePrice, sessions);
+            EvaluateSessionsOld(averagePrice, sessions);
 
+            SetChargingMethods(sessions);
+
+            await EvaluateSessions(sessions, hourlyPrices);
+        }
+
+        private static void SetChargingMethods(Sessions sessions)
+        {
             foreach (var session in sessions.SessionList.ToList())
             {
                 foreach (var hourlyPrice in session.PriceList)
@@ -395,29 +393,78 @@ namespace SessyController.Services
             }
         }
 
+        private async Task EvaluateSessions(Sessions sessions, List<HourlyPrice> hourlyPrices)
+        {
+            await CalculateChargeLeft(hourlyPrices);
+
+            sessions.CalculateProfits();
+        }
+
+        /// <summary>
+        /// Calculate the estimated charge per hour starting from the current hour.
+        /// </summary>
+        public async Task CalculateChargeLeft(List<HourlyPrice> hourlyPrices)
+        {
+            double stateOfCharge = await _batteryContainer.GetStateOfCharge();
+            double totalCapacity = _batteryContainer.GetTotalCapacity();
+            double charge =  stateOfCharge * totalCapacity;
+            double dayNeed = _settingsConfig.RequiredHomeEnergy;
+            double hourNeed = dayNeed / 24;
+            double chargingCapacity = _sessyBatteryConfig.TotalChargingCapacity;
+            double dischargingCapacity = _sessyBatteryConfig.TotalDischargingCapacity;
+            var localTime = GetLocalTime();
+
+            foreach (var hourlyPrice in hourlyPrices
+                .Where(hp => hp.Time >= localTime)
+                .OrderBy(hp => hp.Time)
+                .ToList())
+            {
+                if (hourlyPrice.Charging)
+                {
+                    charge = charge + chargingCapacity < totalCapacity ? charge + chargingCapacity : totalCapacity; 
+                }
+                else if (hourlyPrice.Discharging)
+                {
+                    charge = charge > dischargingCapacity ? charge - dischargingCapacity : 0.0;
+                }
+                else if (hourlyPrice.ZeroNetHome)
+                {
+                    charge = charge > hourNeed ? charge - hourNeed : 0.0;
+                }
+
+                hourlyPrice.ChargeLeft = charge;
+            }
+        }
+
         /// <summary>
         /// In this fase all session are created. Now it's time to evaluate which
         /// ones to keep. The following sessions are filtered out.
         /// - Charging sessions without a discharging session.
         /// - Charging sessions larger than the max charging hours
-        /// - Discharging sessions that are not profetable.
+        /// - Discharging sessions that are not profitable.
         /// </summary>
-        private void EvaluateSessions(double averagePrice, Sessions sessions)
+        private void EvaluateSessionsOld(double averagePrice, Sessions sessions)
         {
-            var changed = false;
+            var changed1 = false;
+            var changed2 = false;
+            var changed3 = false;
+            var changed4 = false;
 
             do
             {
-                changed = false;
+                changed1 = false;
+                changed2 = false;
+                changed3 = false;
+                changed4 = false;
 
-                changed = MergeSessions(sessions, averagePrice);
+                changed1 = MergeSessions(sessions, averagePrice);
 
-                changed = changed || RemoveExtraSessions(sessions);
+                changed2 = RemoveExtraHours(sessions);
 
-                changed = changed || RemoveEmptySessions(sessions);
+                changed3 = RemoveEmptySessions(sessions);
 
-                changed = changed || CheckProfitability(sessions);
-            } while (changed);
+                // changed4 = CheckProfitability(sessions);
+            } while (changed1 || changed2 || changed3 || changed4);
         }
 
         /// <summary>
@@ -435,13 +482,14 @@ namespace SessyController.Services
                 {
                     case Modes.Charging:
                         {
-                            if(currentSession + 1 < sessionList.Count)
+                            var dischargingSession = currentSession + 1;
+
+                            if (dischargingSession < sessionList.Count)
                             {
-                                if (sessionList[currentSession + 1].Mode == Modes.Discharging)
+                                if (sessionList[dischargingSession].Mode == Modes.Discharging)
                                 {
                                     var chargingHours = sessionList[currentSession].PriceList.OrderBy(hp => hp.Price).ToList();
-                                    var dischargingHours = sessionList[currentSession + 1].PriceList.OrderByDescending(hp => hp.Price).ToList();
-                                    var maxHours = Math.Min(chargingHours.Count, dischargingHours.Count);
+                                    var dischargingHours = sessionList[dischargingSession].PriceList.OrderBy(hp => hp.Price).ToList();
 
                                     var chargingEnumerator = chargingHours.GetEnumerator();
                                     var dischargingEnumerator = dischargingHours.GetEnumerator();
@@ -457,7 +505,8 @@ namespace SessyController.Services
                                             {
                                                 if (chargingEnumerator.Current.Price + _settingsConfig.CycleCost > dischargingEnumerator.Current.Price)
                                                 {
-                                                    sessions.SessionList[currentSession + 1].PriceList.Remove(dischargingEnumerator.Current);
+                                                    var dcSession = sessions.SessionList[dischargingSession];
+                                                    dcSession.PriceList.Remove(dischargingEnumerator.Current);
                                                     hasDischarging = dischargingEnumerator.MoveNext();
                                                     changed = true;
                                                 }
@@ -474,7 +523,7 @@ namespace SessyController.Services
                                         {
                                             if (hasDischarging)
                                             {
-                                                sessions.SessionList[currentSession + 1].PriceList.Remove(dischargingEnumerator.Current);
+                                                sessions.SessionList[dischargingSession].PriceList.Remove(dischargingEnumerator.Current);
                                                 hasDischarging = dischargingEnumerator.MoveNext();
                                                 changed = true;
                                             }
@@ -497,10 +546,9 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// If there are Charging session succeeding each other the most expensive are removed.
+        /// Remove hours outside the max hours.
         /// </summary>
-        /// <exception cref="InvalidOperationException"></exception>
-        private bool RemoveExtraSessions(Sessions sessions)
+        private bool RemoveExtraHours(Sessions sessions)
         {
             var changed = false;
 
@@ -570,17 +618,24 @@ namespace SessyController.Services
 
             foreach (var session in list)
             {
-                if(lastSession != null)
+                if (lastSession != null)
                 {
-                    if(lastSession.Mode == session.Mode)
-                    {
-                        foreach (var hourlyPrice in session.PriceList)
-                        {
-                            lastSession.PriceList.Add(hourlyPrice);
-                        }
 
-                        session.PriceList.Clear();
-                        changed = true;
+                    if (lastSession.Mode == session.Mode)
+                    {
+                        var maxZeroNetHome = GetMaxZeroNetHomeHours(lastSession, session);
+                        var hoursBetween = (session.First - lastSession.Last).Hours;
+
+                        if (hoursBetween <= 1)
+                        {
+                            foreach (var hourlyPrice in session.PriceList)
+                            {
+                                lastSession.PriceList.Add(hourlyPrice);
+                            }
+
+                            session.PriceList.Clear();
+                            changed = true;
+                        }
                     }
                 }
 
@@ -588,6 +643,20 @@ namespace SessyController.Services
             }
 
             return changed;
+        }
+
+        private double GetMaxZeroNetHomeHours(Session lastSession, Session session)
+        {
+            var homeNeeds = _settingsConfig.RequiredHomeEnergy;
+
+            if(lastSession.Mode == Modes.Charging && session.Mode == Modes.Charging)
+            {
+                var timeSpan = session.First - lastSession.Last;
+
+                return timeSpan.Hours;
+            }
+
+            return 24.0;
         }
 
         /// <summary>
@@ -600,8 +669,16 @@ namespace SessyController.Services
             double dischargingPower = _batteryContainer.GetDischargingCapacity();
             int maxChargingHours = (int)Math.Ceiling(totalBatteryCapacity / chargingPower);
             int maxDischargingHours = (int)Math.Ceiling(totalBatteryCapacity / dischargingPower);
+            var homeNeeds = _settingsConfig.RequiredHomeEnergy;
 
-            Sessions sessions = new Sessions(hourlyPrices, maxChargingHours, maxDischargingHours, _settingsConfig.CycleCost);
+            Sessions sessions = new Sessions(hourlyPrices, 
+                                             maxChargingHours,
+                                             maxDischargingHours,
+                                             _sessyBatteryConfig.TotalChargingCapacity,
+                                             _sessyBatteryConfig.TotalDischargingCapacity,
+                                             totalBatteryCapacity,
+                                             homeNeeds,
+                                             _settingsConfig.CycleCost);
 
             if (hourlyPrices != null && hourlyPrices.Count > 0)
             {
