@@ -14,9 +14,9 @@ namespace SessyController.Services.Items
         private int _maxDischargingHours { get; set; }
         private double _cycleCost { get; set; }
 
-        private List<HourlyPrice> _hourlyPrices { get; set; }
+        private List<HourlyInfo> _hourlyInfos { get; set; }
 
-        public Sessions(List<HourlyPrice> hourlyPrices,
+        public Sessions(List<HourlyInfo> hourlyInfos,
                         int maxChargingHours,
                         int maxDischargingHours,
                         double totalChargingCapacity,
@@ -26,7 +26,7 @@ namespace SessyController.Services.Items
                         double cycleCost)
         {
             _sessionList = new List<Session>();
-            _hourlyPrices = hourlyPrices;
+            _hourlyInfos = hourlyInfos;
             _maxChargingHours = maxChargingHours;
             _maxDischargingHours = maxDischargingHours;
             _cycleCost = cycleCost;
@@ -38,28 +38,28 @@ namespace SessyController.Services.Items
 
         public List<Session> SessionList => _sessionList;
 
-        public bool InAnySession(HourlyPrice hourlyPrice)
+        public bool InAnySession(HourlyInfo hourlyInfo)
         {
             foreach (var se in _sessionList)
             {
-                if (se.PriceList.Contains(hourlyPrice))
+                if (se.PriceList.Contains(hourlyInfo))
                     return true;
             }
 
             return false;
         }
 
-        public void AddNewSession(Modes mode, HourlyPrice hourlyPrice, double averagePrice)
+        public void AddNewSession(Modes mode, HourlyInfo hourlyInfo, double averagePrice)
         {
-            if (!InAnySession(hourlyPrice))
+            if (!InAnySession(hourlyInfo))
             {
                 switch (mode)
                 {
                     case Modes.Charging:
                         {
                             Session session = new Session(mode, _maxChargingHours);
-                            session.AddHourlyPrice(hourlyPrice);
-                            CompleteSession(session, _hourlyPrices, _maxChargingHours, _cycleCost, averagePrice);
+                            session.AddHourlyInfo(hourlyInfo);
+                            CompleteSession(session, _hourlyInfos, _maxChargingHours, _cycleCost, averagePrice);
                             _sessionList.Add(session);
                             break;
                         }
@@ -67,8 +67,8 @@ namespace SessyController.Services.Items
                     case Modes.Discharging:
                         {
                             Session session = new Session(mode, _maxDischargingHours);
-                            session.AddHourlyPrice(hourlyPrice);
-                            CompleteSession(session, _hourlyPrices, _maxDischargingHours, _cycleCost, averagePrice);
+                            session.AddHourlyInfo(hourlyInfo);
+                            CompleteSession(session, _hourlyInfos, _maxDischargingHours, _cycleCost, averagePrice);
                             _sessionList.Add(session);
                             break;
                         }
@@ -78,12 +78,12 @@ namespace SessyController.Services.Items
                 }
             }
             else
-                Console.WriteLine($"Overlap in sessions {hourlyPrice}");
+                Console.WriteLine($"Overlap in sessions {hourlyInfo}");
         }
 
         public void CalculateProfits()
         {
-            _hourlyPrices
+            _hourlyInfos
                 .Where(hp => hp.ZeroNetHome)
                 .ToList()
                 .ForEach(hp => hp.Selling = hp.Price * (Math.Min(_homeNeeds / 24, hp.ChargeLeft) / 1000));
@@ -140,23 +140,23 @@ namespace SessyController.Services.Items
             }
         }
 
-        public void AddHourlyPrice(Session session, HourlyPrice hourlyPrice)
+        public void AddHourlyInfo(Session session, HourlyInfo hourlyInfo)
         {
-            if(!InAnySession(hourlyPrice))
+            if(!InAnySession(hourlyInfo))
             {
-                session.AddHourlyPrice(hourlyPrice);
+                session.AddHourlyInfo(hourlyInfo);
             }
         }
 
         /// <summary>
         /// Add neighbouring hours to the Session
         /// </summary>
-        public void CompleteSession(Session session, List<HourlyPrice> hourlyPrices, int maxHours, double cycleCost, double averagePrice)
+        public void CompleteSession(Session session, List<HourlyInfo> hourlyInfos, int maxHours, double cycleCost, double averagePrice)
         {
             if (session.PriceList.Count != 1)
                 throw new InvalidOperationException($"Session has zero or more than 1 hourly price.");
 
-            var index = hourlyPrices.IndexOf(session.PriceList[0]);
+            var index = hourlyInfos.IndexOf(session.PriceList[0]);
             var prev = index - 1;
             var next = index + 1;
 
@@ -168,31 +168,31 @@ namespace SessyController.Services.Items
                         {
                             if (prev >= 0)
                             {
-                                if (next < hourlyPrices.Count)
+                                if (next < hourlyInfos.Count)
                                 {
-                                    if (hourlyPrices[next].Price < hourlyPrices[prev].Price)
+                                    if (hourlyInfos[next].Price < hourlyInfos[prev].Price)
                                     {
-                                        if (hourlyPrices[next].Price < averagePrice)
-                                            AddHourlyPrice(session, hourlyPrices[next++]);
+                                        if (hourlyInfos[next].Price < averagePrice)
+                                            AddHourlyInfo(session, hourlyInfos[next++]);
                                     }
                                     else
                                     {
-                                        if (hourlyPrices[prev].Price < averagePrice)
-                                            AddHourlyPrice(session, hourlyPrices[prev--]);
+                                        if (hourlyInfos[prev].Price < averagePrice)
+                                            AddHourlyInfo(session, hourlyInfos[prev--]);
                                     }
                                 }
                                 else
                                 {
-                                    if (hourlyPrices[prev].Price < averagePrice)
-                                        AddHourlyPrice(session, hourlyPrices[prev--]);
+                                    if (hourlyInfos[prev].Price < averagePrice)
+                                        AddHourlyInfo(session, hourlyInfos[prev--]);
                                 }
                             }
                             else
                             {
-                                if (next < hourlyPrices.Count)
+                                if (next < hourlyInfos.Count)
                                 {
-                                    if (hourlyPrices[next].Price < averagePrice)
-                                        AddHourlyPrice(session, hourlyPrices[next++]);
+                                    if (hourlyInfos[next].Price < averagePrice)
+                                        AddHourlyInfo(session, hourlyInfos[next++]);
                                 }
                             }
 
@@ -203,31 +203,31 @@ namespace SessyController.Services.Items
                         {
                             if (prev >= 0)
                             {
-                                if (next < hourlyPrices.Count)
+                                if (next < hourlyInfos.Count)
                                 {
-                                    if (hourlyPrices[next].Price > hourlyPrices[prev].Price)
+                                    if (hourlyInfos[next].Price > hourlyInfos[prev].Price)
                                     {
-                                        if (hourlyPrices[next].Price > averagePrice)
-                                            AddHourlyPrice(session, hourlyPrices[next++]);
+                                        if (hourlyInfos[next].Price > averagePrice)
+                                            AddHourlyInfo(session, hourlyInfos[next++]);
                                     }
                                     else
                                     {
-                                        if (hourlyPrices[prev].Price > averagePrice)
-                                            AddHourlyPrice(session, hourlyPrices[prev--]);
+                                        if (hourlyInfos[prev].Price > averagePrice)
+                                            AddHourlyInfo(session, hourlyInfos[prev--]);
                                     }
                                 }
                                 else
                                 {
-                                    if (hourlyPrices[prev].Price > averagePrice)
-                                        AddHourlyPrice(session, hourlyPrices[prev--]);
+                                    if (hourlyInfos[prev].Price > averagePrice)
+                                        AddHourlyInfo(session, hourlyInfos[prev--]);
                                 }
                             }
                             else
                             {
-                                if (next < hourlyPrices.Count)
+                                if (next < hourlyInfos.Count)
                                 {
-                                    if (hourlyPrices[next].Price > averagePrice)
-                                        AddHourlyPrice(session, hourlyPrices[next++]);
+                                    if (hourlyInfos[next].Price > averagePrice)
+                                        AddHourlyInfo(session, hourlyInfos[next++]);
                                 }
                             }
 

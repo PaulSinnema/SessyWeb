@@ -59,7 +59,7 @@ namespace SessyController.Services
         /// </summary>
         protected override async Task ExecuteAsync(CancellationToken cancelationToken)
         {
-            _logger.LogInformation("EPEXHourlyPricesService started.");
+            _logger.LogInformation("EPEXHourlyInfosService started.");
 
             // Loop to fetch prices every 24 hours
             while (!cancelationToken.IsCancellationRequested)
@@ -99,7 +99,7 @@ namespace SessyController.Services
                 }
             }
 
-            _logger.LogInformation("EPEXHourlyPricesService stopped.");
+            _logger.LogInformation("EPEXHourlyInfosService stopped.");
 
         }
 
@@ -119,20 +119,20 @@ namespace SessyController.Services
         /// <summary>
         /// Get the fetched prices for today and tomorrow (if present) as a sorted dictionary.
         /// </summary>
-        public List<HourlyPrice> GetPrices()
+        public List<HourlyInfo> GetPrices()
         {
-            List<HourlyPrice> hourlyPrices = new List<HourlyPrice>();
+            List<HourlyInfo> hourlyInfos = new List<HourlyInfo>();
 
             if (_prices != null)
             {
-                hourlyPrices = _prices.OrderBy(vk => vk.Key)
-                    .Select(vk => new HourlyPrice { Time = vk.Key, Price = vk.Value })
+                hourlyInfos = _prices.OrderBy(vk => vk.Key)
+                    .Select(vk => new HourlyInfo { Time = vk.Key, Price = vk.Value })
                     .ToList();
 
-                return hourlyPrices;
+                return hourlyInfos;
             }
 
-            return new List<HourlyPrice>();
+            return new List<HourlyInfo>();
         }
 
         /// <summary>

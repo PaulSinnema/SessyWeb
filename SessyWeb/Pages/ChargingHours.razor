@@ -9,12 +9,12 @@
 
 @using SessyController.Services.Items
 
-@if (HourlyPrices != null && HourlyPrices.Count() != 0)
+@if (HourlyInfos != null && HourlyInfos.Count() != 0)
 {
 	<div style="width: 100%; height:100%;">
 		<RadzenChart Style="min-height: 5000px; min-width: 600px;">
 			<RadzenChartTooltipOptions Shared="false" Visible="true" />
-			<RadzenBarSeries Data="@HourlyPrices" CategoryProperty="Time" Title="Price" LineType="LineType.Dashed" ValueProperty="Price">
+			<RadzenBarSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Price" LineType="LineType.Dashed" ValueProperty="Price">
 				<TooltipTemplate Context="data">
 					<RadzenCard>
 						<div>
@@ -39,7 +39,7 @@
 					<RadzenSeriesDataLabels Visible="true" />
 				</ChildContent>
 			</RadzenBarSeries>
-			<RadzenBarSeries Data="@HourlyPrices" CategoryProperty="Time" Title="Charging" ValueProperty="VisualizeInChart" >
+			<RadzenBarSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Charging" ValueProperty="VisualizeInChart" >
 				<TooltipTemplate Context="data">
 					<RadzenCard>
 						<div>
@@ -64,7 +64,7 @@
 					<RadzenSeriesDataLabels Visible="false" />
 				</ChildContent>
 			</RadzenBarSeries>
-			<RadzenBarSeries Data="@HourlyPrices" CategoryProperty="Time" Title="Profit" ValueProperty="ProfitVisual">
+			<RadzenBarSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Profit" ValueProperty="ProfitVisual">
 				<TooltipTemplate Context="data">
 					<RadzenCard>
 						<div>
@@ -89,7 +89,7 @@
 					<RadzenSeriesDataLabels Visible="false" />
 				</ChildContent>
 			</RadzenBarSeries>
-			<RadzenBarSeries Data="@HourlyPrices" CategoryProperty="Time" Title="Charge" ValueProperty="ChargeLeftVisual">
+			<RadzenBarSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Charge" ValueProperty="ChargeLeftVisual">
 				<TooltipTemplate Context="data">
 					<RadzenCard>
 						<div>

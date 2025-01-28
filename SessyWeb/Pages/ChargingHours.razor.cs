@@ -9,13 +9,13 @@ namespace SessyWeb.Pages
         [Inject]
         public BatteriesService? BatteriesService { get; set; }
 
-        public List<HourlyPrice>? HourlyPrices { get; set; }
+        public List<HourlyInfo>? HourlyInfos { get; set; }
 
         private CancellationTokenSource _cts = new();
 
         protected override async Task OnInitializedAsync()
         {
-            HourlyPrices = BatteriesService?.GetHourlyPrices();
+            HourlyInfos = BatteriesService?.GetHourlyInfos();
 
             await StartLoop();
 
@@ -33,7 +33,7 @@ namespace SessyWeb.Pages
                     // Zorg ervoor dat de UI wordt bijgewerkt in de render-thread
                     await InvokeAsync(() =>
                     {
-                        HourlyPrices = BatteriesService?.GetHourlyPrices()?.ToList();
+                        HourlyInfos = BatteriesService?.GetHourlyInfos()?.ToList();
                         StateHasChanged();
                     });
                 }

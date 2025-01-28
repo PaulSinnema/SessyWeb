@@ -43,10 +43,10 @@ namespace SessyWeb.Controllers
         /// <summary>
         /// Gets the prices fetched by the background service.
         /// </summary>
-        [HttpGet("SessyController", Name = "GetHourlyPrices")]
-        public List<HourlyPrice>? GetHourlyPrices()
+        [HttpGet("SessyController", Name = "GetHourlyInfos")]
+        public List<HourlyInfo>? GetHourlyInfos()
         {
-            return _batteriesService.GetHourlyPrices();
+            return _batteriesService.GetHourlyInfos();
         }
 
         #endregion
@@ -57,7 +57,7 @@ namespace SessyWeb.Controllers
         /// Gets the prices fetched by the background service.
         /// </summary>
         [HttpGet("DayAheadMarketService", Name = "GetPrizes")]
-        public List<HourlyPrice> GetPrizes()
+        public List<HourlyInfo> GetPrizes()
         {
             return _dayAheadMarketService.GetPrices();
         }

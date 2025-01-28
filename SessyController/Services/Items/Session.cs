@@ -16,7 +16,7 @@
         /// <summary>
         /// All prices in the session
         /// </summary>
-        public List<HourlyPrice> PriceList { get; set; }
+        public List<HourlyInfo> PriceList { get; set; }
 
         /// <summary>
         /// Max hours of (dis)charging
@@ -40,7 +40,7 @@
 
         public Session(Modes mode, int maxHours)
         {
-            PriceList = new List<HourlyPrice>();
+            PriceList = new List<HourlyInfo>();
             MaxHours = maxHours;
             Mode = mode;
         }
@@ -48,7 +48,7 @@
         /// <summary>
         /// Add a price to the list
         /// </summary>
-        public void AddHourlyPrice(HourlyPrice price)
+        public void AddHourlyInfo(HourlyInfo price)
         {
             PriceList.Add(price);
         }

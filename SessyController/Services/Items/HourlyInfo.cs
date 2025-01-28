@@ -1,6 +1,6 @@
 ﻿namespace SessyController.Services.Items
 {
-    public class HourlyPrice
+    public class HourlyInfo
     {
         /// <summary>
         /// Price from ENTSO-E
@@ -140,6 +140,6 @@
         /// <summary>
         /// This list contains the hours found for charging against this price.
         /// </summary>
-        public List<HourlyPrice>? HoursCharging { get; set; }
+        public List<HourlyInfo>? HoursCharging { get; set; }
     }
 }
