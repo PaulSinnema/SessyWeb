@@ -6,9 +6,9 @@ namespace SessyController.Providers
     public class TcpClientProvider
     {
         private readonly IServiceProvider _serviceProvider;
-        private readonly ModbusConfig _solarEdgeConfig;
+        private readonly PowerSystemsConfig _solarEdgeConfig;
 
-        public TcpClientProvider(IServiceProvider serviceProvider, IOptions<ModbusConfig> solarEdgeConfig)
+        public TcpClientProvider(IServiceProvider serviceProvider, IOptions<PowerSystemsConfig> solarEdgeConfig)
         {
             _serviceProvider = serviceProvider;
             _solarEdgeConfig = solarEdgeConfig.Value;

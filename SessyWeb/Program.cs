@@ -48,7 +48,7 @@ builder.Configuration.AddEnvironmentVariables();
 
 builder.Services.Configure<SessyBatteryConfig>(builder.Configuration.GetSection("Sessy:Batteries"));
 builder.Services.Configure<SessyP1Config>(builder.Configuration.GetSection("Sessy:Meters"));
-builder.Services.Configure<ModbusConfig>(builder.Configuration.GetSection("PowerSystems"));
+builder.Services.Configure<PowerSystemsConfig>(builder.Configuration.GetSection("PowerSystems"));
 builder.Services.Configure<SettingsConfig>(builder.Configuration.GetSection("ManagementSettings"));
 builder.Services.Configure<SunExpectancyConfig>(builder.Configuration.GetSection("WeerOnline"));
 

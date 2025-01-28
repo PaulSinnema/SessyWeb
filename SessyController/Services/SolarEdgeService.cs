@@ -29,19 +29,19 @@ namespace SessyController.Services
         private readonly IConfiguration _configuration;
         private readonly LoggingService<SolarEdgeService> _logger;
         private readonly IHttpClientFactory _httpClientFactory;
-        private readonly ModbusConfig _solarEdgeConfig;
+        private readonly PowerSystemsConfig _powerSystemsConfig;
         private readonly TcpClientProvider _tcpClientProvider;
 
         public SolarEdgeService(IConfiguration configuration,
                                       LoggingService<SolarEdgeService> logger,
                                       IHttpClientFactory httpClientFactory,
-                                      IOptions<ModbusConfig> solarEdgeConfig,
+                                      IOptions<PowerSystemsConfig> powerSystemsConfig,
                                       TcpClientProvider tcpClientProvide)
         {
             _configuration = configuration;
             _logger = logger;
             _httpClientFactory = httpClientFactory;
-            _solarEdgeConfig = solarEdgeConfig.Value;
+            _powerSystemsConfig = powerSystemsConfig.Value;
             _tcpClientProvider = tcpClientProvide;
         }
 
@@ -139,7 +139,7 @@ namespace SessyController.Services
                 var factory = new ModbusFactory(null, true);
                 using var master = factory.CreateMaster(tcpClient);
 
-                ModbusEndpoint endpoint = GetEndpointConfig();
+                Configurations.Endpoint endpoint = GetEndpointConfig();
 
                 var slaveId = endpoint.SlaveId;
 
@@ -168,7 +168,7 @@ namespace SessyController.Services
                 var factory = new ModbusFactory(null, true);
                 using var master = factory.CreateMaster(tcpClient);
 
-                ModbusEndpoint endpoint = GetEndpointConfig();
+                Configurations.Endpoint endpoint = GetEndpointConfig();
 
                 var slaveId = endpoint.SlaveId;
 
@@ -206,7 +206,7 @@ namespace SessyController.Services
                 var factory = new ModbusFactory(null, true);
                 using var master = factory.CreateMaster(tcpClient);
 
-                ModbusEndpoint endpoint = GetEndpointConfig();
+                Configurations.Endpoint endpoint = GetEndpointConfig();
 
                 var slaveId = endpoint.SlaveId;
 
@@ -225,9 +225,9 @@ namespace SessyController.Services
             }
         }
 
-        private ModbusEndpoint GetEndpointConfig()
+        private Configurations.Endpoint GetEndpointConfig()
         {
-            if (!_solarEdgeConfig.Endpoints.TryGetValue("SolarEdge", out var endpoint))
+            if (!_powerSystemsConfig.Endpoints.TryGetValue("SolarEdge", out var endpoint))
             {
                 var message = "SolarEdge configuration is missing";
 

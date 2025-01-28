@@ -30,5 +30,9 @@
         /// How much is needed for the home (this will have to be estimated later).
         /// </summary>
         public double RequiredHomeEnergy { get; set; }
+
+        public int NumberOfSolarPanels { get; set; }
+        public double PeakPowerPerPanel { get; set; }
+
     }
 }

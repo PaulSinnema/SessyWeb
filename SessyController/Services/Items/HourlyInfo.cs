@@ -29,6 +29,8 @@
 
         private bool _charging = false;
 
+        public double SolarGlobalRadiation { get; set; }
+
         /// <summary>
         /// If true charging is requested.
         /// </summary>
