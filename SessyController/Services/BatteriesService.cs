@@ -463,7 +463,7 @@ namespace SessyController.Services
 
                 changed3 = RemoveEmptySessions(sessions);
 
-                // changed4 = CheckProfitability(sessions);
+                changed4 = CheckProfitability(sessions);
             } while (changed1 || changed2 || changed3 || changed4);
         }
 
