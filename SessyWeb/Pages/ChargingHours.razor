@@ -32,6 +32,12 @@
 						<div>
 							Charge left: @data?.ChargeLeft
 						</div>
+						<div>
+							Solar power: @data?.SolarPower
+						</div>
+						<div>
+							Global radiation: @data?.SolarGlobalRadiation
+						</div>
 					</RadzenCard>
 				</TooltipTemplate>
 				<ChildContent>
@@ -56,6 +62,12 @@
 						</div>
 						<div>
 							Charge left: @data?.ChargeLeft
+						</div>
+						<div>
+							Solar power: @data?.SolarPower
+						</div>
+						<div>
+							Global radiation: @data?.SolarGlobalRadiation
 						</div>
 					</RadzenCard>
 				</TooltipTemplate>
@@ -82,6 +94,12 @@
 						<div>
 							Charge left: @data?.ChargeLeft
 						</div>
+						<div>
+							Solar power: @data?.SolarPower
+						</div>
+						<div>
+							Global radiation: @data?.SolarGlobalRadiation
+						</div>
 					</RadzenCard>
 				</TooltipTemplate>
 				<ChildContent>
@@ -106,6 +124,43 @@
 						</div>
 						<div>
 							Charge left: @data?.ChargeLeft
+						</div>
+						<div>
+							Solar power: @data?.SolarPower
+						</div>
+						<div>
+							Global radiation: @data?.SolarGlobalRadiation
+						</div>
+					</RadzenCard>
+				</TooltipTemplate>
+				<ChildContent>
+					<RadzenMarkers Visible="false" />
+					<RadzenSeriesDataLabels Visible="false" />
+				</ChildContent>
+			</RadzenBarSeries>
+			<RadzenBarSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Solar power" ValueProperty="SolarPowerVisual">
+				<TooltipTemplate Context="data">
+					<RadzenCard>
+						<div>
+							Date: @data?.Time
+						</div>
+						<div>
+							Price: @data?.Price
+						</div>
+						<div>
+							State @data?.DisplayState;
+						</div>
+						<div>
+							Profit: @data?.Profit
+						</div>
+						<div>
+							Charge left: @data?.ChargeLeft
+						</div>
+						<div>
+							Solar power: @data?.SolarPower
+						</div>
+						<div>
+							Global radiation: @data?.SolarGlobalRadiation
 						</div>
 					</RadzenCard>
 				</TooltipTemplate>

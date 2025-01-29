@@ -50,7 +50,7 @@ builder.Services.Configure<SessyBatteryConfig>(builder.Configuration.GetSection(
 builder.Services.Configure<SessyP1Config>(builder.Configuration.GetSection("Sessy:Meters"));
 builder.Services.Configure<PowerSystemsConfig>(builder.Configuration.GetSection("PowerSystems"));
 builder.Services.Configure<SettingsConfig>(builder.Configuration.GetSection("ManagementSettings"));
-builder.Services.Configure<SunExpectancyConfig>(builder.Configuration.GetSection("WeerOnline"));
+builder.Services.Configure<WeatherExpectancyConfig>(builder.Configuration.GetSection("WeerOnline"));
 
 // Voeg services en providers toe aan de DI-container
 builder.Services.AddHttpClient();
@@ -58,8 +58,9 @@ builder.Services.AddHttpClient();
 builder.Services.AddTransient(typeof(LoggingService<>));
 builder.Services.AddScoped<SessyService>();
 builder.Services.AddScoped<SolarEdgeService>();
+builder.Services.AddScoped<SolarService>();
 builder.Services.AddScoped<P1MeterService>();
-builder.Services.AddScoped<SunExpectancyService>();
+builder.Services.AddScoped<WeatherExpectancyService>();
 builder.Services.AddSingleton<DayAheadMarketService>();
 builder.Services.AddSingleton<BatteriesService>();
 builder.Services.AddScoped<TcpClientProvider>();

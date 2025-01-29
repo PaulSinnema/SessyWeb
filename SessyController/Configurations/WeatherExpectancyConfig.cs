@@ -1,6 +1,6 @@
 ﻿namespace SessyController.Configurations
 {
-    public class SunExpectancyConfig
+    public class WeatherExpectancyConfig
     {
         public string APIKey { get; set; } = string.Empty;
 

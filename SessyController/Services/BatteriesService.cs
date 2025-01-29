@@ -17,6 +17,7 @@ namespace SessyController.Services
         private P1MeterService _p1MeterService;
         private DayAheadMarketService _dayAheadMarketService;
         private SolarEdgeService _solarEdgeService;
+        private readonly SolarService _solarService;
         private readonly IServiceScopeFactory _serviceScopeFactory;
         private readonly SettingsConfig? _settingsConfig;
         private readonly SessyBatteryConfig _sessyBatteryConfig;
@@ -55,6 +56,7 @@ namespace SessyController.Services
                 _p1MeterService = scope.ServiceProvider.GetRequiredService<P1MeterService>();
                 _dayAheadMarketService = scope.ServiceProvider.GetRequiredService<DayAheadMarketService>();
                 _solarEdgeService = scope.ServiceProvider.GetRequiredService<SolarEdgeService>();
+                _solarService = scope.ServiceProvider.GetRequiredService<SolarService>();
                 _batteryContainer = scope.ServiceProvider.GetRequiredService<BatteryContainer>();
             }
         }
@@ -366,6 +368,8 @@ namespace SessyController.Services
         private async Task GetChargingHours()
         {
             hourlyInfos = hourlyInfos.OrderBy(hp => hp.Time).ToList();
+
+            await _solarService.GetSolarPower(hourlyInfos);
 
             List<int> lowestPrices = new List<int>();
             List<int> highestPrices = new List<int>();

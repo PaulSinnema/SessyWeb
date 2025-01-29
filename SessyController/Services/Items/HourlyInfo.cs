@@ -31,6 +31,10 @@
 
         public double SolarGlobalRadiation { get; set; }
 
+        public double SolarPower { get; set; }
+
+        public double SolarPowerVisual => SolarPower / 1000;
+
         /// <summary>
         /// If true charging is requested.
         /// </summary>

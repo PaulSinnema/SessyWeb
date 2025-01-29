@@ -5,41 +5,49 @@ using SessyController.Configurations;
 
 namespace SessyController.Services
 {
-    public class SunExpectancyService
+    public class WeatherExpectancyService
     {
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly LoggingService<SessyService> _logger;
-        private readonly SunExpectancyConfig _sunExpectancyConfig;
+        private readonly WeatherExpectancyConfig _WeatherExpectancyConfig;
 
-        public SunExpectancyService(LoggingService<SessyService> logger,
+        public WeatherExpectancyService(LoggingService<SessyService> logger,
                         IHttpClientFactory httpClientFactory,
-                        IOptions<SunExpectancyConfig> sunExpectancyConfig)
+                        IOptions<WeatherExpectancyConfig> sunExpectancyConfig)
         {
             _logger = logger;
             _httpClientFactory = httpClientFactory;
-            _sunExpectancyConfig = sunExpectancyConfig.Value;
+            _WeatherExpectancyConfig = sunExpectancyConfig.Value;
         }
 
         public async Task<WeerData?> GetWeerDataAsync()
         {
             var client = _httpClientFactory.CreateClient();
-            client.BaseAddress = new Uri(_sunExpectancyConfig.BaseUrl);
-            var response = await client.GetAsync($"?key={_sunExpectancyConfig.APIKey}&locatie={_sunExpectancyConfig.Location}");
+            client.BaseAddress = new Uri(_WeatherExpectancyConfig.BaseUrl);
+            var response = await client.GetAsync($"?key={_WeatherExpectancyConfig.APIKey}&locatie={_WeatherExpectancyConfig.Location}");
 
             if (response.IsSuccessStatusCode)
             {
                 var content = await response.Content.ReadAsStringAsync();
-                var weerData = JsonSerializer.Deserialize<WeerData>(content, new JsonSerializerOptions
+                try
                 {
-                    PropertyNameCaseInsensitive = true
-                });
+                    var weerData = JsonSerializer.Deserialize<WeerData>(content, new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
 
-                return weerData;
+                    return weerData;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogException(ex, $"Error trying to deserialize reponse from WeerOnline: {response}");
+                    throw;
+                }
             }
             else
             {
                 // Foutafhandeling
-                throw new Exception($"Fout bij het ophalen van weergegevens: {response.ReasonPhrase}");
+                throw new Exception($"Error getting weather data from WeerOnline: {response.ReasonPhrase}");
             }
         }
 
@@ -175,7 +183,7 @@ namespace SessyController.Services
         public class UurVerwachting
         {
             [JsonPropertyName("uur")]
-            public string Uur { get; set; } = string.Empty;
+            public string? Uur { get; set; }
 
             [JsonPropertyName("timestamp")]
             public long Timestamp { get; set; }
