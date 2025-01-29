@@ -1,26 +1,61 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading;
 using Microsoft.Extensions.Options;
 using SessyController.Configurations;
 
 namespace SessyController.Services
 {
-    public class WeatherExpectancyService
+    public class WeatherService : BackgroundService
     {
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly LoggingService<SessyService> _logger;
+        private readonly TimeZoneService _timeZoneService;
         private readonly WeatherExpectancyConfig _WeatherExpectancyConfig;
 
-        public WeatherExpectancyService(LoggingService<SessyService> logger,
-                        IHttpClientFactory httpClientFactory,
-                        IOptions<WeatherExpectancyConfig> sunExpectancyConfig)
+        public WeerData? WeatherData { get; private set; }
+
+        public bool Initialized { get; private set; }
+
+        public WeatherService(LoggingService<SessyService> logger,
+                              TimeZoneService timeZoneService,
+                              IHttpClientFactory httpClientFactory,
+                              IOptions<WeatherExpectancyConfig> sunExpectancyConfig)
         {
             _logger = logger;
+            _timeZoneService = timeZoneService;
             _httpClientFactory = httpClientFactory;
             _WeatherExpectancyConfig = sunExpectancyConfig.Value;
         }
 
-        public async Task<WeerData?> GetWeerDataAsync()
+        protected override async Task ExecuteAsync(CancellationToken cancelationToken)
+        {
+            while (!cancelationToken.IsCancellationRequested)
+            {
+                Initialized = false;
+
+                try
+                {
+                    WeatherData = await GetWeerDataAsync();
+
+                    Initialized = true;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogException(ex, "An error occurred while getting the weather data.");
+                }
+
+                var currentTime = _timeZoneService.Now;
+
+                var delayHours = 24 - currentTime.Hour;
+
+                await Task.Delay(TimeSpan.FromHours(delayHours), cancelationToken);
+            }
+
+            _logger.LogInformation("Weather service stopped.");
+        }
+
+        private async Task<WeerData?> GetWeerDataAsync()
         {
             var client = _httpClientFactory.CreateClient();
             client.BaseAddress = new Uri(_WeatherExpectancyConfig.BaseUrl);

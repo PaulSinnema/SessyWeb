@@ -22,8 +22,8 @@ namespace SessyController.Services
         private readonly SettingsConfig? _settingsConfig;
         private readonly SessyBatteryConfig _sessyBatteryConfig;
         private readonly BatteryContainer _batteryContainer;
+        private readonly TimeZoneService _timeZoneService;
         private readonly LoggingService<BatteriesService> _logger;
-        private readonly TimeZoneInfo _timeZone;
         private static List<HourlyInfo> hourlyInfos { get; set; } = new List<HourlyInfo>();
 
         public BatteriesService(LoggingService<BatteriesService> logger,
@@ -45,11 +45,6 @@ namespace SessyController.Services
             if (_settingsConfig == null) throw new InvalidOperationException("ManagementSettings missing");
             if (_sessyBatteryConfig == null) throw new InvalidOperationException("Sessy:Batteries missing");
 
-            if (!string.IsNullOrWhiteSpace(_settingsConfig?.Timezone))
-                _timeZone = TimeZoneInfo.FindSystemTimeZoneById(_settingsConfig.Timezone);
-            else
-                throw new InvalidOperationException("Timezone is missing");
-
             using (var scope = _serviceScopeFactory.CreateScope())
             {
                 _sessyService = scope.ServiceProvider.GetRequiredService<SessyService>();
@@ -58,6 +53,7 @@ namespace SessyController.Services
                 _solarEdgeService = scope.ServiceProvider.GetRequiredService<SolarEdgeService>();
                 _solarService = scope.ServiceProvider.GetRequiredService<SolarService>();
                 _batteryContainer = scope.ServiceProvider.GetRequiredService<BatteryContainer>();
+                _timeZoneService = scope.ServiceProvider.GetRequiredService<TimeZoneService>();
             }
         }
 
@@ -148,7 +144,7 @@ namespace SessyController.Services
 
         private void HandleManualCharging()
         {
-            var localTime = GetLocalTime();
+            var localTime = _timeZoneService.Now;
 
             if (_settingsConfig.ManualChargingHours.Contains(localTime.Hour))
                 _batteryContainer.StartCharging();
@@ -162,7 +158,7 @@ namespace SessyController.Services
 
         private HourlyInfo? GetCurrentHourlyInfo()
         {
-            var localTime = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _timeZone);
+            var localTime = _timeZoneService.Now;
 
             return hourlyInfos?
                 .FirstOrDefault(hp => hp.Time.Date == localTime.Date && hp.Time.Hour == localTime.Hour);
@@ -309,7 +305,7 @@ namespace SessyController.Services
         /// <returns></returns>
         public async Task<bool> DetermineChargingHours()
         {
-            DateTime localTime = GetLocalTime();
+            DateTime localTime = _timeZoneService.Now;
 
             if (localTime.Date > lastDateChecked.Date)
                 hasCheckedLastDate1600 = false;
@@ -341,14 +337,6 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Get the local time with the timezone from the settings.
-        /// </summary>
-        private DateTime GetLocalTime()
-        {
-            return TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _timeZone);
-        }
-
-        /// <summary>
         /// Get the day-ahead-prices from ENTSO-E.
         /// </summary>
         /// <param name="localTime"></param>
@@ -369,7 +357,7 @@ namespace SessyController.Services
         {
             hourlyInfos = hourlyInfos.OrderBy(hp => hp.Time).ToList();
 
-            await _solarService.GetSolarPower(hourlyInfos);
+            _solarService.GetExpectedSolarPower(hourlyInfos);
 
             List<int> lowestPrices = new List<int>();
             List<int> highestPrices = new List<int>();
@@ -416,7 +404,7 @@ namespace SessyController.Services
             double hourNeed = dayNeed / 24;
             double chargingCapacity = _sessyBatteryConfig.TotalChargingCapacity;
             double dischargingCapacity = _sessyBatteryConfig.TotalDischargingCapacity;
-            var localTime = GetLocalTime();
+            var localTime = _timeZoneService.Now;
 
             foreach (var hourlyInfo in hourlyInfos
                 .Where(hp => hp.Time >= localTime)

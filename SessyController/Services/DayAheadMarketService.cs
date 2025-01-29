@@ -36,21 +36,24 @@ namespace SessyController.Services
         private static IHttpClientFactory? _httpClientFactory;
         private SettingsConfig _settingsConfig;
         private static LoggingService<DayAheadMarketService>? _logger;
+        private readonly TimeZoneService _timeZoneService;
 
         public bool PricesAvailable { get; internal set; } = false;
         public bool PricesInitialized { get; internal set; } = false;
 
-        public DayAheadMarketService(IConfiguration configuration,
+        public DayAheadMarketService(LoggingService<DayAheadMarketService> logger,
+                                    IConfiguration configuration,
                                     IWebHostEnvironment environment,
                                     IHttpClientFactory httpClientFactory,
                                     IOptions<SettingsConfig> settingsConfig,
-                                    LoggingService<DayAheadMarketService> logger)
+                                    TimeZoneService timeZoneService)
         {
             _securityToken = configuration[ConfigSecurityTokenKey];
             _inDomain = configuration[ConfigInDomain];
             _resolutionFormat = configuration[ConfigResolutionFormat];
             _httpClientFactory = httpClientFactory;
             _settingsConfig = settingsConfig.Value;
+            _timeZoneService = timeZoneService;
             _logger = logger;
         }
 
@@ -80,11 +83,7 @@ namespace SessyController.Services
                     if (_prices != null && _prices.Count > 0)
                     {
                         // Wait until the next whole hour or until cancellation
-                        if (_settingsConfig.Timezone == null)
-                            throw new InvalidOperationException("Timezone not set");
-
-                        var timeZone = TimeZoneInfo.FindSystemTimeZoneById(_settingsConfig.Timezone);
-                        var localTime = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, timeZone);
+                        var localTime = _timeZoneService.Now;
 
                         delayTime = 60 - localTime.Minute + 1; // 1 minute extra to be sure
                     }

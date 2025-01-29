@@ -56,11 +56,12 @@ builder.Services.Configure<WeatherExpectancyConfig>(builder.Configuration.GetSec
 builder.Services.AddHttpClient();
 
 builder.Services.AddTransient(typeof(LoggingService<>));
+builder.Services.AddSingleton<TimeZoneService>();
 builder.Services.AddScoped<SessyService>();
 builder.Services.AddScoped<SolarEdgeService>();
 builder.Services.AddScoped<SolarService>();
 builder.Services.AddScoped<P1MeterService>();
-builder.Services.AddScoped<WeatherExpectancyService>();
+builder.Services.AddSingleton<WeatherService>();
 builder.Services.AddSingleton<DayAheadMarketService>();
 builder.Services.AddSingleton<BatteriesService>();
 builder.Services.AddScoped<TcpClientProvider>();
@@ -69,6 +70,7 @@ builder.Services.AddScoped<BatteryContainer>();
 
 builder.Services.AddHostedService(provider => provider.GetRequiredService<DayAheadMarketService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<BatteriesService>());
+builder.Services.AddHostedService(provider => provider.GetRequiredService<WeatherService>());
 
 // Add services to the container.
 

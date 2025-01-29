@@ -3,6 +3,7 @@
     public class PhotoVoltaic
     {
         public int PanelCount { get; set; }
+        public double Tilt { get; set; }
         public double PeakPowerPerPanel { get; set; }
         public double Efficiency { get; set; }
         public double TotalArea { get; set; }

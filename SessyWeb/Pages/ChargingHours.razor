@@ -12,6 +12,8 @@
 @if (HourlyInfos != null && HourlyInfos.Count() != 0)
 {
 	<div style="width: 100%; height:100%;">
+		<div>Total expected solarpower: </div>
+		<div>@TotalSolarPowerExpected</div>
 		<RadzenChart Style="min-height: 5000px; min-width: 600px;">
 			<RadzenChartTooltipOptions Shared="false" Visible="true" />
 			<RadzenBarSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Price" LineType="LineType.Dashed" ValueProperty="Price">

@@ -8,8 +8,12 @@ namespace SessyWeb.Pages
     {
         [Inject]
         public BatteriesService? BatteriesService { get; set; }
+        [Inject]
+        public SolarService? SolarService { get; set; }
 
         public List<HourlyInfo>? HourlyInfos { get; set; }
+
+        public double TotalSolarPowerExpected => SolarService.GetTotalSolarPowerExpected(HourlyInfos);
 
         private CancellationTokenSource _cts = new();
 

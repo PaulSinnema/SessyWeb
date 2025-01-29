@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using SessyController.Services;
 using SessyController.Services.Items;
 using static P1MeterService;
-using static SessyController.Services.WeatherExpectancyService;
+using static SessyController.Services.WeatherService;
 
 namespace SessyWeb.Controllers
 {
@@ -19,14 +19,14 @@ namespace SessyWeb.Controllers
         private readonly SessyService _sessyService;
         private readonly SolarEdgeService _solarEdgeService;
         private readonly P1MeterService _p1MeterService;
-        private readonly WeatherExpectancyService _sunExpectancyService;
+        private readonly WeatherService _weatherService;
 
         public BatteryManagementController(DayAheadMarketService DayAheadMarketService,
                                            BatteriesService batteriesService,
                                            SessyService sessyService,
                                            SolarEdgeService solarEdgeService,
                                            P1MeterService p1MeterService,
-                                           WeatherExpectancyService sunExpectancyService,
+                                           WeatherService weatherService,
                                            ILogger<BatteryManagementController> logger)
         {
             _logger = logger;
@@ -35,7 +35,7 @@ namespace SessyWeb.Controllers
             _sessyService = sessyService;
             _solarEdgeService = solarEdgeService;
             _p1MeterService = p1MeterService;
-            _sunExpectancyService = sunExpectancyService;
+            _weatherService = weatherService;
         }
 
         #region SessyController
@@ -258,9 +258,9 @@ namespace SessyWeb.Controllers
         /// Gets the weatherdata from the free WeerOnline API.
         /// </summary>
         [HttpGet("SunExpectancyService:GetWeatherData", Name = "GetWeatherData")]
-        public async Task<IActionResult> GetWeatherData()
+        public IActionResult GetWeatherData()
         {
-            WeerData? weatherData = await _sunExpectancyService.GetWeerDataAsync();
+            WeerData? weatherData = _weatherService.WeatherData;
 
             return Ok(weatherData);
         }
