@@ -71,8 +71,11 @@ namespace SessyController.Services
 
                 if (weatherData != null && weatherData.UurVerwachting != null)
                 {
-                    foreach (var uurVerwachting in weatherData.UurVerwachting)
+                    foreach (UurVerwachting? uurVerwachting in weatherData.UurVerwachting)
                     {
+                        if (uurVerwachting == null || uurVerwachting.Uur == null)
+                            throw new InvalidOperationException($"Uurverwachting of Uur is null");
+
                         DateTime dateTime = DateTime.ParseExact(uurVerwachting.Uur, "dd-MM-yyyy HH:mm", CultureInfo.InvariantCulture);
 
                         var currentHourlyInfo = hourlyInfos.Where(hi => hi.Time == dateTime).FirstOrDefault();
@@ -89,7 +92,7 @@ namespace SessyController.Services
 
                                 CalculateSolarPosition(dateTime.Hour, latitude, longitude, endpoint.TimeZoneOffset, out solarAltitude, out solarAzimuth);
 
-                                foreach (var solarPanel in endpoint.SolarPanels.Values)
+                                foreach (PhotoVoltaic solarPanel in endpoint.SolarPanels.Values)
                                 {
                                     double solarFactor = GetSolarFactor(solarAzimuth, solarAltitude, solarPanel.Orientation, solarPanel.Tilt);
 

@@ -11,9 +11,9 @@ namespace SessyWeb.Pages
         [Inject]
         public SolarService? SolarService { get; set; }
 
-        public List<HourlyInfo>? HourlyInfos { get; set; }
+        public List<HourlyInfo>? HourlyInfos { get; set; } = new List<HourlyInfo>();
 
-        public double TotalSolarPowerExpected => SolarService.GetTotalSolarPowerExpected(HourlyInfos);
+        public double TotalSolarPowerExpected => SolarService == null ? 0.0 : SolarService.GetTotalSolarPowerExpected(HourlyInfos);
 
         private CancellationTokenSource _cts = new();
 
