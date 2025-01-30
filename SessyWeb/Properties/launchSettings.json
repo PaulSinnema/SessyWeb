@@ -21,10 +21,11 @@
       "launchBrowser": true,
       "launchUrl": "{Scheme}://{ServiceHost}:{ServicePort}",
       "environmentVariables": {
-        "ASPNETCORE_URLS": "https://+:443;http://+:80"
+        "ASPNETCORE_URLS": "http://+:80" // <-- HTTPS verwijderd
       },
-      "publishAllPorts": true,
-      "useSSL": true
+      "workingDirectory": "/app", // <-- Werkmap expliciet ingesteld
+      "useSSL": false, // <-- SSL uitzetten voor eenvoudiger debugging
+      "publishAllPorts": true
     }
   },
   "iisSettings": {

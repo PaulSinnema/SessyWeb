@@ -1,28 +1,29 @@
-# See https://aka.ms/customizecontainer to learn how to customize your debug container and how Visual Studio uses this Dockerfile to build your images for faster debugging.
-
-# This stage is used when running from VS in fast mode (Default for Debug configuration)
-FROM mcr.microsoft.com/dotnet/aspnet:6.0 AS base
+# Gebruik .NET 9.0 runtime voor de uiteindelijke container
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
 WORKDIR /app
 EXPOSE 80
 EXPOSE 443
 
-
-# This stage is used to build the service project
-FROM mcr.microsoft.com/dotnet/sdk:6.0 AS build
+# Gebruik .NET 9.0 SDK om de app te bouwen
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
+
+# Kopieer het projectbestand en herstel de dependencies
 COPY ["SessyWeb/SessyWeb.csproj", "SessyWeb/"]
 RUN dotnet restore "./SessyWeb/SessyWeb.csproj"
+
+# Kopieer alle projectbestanden en bouw de applicatie
 COPY . .
 WORKDIR "/src/SessyWeb"
-RUN dotnet build "./SessyWeb.csproj" -c $BUILD_CONFIGURATION -o /app/build
+RUN dotnet build "./SessyWeb.csproj" -c $BUILD_CONFIGURATION -o /app/build /p:UseAppHost=false
 
-# This stage is used to publish the service project to be copied to the final stage
+# Publiceer de applicatie
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
 RUN dotnet publish "./SessyWeb.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
-# This stage is used in production or when running from VS in regular mode (Default when not using the Debug configuration)
+# Gebruik de .NET 9.0 runtime voor de uiteindelijke container
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
