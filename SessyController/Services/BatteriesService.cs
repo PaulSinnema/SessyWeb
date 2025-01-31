@@ -407,7 +407,7 @@ namespace SessyController.Services
             var localTime = _timeZoneService.Now;
 
             foreach (var hourlyInfo in hourlyInfos
-                .Where(hp => hp.Time >= localTime)
+                .Where(hp => hp.Time.Date >= localTime.Date)
                 .OrderBy(hp => hp.Time)
                 .ToList())
             {
