@@ -25,6 +25,8 @@
 
         public double ChargeLeft { get; set; }
 
+        public double ChargeLeftPercentage { get; set; }
+
         public double ChargeLeftVisual => ChargeLeft / 100000;
 
         private bool _charging = false;

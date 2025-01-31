@@ -1,0 +1,37 @@
+﻿<RadzenCard>
+    <div>
+        <RadzenFormField Text="Price" Style="flex: 1;">
+            <RadzenDatePicker Value=@HourlyInfo.Time ShowButton="false" disabled TValue="DateTime"/>
+        </RadzenFormField>
+    </div>
+    <div>
+        <RadzenFormField Text="Price" Style="flex: 1;">
+            <RadzenNumeric Format="0.0000" ShowUpDown="false" Value=@HourlyInfo.Price disabled Style="width: 150px;" />
+        </RadzenFormField>
+    </div>
+    <div>
+        <RadzenFormField Text="State" Style="flex: 1;">
+            <RadzenTextBox Value=@HourlyInfo.DisplayState disabled Style="width: 150px;" />
+        </RadzenFormField>
+    </div>
+    <div>
+        <RadzenFormField Text="Profit" Style="flex: 1;">
+            <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo.Profit disabled Style="width: 150px;" />
+        </RadzenFormField>
+    </div>
+    <div>
+        <RadzenFormField Text="Charge left" Style="flex: 1;">
+            <RadzenNumeric Format="0.00" ShowUpDown="false" @bind-Value=@HourlyInfo.ChargeLeftPercentage disabled Style="width: 150px;" />
+        </RadzenFormField>
+    </div>
+    <div>
+        <RadzenFormField Text="Solar power" Style="flex: 1;">
+            <RadzenNumeric Format="0.00" ShowUpDown="false" @bind-Value=@HourlyInfo.SolarPower disabled Style="width: 150px;" />
+        </RadzenFormField>
+    </div>
+    <div>
+        <RadzenFormField Text="Global radiation" Style="flex: 1;">
+            <RadzenNumeric Format="0.00" ShowUpDown="false" @bind-Value=@HourlyInfo.SolarGlobalRadiation disabled Style="width: 150px;" />
+        </RadzenFormField>
+    </div>
+</RadzenCard>

@@ -18,29 +18,7 @@
 			<RadzenChartTooltipOptions Shared="false" Visible="true" />
 			<RadzenBarSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Price" LineType="LineType.Dashed" ValueProperty="Price">
 				<TooltipTemplate Context="data">
-					<RadzenCard>
-						<div>
-							Date: @data?.Time	
-						</div>
-						<div>
-							Price: @data?.Price
-						</div>
-						<div>
-							State @data?.DisplayState;
-						</div>
-						<div>
-							Profit: @data?.Profit
-						</div>
-						<div>
-							Charge left: @data?.ChargeLeft
-						</div>
-						<div>
-							Solar power: @data?.SolarPower
-						</div>
-						<div>
-							Global radiation: @data?.SolarGlobalRadiation
-						</div>
-					</RadzenCard>
+					<ChargingHoursTooltip HourlyInfo=@data />
 				</TooltipTemplate>
 				<ChildContent>
 					<RadzenMarkers Visible="false" />
@@ -49,29 +27,7 @@
 			</RadzenBarSeries>
 			<RadzenBarSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Charging" ValueProperty="VisualizeInChart" >
 				<TooltipTemplate Context="data">
-					<RadzenCard>
-						<div>
-							Date: @data?.Time
-						</div>
-						<div>
-							Price: @data?.Price
-						</div>
-						<div>
-							State @data?.DisplayState;
-						</div>
-						<div>
-							Profit: @data?.Profit
-						</div>
-						<div>
-							Charge left: @data?.ChargeLeft
-						</div>
-						<div>
-							Solar power: @data?.SolarPower
-						</div>
-						<div>
-							Global radiation: @data?.SolarGlobalRadiation
-						</div>
-					</RadzenCard>
+					<ChargingHoursTooltip HourlyInfo=@data />
 				</TooltipTemplate>
 				<ChildContent>
 					<RadzenMarkers Visible="false" />
@@ -80,29 +36,7 @@
 			</RadzenBarSeries>
 			<RadzenBarSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Profit" ValueProperty="ProfitVisual">
 				<TooltipTemplate Context="data">
-					<RadzenCard>
-						<div>
-							Date: @data?.Time
-						</div>
-						<div>
-							Price: @data?.Price
-						</div>
-						<div>
-							State @data?.DisplayState;
-						</div>
-						<div>
-							Profit: @data?.Profit
-						</div>
-						<div>
-							Charge left: @data?.ChargeLeft
-						</div>
-						<div>
-							Solar power: @data?.SolarPower
-						</div>
-						<div>
-							Global radiation: @data?.SolarGlobalRadiation
-						</div>
-					</RadzenCard>
+					<ChargingHoursTooltip HourlyInfo=@data />
 				</TooltipTemplate>
 				<ChildContent>
 					<RadzenMarkers Visible="false" />
@@ -111,29 +45,7 @@
 			</RadzenBarSeries>
 			<RadzenBarSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Charge" ValueProperty="ChargeLeftVisual">
 				<TooltipTemplate Context="data">
-					<RadzenCard>
-						<div>
-							Date: @data?.Time
-						</div>
-						<div>
-							Price: @data?.Price
-						</div>
-						<div>
-							State @data?.DisplayState;
-						</div>
-						<div>
-							Profit: @data?.Profit
-						</div>
-						<div>
-							Charge left: @data?.ChargeLeft
-						</div>
-						<div>
-							Solar power: @data?.SolarPower
-						</div>
-						<div>
-							Global radiation: @data?.SolarGlobalRadiation
-						</div>
-					</RadzenCard>
+					<ChargingHoursTooltip HourlyInfo=@data />
 				</TooltipTemplate>
 				<ChildContent>
 					<RadzenMarkers Visible="false" />
@@ -142,29 +54,7 @@
 			</RadzenBarSeries>
 			<RadzenBarSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Solar power" ValueProperty="SolarPowerVisual">
 				<TooltipTemplate Context="data">
-					<RadzenCard>
-						<div>
-							Date: @data?.Time
-						</div>
-						<div>
-							Price: @data?.Price
-						</div>
-						<div>
-							State @data?.DisplayState;
-						</div>
-						<div>
-							Profit: @data?.Profit
-						</div>
-						<div>
-							Charge left: @data?.ChargeLeft
-						</div>
-						<div>
-							Solar power: @data?.SolarPower
-						</div>
-						<div>
-							Global radiation: @data?.SolarGlobalRadiation
-						</div>
-					</RadzenCard>
+					<ChargingHoursTooltip HourlyInfo=@data />
 				</TooltipTemplate>
 				<ChildContent>
 					<RadzenMarkers Visible="false" />

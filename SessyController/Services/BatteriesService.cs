@@ -425,6 +425,7 @@ namespace SessyController.Services
                 }
 
                 hourlyInfo.ChargeLeft = charge;
+                hourlyInfo.ChargeLeftPercentage = charge / (totalCapacity / 100);
             }
         }
 
