@@ -35,7 +35,7 @@
 
         public double SolarPower { get; set; }
 
-        public double SolarPowerVisual => SolarPower / 1000;
+        public double SolarPowerVisual => SolarPower / 30;
 
         /// <summary>
         /// If true charging is requested.

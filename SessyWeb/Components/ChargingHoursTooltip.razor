@@ -1,6 +1,6 @@
 ﻿<RadzenCard>
     <div>
-        <RadzenFormField Text="Price" Style="flex: 1;">
+        <RadzenFormField Text="Date and time" Style="flex: 1;">
             <RadzenDatePicker Value=@HourlyInfo.Time ShowButton="false" disabled TValue="DateTime"/>
         </RadzenFormField>
     </div>
@@ -26,7 +26,7 @@
     </div>
     <div>
         <RadzenFormField Text="Solar power" Style="flex: 1;">
-            <RadzenNumeric Format="0.00" ShowUpDown="false" @bind-Value=@HourlyInfo.SolarPower disabled Style="width: 150px;" />
+            <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo.SolarPower disabled Style="width: 150px;" />
         </RadzenFormField>
     </div>
     <div>

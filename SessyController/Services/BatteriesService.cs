@@ -405,9 +405,10 @@ namespace SessyController.Services
             double chargingCapacity = _sessyBatteryConfig.TotalChargingCapacity;
             double dischargingCapacity = _sessyBatteryConfig.TotalDischargingCapacity;
             var localTime = _timeZoneService.Now;
+            var localTimeHour = localTime.Date.AddHours(localTime.Hour);
 
             foreach (var hourlyInfo in hourlyInfos
-                .Where(hp => hp.Time.Date >= localTime.Date)
+                .Where(hp => hp.Time.Date.AddHours(hp.Time.Hour) >= localTimeHour)
                 .OrderBy(hp => hp.Time)
                 .ToList())
             {
