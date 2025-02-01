@@ -97,7 +97,7 @@ namespace SessyController.Services
                                     double solarFactor = GetSolarFactor(solarAzimuth, solarAltitude, solarPanel.Orientation, solarPanel.Tilt);
 
                                     // Historical deviation is 16.5 too high.
-                                    solarFactor = solarFactor / 16.5;
+                                    solarFactor = solarFactor / 16.5; // TODO: Calculate 16.5 factor using historical data.
 
                                     currentHourlyInfo.SolarPower += CalculateSolarPower(uurVerwachting.GlobalRadiation, solarFactor, solarPanel, solarAltitude);
 
