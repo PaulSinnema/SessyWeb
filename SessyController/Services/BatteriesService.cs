@@ -355,18 +355,17 @@ namespace SessyController.Services
         /// </summary>
         private async Task GetChargingHours()
         {
-            hourlyInfos = hourlyInfos.OrderBy(hp => hp.Time).ToList();
+            hourlyInfos = hourlyInfos.OrderBy(hp => hp.Time)
+                .ToList();
 
             _solarService.GetExpectedSolarPower(hourlyInfos);
 
             List<int> lowestPrices = new List<int>();
             List<int> highestPrices = new List<int>();
 
-            var averagePrice = hourlyInfos.Average(hp => hp.Price);
+            Sessions sessions = CreateSessions(hourlyInfos);
 
-            Sessions sessions = CreateSessions(hourlyInfos, averagePrice);
-
-            EvaluateSessionsOld(averagePrice, sessions);
+            RemoveExtraChargingSessions(sessions);
 
             SetChargingMethods(sessions);
 
@@ -399,7 +398,7 @@ namespace SessyController.Services
         {
             double stateOfCharge = await _batteryContainer.GetStateOfCharge();
             double totalCapacity = _batteryContainer.GetTotalCapacity();
-            double charge =  stateOfCharge * totalCapacity;
+            double charge = stateOfCharge * totalCapacity;
             double dayNeed = _settingsConfig.RequiredHomeEnergy;
             double hourNeed = dayNeed / 24;
             double chargingCapacity = _sessyBatteryConfig.TotalChargingCapacity;
@@ -407,14 +406,19 @@ namespace SessyController.Services
             var localTime = _timeZoneService.Now;
             var localTimeHour = localTime.Date.AddHours(localTime.Hour);
 
-            foreach (var hourlyInfo in hourlyInfos
+            var hourlyInfoList = hourlyInfos
                 .Where(hp => hp.Time.Date.AddHours(hp.Time.Hour) >= localTimeHour)
                 .OrderBy(hp => hp.Time)
-                .ToList())
+                .ToList();
+
+            if (hourlyInfoList.Count() == 0)
+                Console.WriteLine("HourlyInfoList is empty??");
+
+            foreach (var hourlyInfo in hourlyInfoList)
             {
                 if (hourlyInfo.Charging)
                 {
-                    charge = charge + chargingCapacity < totalCapacity ? charge + chargingCapacity : totalCapacity; 
+                    charge = charge + chargingCapacity < totalCapacity ? charge + chargingCapacity : totalCapacity;
                 }
                 else if (hourlyInfo.Discharging)
                 {
@@ -437,7 +441,7 @@ namespace SessyController.Services
         /// - Charging sessions larger than the max charging hours
         /// - Discharging sessions that are not profitable.
         /// </summary>
-        private void EvaluateSessionsOld(double averagePrice, Sessions sessions)
+        private void RemoveExtraChargingSessions(Sessions sessions)
         {
             var changed1 = false;
             var changed2 = false;
@@ -451,7 +455,7 @@ namespace SessyController.Services
                 changed3 = false;
                 changed4 = false;
 
-                changed1 = MergeSessions(sessions, averagePrice);
+                changed1 = MergeSessions(sessions);
 
                 changed2 = RemoveExtraHours(sessions);
 
@@ -601,7 +605,7 @@ namespace SessyController.Services
         /// <summary>
         /// Merge succeeding sessions of the same type.
         /// </summary>
-        private bool MergeSessions(Sessions sessions, double averagePrice)
+        private bool MergeSessions(Sessions sessions)
         {
             var changed = false;
 
@@ -643,7 +647,7 @@ namespace SessyController.Services
         {
             var homeNeeds = _settingsConfig.RequiredHomeEnergy;
 
-            if(lastSession.Mode == Modes.Charging && session.Mode == Modes.Charging)
+            if (lastSession.Mode == Modes.Charging && session.Mode == Modes.Charging)
             {
                 var timeSpan = session.First - lastSession.Last;
 
@@ -656,8 +660,10 @@ namespace SessyController.Services
         /// <summary>
         /// Determine when the prices are the highest en the lowest.
         /// </summary>
-        private Sessions CreateSessions(List<HourlyInfo> hourlyInfos, double averagePrice)
+        private Sessions CreateSessions(List<HourlyInfo> hourlyInfos)
         {
+            var averagePrice = hourlyInfos.Average(hp => hp.Price);
+
             double totalBatteryCapacity = _batteryContainer.GetTotalCapacity();
             double chargingPower = _batteryContainer.GetChargingCapacity();
             double dischargingPower = _batteryContainer.GetDischargingCapacity();
@@ -665,7 +671,7 @@ namespace SessyController.Services
             int maxDischargingHours = (int)Math.Ceiling(totalBatteryCapacity / dischargingPower);
             var homeNeeds = _settingsConfig.RequiredHomeEnergy;
 
-            Sessions sessions = new Sessions(hourlyInfos, 
+            Sessions sessions = new Sessions(hourlyInfos,
                                              maxChargingHours,
                                              maxDischargingHours,
                                              _sessyBatteryConfig.TotalChargingCapacity,
@@ -716,6 +722,8 @@ namespace SessyController.Services
                         sessions.AddNewSession(Modes.Discharging, hourlyInfos[hourlyInfos.Count - 1], averagePrice);
                 }
             }
+            else
+                Console.WriteLine("HourlyInfos is empty!!");
 
             return sessions;
         }

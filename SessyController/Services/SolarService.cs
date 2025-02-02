@@ -1,7 +1,9 @@
 ﻿using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using SessyController.Configurations;
 using SessyController.Services.Items;
+using SessyData.Model;
 using System.Globalization;
 using static SessyController.Services.WeatherService;
 
@@ -16,6 +18,8 @@ namespace SessyController.Services
 
         private PowerSystemsConfig _powerSystemsConfig { get; set; }
         private TimeZoneService _timeZoneService { get; set; }
+
+        private ModelContext _modelContext { get; set; }
 
         Dictionary<string, double> orientations = new Dictionary<string, double>
             {
@@ -32,14 +36,17 @@ namespace SessyController.Services
         public SolarService(IConfiguration configuration,
                                       TimeZoneService timeZoneService,
                                       LoggingService<SolarEdgeService> logger,
-                                      WeatherService weatherExpectancyService,
-                                      IOptions<PowerSystemsConfig> powerSystemsConfig)
+                                      IOptions<PowerSystemsConfig> powerSystemsConfig,
+                                      ModelContext modelContext,
+                                      WeatherService weatherService)
         {
             _configuration = configuration;
             _logger = logger;
-            _weatherService = weatherExpectancyService;
             _powerSystemsConfig = powerSystemsConfig.Value;
             _timeZoneService = timeZoneService;
+            _modelContext = modelContext ?? throw new ArgumentNullException(nameof(modelContext));
+            _weatherService = weatherService;
+
         }
 
         /// <summary>
@@ -71,6 +78,8 @@ namespace SessyController.Services
 
                 if (weatherData != null && weatherData.UurVerwachting != null)
                 {
+                    StoreSolarRadiationData(weatherData);
+
                     foreach (UurVerwachting? uurVerwachting in weatherData.UurVerwachting)
                     {
                         if (uurVerwachting == null || uurVerwachting.Uur == null)
@@ -107,6 +116,14 @@ namespace SessyController.Services
                         }
                     }
                 }
+            }
+        }
+
+        private void StoreSolarRadiationData(WeerData? weatherData)
+        {
+            foreach (var uurVerwachting in weatherData.UurVerwachting)
+            {
+                // if(_modelContext.SolarHistory.Count(sh => sh.Time == uurVerwachting.Timestamp))
             }
         }
 

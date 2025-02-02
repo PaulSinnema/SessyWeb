@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using System.Threading;
 using Microsoft.Extensions.Options;
 using SessyController.Configurations;
+using SessyData.Model;
 
 namespace SessyController.Services
 {

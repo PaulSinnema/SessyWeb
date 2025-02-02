@@ -1,14 +1,30 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Sqlite.Infrastructure.Internal;
 using System.ComponentModel.DataAnnotations;
 
 namespace SessyData.Model
 {
     public class ModelContext : DbContext
     {
+        private string? _connectionString { get; set; }
+
+        public ModelContext(DbContextOptions options) : base (options)
+        {
+            var extension = options.FindExtension<SqliteOptionsExtension>();
+
+            if(extension == null)
+            {
+                throw new InvalidOperationException($"Connection string not found");
+            }
+
+            _connectionString = extension.ConnectionString;
+        }
+
         public DbSet<SolarHistory> SolarHistory { get; set; }
 
         protected override void OnConfiguring(DbContextOptionsBuilder options)
-            => options.UseSqlite("Data Source=Sessy.db");
+            => options.UseSqlite(_connectionString);
     }
 
     public class SolarHistory

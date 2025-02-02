@@ -1,9 +1,11 @@
-﻿using Radzen;
+﻿using Microsoft.EntityFrameworkCore;
+using Radzen;
 using Radzen.Blazor;
 using SessyController.Configurations;
 using SessyController.Providers;
 using SessyController.Services;
 using SessyController.Services.Items;
+using SessyData.Model;
 using SessyWeb.Controllers;
 
 
@@ -39,6 +41,10 @@ else
     Console.WriteLine("⚠️ Waarschuwing: secrets.json ontbreekt, geheimen worden niet geladen.");
 }
 
+builder.Services.AddDbContext<ModelContext>(options =>
+    options.UseSqlite(builder.Configuration.GetConnectionString("SQLiteConnection")));
+
+
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -56,17 +62,19 @@ builder.Services.Configure<WeatherExpectancyConfig>(builder.Configuration.GetSec
 builder.Services.AddHttpClient();
 
 builder.Services.AddTransient(typeof(LoggingService<>));
-builder.Services.AddSingleton<TimeZoneService>();
+builder.Services.AddTransient<Battery>();
+
 builder.Services.AddScoped<SessyService>();
 builder.Services.AddScoped<SolarEdgeService>();
 builder.Services.AddScoped<SolarService>();
 builder.Services.AddScoped<P1MeterService>();
+builder.Services.AddScoped<TcpClientProvider>();
+builder.Services.AddScoped<BatteryContainer>();
+
+builder.Services.AddSingleton<TimeZoneService>();
 builder.Services.AddSingleton<WeatherService>();
 builder.Services.AddSingleton<DayAheadMarketService>();
 builder.Services.AddSingleton<BatteriesService>();
-builder.Services.AddScoped<TcpClientProvider>();
-builder.Services.AddTransient<Battery>();
-builder.Services.AddScoped<BatteryContainer>();
 
 builder.Services.AddHostedService(provider => provider.GetRequiredService<DayAheadMarketService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<BatteriesService>());
