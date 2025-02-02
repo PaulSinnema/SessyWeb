@@ -6,12 +6,18 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>72ac0a3b-763a-45f6-a942-7fba8765e867</UserSecretsId>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
-    <OutDir>$(SolutionDir)SessyWeb\bin\$(Configuration)\net9.0\</OutDir>
+    <OutDir>$(SolutionDir)SessyWeb\bin\$(Configuration)\net8.0\</OutDir>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'" />
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.1" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.1">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.1" />
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.21.0" />
     <PackageReference Include="Radzen.Blazor" Version="5.7.10" />
   </ItemGroup>
