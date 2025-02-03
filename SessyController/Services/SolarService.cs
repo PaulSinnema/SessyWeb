@@ -162,7 +162,7 @@ namespace SessyController.Services
             if (hourAngle > 0) azimuth = 360 - azimuth; // Correctie voor middag
 
             // Debug logging om waarden te controleren
-            Console.WriteLine($"Hour: {hour}, Solar Altitude: {altitude:F2}, Solar Azimuth: {azimuth:F2}, Hour Angle: {hourAngle:F2}");
+            _logger.LogInformation($"Hour: {hour}, Solar Altitude: {altitude:F2}, Solar Azimuth: {azimuth:F2}, Hour Angle: {hourAngle:F2}");
         }
 
         private double GetSolarFactor(double solarAzimuth, double solarAltitude, string orientation, double tilt)

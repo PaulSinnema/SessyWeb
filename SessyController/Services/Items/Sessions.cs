@@ -9,6 +9,8 @@ namespace SessyController.Services.Items
         private double _homeNeeds { get; set; }
         private double _totalBatteryCapacity { get; set; }
 
+        private ILogger<Sessions> _logger;
+
         private List<Session> _sessionList { get; set; }
         private int _maxChargingHours { get; set; }
         private int _maxDischargingHours { get; set; }
@@ -23,7 +25,8 @@ namespace SessyController.Services.Items
                         double totalDischargingCapacity,
                         double totalBatteryCapacity,
                         double homeNeeds,
-                        double cycleCost)
+                        double cycleCost,
+                        ILoggerFactory loggerFactory)
         {
             _sessionList = new List<Session>();
             _hourlyInfos = hourlyInfos;
@@ -34,6 +37,7 @@ namespace SessyController.Services.Items
             _totalDischargingCapacity = totalDischargingCapacity;
             _homeNeeds = homeNeeds;
             _totalBatteryCapacity = totalBatteryCapacity;
+            _logger = loggerFactory.CreateLogger<Sessions>();
         }
 
         public List<Session> SessionList => _sessionList;
@@ -78,7 +82,7 @@ namespace SessyController.Services.Items
                 }
             }
             else
-                Console.WriteLine($"Overlap in sessions {hourlyInfo}");
+                _logger.LogInformation($"Overlap in sessions {hourlyInfo}");
         }
 
         public void CalculateProfits()
