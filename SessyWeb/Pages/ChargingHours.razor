@@ -43,7 +43,7 @@
 					<RadzenSeriesDataLabels Visible="false" />
 				</ChildContent>
 			</RadzenBarSeries>
-			<RadzenBarSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Charge" ValueProperty="ChargeLeftVisual" >
+			<RadzenBarSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Charge remaining" ValueProperty="ChargeLeftVisual" >
 				<TooltipTemplate Context="data">
 					<ChargingHoursTooltip HourlyInfo=@data />
 				</TooltipTemplate>
