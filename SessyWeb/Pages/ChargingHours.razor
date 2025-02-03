@@ -14,9 +14,9 @@
 	<div style="width: 100%; height:100%;">
 		<div>Total expected solarpower: </div>
 		<div>@TotalSolarPowerExpected</div>
-		<RadzenChart Style="min-height: 5000px; min-width: 600px;">
+		<RadzenChart Style=@GraphStyle>
 			<RadzenChartTooltipOptions Shared="false" Visible="true" />
-			<RadzenBarSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Price" LineType="LineType.Dashed" ValueProperty="Price">
+			<RadzenBarSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Price" LineType="LineType.Dashed" ValueProperty="Price" >
 				<TooltipTemplate Context="data">
 					<ChargingHoursTooltip HourlyInfo=@data />
 				</TooltipTemplate>
@@ -34,7 +34,7 @@
 					<RadzenSeriesDataLabels Visible="false" />
 				</ChildContent>
 			</RadzenBarSeries>
-			<RadzenBarSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Profit" ValueProperty="ProfitVisual">
+			<RadzenBarSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Profit" ValueProperty="ProfitVisual" >
 				<TooltipTemplate Context="data">
 					<ChargingHoursTooltip HourlyInfo=@data />
 				</TooltipTemplate>
@@ -43,7 +43,7 @@
 					<RadzenSeriesDataLabels Visible="false" />
 				</ChildContent>
 			</RadzenBarSeries>
-			<RadzenBarSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Charge" ValueProperty="ChargeLeftVisual">
+			<RadzenBarSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Charge" ValueProperty="ChargeLeftVisual" >
 				<TooltipTemplate Context="data">
 					<ChargingHoursTooltip HourlyInfo=@data />
 				</TooltipTemplate>
@@ -52,7 +52,7 @@
 					<RadzenSeriesDataLabels Visible="false" />
 				</ChildContent>
 			</RadzenBarSeries>
-			<RadzenBarSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Solar power" ValueProperty="SolarPowerVisual">
+			<RadzenBarSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Solar power" ValueProperty="SolarPowerVisual" >
 				<TooltipTemplate Context="data">
 					<ChargingHoursTooltip HourlyInfo=@data />
 				</TooltipTemplate>

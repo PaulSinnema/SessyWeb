@@ -2,17 +2,26 @@
 using Radzen;
 using Radzen.Blazor;
 using SessyController.Configurations;
+using SessyController.Extensions;
 using SessyController.Providers;
 using SessyController.Services;
 using SessyController.Services.Items;
 using SessyData.Model;
 using SessyWeb.Controllers;
 
+AppDomain.CurrentDomain.UnhandledException += (sender, eventArgs) =>
+{
+    var ex = (Exception)eventArgs.ExceptionObject;
+    Console.WriteLine($"🚨 Critical unhandled exception occurred: {ex.ToDetailedString()}");
+};
 
 var builder = WebApplication.CreateBuilder(args);
 
-string configDirectory = Environment.GetEnvironmentVariable("CONFIG_PATH") ?? Directory.GetCurrentDirectory();
+builder.Logging.ClearProviders(); // Verwijder alle standaard logging providers
+builder.Logging.AddConsole(); // Voeg alleen de console logger toe
+builder.Logging.AddDebug(); // Voeg debug logging toe (optioneel)
 
+string configDirectory = Environment.GetEnvironmentVariable("CONFIG_PATH") ?? Directory.GetCurrentDirectory();
 
 Console.WriteLine($"Configuratiemap: {configDirectory}");
 
@@ -43,7 +52,6 @@ else
 
 builder.Services.AddDbContext<ModelContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("SQLiteConnection")));
-
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
@@ -105,7 +113,43 @@ builder.Services.AddRadzenCookieThemeService(options =>
     options.Duration = TimeSpan.FromDays(365); // The duration of the cookie
 });
 
+// Globale exception handler voor logging
+builder.Services.AddLogging(logging =>
+{
+logging.ClearProviders();
+logging.AddConsole();
+logging.AddDebug();
+});
+
+// Voeg een globale error-handling middleware toe
+builder.Services.AddSingleton<IStartupFilter, GlobalExceptionHandlingStartupFilter>();
+
+// This code prevents a null reference exception in RadzenThemeDispose() for now but according to
+// Radzen support this should not be needed. In a future version of Radzen this problem is
+// solved (see: https://forum.radzen.com/t/radzentheme-dispose-null-reference-exception/19661/4).
+builder.Services.AddSingleton<RadzenTheme>(provider =>
+{
+    var theme = new RadzenTheme();
+    return theme;
+});
+
 var app = builder.Build();
+
+app.UseExceptionHandler(errorApp =>
+{
+    errorApp.Run(context =>
+    {
+        var exceptionHandlerPathFeature = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerPathFeature>();
+        if (exceptionHandlerPathFeature?.Error != null)
+        {
+            Console.WriteLine($"An unexpected exception occurred\n\n{exceptionHandlerPathFeature.Error.ToDetailedString()}");
+        }
+
+        context.Response.Redirect("/error"); // Optioneel: stuur naar errorpagina
+
+        return Task.CompletedTask;
+    });
+});
 
 if (app.Environment.IsDevelopment())
 {
