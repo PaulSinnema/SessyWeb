@@ -1,5 +1,4 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.JSInterop;
 
 namespace SessyWeb.Shared
 {
@@ -14,6 +13,11 @@ namespace SessyWeb.Shared
         {
             NewTheme = theme;
             ThemeService.SetTheme(theme, true);
+        }
+
+        public void CollapseMenu()
+        {
+            sidebar1Expanded = false;
         }
     }
 }

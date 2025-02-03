@@ -20,9 +20,11 @@
     <RadzenSidebar @bind-Expanded="@sidebar1Expanded">
         <RadzenPanelMenu>
             <RadzenPanelMenuItem Text="Home"
+                                 Click="@CollapseMenu"
                                  Path="" Icon="home" />
             <RadzenPanelMenuItem Text="Charging hours"
                                  Path="charginghours"
+                                 Click="@CollapseMenu"
                                  Icon="account_box" />
             <RadzenDropDown Style="width: 100%;"
                             Name="ThemeDropDown"
