@@ -1,4 +1,4 @@
-﻿using SessyController.Extensions;
+﻿using SessyCommon.Extensions;
 
 public class GlobalExceptionHandlingStartupFilter : IStartupFilter
 {
@@ -15,7 +15,7 @@ public class GlobalExceptionHandlingStartupFilter : IStartupFilter
 
                     if (exceptionHandlerPathFeature?.Error != null)
                     {
-                        Console.WriteLine($"Onverwachte fout opgetreden\n\n{exceptionHandlerPathFeature.Error.ToDetailedString()}");
+                        Console.WriteLine($"An unexpected error occurred:\n\n{exceptionHandlerPathFeature.Error.ToDetailedString()}");
                     }
 
                     context.Response.Redirect("/error");

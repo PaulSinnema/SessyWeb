@@ -27,6 +27,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\SessyCommon\SessyCommon.csproj" />
     <ProjectReference Include="..\SessyData\SessyData.csproj" />
   </ItemGroup>
 

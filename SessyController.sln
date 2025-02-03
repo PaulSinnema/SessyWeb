@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SessyWeb", "SessyWeb\SessyW
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SessyData", "SessyData\SessyData.csproj", "{C7305BE3-62E2-46B7-ABB0-3CA264DD676A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SessyCommon", "SessyCommon\SessyCommon.csproj", "{9E143A97-7463-40E2-A44A-1B02B045C36F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,10 @@ Global
 		{C7305BE3-62E2-46B7-ABB0-3CA264DD676A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C7305BE3-62E2-46B7-ABB0-3CA264DD676A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C7305BE3-62E2-46B7-ABB0-3CA264DD676A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9E143A97-7463-40E2-A44A-1B02B045C36F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9E143A97-7463-40E2-A44A-1B02B045C36F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9E143A97-7463-40E2-A44A-1B02B045C36F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9E143A97-7463-40E2-A44A-1B02B045C36F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

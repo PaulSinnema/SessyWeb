@@ -222,7 +222,13 @@ namespace SessyController.Services
             public string? Uur { get; set; }
 
             [JsonPropertyName("timestamp")]
-            public long Timestamp { get; set; }
+            public long? UnixTimestamp { get; set; }
+
+            /// <summary>
+            /// DateTime stamp converted from Unix timestamp long.
+            /// </summary>
+            [JsonIgnore]
+            public DateTime? TimeStamp => UnixTimestamp.HasValue ? DateTimeOffset.FromUnixTimeSeconds(UnixTimestamp.Value).UtcDateTime : null;
 
             [JsonPropertyName("image")]
             public string Weerbeeld { get; set; } = string.Empty;
@@ -276,7 +282,7 @@ namespace SessyController.Services
             public List<DagVerwachting>? WeekVerwachting { get; set; }
 
             [JsonPropertyName("uur_verw")]
-            public List<UurVerwachting>? UurVerwachting { get; set; }
+            public List<UurVerwachting> UurVerwachting { get; set; } = new List<UurVerwachting>();
 
             [JsonPropertyName("api")]
             public List<ApiInfo>? Api { get; set; }

@@ -1,12 +1,13 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Radzen;
 using Radzen.Blazor;
+using SessyCommon.Extensions;
 using SessyController.Configurations;
-using SessyController.Extensions;
 using SessyController.Providers;
 using SessyController.Services;
 using SessyController.Services.Items;
 using SessyData.Model;
+using SessyData.Services;
 using SessyWeb.Controllers;
 
 AppDomain.CurrentDomain.UnhandledException += (sender, eventArgs) =>
@@ -78,6 +79,7 @@ builder.Services.AddScoped<SolarService>();
 builder.Services.AddScoped<P1MeterService>();
 builder.Services.AddScoped<TcpClientProvider>();
 builder.Services.AddScoped<BatteryContainer>();
+builder.Services.AddScoped<SolarHistoryService>();
 
 builder.Services.AddSingleton<TimeZoneService>();
 builder.Services.AddSingleton<WeatherService>();
@@ -134,6 +136,15 @@ builder.Services.AddSingleton<RadzenTheme>(provider =>
 });
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    var dbContext = services.GetRequiredService<ModelContext>();
+
+    dbContext.Database.Migrate();
+}
+
 
 app.UseExceptionHandler(errorApp =>
 {

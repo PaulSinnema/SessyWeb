@@ -1,8 +1,7 @@
 ﻿using Microsoft.Extensions.Options;
-using Microsoft.Win32;
 using NModbus;
+using SessyCommon.Extensions;
 using SessyController.Configurations;
-using SessyController.Extensions;
 using SessyController.Interfaces;
 using SessyController.Providers;
 

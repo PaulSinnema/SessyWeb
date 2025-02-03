@@ -23,6 +23,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\SessyCommon\SessyCommon.csproj" />
     <ProjectReference Include="..\SessyController\SessyController.csproj" />
     <ProjectReference Include="..\SessyData\SessyData.csproj" />
   </ItemGroup>

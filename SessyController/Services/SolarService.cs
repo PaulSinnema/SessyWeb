@@ -1,9 +1,8 @@
-﻿using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
+﻿using Microsoft.Extensions.Options;
 using SessyController.Configurations;
 using SessyController.Services.Items;
 using SessyData.Model;
+using SessyData.Services;
 using System.Globalization;
 using static SessyController.Services.WeatherService;
 
@@ -16,10 +15,11 @@ namespace SessyController.Services
 
         private WeatherService _weatherService { get; set; }
 
+        private SolarHistoryService _solarHistoryService { get; set; }
+        private IServiceScopeFactory _serviceScopeFactory { get; set; }
+
         private PowerSystemsConfig _powerSystemsConfig { get; set; }
         private TimeZoneService _timeZoneService { get; set; }
-
-        private ModelContext _modelContext { get; set; }
 
         Dictionary<string, double> orientations = new Dictionary<string, double>
             {
@@ -34,19 +34,20 @@ namespace SessyController.Services
             };
 
         public SolarService(IConfiguration configuration,
-                                      TimeZoneService timeZoneService,
-                                      LoggingService<SolarEdgeService> logger,
-                                      IOptions<PowerSystemsConfig> powerSystemsConfig,
-                                      ModelContext modelContext,
-                                      WeatherService weatherService)
+                            TimeZoneService timeZoneService,
+                            LoggingService<SolarEdgeService> logger,
+                            IOptions<PowerSystemsConfig> powerSystemsConfig,
+                            WeatherService weatherService,
+                            SolarHistoryService solarHistoryService,
+                            IServiceScopeFactory serviceScopeFactory)
         {
             _configuration = configuration;
+            _timeZoneService = timeZoneService;
             _logger = logger;
             _powerSystemsConfig = powerSystemsConfig.Value;
-            _timeZoneService = timeZoneService;
-            _modelContext = modelContext ?? throw new ArgumentNullException(nameof(modelContext));
             _weatherService = weatherService;
-
+            _solarHistoryService = solarHistoryService;
+            _serviceScopeFactory = serviceScopeFactory;
         }
 
         /// <summary>
@@ -55,7 +56,8 @@ namespace SessyController.Services
         public double GetTotalSolarPowerExpected(List<HourlyInfo>? hourlyInfos)
         {
             if (hourlyInfos != null)
-            { var currentTime = _timeZoneService.Now;
+            {
+                var currentTime = _timeZoneService.Now;
 
                 var solarPower = 0.0;
 
@@ -121,10 +123,19 @@ namespace SessyController.Services
 
         private void StoreSolarRadiationData(WeerData? weatherData)
         {
-            foreach (var uurVerwachting in weatherData.UurVerwachting)
+            var historyList = new List<SolarHistory>();
+
+            foreach (var item in weatherData?.UurVerwachting.Where(uv => uv.TimeStamp.HasValue))
             {
-                // if(_modelContext.SolarHistory.Count(sh => sh.Time == uurVerwachting.Timestamp))
+                historyList.Add(new SolarHistory
+                {
+                    GeneratedPower = 0.0,
+                    GlobalRadiation = item.GlobalRadiation,
+                    Time = item.TimeStamp!.Value
+                });
             }
+
+            _solarHistoryService.StoreSolarHistoryList(historyList);
         }
 
         public double CalculateSolarPower(int globalRadiation, double solarFactor, PhotoVoltaic solarPanel, double solarAltitude)
