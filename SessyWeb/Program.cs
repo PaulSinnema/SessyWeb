@@ -6,6 +6,7 @@ using SessyController.Configurations;
 using SessyController.Providers;
 using SessyController.Services;
 using SessyController.Services.Items;
+using SessyData.Helpers;
 using SessyData.Model;
 using SessyData.Services;
 using SessyWeb.Controllers;
@@ -80,6 +81,7 @@ builder.Services.AddScoped<P1MeterService>();
 builder.Services.AddScoped<TcpClientProvider>();
 builder.Services.AddScoped<BatteryContainer>();
 builder.Services.AddScoped<SolarHistoryService>();
+builder.Services.AddScoped<DbHelper>();
 
 builder.Services.AddSingleton<TimeZoneService>();
 builder.Services.AddSingleton<WeatherService>();
