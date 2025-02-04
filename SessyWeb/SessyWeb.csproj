@@ -11,7 +11,7 @@
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'" />
 
-  <ItemGroup>
+   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.1" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.1">
       <PrivateAssets>all</PrivateAssets>
@@ -28,9 +28,6 @@
     <ProjectReference Include="..\SessyData\SessyData.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="NewFolder\" />
-  </ItemGroup>
 
   <ItemGroup>
     <None Include="wwwroot\Images\sessy.svg">
