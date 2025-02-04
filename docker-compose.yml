@@ -1,6 +1,0 @@
-services:
-  sessycontroller:
-    image: ${DOCKER_REGISTRY-}sessyconroller
-    build:
-        context: sessycontroller
-        dockerfile: Dockerfile
