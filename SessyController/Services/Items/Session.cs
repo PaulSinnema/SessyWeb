@@ -11,12 +11,29 @@
             Discharging
         };
 
-        public Modes Mode { get; set; }
+        private Modes _mode;
+
+        public Modes Mode
+        {
+            get 
+            {
+                return _mode;
+            }
+            set
+            {
+                _mode = value;
+
+                foreach (var hourlyPrice in HourlyInfos)
+                {
+                    hourlyPrice.SetModes(_mode);
+                }
+            }
+        }
 
         /// <summary>
         /// All prices in the session
         /// </summary>
-        public List<HourlyInfo> PriceList { get; set; }
+        private List<HourlyInfo> HourlyInfos { get; set; }
 
         /// <summary>
         /// Max hours of (dis)charging
@@ -26,31 +43,57 @@
         /// <summary>
         /// The average price of all hourly prices in the session.
         /// </summary>
-        public double AveragePrice => PriceList.Average(hp => hp.Price);
+        public double AveragePrice => HourlyInfos.Average(hp => hp.Price);
 
         /// <summary>
         /// The first date in the session
         /// </summary>
-        public DateTime First => PriceList.Count > 0 ? PriceList.Min(hp => hp.Time) : DateTime.MinValue;
+        public DateTime FirstDate => HourlyInfos.Count > 0 ? HourlyInfos.Min(hp => hp.Time) : DateTime.MinValue;
 
         /// <summary>
         /// The last date in the session
         /// </summary>
-        public DateTime Last => PriceList.Count > 0 ? PriceList.Max(hp => hp.Time) : DateTime.MaxValue;
+        public DateTime LastDate => HourlyInfos.Count > 0 ? HourlyInfos.Max(hp => hp.Time) : DateTime.MaxValue;
 
         public Session(Modes mode, int maxHours)
         {
-            PriceList = new List<HourlyInfo>();
+            HourlyInfos = new List<HourlyInfo>();
             MaxHours = maxHours;
             Mode = mode;
         }
 
+        public IReadOnlyCollection<HourlyInfo> GetHourlyInfoList() => HourlyInfos.AsReadOnly();
+
         /// <summary>
         /// Add a price to the list
         /// </summary>
-        public void AddHourlyInfo(HourlyInfo price)
+        public void AddHourlyInfo(HourlyInfo hourlyInfo)
         {
-            PriceList.Add(price);
+            hourlyInfo.SetModes(_mode);
+
+            HourlyInfos.Add(hourlyInfo);
+        }
+
+        public void RemoveHourlyInfo(HourlyInfo hourlyInfo)
+        {
+            DisableChargingAndDischarging(hourlyInfo);
+
+            HourlyInfos.Remove(hourlyInfo);
+        }
+
+        private static void DisableChargingAndDischarging(HourlyInfo hourlyInfo)
+        {
+            hourlyInfo.DisableCharging();
+            hourlyInfo.DisableDischarging();
+        }
+
+        public void ClearHourlyInfoList()
+        {
+            foreach (var hourlyInfo in HourlyInfos)
+            {
+                DisableChargingAndDischarging(hourlyInfo);
+            }
+            HourlyInfos.Clear();
         }
     }
 }

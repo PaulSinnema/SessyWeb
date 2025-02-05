@@ -140,9 +140,10 @@ namespace SessyController.Services
         private static async Task<ConcurrentDictionary<DateTime, double>> FetchDayAheadPricesAsync(DateTime date, int futureDays, CancellationToken cancellationToken)
         {
             date = new DateTime(date.Year, date.Month, date.Day, 0, 0, 0);
-            string periodStart = date.ToString(FormatDate) + FormatTime;
-            string periodEnd = date.AddDays(futureDays).ToString(FormatDate) + FormatTime;
-            string url = $"{ApiUrl}?documentType=A44&in_Domain={_inDomain}&out_Domain={_inDomain}&periodStart={periodStart}&periodEnd={periodEnd}&securityToken={_securityToken}";
+            string periodStartString = date.ToString(FormatDate) + FormatTime;
+            var futureDate = date.AddDays(futureDays);
+            string periodEndString = futureDate.ToString(FormatDate) + FormatTime;
+            string url = $"{ApiUrl}?documentType=A44&in_Domain={_inDomain}&out_Domain={_inDomain}&periodStart={periodStartString}&periodEnd={periodEndString}&securityToken={_securityToken}";
 
             var client = _httpClientFactory?.CreateClient();
 
@@ -155,7 +156,7 @@ namespace SessyController.Services
                 var prices = GetPrizes(responseBody);
 
                 // Detect and fill gaps in the prices with average prices.
-                FillMissingPoints(prices, date, date.AddDays(1), TimeSpan.FromHours(1));
+                FillMissingPoints(prices, date, futureDate.AddHours(23), TimeSpan.FromHours(1));
 
                 return prices;
             }
@@ -242,7 +243,7 @@ namespace SessyController.Services
         {
             DateTime currentTime = periodStart;
 
-            while (currentTime < periodEnd)
+            while (currentTime <= periodEnd)
             {
                 if (!prices.ContainsKey(currentTime))
                 {

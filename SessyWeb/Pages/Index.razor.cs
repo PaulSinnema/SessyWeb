@@ -1,4 +1,5 @@
-﻿using SessyController.Services.Items;
+﻿using SessyCommon.Extensions;
+using SessyController.Services.Items;
 
 namespace SessyWeb.Pages
 {
@@ -6,15 +7,17 @@ namespace SessyWeb.Pages
     {
         public List<Battery>? Batteries = new List<Battery>();
 
-        private CancellationTokenSource _cts = new();
+        private CancellationTokenSource? _cts;
 
-        protected override void OnInitialized()
+        protected async override void OnInitialized()
         {
+            _cts = new();
+
             // Laad initiële data
             Batteries = batteryContainer?.Batteries?.ToList();
 
             // Start de timer als een aparte taak
-            _ = StartBatteryUpdateLoop();
+            await StartBatteryUpdateLoop();
         }
 
         private async Task StartBatteryUpdateLoop()
@@ -23,29 +26,29 @@ namespace SessyWeb.Pages
 
             try
             {
-                while (await timer.WaitForNextTickAsync(_cts.Token))
+                while (await timer.WaitForNextTickAsync(_cts!.Token))
                 {
-                    if (!IsComponentActive)
-                        break;
-
-                    // Zorg ervoor dat de UI wordt bijgewerkt in de render-thread
-                    await InvokeAsync(() =>
+                    if (IsComponentActive)
                     {
-                        Batteries = batteryContainer?.Batteries?.ToList();
-                        StateHasChanged();
-                    });
+                        // Take care of updating the UI in the render-thread
+                        await InvokeAsync(() =>
+                        {
+                            Batteries = batteryContainer?.Batteries?.ToList();
+                            StateHasChanged();
+                        });
+                    }
                 }
             }
             catch (OperationCanceledException)
             {
-                Console.WriteLine("Index: Timer stopped.");
+                Console.WriteLine("Index: Timer stopped");
             }
         }
 
         public override void Dispose()
         {
-            _cts.Cancel();
-            _cts.Dispose();
+            _cts?.Cancel();
+            _cts?.Dispose();
         }
     }
 }

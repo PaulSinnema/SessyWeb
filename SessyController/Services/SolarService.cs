@@ -76,7 +76,7 @@ namespace SessyController.Services
         {
             if (_weatherService.Initialized)
             {
-                var weatherData = _weatherService.WeatherData;
+                var weatherData = _weatherService.GetWeatherData();
 
                 if (weatherData != null && weatherData.UurVerwachting != null)
                 {
@@ -110,7 +110,7 @@ namespace SessyController.Services
                                     // Historical deviation is 16.5 too high.
                                     solarFactor = solarFactor / 16.5; // TODO: Calculate 16.5 factor using historical data.
 
-                                    currentHourlyInfo.SolarPower += CalculateSolarPower(uurVerwachting.GlobalRadiation, solarFactor, solarPanel, solarAltitude);
+                                    currentHourlyInfo.SolarPower = CalculateSolarPower(uurVerwachting.GlobalRadiation, solarFactor, solarPanel, solarAltitude);
 
                                     currentHourlyInfo.SolarGlobalRadiation = uurVerwachting.GlobalRadiation;
                                 }

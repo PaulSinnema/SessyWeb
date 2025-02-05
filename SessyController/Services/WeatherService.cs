@@ -14,7 +14,7 @@ namespace SessyController.Services
         private readonly TimeZoneService _timeZoneService;
         private readonly WeatherExpectancyConfig _WeatherExpectancyConfig;
 
-        public WeerData? WeatherData { get; private set; }
+        private WeerData? WeatherData { get; set; }
 
         public bool Initialized { get; private set; }
 
@@ -29,6 +29,8 @@ namespace SessyController.Services
             _WeatherExpectancyConfig = sunExpectancyConfig.Value;
         }
 
+        private SemaphoreSlim WeatherDataSemaphore = new SemaphoreSlim(1);
+
         protected override async Task ExecuteAsync(CancellationToken cancelationToken)
         {
             while (!cancelationToken.IsCancellationRequested)
@@ -37,7 +39,17 @@ namespace SessyController.Services
 
                 try
                 {
-                    WeatherData = await GetWeerDataAsync();
+                    WeatherDataSemaphore.Wait();
+
+                    try
+                    {
+                        WeatherData = await GetWeerDataAsync();
+
+                    }
+                    finally
+                    {
+                        WeatherDataSemaphore.Release();
+                    }
 
                     Initialized = true;
                 }
@@ -84,6 +96,20 @@ namespace SessyController.Services
             {
                 // Foutafhandeling
                 throw new Exception($"Error getting weather data from WeerOnline: {response.ReasonPhrase}");
+            }
+        }
+
+        public WeerData? GetWeatherData()
+        {
+            WeatherDataSemaphore.Wait();
+
+            try
+            {
+                return WeatherData;
+            }
+            finally
+            {
+                WeatherDataSemaphore.Release();
             }
         }
 

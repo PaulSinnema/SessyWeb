@@ -120,12 +120,12 @@ builder.Services.AddRadzenCookieThemeService(options =>
 // Globale exception handler voor logging
 builder.Services.AddLogging(logging =>
 {
-logging.ClearProviders();
-logging.AddConsole();
-logging.AddDebug();
+    logging.ClearProviders();
+    logging.AddConsole();
+    logging.AddDebug();
 });
 
-// Voeg een globale error-handling middleware toe
+// Add global error-handling middleware
 builder.Services.AddSingleton<IStartupFilter, GlobalExceptionHandlingStartupFilter>();
 
 // This code prevents a null reference exception in RadzenThemeDispose() for now but according to
@@ -158,7 +158,7 @@ app.UseExceptionHandler(errorApp =>
             Console.WriteLine($"An unexpected exception occurred\n\n{exceptionHandlerPathFeature.Error.ToDetailedString()}");
         }
 
-        context.Response.Redirect("/error"); // Optioneel: stuur naar errorpagina
+        context.Response.Redirect("/error");
 
         return Task.CompletedTask;
     });

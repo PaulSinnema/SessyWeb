@@ -260,7 +260,7 @@ namespace SessyWeb.Controllers
         [HttpGet("SunExpectancyService:GetWeatherData", Name = "GetWeatherData")]
         public IActionResult GetWeatherData()
         {
-            WeerData? weatherData = _weatherService.WeatherData;
+            WeerData? weatherData = _weatherService.GetWeatherData();
 
             return Ok(weatherData);
         }

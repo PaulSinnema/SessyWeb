@@ -13,7 +13,7 @@ namespace SessyWeb.Pages
 
         public List<HourlyInfo>? HourlyInfos { get; set; } = new List<HourlyInfo>();
 
-        public double TotalSolarPowerExpected => SolarService == null ? 0.0 : SolarService.GetTotalSolarPowerExpected(HourlyInfos);
+        public double TotalSolarPowerExpected { get; set; }
 
         private CancellationTokenSource _cts = new();
 
@@ -37,17 +37,22 @@ namespace SessyWeb.Pages
             {
                 while (await timer.WaitForNextTickAsync(_cts.Token))
                 {
-                    await InvokeAsync(() =>
+                    if (IsComponentActive)
                     {
-                        HourlyInfos = BatteriesService?.GetHourlyInfos()?.ToList();
+                        await InvokeAsync(() =>
+                        {
+                            HourlyInfos = BatteriesService?.GetHourlyInfos()?.ToList();
 
-                        // 20 pixels per data row (5)
-                        var height = HourlyInfos?.Count * 5 * 20;
+                            TotalSolarPowerExpected = SolarService == null ? 0.0 : SolarService.GetTotalSolarPowerExpected(HourlyInfos);
 
-                        GraphStyle = $"min-height: {height}px; min-width: 600px; visibility: initial;";
+                            // 20 pixels per data row (5)
+                            var height = HourlyInfos?.Count * 5 * 20;
 
-                        StateHasChanged();
-                    });
+                            GraphStyle = $"min-height: {height}px; min-width: 600px; visibility: initial;";
+
+                            StateHasChanged();
+                        });
+                    }
                 }
             }
             catch (OperationCanceledException)
@@ -71,7 +76,7 @@ namespace SessyWeb.Pages
         public string FormatAsDayHour(object value)
         {
             if (value is DateTime)
-            { 
+            {
                 var dateTime = (DateTime)value;
 
                 return $"{dateTime.Day}-{dateTime.Month}/{dateTime.Hour}";

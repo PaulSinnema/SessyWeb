@@ -1,4 +1,5 @@
-﻿using static SessyController.Services.Items.Session;
+﻿using System.Collections.ObjectModel;
+using static SessyController.Services.Items.Session;
 
 namespace SessyController.Services.Items
 {
@@ -40,13 +41,29 @@ namespace SessyController.Services.Items
             _logger = loggerFactory.CreateLogger<Sessions>();
         }
 
-        public List<Session> SessionList => _sessionList;
+        public ReadOnlyCollection<Session> SessionList => _sessionList.AsReadOnly();
+
+        public void AddSession(Session session)
+        {
+            _sessionList.Add(session);
+        }
+
+        public void RemoveSession(Session session)
+        {
+            foreach (var hourlyItem in session.GetHourlyInfoList())
+            {
+                hourlyItem.DisableCharging();
+                hourlyItem.DisableDischarging();
+            }
+
+            _sessionList.Remove(session);
+        }
 
         public bool InAnySession(HourlyInfo hourlyInfo)
         {
             foreach (var se in _sessionList)
             {
-                if (se.PriceList.Contains(hourlyInfo))
+                if (se.GetHourlyInfoList().Contains(hourlyInfo))
                     return true;
             }
 
@@ -90,9 +107,13 @@ namespace SessyController.Services.Items
             _hourlyInfos
                 .Where(hp => hp.ZeroNetHome)
                 .ToList()
-                .ForEach(hp => hp.Selling = hp.Price * (Math.Min(_homeNeeds / 24, hp.ChargeLeft) / 1000));
+                .ForEach(hp =>
+                {
+                    hp.Selling = hp.Price * (Math.Min(_homeNeeds / 24, hp.ChargeLeft) / 1000);
+                    hp.Buying = 0.0;
+                });
 
-            var sessionsList = SessionList.OrderBy(se => se.First).ToList();
+            var sessionsList = SessionList.OrderBy(se => se.FirstDate).ToList();
 
             Session? lastSession = null;
 
@@ -104,20 +125,25 @@ namespace SessyController.Services.Items
                     {
                         case Modes.Charging:
                             {
-                                session.PriceList.ForEach(hp => hp.Buying = hp.Price * (Math.Min(_totalBatteryCapacity - hp.ChargeLeft, _totalChargingCapacity) / 1000));
+                                foreach (var hp in session.GetHourlyInfoList())
+                                {
+                                    hp.Buying = hp.Price * (Math.Min(_totalBatteryCapacity - hp.ChargeLeft, _totalChargingCapacity) / 1000);
+                                    hp.Selling = 0.0;
+                                }
+
                                 break;
                             }
 
                         case Modes.Discharging:
                             {
+                                var dischargingPrices = session.GetHourlyInfoList().OrderBy(hp => hp.Price).ToList();
+                                var chargingPrices = lastSession.GetHourlyInfoList().OrderBy(hp => hp.Price).ToList();
+
+                                var chargingEnum = chargingPrices.GetEnumerator();
+                                var dischargingEnum = dischargingPrices.GetEnumerator();
+
                                 if (lastSession.Mode == Modes.Charging)
                                 {
-                                    var dischargingPrices = session.PriceList.OrderBy(hp => hp.Price).ToList();
-                                    var chargingPrices = lastSession.PriceList.OrderBy(hp => hp.Price).ToList();
-
-                                    var chargingEnum = chargingPrices.GetEnumerator();
-                                    var dischargingEnum = dischargingPrices.GetEnumerator();
-
                                     var hasCharging = chargingEnum.MoveNext();
                                     var hasDischarging = dischargingEnum.MoveNext();
 
@@ -132,7 +158,13 @@ namespace SessyController.Services.Items
                                         hasDischarging = dischargingEnum.MoveNext();
                                     }
                                 }
+                                else
+                                {
+                                    dischargingEnum.Current.Buying = 0.0;
+                                    chargingEnum.Current.Selling = 0.0;
+                                }    
                             }
+
                             break;
 
                         default:
@@ -157,10 +189,10 @@ namespace SessyController.Services.Items
         /// </summary>
         public void CompleteSession(Session session, List<HourlyInfo> hourlyInfos, int maxHours, double cycleCost, double averagePrice)
         {
-            if (session.PriceList.Count != 1)
+            if (session.GetHourlyInfoList().Count != 1)
                 throw new InvalidOperationException($"Session has zero or more than 1 hourly price.");
 
-            var index = hourlyInfos.IndexOf(session.PriceList[0]);
+            var index = hourlyInfos.IndexOf(session.GetHourlyInfoList().First());
             var prev = index - 1;
             var next = index + 1;
 
