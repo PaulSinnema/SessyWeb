@@ -19,6 +19,9 @@ namespace SessyData.Migrations
 
             modelBuilder.Entity("SessyData.Model.SessyStatusHistory", b =>
                 {
+                    b.Property<DateTime>("Time")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Name")
                         .HasColumnType("TEXT");
 
@@ -28,10 +31,7 @@ namespace SessyData.Migrations
                     b.Property<string>("StatusDetails")
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTime>("Time")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Name");
+                    b.HasKey("Time");
 
                     b.ToTable("SessyStatusHistory");
                 });

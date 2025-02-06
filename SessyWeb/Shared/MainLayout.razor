@@ -26,14 +26,23 @@
                                  Path="charginghours"
                                  Click="@CollapseMenu"
                                  Icon="account_box" />
-            <RadzenDropDown Style="width: 100%;"
-                            Name="ThemeDropDown"
-                            TValue="string"
-                            Value="@ThemeService.Theme"
-                            ValueChanged="@ChangeTheme"
-                            Data="@Themes.Free"
-                            TextProperty=@nameof(Theme.Text)
-                            ValueProperty=@nameof(Theme.Value) />
+            <RadzenPanelMenuItem Text="Sessy status history"
+                                 Path="sessystatushistory"
+                                 Click="@CollapseMenu"
+                                 Icon="account_box" />
+            <RadzenPanel>
+                <RadzenRow>
+                    <RadzenLabel Text="Choose theme:" />
+                    <RadzenDropDown Style="width: 100%;"
+                                    Name="ThemeDropDown"
+                                    TValue="string"
+                                    Value="@ThemeService.Theme"
+                                    ValueChanged="@ChangeTheme"
+                                    Data="@Themes.Free"
+                                    TextProperty=@nameof(Theme.Text)
+                                    ValueProperty=@nameof(Theme.Value) />
+                </RadzenRow>
+            </RadzenPanel>
 
         </RadzenPanelMenu>
     </RadzenSidebar>

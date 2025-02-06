@@ -9,7 +9,7 @@ namespace SessyController.Services.Items
         private readonly LoggingService<Battery> _logger;
 
         private SessyBatteryEndpoint? _endpoint {  get; set; }
-        private string Id { get; set; }
+        public string Id { get; private set; }
         private bool _initialized = false;
 
         public Battery(LoggingService<Battery> logger, SessyService sessyService)

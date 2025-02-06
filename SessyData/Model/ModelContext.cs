@@ -19,12 +19,6 @@ namespace SessyData.Model
             _connectionString = extension.ConnectionString;
         }
 
-        //protected override void OnModelCreating(ModelBuilder modelBuilder)
-        //{
-        //    modelBuilder.Entity<SolarHistory>().ToTable("SolarHistory");
-        //    modelBuilder.Entity<SessyStatusHistory>().ToTable("SessyStatusHistory");
-        //}
-
         public DbSet<SessyStatusHistory> SessyStatusHistory => Set<SessyStatusHistory>();
 
         public DbSet<SolarHistory> SolarHistory => Set<SolarHistory>();

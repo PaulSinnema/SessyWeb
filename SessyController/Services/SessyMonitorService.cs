@@ -2,6 +2,7 @@
 using SessyController.Configurations;
 using SessyController.Services.Items;
 using SessyData.Model;
+using SessyData.Services;
 using static SessyController.Services.Sessy;
 
 namespace SessyController.Services
@@ -12,16 +13,16 @@ namespace SessyController.Services
         private IOptionsMonitor<SettingsConfig> _settingsConfigMonitor;
         private IOptionsMonitor<SessyBatteryConfig> _sessyBatteryConfigMonitor;
         private IServiceScopeFactory _serviceScopeFactory;
+        private SessyStatusHistoryService _sessyStatusHistoryService;
         private SettingsConfig _settingsConfig;
         private SessyBatteryConfig _sessyBatteryConfig;
         private SessyService _sessyService;
         private BatteryContainer _batteryContainer;
 
         public SessyMonitorService(LoggingService<SessyMonitorService> logger,
-                                IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
-                                IOptionsMonitor<SessyBatteryConfig> sessyBatteryConfigMonitor,
-                                ModelContext modelContext,
-                                IServiceScopeFactory serviceScopeFactory)
+                                  IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
+                                  IOptionsMonitor<SessyBatteryConfig> sessyBatteryConfigMonitor,
+                                  IServiceScopeFactory serviceScopeFactory)
         {
             _logger = logger;
             _settingsConfigMonitor = settingsConfigMonitor;
@@ -35,6 +36,7 @@ namespace SessyController.Services
             {
                 _sessyService = scope.ServiceProvider.GetRequiredService<SessyService>();
                 _batteryContainer = scope.ServiceProvider.GetRequiredService<BatteryContainer>();
+                _sessyStatusHistoryService = scope.ServiceProvider.GetRequiredService<SessyStatusHistoryService>();
             }
         }
 
@@ -72,9 +74,23 @@ namespace SessyController.Services
 
                 if(status == SystemStates.SYSTEM_STATE_ERROR.ToString())
                 {
-
+                    StoreStatus(battery, powerStatus);
                 }
             }
+        }
+
+        private void StoreStatus(Battery battery, PowerStatus powerStatus)
+        {
+            var statusList = new List<SessyStatusHistory>();
+
+            statusList.Add(new SessyStatusHistory
+            {
+                Name = battery.Id,
+                Status = powerStatus.Sessy?.SystemStateString,
+                StatusDetails = powerStatus.Sessy?.SystemStateDetails
+            });
+
+            _sessyStatusHistoryService.StoreSessyStatusHistoryList(statusList);
         }
     }
 }

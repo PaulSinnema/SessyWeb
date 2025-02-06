@@ -11,8 +11,8 @@ using SessyData.Model;
 namespace SessyData.Migrations
 {
     [DbContext(typeof(ModelContext))]
-    [Migration("20250206102550_InitialCreate")]
-    partial class InitialCreate
+    [Migration("20250206152838_InitialSetup")]
+    partial class InitialSetup
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -22,6 +22,9 @@ namespace SessyData.Migrations
 
             modelBuilder.Entity("SessyData.Model.SessyStatusHistory", b =>
                 {
+                    b.Property<DateTime>("Time")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Name")
                         .HasColumnType("TEXT");
 
@@ -31,10 +34,7 @@ namespace SessyData.Migrations
                     b.Property<string>("StatusDetails")
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTime>("Time")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Name");
+                    b.HasKey("Time");
 
                     b.ToTable("SessyStatusHistory");
                 });

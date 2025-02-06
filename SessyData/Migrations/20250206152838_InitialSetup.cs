@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace SessyData.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialCreate : Migration
+    public partial class InitialSetup : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -15,14 +15,14 @@ namespace SessyData.Migrations
                 name: "SessyStatusHistory",
                 columns: table => new
                 {
-                    Name = table.Column<string>(type: "TEXT", nullable: false),
                     Time = table.Column<DateTime>(type: "TEXT", nullable: false),
+                    Name = table.Column<string>(type: "TEXT", nullable: true),
                     Status = table.Column<string>(type: "TEXT", nullable: true),
                     StatusDetails = table.Column<string>(type: "TEXT", nullable: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_SessyStatusHistory", x => x.Name);
+                    table.PrimaryKey("PK_SessyStatusHistory", x => x.Time);
                 });
 
             migrationBuilder.CreateTable(
