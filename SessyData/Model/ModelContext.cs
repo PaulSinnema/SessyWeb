@@ -1,14 +1,13 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Sqlite.Infrastructure.Internal;
-using System.ComponentModel.DataAnnotations;
 
 namespace SessyData.Model
 {
-    public class ModelContext : DbContext
+    public partial class ModelContext : DbContext
     {
         private string? _connectionString { get; set; }
 
-        public ModelContext(DbContextOptions options) : base (options)
+        public ModelContext(DbContextOptions<ModelContext> options) : base (options)
         {
             var extension = options.FindExtension<SqliteOptionsExtension>();
 
@@ -20,18 +19,18 @@ namespace SessyData.Model
             _connectionString = extension.ConnectionString;
         }
 
-        public DbSet<SolarHistory> SolarHistory { get; set; }
+        //protected override void OnModelCreating(ModelBuilder modelBuilder)
+        //{
+        //    modelBuilder.Entity<SolarHistory>().ToTable("SolarHistory");
+        //    modelBuilder.Entity<SessyStatusHistory>().ToTable("SessyStatusHistory");
+        //}
+
+        public DbSet<SessyStatusHistory> SessyStatusHistory => Set<SessyStatusHistory>();
+
+        public DbSet<SolarHistory> SolarHistory => Set<SolarHistory>();
 
         protected override void OnConfiguring(DbContextOptionsBuilder options)
             => options.UseSqlite(_connectionString);
-    }
-
-    public class SolarHistory
-    {
-        [Key]
-        public DateTime Time { get; set; }
-        public double GlobalRadiation { get; set; }
-        public double GeneratedPower { get; set; }
     }
 }
 

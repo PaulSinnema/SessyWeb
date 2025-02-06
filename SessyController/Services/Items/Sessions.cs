@@ -104,14 +104,7 @@ namespace SessyController.Services.Items
 
         public void CalculateProfits()
         {
-            _hourlyInfos
-                .Where(hp => hp.ZeroNetHome)
-                .ToList()
-                .ForEach(hp =>
-                {
-                    hp.Selling = hp.Price * (Math.Min(_homeNeeds / 24, hp.ChargeLeft) / 1000);
-                    hp.Buying = 0.0;
-                });
+            CalculateZeroNetHomeProfit();
 
             var sessionsList = SessionList.OrderBy(se => se.FirstDate).ToList();
 
@@ -158,11 +151,6 @@ namespace SessyController.Services.Items
                                         hasDischarging = dischargingEnum.MoveNext();
                                     }
                                 }
-                                else
-                                {
-                                    dischargingEnum.Current.Buying = 0.0;
-                                    chargingEnum.Current.Selling = 0.0;
-                                }    
                             }
 
                             break;
@@ -176,9 +164,54 @@ namespace SessyController.Services.Items
             }
         }
 
+        private void CalculateZeroNetHomeProfit()
+        {
+            var clearLastChargingSession = false;
+
+            List<HourlyInfo> lastChargingSession = new List<HourlyInfo>();
+
+            foreach (var hourlyInfo in _hourlyInfos.OrderBy(hi => hi.Time))
+            {
+                switch ((hourlyInfo.Charging, hourlyInfo.Discharging, hourlyInfo.ZeroNetHome))
+                {
+                    case (true, false, false): // Charging
+                        {
+                            if (clearLastChargingSession)
+                            {
+                                lastChargingSession.Clear();
+                                clearLastChargingSession = false;
+                            }
+
+                            lastChargingSession.Add(hourlyInfo);
+                            break;
+                        }
+
+                    case (false, true, false): // Discharging
+                        {
+                            clearLastChargingSession = true;
+                            break;
+                        }
+
+                    case (false, false, true): // Zero net home
+                        {
+                            var kWh = Math.Min(_homeNeeds / 24, hourlyInfo.ChargeLeft) / 1000;
+                            hourlyInfo.Selling = hourlyInfo.Price * kWh;
+                            hourlyInfo.Buying = lastChargingSession.Average(lcs => lcs.Price) * kWh;
+                            clearLastChargingSession = true;
+                            break;
+                        }
+
+                    default:
+                        {
+                            throw new InvalidOperationException("Wrong combination of Booleans");
+                        }
+                }
+            }
+        }
+
         public void AddHourlyInfo(Session session, HourlyInfo hourlyInfo)
         {
-            if(!InAnySession(hourlyInfo))
+            if (!InAnySession(hourlyInfo))
             {
                 session.AddHourlyInfo(hourlyInfo);
             }

@@ -17,6 +17,25 @@ namespace SessyData.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.1");
 
+            modelBuilder.Entity("SessyData.Model.SessyStatusHistory", b =>
+                {
+                    b.Property<string>("Name")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StatusDetails")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("Time")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Name");
+
+                    b.ToTable("SessyStatusHistory");
+                });
+
             modelBuilder.Entity("SessyData.Model.SolarHistory", b =>
                 {
                     b.Property<DateTime>("Time")

@@ -163,8 +163,6 @@ namespace SessyController.Services
                     _batteryContainer.StartDisharging();
                 else if (currentHourlyInfo.ZeroNetHome)
                     _batteryContainer.StartNetZeroHome();
-                else if (currentHourlyInfo.CapacityExhausted)
-                    _batteryContainer.StopAll();
             
 #endif
             }

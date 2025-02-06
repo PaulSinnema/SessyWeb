@@ -12,6 +12,20 @@ namespace SessyData.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.CreateTable(
+                name: "SessyStatusHistory",
+                columns: table => new
+                {
+                    Name = table.Column<string>(type: "TEXT", nullable: false),
+                    Time = table.Column<DateTime>(type: "TEXT", nullable: false),
+                    Status = table.Column<string>(type: "TEXT", nullable: true),
+                    StatusDetails = table.Column<string>(type: "TEXT", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SessyStatusHistory", x => x.Name);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "SolarHistory",
                 columns: table => new
                 {
@@ -28,6 +42,9 @@ namespace SessyData.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropTable(
+                name: "SessyStatusHistory");
+
             migrationBuilder.DropTable(
                 name: "SolarHistory");
         }

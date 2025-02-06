@@ -93,6 +93,7 @@
             {
                 DisableChargingAndDischarging(hourlyInfo);
             }
+
             HourlyInfos.Clear();
         }
     }

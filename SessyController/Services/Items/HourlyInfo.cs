@@ -99,8 +99,19 @@ namespace SessyController.Services.Items
 
         public void SetModes(Modes mode)
         {
-            Charging = mode == Modes.Charging;
-            Discharging = mode == Modes.Discharging;
+            switch (mode)
+            {
+                case Modes.Charging:
+                    Charging = true;
+                    break;
+
+                case Modes.Discharging:
+                    Discharging = true;
+                    break;
+
+                default:
+                    break;
+            }
         }
 
         /// <summary>

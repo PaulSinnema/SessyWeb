@@ -1,18 +1,14 @@
-﻿using Microsoft.Extensions.DependencyInjection;
-using SessyData.Helpers;
+﻿using SessyData.Helpers;
 using SessyData.Model;
 
 namespace SessyData.Services
 {
     public class SolarHistoryService
     {
-        private IServiceScopeFactory _serviceScopeFactory { get; set; }
-
         private DbHelper _dbHelper { get; set; }
 
-        public SolarHistoryService(IServiceScopeFactory serviceScopeFactory, DbHelper dbHelper)
+        public SolarHistoryService(DbHelper dbHelper)
         {
-            _serviceScopeFactory = serviceScopeFactory;
             _dbHelper = dbHelper;
         }
 
