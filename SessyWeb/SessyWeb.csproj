@@ -35,4 +35,9 @@
     </None>
   </ItemGroup>
 
+
+  <ItemGroup>
+    <Folder Include="SessyWeb\" />
+  </ItemGroup>
+
 </Project>

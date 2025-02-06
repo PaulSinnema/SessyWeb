@@ -108,7 +108,7 @@ namespace SessyController.Services
 
                 try
                 {
-                    await DetermineChargingHours();
+                    var sessions = await DetermineChargingHours();
 
                     HourlyInfo? currentHourlyInfo = GetCurrentHourlyInfo();
 
@@ -120,7 +120,7 @@ namespace SessyController.Services
                     }
                     else
                     {
-                        await HandleAutomaticCharging();
+                        await HandleAutomaticCharging(sessions);
                     }
                 }
                 finally
@@ -148,13 +148,13 @@ namespace SessyController.Services
             }
         }
 
-        private async Task HandleAutomaticCharging()
+        private async Task HandleAutomaticCharging(Sessions? sessions)
         {
             HourlyInfo? currentHourlyInfo = GetCurrentHourlyInfo();
 
             if (currentHourlyInfo != null)
             {
-                await CancelSessionIfStateRequiresIt(currentHourlyInfo);
+                await CancelSessionIfStateRequiresIt(sessions, currentHourlyInfo);
 #if !DEBUG
 
                 if (currentHourlyInfo.Charging)
@@ -196,28 +196,28 @@ namespace SessyController.Services
         /// If batteries are full stop charging this session
         /// If batteries are empty stop discharging this session
         /// </summary>
-        private async Task CancelSessionIfStateRequiresIt(HourlyInfo currentHourlyInfo)
+        private async Task CancelSessionIfStateRequiresIt(Sessions? sessions, HourlyInfo currentHourlyInfo)
         {
             if (currentHourlyInfo.Charging)
             {
                 bool batteriesAreFull = await AreAllBattiesFull(currentHourlyInfo);
 
                 if (batteriesAreFull)
-                    StopChargingSession(currentHourlyInfo);
+                    StopChargingSession(sessions, currentHourlyInfo);
             }
             else if (currentHourlyInfo.Discharging)
             {
                 bool batteriesAreEmpty = await AreAllBattiesEmpty(currentHourlyInfo);
 
                 if (batteriesAreEmpty)
-                    StopDischargingSession(currentHourlyInfo);
+                    StopDischargingSession(sessions, currentHourlyInfo);
             }
         }
 
         /// <summary>
         /// Cancel charging for current and future consecutive charging hours.
         /// </summary>
-        private static void StopChargingSession(HourlyInfo currentHourlyInfo)
+        private static void StopChargingSession(Sessions? sessions, HourlyInfo currentHourlyInfo)
         {
             if (hourlyInfos != null)
             {
@@ -230,7 +230,7 @@ namespace SessyController.Services
 
                 while (enumPrices.Current.Charging)
                 {
-                    enumPrices.Current.DisableCharging(); // Stop charging
+                    sessions.RemoveFromSession(enumPrices.Current); // Stop charging
 
                     if (!enumPrices.MoveNext())
                         return;
@@ -241,7 +241,7 @@ namespace SessyController.Services
         /// <summary>
         /// Cancel discharging for current and future consecutive discharging hours.
         /// </summary>
-        private static void StopDischargingSession(HourlyInfo currentHourlyInfo)
+        private static void StopDischargingSession(Sessions? sessions, HourlyInfo currentHourlyInfo)
         {
             if (hourlyInfos != null)
             {
@@ -254,7 +254,7 @@ namespace SessyController.Services
 
                 while (enumPrices.Current.Discharging)
                 {
-                    enumPrices.Current.DisableDischarging(); // Stop discharging
+                    sessions.RemoveFromSession(enumPrices.Current); // Stop discharging
 
                     if (!enumPrices.MoveNext())
                         return;
@@ -308,18 +308,18 @@ namespace SessyController.Services
         /// Determine when to charge the batteries.
         /// </summary>
         /// <returns></returns>
-        public async Task<bool> DetermineChargingHours()
+        public async Task<Sessions?> DetermineChargingHours()
         {
             DateTime localTime = _timeZoneService.Now;
 
             if (FetchPricesFromENTSO_E(localTime))
             {
-                    await GetChargingHours();
+                var sessions = await GetChargingHours();
 
-                return true;
+                return sessions;
             }
 
-            return false;
+            return null;
         }
 
         /// <summary>
@@ -358,7 +358,7 @@ namespace SessyController.Services
         /// <summary>
         /// In this routine it is determined when to charge the batteries.
         /// </summary>
-        private async Task GetChargingHours()
+        private async Task<Sessions> GetChargingHours()
         {
             hourlyInfos = hourlyInfos.OrderBy(hp => hp.Time)
                 .ToList();
@@ -370,6 +370,8 @@ namespace SessyController.Services
             RemoveExtraChargingSessions(sessions);
 
             await EvaluateSessions(sessions, hourlyInfos);
+
+            return sessions;
         }
 
         private async Task EvaluateSessions(Sessions sessions, List<HourlyInfo> hourlyInfos)
@@ -492,7 +494,6 @@ namespace SessyController.Services
                                             {
                                                 if (chargingEnumerator.Current.Price + _settingsConfig.CycleCost > dischargingEnumerator.Current.Price)
                                                 {
-                                                    dischargingEnumerator.Current.DisableDischarging();
                                                     var dcSession = sessions.SessionList[dischargingSession];
                                                     dcSession.RemoveHourlyInfo(dischargingEnumerator.Current);
                                                     hasDischarging = dischargingEnumerator.MoveNext();
@@ -512,7 +513,6 @@ namespace SessyController.Services
                                             if (hasDischarging)
                                             {
                                                 sessions.SessionList[dischargingSession].RemoveHourlyInfo(dischargingEnumerator.Current);
-                                                dischargingEnumerator.Current.DisableDischarging();
                                                 hasDischarging = dischargingEnumerator.MoveNext();
                                                 changed = true;
                                             }
@@ -623,6 +623,7 @@ namespace SessyController.Services
                             }
 
                             session.ClearHourlyInfoList();
+
                             changed = true;
                         }
                     }

@@ -70,6 +70,17 @@ namespace SessyController.Services.Items
             return false;
         }
 
+        public void RemoveFromSession(HourlyInfo hourlyInfo)
+        {
+            foreach (var session in _sessionList)
+            {
+                if (session.Contains(hourlyInfo))
+                {
+                    session.RemoveHourlyInfo(hourlyInfo);
+                }
+            }
+        }
+
         public void AddNewSession(Modes mode, HourlyInfo hourlyInfo, double averagePrice)
         {
             if (!InAnySession(hourlyInfo))
@@ -120,6 +131,9 @@ namespace SessyController.Services.Items
                             {
                                 foreach (var hp in session.GetHourlyInfoList())
                                 {
+                                    if (hp.ZeroNetHome)
+                                        throw new InvalidOperationException($"Invalid Zero Net Home item in charging session {hp.Time}");
+
                                     hp.Buying = hp.Price * (Math.Min(_totalBatteryCapacity - hp.ChargeLeft, _totalChargingCapacity) / 1000);
                                     hp.Selling = 0.0;
                                 }
@@ -142,6 +156,9 @@ namespace SessyController.Services.Items
 
                                     while (hasCharging && hasDischarging)
                                     {
+                                        if (dischargingEnum.Current.ZeroNetHome || dischargingEnum.Current.ZeroNetHome)
+                                            throw new InvalidOperationException($"Invalid Zero Net Home item in discharging session {dischargingEnum.Current.Time} || {dischargingEnum.Current.Time}");
+
                                         var chargeLeft = Math.Min(_totalDischargingCapacity, dischargingEnum.Current.ChargeLeft);
 
                                         dischargingEnum.Current.Buying = (chargeLeft / 1000) * chargingEnum.Current.Price;
@@ -194,10 +211,18 @@ namespace SessyController.Services.Items
 
                     case (false, false, true): // Zero net home
                         {
-                            var kWh = Math.Min(_homeNeeds / 24, hourlyInfo.ChargeLeft) / 1000;
-                            hourlyInfo.Selling = hourlyInfo.Price * kWh;
-                            hourlyInfo.Buying = lastChargingSession.Average(lcs => lcs.Price) * kWh;
-                            clearLastChargingSession = true;
+                            try
+                            {
+                                var kWh = Math.Min(_homeNeeds / 24, hourlyInfo.ChargeLeft) / 1000;
+                                hourlyInfo.Selling = hourlyInfo.Price * kWh;
+                                hourlyInfo.Buying = lastChargingSession.Count > 0 ? lastChargingSession.Average(lcs => lcs.Price) * kWh : 0.0;
+                                clearLastChargingSession = true;
+
+                            }
+                            catch (Exception)
+                            {
+                                throw;
+                            }
                             break;
                         }
 

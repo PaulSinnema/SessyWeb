@@ -155,8 +155,10 @@ namespace SessyController.Services
 
                 var prices = GetPrizes(responseBody);
 
+                var endDate = prices.Keys.Max();
+
                 // Detect and fill gaps in the prices with average prices.
-                FillMissingPoints(prices, date, futureDate.AddHours(23), TimeSpan.FromHours(1));
+                FillMissingPoints(prices, date, endDate, TimeSpan.FromHours(1));
 
                 return prices;
             }

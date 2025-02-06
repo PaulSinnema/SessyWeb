@@ -31,13 +31,13 @@ namespace SessyController.Services.Items
 
         public double ChargeLeftVisual => ChargeLeft / 100000;
 
-        private bool _charging = false;
-
         public double SolarGlobalRadiation { get; set; }
 
         public double SolarPower { get; set; }
 
         public double SolarPowerVisual => SolarPower / 30;
+
+        private bool _charging = false;
 
         /// <summary>
         /// If true charging is requested.
@@ -61,9 +61,6 @@ namespace SessyController.Services.Items
         }
 
 
-        /// <summary>
-        /// If true discharging is requested.
-        /// </summary>
         private bool _discharging = false;
 
         /// <summary>
@@ -110,7 +107,7 @@ namespace SessyController.Services.Items
                     break;
 
                 default:
-                    break;
+                    throw new InvalidOperationException("Mode wrong");
             }
         }
 

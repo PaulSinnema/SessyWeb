@@ -7,6 +7,7 @@
     {
         public enum Modes
         {
+            Unknown,
             Charging,
             Discharging
         };
@@ -81,20 +82,34 @@
             HourlyInfos.Remove(hourlyInfo);
         }
 
-        private static void DisableChargingAndDischarging(HourlyInfo hourlyInfo)
+        private void DisableChargingAndDischarging(HourlyInfo hourlyInfo)
         {
             hourlyInfo.DisableCharging();
             hourlyInfo.DisableDischarging();
         }
 
-        public void ClearHourlyInfoList()
+        /// <summary>
+        /// Clear the hourlyInfos from the session.
+        /// Caution! Clearing the list will not change the (dis)charging modes on
+        /// the hourlyInfo items unless setModes = true!
+        /// </summary>
+        /// <param name="setModes">Set to true to change the modes in the listitems.</param>
+        public void ClearHourlyInfoList(bool setModes = false)
         {
-            foreach (var hourlyInfo in HourlyInfos)
+            if (setModes)
             {
-                DisableChargingAndDischarging(hourlyInfo);
+                foreach (var hourlyInfo in HourlyInfos)
+                {
+                    DisableChargingAndDischarging(hourlyInfo);
+                }
             }
 
             HourlyInfos.Clear();
+        }
+
+        public bool Contains(HourlyInfo hourlyInfo)
+        {
+            return HourlyInfos.Contains(hourlyInfo);
         }
     }
 }
