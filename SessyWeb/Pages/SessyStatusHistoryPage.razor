@@ -1,0 +1,14 @@
+﻿@page "/sessystatushistory"
+@inherits PageBase
+@using SessyData.Model
+
+<a>History</a>
+
+<RadzenDataGrid Data="@StatusHistoryList" Context="data">
+    <Columns>
+        <RadzenDataGridColumn Property="@nameof(SessyStatusHistory.Time)" Title="Time"/>
+        <RadzenDataGridColumn Property="@nameof(SessyStatusHistory.Name)" Title="Name" />
+        <RadzenDataGridColumn Property="@nameof(SessyStatusHistory.Status)" Title="Status" />
+        <RadzenDataGridColumn Property="@nameof(SessyStatusHistory.StatusDetails)" Title="Details"/>
+    </Columns>
+</RadzenDataGrid>

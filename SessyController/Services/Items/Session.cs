@@ -111,5 +111,10 @@
         {
             return HourlyInfos.Contains(hourlyInfo);
         }
+
+        public override string ToString()
+        {
+            return $"Session: {Mode}, FirstDate: {FirstDate}, LastDate {LastDate}, Count: {HourlyInfos.Count}, MaxHours: {MaxHours}";
+        }
     }
 }

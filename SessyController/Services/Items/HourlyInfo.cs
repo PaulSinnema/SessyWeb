@@ -150,5 +150,13 @@ namespace SessyController.Services.Items
         /// This list contains the hours found for charging against this price.
         /// </summary>
         public List<HourlyInfo>? HoursCharging { get; set; }
+
+        /// <summary>
+        /// For better debugging
+        /// </summary>
+        public override string ToString()
+        {
+            return $"{Time}: Charging: {Charging}, Discharging: {Discharging}, Zero Net Home: {ZeroNetHome}, Price: {Price}, Charge left: {ChargeLeft}";
+        }
     }
 }

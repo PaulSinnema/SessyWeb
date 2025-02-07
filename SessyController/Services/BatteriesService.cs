@@ -1,4 +1,6 @@
-﻿using Microsoft.Extensions.Options;
+﻿using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Options;
+using SessyCommon.Extensions;
 using SessyController.Configurations;
 using SessyController.Services.Items;
 using static SessyController.Services.Items.Session;
@@ -41,7 +43,7 @@ namespace SessyController.Services
             _settingsConfigMonitor = settingsConfigMonitor;
             _sessyBatteryConfigMonitor = sessyBatteryConfigMonitor;
 
-            _settingsConfigMonitor.OnChange((SettingsConfig settings) =>_settingsConfig = settings);
+            _settingsConfigMonitor.OnChange((SettingsConfig settings) => _settingsConfig = settings);
             _sessyBatteryConfigMonitor.OnChange((SessyBatteryConfig settings) => _sessyBatteryConfig = settings);
 
             _settingsConfig = settingsConfigMonitor.CurrentValue;
@@ -78,7 +80,7 @@ namespace SessyController.Services
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogException(ex, "An error occurred while managing batteries.");
+                    _logger.LogError($"An error occurred while managing batteries.{ex.ToDetailedString()}");
                 }
 
                 try
@@ -89,12 +91,18 @@ namespace SessyController.Services
                 {
                     // Ignore cancellation exception during delay
                 }
+                catch (Exception ex)
+                {
+                    _logger.LogError($"Something went wrong during delay, keep processing {ex.ToDetailedString()}");
+                }
             }
 
             _logger.LogInformation("BatteriesService stopped.");
         }
 
         private SemaphoreSlim HourlyInfoSemaphore = new SemaphoreSlim(1);
+
+        private Sessions? sessions { get; set; } = null;
 
         /// <summary>
         /// This routine is called periodicly as a background task.
@@ -105,28 +113,33 @@ namespace SessyController.Services
             {
                 HourlyInfoSemaphore.Wait();
 
-
                 try
                 {
-                    var sessions = await DetermineChargingHours();
+                    sessions = DetermineChargingHours(sessions);
 
-                    HourlyInfo? currentHourlyInfo = GetCurrentHourlyInfo();
-
-                    if (!(_dayAheadMarketService.PricesAvailable && currentHourlyInfo != null))
+                    if (sessions != null)
                     {
-                        _logger.LogWarning("No prices available from ENTSO-E, switching to manual charging");
+                        _solarService.GetExpectedSolarPower(hourlyInfos);
 
-                        HandleManualCharging();
-                    }
-                    else
-                    {
-                        await HandleAutomaticCharging(sessions);
+                        await EvaluateSessions(sessions, hourlyInfos);
+
+                        HourlyInfo? currentHourlyInfo = GetCurrentHourlyInfo();
+
+                        if (!(_dayAheadMarketService.PricesAvailable && currentHourlyInfo != null))
+                        {
+                            _logger.LogWarning("No prices available from ENTSO-E, switching to manual charging");
+
+                            HandleManualCharging();
+                        }
+                        else
+                        {
+                            await HandleAutomaticCharging(sessions);
+                        }
                     }
                 }
                 finally
                 {
                     HourlyInfoSemaphore.Release();
-
                 }
             }
         }
@@ -247,7 +260,7 @@ namespace SessyController.Services
             {
                 var enumPrices = hourlyInfos.GetEnumerator();
 
-                if(enumPrices.MoveNext())
+                if (enumPrices.MoveNext())
                     while (enumPrices.Current.Time.Hour < currentHourlyInfo.Time.Hour)
                         if (!enumPrices.MoveNext())
                             return;
@@ -304,28 +317,34 @@ namespace SessyController.Services
             return batteriesAreEmpty;
         }
 
+        private DateTime? lastDateFetched { get; set; } = null;
+
         /// <summary>
         /// Determine when to charge the batteries.
         /// </summary>
-        /// <returns></returns>
-        public async Task<Sessions?> DetermineChargingHours()
+        public Sessions? DetermineChargingHours(Sessions sessions)
         {
             DateTime localTime = _timeZoneService.Now;
 
             if (FetchPricesFromENTSO_E(localTime))
             {
-                var sessions = await GetChargingHours();
+                var thisDateFetched = hourlyInfos.Max(hi => hi.Time);
 
-                return sessions;
+                if (sessions == null || lastDateFetched == null || thisDateFetched != lastDateFetched)
+                {
+                    sessions = GetChargingHours();
+
+                    lastDateFetched = thisDateFetched;
+                }
             }
 
-            return null;
+            return sessions;
         }
 
         /// <summary>
         /// Get the day-ahead-prices from ENTSO-E.
+        /// This routine gets info objects or adds missing ones.
         /// </summary>
-        /// <param name="localTime"></param>
         private bool FetchPricesFromENTSO_E(DateTime localTime)
         {
             // Get the available hourly prices from now.
@@ -333,12 +352,13 @@ namespace SessyController.Services
                 .OrderBy(hp => hp.Time)
                 .ToList();
 
-            if (hourlyInfos == null)
+            if (hourlyInfos == null) // First time fetch
             {
                 hourlyInfos = fetchedPrices;
             }
             else
             {
+                // There are already info objects present, supplement with missing.
                 foreach (var hourlyInfo in fetchedPrices)
                 {
                     if (!hourlyInfos.Any(hp => hp.Time == hourlyInfo.Time))
@@ -350,6 +370,7 @@ namespace SessyController.Services
 
             var maxTime = localTime.Date;
 
+            // Remove yesterdays info objects.
             hourlyInfos.RemoveAll(hi => hi.Time < maxTime);
 
             return hourlyInfos != null && hourlyInfos.Count > 0;
@@ -358,18 +379,14 @@ namespace SessyController.Services
         /// <summary>
         /// In this routine it is determined when to charge the batteries.
         /// </summary>
-        private async Task<Sessions> GetChargingHours()
+        private Sessions GetChargingHours()
         {
             hourlyInfos = hourlyInfos.OrderBy(hp => hp.Time)
                 .ToList();
 
-            _solarService.GetExpectedSolarPower(hourlyInfos);
-
             Sessions sessions = CreateSessions(hourlyInfos);
 
             RemoveExtraChargingSessions(sessions);
-
-            await EvaluateSessions(sessions, hourlyInfos);
 
 #if DEBUG
             CheckSessions(hourlyInfos, sessions);
@@ -393,7 +410,7 @@ namespace SessyController.Services
                             if (!sessions.InAnySession(hourlyInfo))
                                 throw new InvalidOperationException($"Info not in a session {hourlyInfo}");
 
-                            var session = sessions.FindSession(hourlyInfo);
+                            Session session = CheckSession(sessions, hourlyInfo);
 
                             if (session.Mode != Modes.Charging)
                                 throw new InvalidOperationException($"Charging info in wrong session {hourlyInfo}");
@@ -406,7 +423,7 @@ namespace SessyController.Services
                             if (!sessions.InAnySession(hourlyInfo))
                                 throw new InvalidOperationException($"Info not in a session {hourlyInfo}");
 
-                            var session = sessions.FindSession(hourlyInfo);
+                            Session session = CheckSession(sessions, hourlyInfo);
 
                             if (session.Mode != Modes.Discharging)
                                 throw new InvalidOperationException($"Discharging info in wrong session {hourlyInfo}");
@@ -426,6 +443,16 @@ namespace SessyController.Services
                         break;
                 }
             }
+        }
+
+        private static Session CheckSession(Sessions sessions, HourlyInfo hourlyInfo)
+        {
+            var session = sessions.FindSession(hourlyInfo);
+
+            if (session.GetHourlyInfoList().Count < 1)
+                throw new InvalidOperationException($"Empty charging session {session}");
+
+            return session;
         }
 #endif
 

@@ -346,5 +346,10 @@ namespace SessyController.Services.Items
 
             return foundSessions.Single();
         }
+
+        public override string ToString()
+        {
+            return $"Sessions: Count: {SessionList.Count}, Max charging hours: {_maxChargingHours}, Max discharging hours: {_maxDischargingHours}";
+        }
     }
 }
