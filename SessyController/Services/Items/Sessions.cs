@@ -333,5 +333,18 @@ namespace SessyController.Services.Items
                 }
             }
         }
+
+        public Session FindSession(HourlyInfo hourlyInfo)
+        {
+            List<Session> foundSessions = new List<Session>();
+
+            foreach (var session in SessionList)
+            {
+                if(session.Contains(hourlyInfo))
+                    foundSessions.Add(session);
+            }
+
+            return foundSessions.Single();
+        }
     }
 }

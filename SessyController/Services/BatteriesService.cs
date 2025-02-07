@@ -371,8 +371,63 @@ namespace SessyController.Services
 
             await EvaluateSessions(sessions, hourlyInfos);
 
+#if DEBUG
+            CheckSessions(hourlyInfos, sessions);
+#endif
             return sessions;
         }
+
+#if DEBUG
+        /// <summary>
+        /// This method is voor debugging purposes only. It checks the content of hourlyInfos
+        /// and sessions.
+        /// </summary>
+        private void CheckSessions(List<HourlyInfo> hourlyInfos, Sessions sessions)
+        {
+            foreach (var hourlyInfo in hourlyInfos)
+            {
+                switch ((hourlyInfo.Charging, hourlyInfo.Discharging, hourlyInfo.ZeroNetHome))
+                {
+                    case (true, false, false): // Charging
+                        {
+                            if (!sessions.InAnySession(hourlyInfo))
+                                throw new InvalidOperationException($"Info not in a session {hourlyInfo}");
+
+                            var session = sessions.FindSession(hourlyInfo);
+
+                            if (session.Mode != Modes.Charging)
+                                throw new InvalidOperationException($"Charging info in wrong session {hourlyInfo}");
+
+                            break;
+                        }
+
+                    case (false, true, false): // Discharging
+                        {
+                            if (!sessions.InAnySession(hourlyInfo))
+                                throw new InvalidOperationException($"Info not in a session {hourlyInfo}");
+
+                            var session = sessions.FindSession(hourlyInfo);
+
+                            if (session.Mode != Modes.Discharging)
+                                throw new InvalidOperationException($"Discharging info in wrong session {hourlyInfo}");
+
+                            break;
+                        }
+
+                    case (false, false, true): // Zero Net Home
+                        {
+                            if (sessions.InAnySession(hourlyInfo))
+                                throw new InvalidOperationException($"Zero net home info in a (dis)charging session {hourlyInfo}");
+                        }
+
+                        break;
+
+                    default:
+                        break;
+                }
+            }
+        }
+#endif
 
         private async Task EvaluateSessions(Sessions sessions, List<HourlyInfo> hourlyInfos)
         {
