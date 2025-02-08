@@ -216,14 +216,20 @@ namespace SessyController.Services
                 bool batteriesAreFull = await AreAllBattiesFull(currentHourlyInfo);
 
                 if (batteriesAreFull)
+                {
                     StopChargingSession(sessions, currentHourlyInfo);
+                    _logger.LogWarning("Warning: Charging session stopped because batteries are full.");
+                }
             }
             else if (currentHourlyInfo.Discharging)
             {
                 bool batteriesAreEmpty = await AreAllBattiesEmpty(currentHourlyInfo);
 
                 if (batteriesAreEmpty)
+                {
                     StopDischargingSession(sessions, currentHourlyInfo);
+                    _logger.LogWarning("Warning: Discharging session stopped because batteries are empty.");
+                }
             }
         }
 

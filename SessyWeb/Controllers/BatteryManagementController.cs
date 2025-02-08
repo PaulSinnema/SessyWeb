@@ -73,8 +73,8 @@ namespace SessyWeb.Controllers
         [HttpGet("SolarEdgeService:GetACPowerInWatts", Name = "{id}/GetACPowerInWatts")]
         public async Task<IActionResult> GetACPowerInWatts()
         {
-            short powerOutput = await _solarEdgeService.GetACPower();
-            short scaleFactor = await _solarEdgeService.GetACPowerScaleFactor();
+            ushort powerOutput = await _solarEdgeService.GetACPower();
+            ushort scaleFactor = await _solarEdgeService.GetACPowerScaleFactor();
 
             return Ok(powerOutput * Math.Pow(10, scaleFactor));
         }
@@ -86,7 +86,7 @@ namespace SessyWeb.Controllers
         [HttpGet("SolarEdgeService:GetACPower", Name = "{id}/GetACPower")]
         public async Task<IActionResult> GetACPower()
         {
-            short scaleFactor = await _solarEdgeService.GetACPower();
+            ushort scaleFactor = await _solarEdgeService.GetACPower();
 
             return Ok(scaleFactor);
         }
@@ -98,7 +98,7 @@ namespace SessyWeb.Controllers
         [HttpGet("SolarEdgeService:GetACPowerScaleFactor", Name = "{id}/GetACPowerScaleFactor")]
         public async Task<IActionResult> GetACPowerScaleFactor()
         {
-            short scaleFactor = await _solarEdgeService.GetACPowerScaleFactor();
+            ushort scaleFactor = await _solarEdgeService.GetACPowerScaleFactor();
 
             return Ok(scaleFactor);
         }
@@ -134,9 +134,9 @@ namespace SessyWeb.Controllers
         [HttpGet("SolarEdgeService:GetActivePowerLimit", Name = "{id}/GetActivePowerLimit")]
         public async Task<IActionResult> GetActivePowerLimit()
         {
-            short scaleFactor = await _solarEdgeService.GetActivePowerLimit();
+            float powerLimit = await _solarEdgeService.GetActivePowerLimit();
 
-            return Ok(scaleFactor);
+            return Ok(powerLimit);
         }
 
         /// <summary>
@@ -144,7 +144,7 @@ namespace SessyWeb.Controllers
         /// </summary>
         /// <returns>Scale factor</returns>
         [HttpGet("SolarEdgeService:SetActivePowerLimit", Name = "{id}/SetActivePowerLimit")]
-        public async Task<IActionResult> SetActivePowerLimit(short power)
+        public async Task<IActionResult> SetActivePowerLimit(float power)
         {
             await _solarEdgeService.SetActivePowerLimit(power);
 
@@ -157,7 +157,7 @@ namespace SessyWeb.Controllers
         [HttpGet("SolarEdgeService:GetStatus", Name = "{id}/GetStatus")]
         public async Task<IActionResult> GetStatus()
         {
-            short registers = await _solarEdgeService.GetStatus();
+            ushort registers = await _solarEdgeService.GetStatus();
 
             return Ok(registers);
         }
