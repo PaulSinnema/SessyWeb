@@ -115,7 +115,7 @@ namespace SessyController.Services
 
                 try
                 {
-                    sessions = DetermineChargingHours(sessions);
+                    sessions = DetermineChargingHours(sessions!);
 
                     if (sessions != null)
                     {
