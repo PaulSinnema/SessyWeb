@@ -362,3 +362,9 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+/SessyWeb/Sessy.db
+/SessyWeb/Sessy.db-shm
+/SessyWeb/Sessy.db-wal
+/SessyWeb/Sessy.db
+/SessyWeb/Sessy.db-shm
+/SessyWeb/Sessy.db-wal

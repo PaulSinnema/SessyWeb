@@ -323,8 +323,6 @@ namespace SessyController.Services
             return batteriesAreEmpty;
         }
 
-        private DateTime? lastDateFetched { get; set; } = null;
-
         /// <summary>
         /// Determine when to charge the batteries.
         /// </summary>
@@ -334,14 +332,7 @@ namespace SessyController.Services
 
             if (FetchPricesFromENTSO_E(localTime))
             {
-                var thisDateFetched = hourlyInfos.Max(hi => hi.Time);
-
-                if (sessions == null || lastDateFetched == null || thisDateFetched != lastDateFetched)
-                {
-                    sessions = GetChargingHours();
-
-                    lastDateFetched = thisDateFetched;
-                }
+                sessions = GetChargingHours();
             }
 
             return sessions;
@@ -484,6 +475,8 @@ namespace SessyController.Services
             var localTime = _timeZoneService.Now;
             var localTimeHour = localTime.Date.AddHours(localTime.Hour);
 
+            hourlyInfos.ForEach(hi => hi.ChargeLeft = 0.0);
+
             var hourlyInfoList = hourlyInfos
                 .Where(hp => hp.Time.Date.AddHours(hp.Time.Hour) >= localTimeHour)
                 .OrderBy(hp => hp.Time)
@@ -522,10 +515,10 @@ namespace SessyController.Services
         /// </summary>
         private void RemoveExtraChargingSessions(Sessions sessions)
         {
-            var changed1 = false;
-            var changed2 = false;
-            var changed3 = false;
-            var changed4 = false;
+            bool changed1;
+            bool changed2;
+            bool changed3;
+            bool changed4;
 
             do
             {
@@ -629,7 +622,7 @@ namespace SessyController.Services
         {
             var changed = false;
 
-            List<HourlyInfo> listToRemove;
+            List<HourlyInfo> listToLimit;
 
             foreach (var session in sessions.SessionList.ToList())
             {
@@ -637,14 +630,14 @@ namespace SessyController.Services
                 {
                     case Modes.Charging:
                         {
-                            listToRemove = session.GetHourlyInfoList().OrderBy(hp => hp.Price).ToList();
+                            listToLimit = session.GetHourlyInfoList().OrderByDescending(hp => hp.Price).ToList();
 
                             break;
                         }
 
                     case Modes.Discharging:
                         {
-                            listToRemove = session.GetHourlyInfoList().OrderByDescending(hp => hp.Price).ToList();
+                            listToLimit = session.GetHourlyInfoList().OrderBy(hp => hp.Price).ToList();
                             break;
                         }
 
@@ -652,9 +645,9 @@ namespace SessyController.Services
                         throw new InvalidOperationException($"Unknown mode {session.Mode}");
                 }
 
-                for (int i = session.MaxHours; i < listToRemove.Count; i++)
+                for (int i = session.MaxHours; i < listToLimit.Count; i++)
                 {
-                    session.RemoveHourlyInfo(listToRemove[i]);
+                    session.RemoveHourlyInfo(listToLimit[i]);
                     changed = true;
                 }
             }
@@ -697,7 +690,6 @@ namespace SessyController.Services
             {
                 if (lastSession != null)
                 {
-
                     if (lastSession.Mode == session.Mode)
                     {
                         var maxZeroNetHome = GetMaxZeroNetHomeHours(lastSession, session);
@@ -705,12 +697,11 @@ namespace SessyController.Services
 
                         if (hoursBetween <= 1)
                         {
-                            foreach (var hourlyInfo in session.GetHourlyInfoList())
-                            {
-                                lastSession.AddHourlyInfo(hourlyInfo);
-                            }
+                            sessions.MergeSessions(lastSession, session);
 
-                            session.ClearHourlyInfoList();
+                            lastSession.RemoveAllAfter();
+
+                            sessions.RemoveSession(session);
 
                             changed = true;
                         }

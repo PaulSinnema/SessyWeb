@@ -112,6 +112,43 @@
             return HourlyInfos.Contains(hourlyInfo);
         }
 
+        public void RemoveAllAfter()
+        {
+            int index = MaxHours;
+
+            switch (Mode)
+            {
+                case Modes.Charging:
+                    {
+                        var list = HourlyInfos.OrderBy(hi => hi.Price).ToList();
+
+                        while (++index < list.Count)
+                        {
+                            RemoveHourlyInfo(list[index]);
+                        }
+
+
+                        break;
+                    }
+
+                case Modes.Discharging:
+                    {
+                        var list = HourlyInfos.OrderByDescending(hi => hi.Price).ToList();
+
+                        while (++index < list.Count)
+                        {
+                            RemoveHourlyInfo(list[index]);
+                        }
+
+
+                        break;
+                    }
+
+                default:
+                    throw new InvalidOperationException($"Invalid mode {Mode}");
+            }
+        }
+
         public override string ToString()
         {
             return $"Session: {Mode}, FirstDate: {FirstDate}, LastDate {LastDate}, Count: {HourlyInfos.Count}, MaxHours: {MaxHours}";

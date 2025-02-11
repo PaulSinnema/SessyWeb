@@ -347,6 +347,16 @@ namespace SessyController.Services.Items
             return foundSessions.Single();
         }
 
+        public void MergeSessions(Session session1, Session session2)
+        {
+            foreach (var hourlyInfo in session2.GetHourlyInfoList())
+            {
+                session1.AddHourlyInfo(hourlyInfo);
+            }
+
+            session2.ClearHourlyInfoList();
+        }
+
         public override string ToString()
         {
             return $"Sessions: Count: {SessionList.Count}, Max charging hours: {_maxChargingHours}, Max discharging hours: {_maxDischargingHours}";
