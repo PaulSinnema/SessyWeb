@@ -457,7 +457,7 @@ namespace SessyController.Services
         {
             await CalculateChargeLeft(hourlyInfos);
 
-            sessions.CalculateProfits();
+            sessions.CalculateProfits(_timeZoneService);
         }
 
         /// <summary>

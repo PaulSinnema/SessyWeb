@@ -113,11 +113,15 @@ namespace SessyController.Services.Items
                 _logger.LogInformation($"Overlap in sessions {hourlyInfo}");
         }
 
-        public void CalculateProfits()
+        public void CalculateProfits(TimeZoneService timeZoneService)
         {
-            CalculateZeroNetHomeProfit();
+            var localTime = timeZoneService.Now;
+            var localTimeHour = localTime.Date.AddHours(localTime.Hour);
 
-            var sessionsList = SessionList.OrderBy(se => se.FirstDate).ToList();
+            CalculateZeroNetHomeProfit(timeZoneService);
+
+            var sessionsList = SessionList.OrderBy(se => se.FirstDate)
+                .ToList();
 
             Session? lastSession = null;
 
@@ -129,7 +133,10 @@ namespace SessyController.Services.Items
                     {
                         case Modes.Charging:
                             {
-                                foreach (var hp in session.GetHourlyInfoList())
+                                foreach (var hp in session
+                                    .GetHourlyInfoList()
+                                    .Where(hp => hp.Time.Date.AddHours(hp.Time.Hour) >= localTimeHour)
+)
                                 {
                                     if (hp.ZeroNetHome)
                                         throw new InvalidOperationException($"Invalid Zero Net Home item in charging session {hp.Time}");
@@ -143,8 +150,12 @@ namespace SessyController.Services.Items
 
                         case Modes.Discharging:
                             {
-                                var dischargingPrices = session.GetHourlyInfoList().OrderBy(hp => hp.Price).ToList();
-                                var chargingPrices = lastSession.GetHourlyInfoList().OrderBy(hp => hp.Price).ToList();
+                                var dischargingPrices = session.GetHourlyInfoList()
+                                    .Where(hp => hp.Time.Date.AddHours(hp.Time.Hour) >= localTimeHour)
+                                    .OrderBy(hp => hp.Price).ToList();
+                                var chargingPrices = lastSession.GetHourlyInfoList()
+                                    .OrderBy(hp => hp.Price)
+                                    .ToList();
 
                                 var chargingEnum = chargingPrices.GetEnumerator();
                                 var dischargingEnum = dischargingPrices.GetEnumerator();
@@ -181,13 +192,18 @@ namespace SessyController.Services.Items
             }
         }
 
-        private void CalculateZeroNetHomeProfit()
+        private void CalculateZeroNetHomeProfit(TimeZoneService timeZoneService)
         {
             var clearLastChargingSession = false;
 
             List<HourlyInfo> lastChargingSession = new List<HourlyInfo>();
 
-            foreach (var hourlyInfo in _hourlyInfos.OrderBy(hi => hi.Time))
+            var localTime = timeZoneService.Now;
+            var localTimeHour = localTime.Date.AddHours(localTime.Hour);
+            
+            foreach (var hourlyInfo in _hourlyInfos
+                .Where(hp => hp.Time.Date.AddHours(hp.Time.Hour) >= localTimeHour)
+                .OrderBy(hi => hi.Time))
             {
                 switch ((hourlyInfo.Charging, hourlyInfo.Discharging, hourlyInfo.ZeroNetHome))
                 {
@@ -340,7 +356,7 @@ namespace SessyController.Services.Items
 
             foreach (var session in SessionList)
             {
-                if(session.Contains(hourlyInfo))
+                if (session.Contains(hourlyInfo))
                     foundSessions.Add(session);
             }
 
