@@ -363,6 +363,8 @@ namespace SessyController.Services
                         hourlyInfos.Add(hourlyInfo);
                     }
                 }
+
+                HourlyInfo.AddSmoothedPrices(hourlyInfos, 3);
             }
 
             var maxTime = localTime.Date;
@@ -373,22 +375,35 @@ namespace SessyController.Services
             return hourlyInfos != null && hourlyInfos.Count > 0;
         }
 
+        private DateTime? lastSessionCreationDate { get; set; } = null;
+
         /// <summary>
         /// In this routine it is determined when to charge the batteries.
         /// </summary>
         private Sessions GetChargingHours()
         {
+            DateTime now = _timeZoneService.Now;
+
             hourlyInfos = hourlyInfos.OrderBy(hp => hp.Time)
                 .ToList();
 
-            Sessions sessions = CreateSessions(hourlyInfos);
+            DateTime currentSessionCreationDate = hourlyInfos.Max(hi => hi.Time);
 
-            RemoveExtraChargingSessions(sessions);
+            if (lastSessionCreationDate == null || lastSessionCreationDate != currentSessionCreationDate)
+            {
+                lastSessionCreationDate = currentSessionCreationDate;
+
+                Sessions localSessions = CreateSessions(hourlyInfos);
+
+                RemoveExtraChargingSessions(localSessions);
 
 #if DEBUG
-            CheckSessions(hourlyInfos, sessions);
+                CheckSessions(hourlyInfos, localSessions);
 #endif
-            return sessions;
+                return localSessions;
+            }
+
+            return sessions!;
         }
 
 #if DEBUG
@@ -760,12 +775,12 @@ namespace SessyController.Services
                     // Check the first element
                     if (hourlyInfos.Count > 1)
                     {
-                        if (hourlyInfos[0].Price < hourlyInfos[1].Price && hourlyInfos[0].Price < averagePrice)
+                        if (hourlyInfos[0].SmoothedPrice < hourlyInfos[1].SmoothedPrice && hourlyInfos[0].SmoothedPrice < averagePrice)
                         {
                             sessions.AddNewSession(Modes.Charging, hourlyInfos[0], averagePrice);
                         }
 
-                        if (hourlyInfos[0].Price > hourlyInfos[1].Price && hourlyInfos[0].Price > averagePrice)
+                        if (hourlyInfos[0].SmoothedPrice > hourlyInfos[1].SmoothedPrice && hourlyInfos[0].SmoothedPrice > averagePrice)
                         {
                             sessions.AddNewSession(Modes.Discharging, hourlyInfos[0], averagePrice);
                         }
@@ -774,15 +789,15 @@ namespace SessyController.Services
                     // Check the elements in between.
                     for (var i = 1; i < hourlyInfos.Count - 1; i++)
                     {
-                        if (hourlyInfos[i].Price < hourlyInfos[i - 1].Price && hourlyInfos[i].Price < hourlyInfos[i + 1].Price)
+                        if (hourlyInfos[i].SmoothedPrice < hourlyInfos[i - 1].SmoothedPrice && hourlyInfos[i].SmoothedPrice < hourlyInfos[i + 1].SmoothedPrice)
                         {
-                            if (hourlyInfos[i].Price < averagePrice)
+                            if (hourlyInfos[i].SmoothedPrice < averagePrice)
                                 sessions.AddNewSession(Modes.Charging, hourlyInfos[i], averagePrice);
                         }
 
-                        if (hourlyInfos[i].Price > hourlyInfos[i - 1].Price && hourlyInfos[i].Price > hourlyInfos[i + 1].Price)
+                        if (hourlyInfos[i].SmoothedPrice > hourlyInfos[i - 1].SmoothedPrice && hourlyInfos[i].SmoothedPrice > hourlyInfos[i + 1].SmoothedPrice)
                         {
-                            if (hourlyInfos[i].Price > averagePrice)
+                            if (hourlyInfos[i].SmoothedPrice > averagePrice)
                                 sessions.AddNewSession(Modes.Discharging, hourlyInfos[i], averagePrice);
                         }
                     }
@@ -790,10 +805,10 @@ namespace SessyController.Services
                     // Check the last element
                     if (hourlyInfos.Count > 1)
                     {
-                        if (hourlyInfos[hourlyInfos.Count - 1].Price < hourlyInfos[hourlyInfos.Count - 2].Price && hourlyInfos[hourlyInfos.Count - 1].Price < averagePrice)
+                        if (hourlyInfos[hourlyInfos.Count - 1].SmoothedPrice < hourlyInfos[hourlyInfos.Count - 2].SmoothedPrice && hourlyInfos[hourlyInfos.Count - 1].SmoothedPrice < averagePrice)
                             sessions.AddNewSession(Modes.Charging, hourlyInfos[hourlyInfos.Count - 1], averagePrice);
 
-                        if (hourlyInfos[hourlyInfos.Count - 1].Price > hourlyInfos[hourlyInfos.Count - 2].Price && hourlyInfos[hourlyInfos.Count - 1].Price > averagePrice)
+                        if (hourlyInfos[hourlyInfos.Count - 1].SmoothedPrice > hourlyInfos[hourlyInfos.Count - 2].SmoothedPrice && hourlyInfos[hourlyInfos.Count - 1].SmoothedPrice > averagePrice)
                             sessions.AddNewSession(Modes.Discharging, hourlyInfos[hourlyInfos.Count - 1], averagePrice);
                     }
                 }

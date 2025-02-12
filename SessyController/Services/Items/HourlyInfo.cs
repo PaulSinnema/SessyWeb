@@ -9,6 +9,8 @@ namespace SessyController.Services.Items
         /// </summary>
         public double Price { get; set; }
 
+        public double SmoothedPrice { get; private set; }
+
         /// <summary>
         /// Timestamp from ENTSO-E
         /// </summary>
@@ -81,6 +83,23 @@ namespace SessyController.Services.Items
                 }
 
                 _discharging = value;
+            }
+        }
+
+        /// <summary>
+        /// Voegt een gesmoothed prijs toe aan elk HourlyInfo object in de lijst.
+        /// </summary>
+        public static void AddSmoothedPrices(List<HourlyInfo> hourlyData, int windowSize)
+        {
+            if (hourlyData == null || hourlyData.Count == 0) return;
+
+            for (int i = 0; i < hourlyData.Count; i++)
+            {
+                int start = Math.Max(0, i - windowSize / 2);
+                int end = Math.Min(hourlyData.Count - 1, i + windowSize / 2);
+
+                double average = hourlyData.Skip(start).Take(end - start + 1).Average(h => h.Price);
+                hourlyData[i].SmoothedPrice = average;
             }
         }
 
