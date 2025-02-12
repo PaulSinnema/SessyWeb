@@ -775,12 +775,12 @@ namespace SessyController.Services
                     // Check the first element
                     if (hourlyInfos.Count > 1)
                     {
-                        if (hourlyInfos[0].SmoothedPrice < hourlyInfos[1].SmoothedPrice && hourlyInfos[0].SmoothedPrice < averagePrice)
+                        if (hourlyInfos[0].SmoothedPrice < hourlyInfos[1].SmoothedPrice)
                         {
                             sessions.AddNewSession(Modes.Charging, hourlyInfos[0], averagePrice);
                         }
 
-                        if (hourlyInfos[0].SmoothedPrice > hourlyInfos[1].SmoothedPrice && hourlyInfos[0].SmoothedPrice > averagePrice)
+                        if (hourlyInfos[0].SmoothedPrice > hourlyInfos[1].SmoothedPrice)
                         {
                             sessions.AddNewSession(Modes.Discharging, hourlyInfos[0], averagePrice);
                         }
@@ -791,13 +791,11 @@ namespace SessyController.Services
                     {
                         if (hourlyInfos[i].SmoothedPrice < hourlyInfos[i - 1].SmoothedPrice && hourlyInfos[i].SmoothedPrice < hourlyInfos[i + 1].SmoothedPrice)
                         {
-                            if (hourlyInfos[i].SmoothedPrice < averagePrice)
                                 sessions.AddNewSession(Modes.Charging, hourlyInfos[i], averagePrice);
                         }
 
                         if (hourlyInfos[i].SmoothedPrice > hourlyInfos[i - 1].SmoothedPrice && hourlyInfos[i].SmoothedPrice > hourlyInfos[i + 1].SmoothedPrice)
                         {
-                            if (hourlyInfos[i].SmoothedPrice > averagePrice)
                                 sessions.AddNewSession(Modes.Discharging, hourlyInfos[i], averagePrice);
                         }
                     }
@@ -805,10 +803,10 @@ namespace SessyController.Services
                     // Check the last element
                     if (hourlyInfos.Count > 1)
                     {
-                        if (hourlyInfos[hourlyInfos.Count - 1].SmoothedPrice < hourlyInfos[hourlyInfos.Count - 2].SmoothedPrice && hourlyInfos[hourlyInfos.Count - 1].SmoothedPrice < averagePrice)
+                        if (hourlyInfos[hourlyInfos.Count - 1].SmoothedPrice < hourlyInfos[hourlyInfos.Count - 2].SmoothedPrice)
                             sessions.AddNewSession(Modes.Charging, hourlyInfos[hourlyInfos.Count - 1], averagePrice);
 
-                        if (hourlyInfos[hourlyInfos.Count - 1].SmoothedPrice > hourlyInfos[hourlyInfos.Count - 2].SmoothedPrice && hourlyInfos[hourlyInfos.Count - 1].SmoothedPrice > averagePrice)
+                        if (hourlyInfos[hourlyInfos.Count - 1].SmoothedPrice > hourlyInfos[hourlyInfos.Count - 2].SmoothedPrice)
                             sessions.AddNewSession(Modes.Discharging, hourlyInfos[hourlyInfos.Count - 1], averagePrice);
                     }
                 }
