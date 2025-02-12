@@ -55,7 +55,7 @@ namespace SessyController.Services
 
                 try
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(60), cancelationToken);
+                    await Task.Delay(TimeSpan.FromMinutes(1), cancelationToken);
                 }
                 catch (TaskCanceledException)
                 {
@@ -70,9 +70,11 @@ namespace SessyController.Services
             {
                 var powerStatus = await battery.GetPowerStatus();
 
-                var status = powerStatus.Status;
+                var status = powerStatus.Sessy.SystemStateString;
 
-                if(status == SystemStates.SYSTEM_STATE_ERROR.ToString())
+                var errorState = SystemStates.SYSTEM_STATE_ERROR.ToString().ToLower();
+
+                if (status.ToLower() == errorState)
                 {
                     StoreStatus(battery, powerStatus);
                 }

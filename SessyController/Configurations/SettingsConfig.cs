@@ -33,6 +33,5 @@
 
         public int NumberOfSolarPanels { get; set; }
         public double PeakPowerPerPanel { get; set; }
-
     }
 }

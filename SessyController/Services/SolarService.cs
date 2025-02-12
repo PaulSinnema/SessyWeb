@@ -107,9 +107,6 @@ namespace SessyController.Services
                                 {
                                     double solarFactor = GetSolarFactor(solarAzimuth, solarAltitude, solarPanel.Orientation, solarPanel.Tilt);
 
-                                    // Historical deviation is 16.5 too high.
-                                    solarFactor = solarFactor / 16.5; // TODO: Calculate 16.5 factor using historical data.
-
                                     currentHourlyInfo.SolarPower = CalculateSolarPower(uurVerwachting.GlobalRadiation, solarFactor, solarPanel, solarAltitude);
 
                                     currentHourlyInfo.SolarGlobalRadiation = uurVerwachting.GlobalRadiation;
@@ -140,11 +137,11 @@ namespace SessyController.Services
 
         public double CalculateSolarPower(int globalRadiation, double solarFactor, PhotoVoltaic solarPanel, double solarAltitude)
         {
-            double totalPeakPower = solarPanel.PanelCount * solarPanel.PeakPowerPerPanel;
+            double totalPeakPower = solarPanel.HighestDailySolarProduction;
 
             double altitudeFactor = (solarAltitude > 10) ? 1.0 : Math.Max(0, solarAltitude / 10.0);
 
-            double powerkWatt = (globalRadiation / 1000.0) * totalPeakPower * solarPanel.Efficiency * solarFactor * altitudeFactor;
+            double powerkWatt = globalRadiation * ( totalPeakPower / 1000) * solarFactor * altitudeFactor / 1000;
 
             return powerkWatt; // kWh
         }
