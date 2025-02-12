@@ -19,6 +19,11 @@ namespace SessyController.Services.Items
             Id = string.Empty;
         }
 
+        public string? GetName()
+        {
+            return _endpoint.Name;
+        }
+
         public double GetCapacity()
         {
             return _endpoint.Capacity;

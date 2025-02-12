@@ -9,6 +9,14 @@ else
 {
     <RadzenCard title="Sessy battery">
         <RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
+            <RadzenFormField Text="Name" Style="flex: 1;">
+                <RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
+                    @Battery!.GetName()
+                </RadzenColumn>
+            </RadzenFormField>
+        </RadzenRow>
+
+        <RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
             <RadzenFormField Text="Power status" Style="flex: 1;">
                 <RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
                     @powerStatus?.Status

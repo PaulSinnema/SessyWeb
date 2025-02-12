@@ -1,5 +1,4 @@
-﻿using SessyCommon.Extensions;
-using SessyController.Services.Items;
+﻿using SessyController.Services.Items;
 
 namespace SessyWeb.Pages
 {

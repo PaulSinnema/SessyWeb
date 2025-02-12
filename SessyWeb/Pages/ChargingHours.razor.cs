@@ -18,7 +18,7 @@ namespace SessyWeb.Pages
         private CancellationTokenSource _cts = new();
 
         private string RowHeightStyle { get; set; } = "height 20px";
-        private string GraphStyle { get; set; } = "height: 100%; min-width: 600px; visibility: hidden;";
+        private string GraphStyle { get; set; } = "height: 100%; min-width: 250px; visibility: hidden;";
 
         protected override async Task OnInitializedAsync()
         {
@@ -48,7 +48,7 @@ namespace SessyWeb.Pages
                             // 20 pixels per data row (5)
                             var height = HourlyInfos?.Count * 5 * 20;
 
-                            GraphStyle = $"min-height: {height}px; min-width: 600px; visibility: initial;";
+                            GraphStyle = $"min-height: {height}px; min-width: 250px; visibility: initial;";
 
                             StateHasChanged();
                         });
