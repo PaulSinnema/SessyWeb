@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Xml;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using SessyController.Configurations;
 using SessyController.Services.Items;
@@ -37,6 +38,7 @@ namespace SessyController.Services
         private SettingsConfig _settingsConfig;
         private static LoggingService<DayAheadMarketService>? _logger;
         private readonly TimeZoneService _timeZoneService;
+        private readonly IServiceScopeFactory _serviceScopeFactory;
 
         public bool PricesAvailable { get; internal set; } = false;
         public bool PricesInitialized { get; internal set; } = false;
@@ -46,7 +48,8 @@ namespace SessyController.Services
                                     IWebHostEnvironment environment,
                                     IHttpClientFactory httpClientFactory,
                                     IOptions<SettingsConfig> settingsConfig,
-                                    TimeZoneService timeZoneService)
+                                    TimeZoneService timeZoneService,
+                                    IServiceScopeFactory serviceScopeFactory)
         {
             _securityToken = configuration[ConfigSecurityTokenKey];
             _inDomain = configuration[ConfigInDomain];
@@ -54,6 +57,7 @@ namespace SessyController.Services
             _httpClientFactory = httpClientFactory;
             _settingsConfig = settingsConfig.Value;
             _timeZoneService = timeZoneService;
+            _serviceScopeFactory = serviceScopeFactory;
             _logger = logger;
         }
 
@@ -125,7 +129,7 @@ namespace SessyController.Services
             if (_prices != null)
             {
                 hourlyInfos = _prices.OrderBy(vk => vk.Key)
-                    .Select(vk => new HourlyInfo(vk.Key, vk.Value, _settingsConfig.NetZeroHomeMinProfit))
+                    .Select(vk => new HourlyInfo(vk.Key, vk.Value, _serviceScopeFactory))
                     .ToList();
 
                 return hourlyInfos;

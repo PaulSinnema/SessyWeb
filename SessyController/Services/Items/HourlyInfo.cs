@@ -1,16 +1,36 @@
-﻿using System.Diagnostics.Eventing.Reader;
+﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using SessyController.Configurations;
+using System.Diagnostics.Eventing.Reader;
 using static SessyController.Services.Items.Session;
 
 namespace SessyController.Services.Items
 {
     public class HourlyInfo
     {
-        public HourlyInfo(DateTime time, double price, double netZeroHomeMinProfit)
+        public HourlyInfo(DateTime time, double price, IServiceScopeFactory serviceScopeFactory)
         {
             Time = time;
             Price = price;
-            NetZeroHomeMinProfit = netZeroHomeMinProfit;
+            _serviceScopeFactory = serviceScopeFactory;
+
+            using (var scope = _serviceScopeFactory.CreateScope())
+            {
+                _settingsConfigMonitor = scope.ServiceProvider.GetRequiredService<IOptionsMonitor<SettingsConfig>>();
+                _sessyBatteryConfigMonitor = scope.ServiceProvider.GetRequiredService<IOptionsMonitor<SessyBatteryConfig>>();
+
+                _settingsConfigMonitor.OnChange((SettingsConfig settings) => _settingsConfig = settings);
+                _sessyBatteryConfigMonitor.OnChange((SessyBatteryConfig settings) => _sessyBatteryConfig = settings);
+            }
+
+            _settingsConfig = _settingsConfigMonitor.CurrentValue;
+            _sessyBatteryConfig = _sessyBatteryConfigMonitor.CurrentValue;
         }
+
+        private IOptionsMonitor<SettingsConfig> _settingsConfigMonitor;
+        private IOptionsMonitor<SessyBatteryConfig> _sessyBatteryConfigMonitor;
+        private SettingsConfig _settingsConfig;
+        private SessyBatteryConfig _sessyBatteryConfig;
 
         /// <summary>
         /// Price from ENTSO-E
@@ -24,7 +44,7 @@ namespace SessyController.Services.Items
         /// </summary>
         public DateTime Time { get; set; }
 
-        public double NetZeroHomeMinProfit { get; set; }
+        private IServiceScopeFactory _serviceScopeFactory;
 
         /// <summary>
         /// How much profit does this (dis)charge give?
@@ -151,12 +171,10 @@ namespace SessyController.Services.Items
                     return -0.2;
                 else if (Discharging)
                     return 0.2;
-                else if(ZeroNetHome)
+                else if (ZeroNetHome)
                     return 0.03;
-                else
-                    return 0.0;
 
-                    return 0.0;
+                return 0.0;
             }
         }
 
@@ -176,7 +194,7 @@ namespace SessyController.Services.Items
         /// </summary>
         public bool ZeroNetHome
         {
-            get => !(Charging || Discharging) && Profit > NetZeroHomeMinProfit;
+            get => !(Charging || Discharging) && Profit > _settingsConfig.NetZeroHomeMinProfit;
         }
 
         /// <summary>

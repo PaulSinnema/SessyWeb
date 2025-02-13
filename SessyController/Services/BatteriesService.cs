@@ -402,8 +402,6 @@ namespace SessyController.Services
                 lastSessionCreationDate != currentSessionCreationDate ||
                 _settingsChanged)
             {
-                _settingsChanged = false;
-
                 lastSessionCreationDate = currentSessionCreationDate;
 
                 Sessions localSessions = CreateSessions(hourlyInfos);
@@ -413,6 +411,9 @@ namespace SessyController.Services
 #if DEBUG
                 CheckSessions(hourlyInfos, localSessions);
 #endif
+
+                _settingsChanged = false;
+
                 return localSessions;
             }
 
