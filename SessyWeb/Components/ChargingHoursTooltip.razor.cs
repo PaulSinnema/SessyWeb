@@ -6,6 +6,6 @@ namespace SessyWeb.Components
     public partial class ChargingHoursTooltip
     {
         [Parameter]
-        public HourlyInfo HourlyInfo { get; set; } = new HourlyInfo();
+        public HourlyInfo? HourlyInfo { get; set; }
     }
 }

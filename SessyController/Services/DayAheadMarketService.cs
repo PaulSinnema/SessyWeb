@@ -125,7 +125,7 @@ namespace SessyController.Services
             if (_prices != null)
             {
                 hourlyInfos = _prices.OrderBy(vk => vk.Key)
-                    .Select(vk => new HourlyInfo { Time = vk.Key, Price = vk.Value })
+                    .Select(vk => new HourlyInfo(vk.Key, vk.Value, _settingsConfig.NetZeroHomeMinProfit))
                     .ToList();
 
                 return hourlyInfos;

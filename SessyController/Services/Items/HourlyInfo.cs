@@ -4,6 +4,13 @@ namespace SessyController.Services.Items
 {
     public class HourlyInfo
     {
+        public HourlyInfo(DateTime time, double price, double netZeroHomeMinProfit)
+        {
+            Time = time;
+            Price = price;
+            NetZeroHomeMinProfit = netZeroHomeMinProfit;
+        }
+
         /// <summary>
         /// Price from ENTSO-E
         /// </summary>
@@ -15,6 +22,8 @@ namespace SessyController.Services.Items
         /// Timestamp from ENTSO-E
         /// </summary>
         public DateTime Time { get; set; }
+
+        public double NetZeroHomeMinProfit { get; set; }
 
         /// <summary>
         /// How much profit does this (dis)charge give?
@@ -87,7 +96,7 @@ namespace SessyController.Services.Items
         }
 
         /// <summary>
-        /// Voegt een gesmoothed prijs toe aan elk HourlyInfo object in de lijst.
+        /// Adds a gesmoothed price to each HourlyInfo object in the list.
         /// </summary>
         public static void AddSmoothedPrices(List<HourlyInfo> hourlyData, int windowSize)
         {
@@ -162,7 +171,7 @@ namespace SessyController.Services.Items
         /// </summary>
         public bool ZeroNetHome
         {
-            get => !(Charging || Discharging);
+            get => !(Charging || Discharging) && Profit > NetZeroHomeMinProfit;
         }
 
         /// <summary>

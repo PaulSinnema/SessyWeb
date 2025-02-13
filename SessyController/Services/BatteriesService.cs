@@ -444,9 +444,10 @@ namespace SessyController.Services
                         }
 
                     case (false, false, true): // Zero Net Home
+                    case (false, false, false): // Disabled
                         {
                             if (sessions.InAnySession(hourlyInfo))
-                                throw new InvalidOperationException($"Zero net home info in a (dis)charging session {hourlyInfo}");
+                                throw new InvalidOperationException($"Zero net home or disabled hour in a (dis)charging session {hourlyInfo}");
                         }
 
                         break;
@@ -499,20 +500,20 @@ namespace SessyController.Services
 
             for (int i = 0; i < hourlyInfoList.Count; i++)
             {
-                // Element 0 should contain the current charge
+                // Element 0 contains the current charge
                 if (i > 0)
                 {
                     if (hourlyInfoList[i].Charging)
                     {
-                        charge = charge + chargingCapacity < totalCapacity ? charge + chargingCapacity : totalCapacity;
+                        charge = Math.Min(charge + chargingCapacity, totalCapacity);
                     }
                     else if (hourlyInfoList[i].Discharging)
                     {
-                        charge = charge > dischargingCapacity ? charge - dischargingCapacity : 0.0;
+                        charge = dischargingCapacity > charge ? 0.0 : charge - dischargingCapacity;
                     }
                     else if (hourlyInfoList[i].ZeroNetHome)
                     {
-                        charge = charge > hourNeed ? charge - hourNeed : 0.0;
+                        charge = hourNeed > charge ? 0.0 : charge - hourNeed;
                     }
                 }
 
@@ -769,6 +770,7 @@ namespace SessyController.Services
                                                  totalBatteryCapacity,
                                                  homeNeeds,
                                                  _settingsConfig.CycleCost,
+                                                 _settingsConfig.NetZeroHomeMinProfit,
                                                  loggerFactory);
                 if (hourlyInfos != null && hourlyInfos.Count > 0)
                 {

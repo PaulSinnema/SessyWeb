@@ -27,6 +27,11 @@
         public double CycleCost {  get; set; }
 
         /// <summary>
+        /// Minimum profit for Net Zero Home to be enabled in non (dis)charging hours
+        /// </summary>
+        public double NetZeroHomeMinProfit { get; set; }
+
+        /// <summary>
         /// How much is needed for the home (this will have to be estimated later).
         /// </summary>
         public double RequiredHomeEnergy { get; set; }
