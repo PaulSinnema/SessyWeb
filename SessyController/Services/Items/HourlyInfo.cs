@@ -1,4 +1,5 @@
-﻿using static SessyController.Services.Items.Session;
+﻿using System.Diagnostics.Eventing.Reader;
+using static SessyController.Services.Items.Session;
 
 namespace SessyController.Services.Items
 {
@@ -147,11 +148,15 @@ namespace SessyController.Services.Items
             get
             {
                 if (Charging)
-                    return -0.03;
+                    return -0.2;
                 else if (Discharging)
+                    return 0.2;
+                else if(ZeroNetHome)
                     return 0.03;
+                else
+                    return 0.0;
 
-                return 0.0;
+                    return 0.0;
             }
         }
 

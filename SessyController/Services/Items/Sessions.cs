@@ -117,8 +117,6 @@ namespace SessyController.Services.Items
 
         public void CalculateProfits(TimeZoneService timeZoneService)
         {
-            var clearLastChargingSession = false;
-
             List<HourlyInfo> lastChargingSession = new List<HourlyInfo>();
 
             var localTime = timeZoneService.Now;
@@ -126,7 +124,7 @@ namespace SessyController.Services.Items
             HourlyInfo? previousHour = null;
 
             foreach (var hourlyInfo in _hourlyInfos
-                .Where(hp => hp.Time.Date.AddHours(hp.Time.Hour) >= localTimeHour)
+                // .Where(hp => hp.Time.Date.AddHours(hp.Time.Hour) >= localTimeHour)
                 .OrderBy(hi => hi.Time))
             {
                 switch ((hourlyInfo.Charging, hourlyInfo.Discharging, hourlyInfo.ZeroNetHome))
@@ -135,14 +133,19 @@ namespace SessyController.Services.Items
                         {
                             var totalChargingCapacity = Math.Min(_totalChargingCapacity, _totalBatteryCapacity - (previousHour == null ? 0.0 : previousHour.ChargeLeft)) / 1000;
 
-                            if (clearLastChargingSession)
-                            {
-                                lastChargingSession.Clear();
-                                clearLastChargingSession = false;
-                            }
-
                             hourlyInfo.Selling = 0.00;
                             hourlyInfo.Buying = totalChargingCapacity * hourlyInfo.Price;
+
+                            if (lastChargingSession.Count > 0)
+                            {
+                                var lastDateCharging = lastChargingSession.Max(hi => hi.Time);
+
+                                if (hourlyInfo.Time.Hour - lastDateCharging.Hour > 1)
+                                {
+                                    lastChargingSession.Clear();
+                                }
+                            }
+
                             lastChargingSession.Add(hourlyInfo);
                             break;
                         }
@@ -153,7 +156,6 @@ namespace SessyController.Services.Items
 
                             hourlyInfo.Selling = totalDischargingCapacity * hourlyInfo.Price;
                             hourlyInfo.Buying = 0.00; // lastChargingSession.Count > 0 ? lastChargingSession.Average(lcs => lcs.Price) * kWh : 0.0;
-                            clearLastChargingSession = true;
                             break;
                         }
 
@@ -162,8 +164,6 @@ namespace SessyController.Services.Items
                             var kWh = Math.Min(_homeNeeds / 24, hourlyInfo.ChargeLeft) / 1000;
                             hourlyInfo.Selling = hourlyInfo.Price * kWh;
                             hourlyInfo.Buying = lastChargingSession.Count > 0 ? lastChargingSession.Average(lcs => lcs.Price) * kWh : 0.0;
-                            clearLastChargingSession = true;
-
                             break;
                         }
 
@@ -177,8 +177,6 @@ namespace SessyController.Services.Items
                             {
                                 hourlyInfo.Buying = hourlyInfo.Selling = 0.00;
                             }
-
-                            clearLastChargingSession = true;
                             break;
                         }
 

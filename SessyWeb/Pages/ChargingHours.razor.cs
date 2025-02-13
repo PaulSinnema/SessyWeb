@@ -48,7 +48,7 @@ namespace SessyWeb.Pages
                             // 20 pixels per data row (5)
                             var height = HourlyInfos?.Count * 5 * 20;
 
-                            GraphStyle = $"min-height: {height}px; min-width: 250px; visibility: initial;";
+                            GraphStyle = $"min-height: 1000px; min-width: 250px; visibility: initial;";
 
                             StateHasChanged();
                         });

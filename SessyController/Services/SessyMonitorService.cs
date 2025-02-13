@@ -12,6 +12,7 @@ namespace SessyController.Services
         private LoggingService<SessyMonitorService> _logger;
         private IOptionsMonitor<SettingsConfig> _settingsConfigMonitor;
         private IOptionsMonitor<SessyBatteryConfig> _sessyBatteryConfigMonitor;
+        private TimeZoneService _timeZoneService;
         private IServiceScopeFactory _serviceScopeFactory;
         private SessyStatusHistoryService _sessyStatusHistoryService;
         private SettingsConfig _settingsConfig;
@@ -22,11 +23,13 @@ namespace SessyController.Services
         public SessyMonitorService(LoggingService<SessyMonitorService> logger,
                                   IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
                                   IOptionsMonitor<SessyBatteryConfig> sessyBatteryConfigMonitor,
+                                  TimeZoneService timeZoneService,
                                   IServiceScopeFactory serviceScopeFactory)
         {
             _logger = logger;
             _settingsConfigMonitor = settingsConfigMonitor;
             _sessyBatteryConfigMonitor = sessyBatteryConfigMonitor;
+            _timeZoneService = timeZoneService;
             _serviceScopeFactory = serviceScopeFactory;
 
             _settingsConfig = settingsConfigMonitor.CurrentValue;
@@ -87,6 +90,7 @@ namespace SessyController.Services
 
             statusList.Add(new SessyStatusHistory
             {
+                Time = _timeZoneService.Now,
                 Name = battery.Id,
                 Status = powerStatus.Sessy?.SystemStateString,
                 StatusDetails = powerStatus.Sessy?.SystemStateDetails
