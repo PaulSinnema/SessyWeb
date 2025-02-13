@@ -26,6 +26,7 @@ namespace SessyController.Services
         private readonly TimeZoneService _timeZoneService;
         private readonly LoggingService<BatteriesService> _logger;
         private static List<HourlyInfo> hourlyInfos { get; set; } = new List<HourlyInfo>();
+        private bool _settingsChanged = false;
 
         public BatteriesService(LoggingService<BatteriesService> logger,
                                 IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
@@ -43,8 +44,16 @@ namespace SessyController.Services
             _settingsConfigMonitor = settingsConfigMonitor;
             _sessyBatteryConfigMonitor = sessyBatteryConfigMonitor;
 
-            _settingsConfigMonitor.OnChange((SettingsConfig settings) => _settingsConfig = settings);
-            _sessyBatteryConfigMonitor.OnChange((SessyBatteryConfig settings) => _sessyBatteryConfig = settings);
+            _settingsConfigMonitor.OnChange((SettingsConfig settings) =>
+            {
+                _settingsConfig = settings;
+                _settingsChanged = true;
+            });
+            _sessyBatteryConfigMonitor.OnChange((SessyBatteryConfig settings) =>
+            {
+                _sessyBatteryConfig = settings;
+                _settingsChanged = true;
+            });
 
             _settingsConfig = settingsConfigMonitor.CurrentValue;
             _sessyBatteryConfig = sessyBatteryConfigMonitor.CurrentValue;
@@ -389,8 +398,12 @@ namespace SessyController.Services
 
             DateTime currentSessionCreationDate = hourlyInfos.Max(hi => hi.Time);
 
-            if (lastSessionCreationDate == null || lastSessionCreationDate != currentSessionCreationDate)
+            if (lastSessionCreationDate == null || 
+                lastSessionCreationDate != currentSessionCreationDate ||
+                _settingsChanged)
             {
+                _settingsChanged = false;
+
                 lastSessionCreationDate = currentSessionCreationDate;
 
                 Sessions localSessions = CreateSessions(hourlyInfos);
