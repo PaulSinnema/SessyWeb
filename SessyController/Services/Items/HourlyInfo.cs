@@ -67,7 +67,7 @@ namespace SessyController.Services.Items
 
         public double SolarPower { get; set; }
 
-        public double SolarPowerVisual => SolarPower / 30;
+        public double SolarPowerVisual => SolarPower / 10;
 
         private bool _charging = false;
 

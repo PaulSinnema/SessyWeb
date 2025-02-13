@@ -7,9 +7,11 @@ namespace SessyWeb.Pages
     public partial class ChargingHours : PageBase
     {
         [Inject]
-        public BatteriesService? BatteriesService { get; set; }
+        public BatteriesService? _batteriesService { get; set; }
         [Inject]
-        public SolarService? SolarService { get; set; }
+        public SolarService? _solarService { get; set; }
+        [Inject]
+        public TimeZoneService? _timeZoneService { get; set; }
 
         public List<HourlyInfo>? HourlyInfos { get; set; } = new List<HourlyInfo>();
 
@@ -22,11 +24,11 @@ namespace SessyWeb.Pages
 
         protected override async Task OnInitializedAsync()
         {
-            HourlyInfos = BatteriesService?.GetHourlyInfos();
+            await base.OnInitializedAsync();
+
+            HourlyInfos = _batteriesService?.GetHourlyInfos();
 
             await StartLoop();
-
-            await base.OnInitializedAsync();
         }
 
         private async Task StartLoop()
@@ -35,29 +37,34 @@ namespace SessyWeb.Pages
 
             try
             {
-                while (await timer.WaitForNextTickAsync(_cts.Token))
+                do
                 {
                     if (IsComponentActive)
                     {
                         await InvokeAsync(() =>
                         {
-                            HourlyInfos = BatteriesService?.GetHourlyInfos()?.ToList();
+                            var now = _timeZoneService.Now;
 
-                            TotalSolarPowerExpected = SolarService == null ? 0.0 : SolarService.GetTotalSolarPowerExpected(HourlyInfos);
+                            HourlyInfos = _batteriesService?.GetHourlyInfos()?
+                                .Where(hi => hi.Time >= now.Date.AddHours(now.Hour))
+                                .ToList();
+
+                            TotalSolarPowerExpected = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(HourlyInfos);
 
                             // 20 pixels per data row (5)
                             var height = HourlyInfos?.Count * 5 * 20;
 
-                            GraphStyle = $"min-height: 1000px; min-width: 250px; visibility: initial;";
+                            GraphStyle = $"min-height: 800px; min-width: 250px; width: {height}px; visibility: initial;";
 
                             StateHasChanged();
                         });
                     }
                 }
+                while (await timer.WaitForNextTickAsync(_cts.Token));
             }
             catch (OperationCanceledException)
             {
-                Console.WriteLine("Timer gestopt.");
+                Console.WriteLine("Charging hours page: Timer stopped.");
             }
         }
 

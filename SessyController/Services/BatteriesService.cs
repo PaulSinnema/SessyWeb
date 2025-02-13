@@ -177,7 +177,7 @@ namespace SessyController.Services
             if (currentHourlyInfo != null)
             {
                 await CancelSessionIfStateRequiresIt(sessions, currentHourlyInfo);
-#if !DEBUG
+#if DEBUG
 
                 if (currentHourlyInfo.Charging)
                     _batteryContainer.StartCharging();
@@ -185,7 +185,8 @@ namespace SessyController.Services
                     _batteryContainer.StartDisharging();
                 else if (currentHourlyInfo.ZeroNetHome)
                     _batteryContainer.StartNetZeroHome();
-            
+                else
+                    _batteryContainer.StopAll();        
 #endif
             }
         }
@@ -398,7 +399,7 @@ namespace SessyController.Services
 
             DateTime currentSessionCreationDate = hourlyInfos.Max(hi => hi.Time);
 
-            if (lastSessionCreationDate == null || 
+            if (lastSessionCreationDate == null ||
                 lastSessionCreationDate != currentSessionCreationDate ||
                 _settingsChanged)
             {
@@ -502,8 +503,8 @@ namespace SessyController.Services
             double hourNeed = dayNeed / 24;
             double chargingCapacity = _sessyBatteryConfig.TotalChargingCapacity;
             double dischargingCapacity = _sessyBatteryConfig.TotalDischargingCapacity;
-            var localTime = _timeZoneService.Now;
-            var localTimeHour = localTime.Date.AddHours(localTime.Hour);
+            var now = _timeZoneService.Now;
+            var localTimeHour = now.Date.AddHours(now.Hour);
 
             hourlyInfos.ForEach(hi => hi.ChargeLeft = 0.0);
 
@@ -516,7 +517,9 @@ namespace SessyController.Services
 
             foreach (var hourlyInfo in hourlyInfoList)
             {
-                // Element 0 contains the current charge
+                if (hourlyInfo.Time == now.Date.AddHours(now.Hour))
+                    charge = stateOfCharge * totalCapacity;
+
                 if (previous != null)
                 {
                     switch ((hourlyInfo.Charging, hourlyInfo.Discharging, hourlyInfo.ZeroNetHome))
@@ -525,14 +528,14 @@ namespace SessyController.Services
                             {
                                 charge = Math.Min(charge + chargingCapacity, totalCapacity);
 
-                                if(lastChargingSession.Count > 0)
+                                if (lastChargingSession.Count > 0)
                                 {
                                     var lastDateCharging = lastChargingSession.Max(hi => hi.Time);
 
-                                    if(hourlyInfo.Time.Hour - lastDateCharging.Hour > 1)
+                                    if (hourlyInfo.Time.Hour - lastDateCharging.Hour > 1)
                                     {
                                         lastChargingSession.Clear();
-                                    }    
+                                    }
                                 }
 
                                 lastChargingSession.Add(hourlyInfo);
@@ -566,16 +569,24 @@ namespace SessyController.Services
                     }
                 }
 
+                if (hourlyInfo.Time < now.Date.AddHours(now.Hour))
+                {
+                    hourlyInfo.ChargeLeft = 0.0;
+                    hourlyInfo.ChargeLeftPercentage = 0.0;
+                }
+                else
+                {
+                    hourlyInfo.ChargeLeft = charge;
+                    hourlyInfo.ChargeLeftPercentage = charge / (totalCapacity / 100);
+                }
+
                 previous = hourlyInfo;
-                hourlyInfo.ChargeLeft = charge;
-                hourlyInfo.ChargeLeftPercentage = charge / (totalCapacity / 100);
             }
         }
 
         /// <summary>
         /// In this fase all session are created. Now it's time to evaluate which
         /// ones to keep. The following sessions are filtered out.
-        /// - Charging sessions without a discharging session.
         /// - Charging sessions larger than the max charging hours
         /// - Discharging sessions that are not profitable.
         /// </summary>
