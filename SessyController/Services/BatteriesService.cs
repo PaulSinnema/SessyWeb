@@ -177,7 +177,7 @@ namespace SessyController.Services
             if (currentHourlyInfo != null)
             {
                 await CancelSessionIfStateRequiresIt(sessions, currentHourlyInfo);
-#if DEBUG
+#if !DEBUG
 
                 if (currentHourlyInfo.Charging)
                     _batteryContainer.StartCharging();
@@ -253,7 +253,7 @@ namespace SessyController.Services
                 var enumPrices = hourlyInfos.GetEnumerator();
 
                 if (enumPrices.MoveNext())
-                    while (enumPrices.Current.Time.Hour < currentHourlyInfo.Time.Hour)
+                    while (enumPrices.Current.Time < currentHourlyInfo.Time)
                         if (!enumPrices.MoveNext())
                             return;
 
@@ -277,7 +277,7 @@ namespace SessyController.Services
                 var enumPrices = hourlyInfos.GetEnumerator();
 
                 if (enumPrices.MoveNext())
-                    while (enumPrices.Current.Time.Hour < currentHourlyInfo.Time.Hour)
+                    while (enumPrices.Current.Time < currentHourlyInfo.Time)
                         if (!enumPrices.MoveNext())
                             return;
 
@@ -377,7 +377,7 @@ namespace SessyController.Services
                 HourlyInfo.AddSmoothedPrices(hourlyInfos, 3);
             }
 
-            var maxTime = localTime.Date;
+            var maxTime = localTime.Date.AddDays(-1);
 
             // Remove yesterdays info objects.
             hourlyInfos.RemoveAll(hi => hi.Time < maxTime);
@@ -498,7 +498,7 @@ namespace SessyController.Services
         {
             double stateOfCharge = await _batteryContainer.GetStateOfCharge();
             double totalCapacity = _batteryContainer.GetTotalCapacity();
-            double charge = stateOfCharge * totalCapacity;
+            double charge = 0.0;
             double dayNeed = _settingsConfig.RequiredHomeEnergy;
             double hourNeed = dayNeed / 24;
             double chargingCapacity = _sessyBatteryConfig.TotalChargingCapacity;
@@ -517,11 +517,15 @@ namespace SessyController.Services
 
             foreach (var hourlyInfo in hourlyInfoList)
             {
-                if (hourlyInfo.Time == now.Date.AddHours(now.Hour))
-                    charge = stateOfCharge * totalCapacity;
-
                 if (previous != null)
                 {
+                    if (hourlyInfo.Time == now.Date.AddHours(now.Hour))
+                    {
+                        charge = stateOfCharge * totalCapacity;
+                        previous.ChargeLeft = charge;
+                        previous.ChargeLeftPercentage = charge / (totalCapacity / 100);
+                    }
+
                     switch ((hourlyInfo.Charging, hourlyInfo.Discharging, hourlyInfo.ZeroNetHome))
                     {
                         case (true, false, false): // Charging
@@ -532,7 +536,7 @@ namespace SessyController.Services
                                 {
                                     var lastDateCharging = lastChargingSession.Max(hi => hi.Time);
 
-                                    if (hourlyInfo.Time.Hour - lastDateCharging.Hour > 1)
+                                    if ((hourlyInfo.Time - lastDateCharging).Hours > 2)
                                     {
                                         lastChargingSession.Clear();
                                     }

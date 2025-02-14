@@ -45,4 +45,11 @@
     <Folder Include="SessyWeb\" />
   </ItemGroup>
 
+
+  <ItemGroup>
+    <Content Update="wwwroot\screensize.js">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>

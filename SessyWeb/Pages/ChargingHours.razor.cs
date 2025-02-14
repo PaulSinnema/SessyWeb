@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Components;
 using SessyController.Services;
 using SessyController.Services.Items;
+using SessyWeb.Services;
 
 namespace SessyWeb.Pages
 {
@@ -12,6 +13,8 @@ namespace SessyWeb.Pages
         public SolarService? _solarService { get; set; }
         [Inject]
         public TimeZoneService? _timeZoneService { get; set; }
+        [Inject]
+        public ScreenSizeService? _screenSizeService { get; set; }
 
         public List<HourlyInfo>? HourlyInfos { get; set; } = new List<HourlyInfo>();
 
@@ -24,11 +27,19 @@ namespace SessyWeb.Pages
 
         protected override async Task OnInitializedAsync()
         {
+            _screenSizeService!.OnScreenHeightChanged += HandleResize;
+
             await base.OnInitializedAsync();
 
             HourlyInfos = _batteriesService?.GetHourlyInfos();
 
             await StartLoop();
+        }
+
+        private async void HandleResize(int height)
+        {
+            await ChangeChartStyle();
+            StateHasChanged();
         }
 
         private async Task StartLoop()
@@ -41,9 +52,9 @@ namespace SessyWeb.Pages
                 {
                     if (IsComponentActive)
                     {
-                        await InvokeAsync(() =>
+                        await InvokeAsync(async () =>
                         {
-                            var now = _timeZoneService.Now;
+                            var now = _timeZoneService!.Now;
 
                             HourlyInfos = _batteriesService?.GetHourlyInfos()?
                                 .Where(hi => hi.Time >= now.Date.AddHours(now.Hour))
@@ -51,12 +62,7 @@ namespace SessyWeb.Pages
 
                             TotalSolarPowerExpected = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(HourlyInfos);
 
-                            // 20 pixels per data row (5)
-                            var height = HourlyInfos?.Count * 5 * 20;
-
-                            GraphStyle = $"min-height: 800px; min-width: 250px; width: {height}px; visibility: initial;";
-
-                            StateHasChanged();
+                            await ChangeChartStyle();
                         });
                     }
                 }
@@ -66,6 +72,17 @@ namespace SessyWeb.Pages
             {
                 Console.WriteLine("Charging hours page: Timer stopped.");
             }
+        }
+
+        private async Task ChangeChartStyle()
+        {
+            // 20 pixels per data row (5)
+            var width = HourlyInfos?.Count * 3 * 25;
+            var height = await _screenSizeService!.GetScreenHeightAsync();
+
+            GraphStyle = $"min-height: {height - 200}px; width: {width}px; visibility: initial;";
+
+            StateHasChanged();
         }
 
         public string FormatAsPrice(object value)
@@ -90,6 +107,13 @@ namespace SessyWeb.Pages
             }
 
             return "";
+        }
+
+        public override void Dispose()
+        {
+            _screenSizeService!.OnScreenHeightChanged -= HandleResize;
+
+            base.Dispose();
         }
     }
 }

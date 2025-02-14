@@ -10,6 +10,7 @@ using SessyData.Helpers;
 using SessyData.Model;
 using SessyData.Services;
 using SessyWeb.Controllers;
+using SessyWeb.Services;
 
 AppDomain.CurrentDomain.UnhandledException += (sender, eventArgs) =>
 {
@@ -89,6 +90,7 @@ builder.Services.AddSingleton<WeatherService>();
 builder.Services.AddSingleton<DayAheadMarketService>();
 builder.Services.AddSingleton<BatteriesService>();
 builder.Services.AddSingleton<SessyMonitorService>();
+builder.Services.AddScoped<ScreenSizeService>();
 
 builder.Services.AddHostedService(provider => provider.GetRequiredService<DayAheadMarketService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<BatteriesService>());

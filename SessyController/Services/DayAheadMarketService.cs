@@ -143,8 +143,9 @@ namespace SessyController.Services
         /// </summary>
         private static async Task<ConcurrentDictionary<DateTime, double>> FetchDayAheadPricesAsync(DateTime date, int futureDays, CancellationToken cancellationToken)
         {
-            date = new DateTime(date.Year, date.Month, date.Day, 0, 0, 0);
-            string periodStartString = date.ToString(FormatDate) + FormatTime;
+            date = date.Date;
+            var pastDate = date.Date; // new DateTime(date.Year, date.Month, date.Day, 0, 0, 0);
+            string periodStartString = pastDate.ToString(FormatDate) + FormatTime;
             var futureDate = date.AddDays(futureDays);
             string periodEndString = futureDate.ToString(FormatDate) + FormatTime;
             string url = $"{ApiUrl}?documentType=A44&in_Domain={_inDomain}&out_Domain={_inDomain}&periodStart={periodStartString}&periodEnd={periodEndString}&securityToken={_securityToken}";
