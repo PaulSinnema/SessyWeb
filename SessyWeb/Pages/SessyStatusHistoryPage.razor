@@ -1,10 +1,11 @@
 ﻿@page "/sessystatushistory"
 @inherits PageBase
 @using SessyData.Model
+@using Radzen
 
 <a>History</a>
 
-<RadzenDataGrid Data="@StatusHistoryList" Context="data">
+<RadzenDataGrid @ref="historyGrid" Data="@StatusHistoryList" Context="data" Count="@count" LoadData="@LoadData" AllowSorting="true" AllowFiltering="true" AllowPaging="true" PageSize="20" PagerHorizontalAlign="HorizontalAlign.Center">
     <Columns>
         <RadzenDataGridColumn Property="@nameof(SessyStatusHistory.Time)" Title="Time"/>
         <RadzenDataGridColumn Property="@nameof(SessyStatusHistory.Name)" Title="Name" />

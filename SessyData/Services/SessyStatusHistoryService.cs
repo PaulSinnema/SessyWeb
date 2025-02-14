@@ -1,4 +1,5 @@
-﻿using SessyData.Helpers;
+﻿using Microsoft.EntityFrameworkCore;
+using SessyData.Helpers;
 using SessyData.Model;
 
 namespace SessyData.Services
@@ -23,15 +24,11 @@ namespace SessyData.Services
             });
         }
 
-        public List<SessyStatusHistory> GetSessyStatusHistory(DateTime startDate, int count)
+        public IQueryable<SessyStatusHistory> GetSessyStatusHistory(Func<ModelContext, IQueryable<SessyStatusHistory>> func)
         {
-            return _dbHelper.ExecuteQuery<List<SessyStatusHistory>>((ModelContext dbContext) =>
+            return _dbHelper.ExecuteQuery((ModelContext dbContext) =>
             {
-                return dbContext.SessyStatusHistory
-                    .OrderBy(ssh => ssh.Time)
-                    .Where(ssh => ssh.Time >= startDate)
-                    .Take(count)
-                    .ToList();
+                return func(dbContext);
             });
         }
     }

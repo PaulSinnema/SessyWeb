@@ -57,7 +57,7 @@ namespace SessyWeb.Pages
                             var now = _timeZoneService!.Now;
 
                             HourlyInfos = _batteriesService?.GetHourlyInfos()?
-                                .Where(hi => hi.Time >= now.Date.AddHours(now.Hour))
+                                .Where(hi => hi.Time >= now.Date.AddHours(now.Hour - 1))
                                 .ToList();
 
                             TotalSolarPowerExpected = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(HourlyInfos);
