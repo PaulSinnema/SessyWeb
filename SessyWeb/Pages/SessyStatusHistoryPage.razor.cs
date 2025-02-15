@@ -54,46 +54,63 @@ namespace SessyWeb.Pages
             });
         }
 
-        private IQueryable<GroupedSessyStatus> GetGroupedList(ModelContext modelContext)
+        public IQueryable<GroupedSessyStatus> GetGroupedList(ModelContext modelContext)
         {
             return modelContext.SessyStatusHistory
-             .OrderBy(x => x.Name)
-             .ThenBy(x => x.Time)
-             .AsEnumerable() // Stap over naar LINQ-to-Objects
-             .GroupBy(x => new { x.Name, x.Status, x.StatusDetails }, (key, group) =>
-             {
-                 var sortedGroup = group.OrderBy(x => x.Time).ToList();
-                 var groupedList = new List<GroupedSessyStatus>();
+                .OrderBy(x => x.Name)
+                .ThenBy(x => x.Time)
+                .AsEnumerable() // Stap over naar LINQ-to-Objects
+                .GroupBy(x => new { x.Name, x.Status, x.StatusDetails }) // Groeperen op Name, Status, StatusDetails
+                .SelectMany(group =>
+                {
+                    var sortedGroup = group.OrderBy(x => x.Time).ToList();
+                    var groupedList = new List<GroupedSessyStatus>();
 
-                 DateTime? startTime = null;
-                 DateTime? endTime = null;
+                    DateTime? startTime = null;
+                    DateTime? endTime = null;
 
-                 foreach (var entry in sortedGroup)
-                 {
-                     if (startTime == null || (entry.Time - endTime)?.TotalMinutes >= 2)
-                     {
-                         // Nieuwe groep starten
-                         startTime = entry.Time;
-                     }
+                    foreach (var entry in sortedGroup)
+                    {
+                        if (startTime == null || (entry.Time - endTime)?.TotalMinutes >= 2)
+                        {
+                            // Nieuwe groep starten
+                            if (startTime != null) // Voeg vorige groep toe voordat we resetten
+                            {
+                                groupedList.Add(new GroupedSessyStatus
+                                {
+                                    Name = group.Key.Name,
+                                    Status = group.Key.Status,
+                                    StatusDetails = group.Key.StatusDetails,
+                                    StartTime = startTime.Value,
+                                    EndTime = endTime.Value,
+                                    Duration = endTime.Value - startTime.Value
+                                });
+                            }
+                            startTime = entry.Time;
+                        }
 
-                     // Bijwerken van eindtijd
-                     endTime = entry.Time;
+                        // Bijwerken van eindtijd
+                        endTime = entry.Time;
+                    }
 
-                     groupedList.Add(new GroupedSessyStatus
-                     {
-                         Name = key.Name,
-                         Status = key.Status,
-                         StatusDetails = key.StatusDetails,
-                         StartTime = startTime.Value,
-                         EndTime = endTime.Value,
-                         Duration = endTime.Value - startTime.Value
-                     });
-                 }
+                    // Laatste groep toevoegen
+                    if (startTime != null)
+                    {
+                        groupedList.Add(new GroupedSessyStatus
+                        {
+                            Name = group.Key.Name,
+                            Status = group.Key.Status,
+                            StatusDetails = group.Key.StatusDetails,
+                            StartTime = startTime.Value,
+                            EndTime = endTime.Value,
+                            Duration = endTime.Value - startTime.Value
+                        });
+                    }
 
-                 return groupedList.Last(); // Alleen de laatste uit de groep teruggeven
-             })
-             .AsQueryable();
-
+                    return groupedList;
+                })
+                .AsQueryable();
         }
     }
 }
+

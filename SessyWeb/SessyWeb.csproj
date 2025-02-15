@@ -37,7 +37,7 @@
 
   <ItemGroup>
     <None Include="wwwroot\Images\sessy.svg">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>
 
