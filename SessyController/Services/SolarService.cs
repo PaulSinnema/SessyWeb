@@ -16,6 +16,10 @@ namespace SessyController.Services
         private WeatherService _weatherService { get; set; }
 
         private SolarHistoryService _solarHistoryService { get; set; }
+
+        private SettingsConfig _settingsConfig { get; set; }
+        private IOptionsMonitor<SettingsConfig> _settingsConfigMonitor { get; set; }
+
         private IServiceScopeFactory _serviceScopeFactory { get; set; }
 
         private PowerSystemsConfig _powerSystemsConfig { get; set; }
@@ -39,6 +43,7 @@ namespace SessyController.Services
                             IOptions<PowerSystemsConfig> powerSystemsConfig,
                             WeatherService weatherService,
                             SolarHistoryService solarHistoryService,
+                            IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
                             IServiceScopeFactory serviceScopeFactory)
         {
             _configuration = configuration;
@@ -47,7 +52,11 @@ namespace SessyController.Services
             _powerSystemsConfig = powerSystemsConfig.Value;
             _weatherService = weatherService;
             _solarHistoryService = solarHistoryService;
+            _settingsConfigMonitor = settingsConfigMonitor;
             _serviceScopeFactory = serviceScopeFactory;
+
+            _settingsConfig = _settingsConfigMonitor.CurrentValue;
+            _settingsConfigMonitor.OnChange((settings) => _settingsConfig = settings);
         }
 
         /// <summary>
@@ -85,7 +94,7 @@ namespace SessyController.Services
                     foreach (UurVerwachting? uurVerwachting in weatherData.UurVerwachting)
                     {
                         if (uurVerwachting == null || uurVerwachting.Uur == null)
-                            throw new InvalidOperationException($"Uurverwachting of Uur is null");
+                            throw new InvalidOperationException($"Uurverwachting or Uur is null");
 
                         DateTime dateTime = DateTime.ParseExact(uurVerwachting.Uur, "dd-MM-yyyy HH:mm", CultureInfo.InvariantCulture);
 
@@ -188,7 +197,9 @@ namespace SessyController.Services
             // Account for panel tilt
             double tiltFactor = Math.Cos((90 - solarAltitude) * Math.PI / 180) * Math.Cos(tilt * Math.PI / 180);
 
-            return Math.Max(0, Math.Cos(angleDifference * Math.PI / 180) * tiltFactor);
+            var factor = Math.Max(0, Math.Cos(angleDifference * Math.PI / 180) * tiltFactor);
+
+            return factor * _settingsConfig.SolarCorrection;
         }
     }
 }
