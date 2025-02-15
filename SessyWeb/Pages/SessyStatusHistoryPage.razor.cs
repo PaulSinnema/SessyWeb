@@ -5,7 +5,7 @@ using SessyData.Model;
 using Microsoft.EntityFrameworkCore;
 using Radzen;
 using Radzen.Blazor;
-using System.Linq;
+using System.Linq.Dynamic.Core;
 
 namespace SessyWeb.Pages
 {
@@ -26,7 +26,8 @@ namespace SessyWeb.Pages
 
         protected override async Task OnAfterRenderAsync(bool firstRender)
         {
-            await historyGrid.FirstPage();
+            if(firstRender)
+                await historyGrid.FirstPage();
         }
 
         void LoadData(LoadDataArgs args)
@@ -34,7 +35,7 @@ namespace SessyWeb.Pages
             var now = _timeZoneService!.Now;
             var filter = historyGrid.ColumnsCollection;
 
-            var query = _sessyStatusHistoryService!.GetSessyStatusHistory((ModelContext modelContext) =>
+            StatusHistoryList = _sessyStatusHistoryService!.GetSessyStatusHistory((ModelContext modelContext) =>
             {
                 var query = modelContext.SessyStatusHistory.AsQueryable();
 
@@ -43,16 +44,14 @@ namespace SessyWeb.Pages
                     query = query.Where(historyGrid.ColumnsCollection);
                 }
 
-                //if (!string.IsNullOrEmpty(args.OrderBy))
-                //{
-                //    query = query.OrderBy(args.OrderBy);
-                //}
+                if (!string.IsNullOrEmpty(args.OrderBy))
+                {
+                    query = query.OrderBy(args.OrderBy);
+                }
 
                 count = query.Count();
 
-                StatusHistoryList = query.Skip(args.Skip.Value).Take(args.Top.Value).ToList();
-
-                return query.Skip(args.Skip.Value).Take(args.Top.Value);
+                return query.Skip(args.Skip!.Value).Take(args.Top!.Value).ToList();
             });
         }
     }

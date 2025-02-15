@@ -24,7 +24,7 @@ namespace SessyData.Services
             });
         }
 
-        public IQueryable<SessyStatusHistory> GetSessyStatusHistory(Func<ModelContext, IQueryable<SessyStatusHistory>> func)
+        public List<SessyStatusHistory> GetSessyStatusHistory(Func<ModelContext, List<SessyStatusHistory>> func)
         {
             return _dbHelper.ExecuteQuery((ModelContext dbContext) =>
             {
