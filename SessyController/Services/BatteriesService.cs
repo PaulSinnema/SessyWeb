@@ -776,7 +776,7 @@ namespace SessyController.Services
                         var maxZeroNetHome = GetMaxZeroNetHomeHours(lastSession, session);
                         var hoursBetween = (session.FirstDate - lastSession.LastDate).Hours;
 
-                        if (hoursBetween <= 1)
+                        if (hoursBetween <= 3)
                         {
                             sessions.MergeSessions(lastSession, session);
 

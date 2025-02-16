@@ -1,7 +1,5 @@
-﻿using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
+﻿using Microsoft.Extensions.Options;
 using SessyController.Configurations;
-using System.Diagnostics.Eventing.Reader;
 using static SessyController.Services.Items.Session;
 
 namespace SessyController.Services.Items
