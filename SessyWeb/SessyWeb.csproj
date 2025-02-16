@@ -49,7 +49,7 @@
 
   <ItemGroup>
     <Content Update="wwwroot\favicon.ico">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
     <Content Update="wwwroot\screensize.js">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
