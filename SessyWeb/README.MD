@@ -1,180 +1,114 @@
-﻿# SessyWeb - Docker Deployment Guide
+[Open Iconic v1.1.1](https://github.com/iconic/open-iconic)
+===========
 
-SessyWeb is a web-based interface for managing **Sessy batteries** in a smart home environment. This guide provides precise step-by-step instructions on how to set up and run SessyWeb inside a Docker container.
+### Open Iconic is the open source sibling of [Iconic](https://github.com/iconic/open-iconic). It is a hyper-legible collection of 223 icons with a tiny footprint&mdash;ready to use with Bootstrap and Foundation. [View the collection](https://github.com/iconic/open-iconic)
 
 
----
 
-## Prerequisites
+## What's in Open Iconic?
 
-Before proceeding, ensure that you have:
+* 223 icons designed to be legible down to 8 pixels
+* Super-light SVG files - 61.8 for the entire set 
+* SVG sprite&mdash;the modern replacement for icon fonts
+* Webfont (EOT, OTF, SVG, TTF, WOFF), PNG and WebP formats
+* Webfont stylesheets (including versions for Bootstrap and Foundation) in CSS, LESS, SCSS and Stylus formats
+* PNG and WebP raster images in 8px, 16px, 24px, 32px, 48px and 64px.
 
-- **Docker installed and running**  
-  If Docker is not installed, follow the instructions for your OS:
-  - **Linux (Ubuntu/Debian)**: [Install Docker](https://docs.docker.com/engine/install/ubuntu/)
-  - **Windows**: [Download Docker Desktop](https://docs.docker.com/desktop/install/windows-install/)
-  - **Mac**: [Download Docker Desktop](https://docs.docker.com/desktop/install/mac-install/)
 
-- **ENTSO-E Account**  
-  - An account with **ENTSO-E Transparency Platform** is required to retrieve real-time energy data.
-  - Obtain your **SecurityToken** from the [ENTSO-E API portal](https://transparency.entsoe.eu/).
+## Getting Started
 
----
+#### For code samples and everything else you need to get started with Open Iconic, check out our [Icons](https://github.com/iconic/open-iconic) and [Reference](https://github.com/iconic/open-iconic) sections.
 
-## Step 1: Clone the Repository
+### General Usage
 
-Clone the SessyWeb repository from GitHub:
+#### Using Open Iconic's SVGs
 
-```bash
-git clone https://github.com/PaulSinnema/SessyWeb.git
-cd SessyWeb
+We like SVGs and we think they're the way to display icons on the web. Since Open Iconic are just basic SVGs, we suggest you display them like you would any other image (don't forget the `alt` attribute).
+
+```
+<img src="/open-iconic/svg/icon-name.svg" alt="icon name">
 ```
 
----
+#### Using Open Iconic's SVG Sprite
 
-## Step 2: Configure `appsettings.json`
+Open Iconic also comes in a SVG sprite which allows you to display all the icons in the set with a single request. It's like an icon font, without being a hack.
 
-SessyWeb requires a properly configured `appsettings.json` file to function correctly. Below is the **anonymized** configuration file:
+Adding an icon from an SVG sprite is a little different than what you're used to, but it's still a piece of cake. *Tip: To make your icons easily style able, we suggest adding a general class to the* `<svg>` *tag and a unique class name for each different icon in the* `<use>` *tag.*  
 
-### **Full Example: `appsettings.json`**
-```json
-{
-  "Logging": {
-    "LogLevel": {
-      "Default": "Warning",
-      "Microsoft.AspNetCore": "Warning"
-    }
-  },
-  
-  "ConnectionStrings": {
-    "SQLiteConnection": "Data Source=Sessy.db"
-  },
-  
-  "AllowedHosts": "*",
-  
-  "ENTSO-E:InDomain": "10YXX----------L",
-  "ENTSO-E:ResolutionFormat": "PT60M",
-  
-  "Sessy:Batteries": {
-    "Batteries": {
-      "1": {
-        "Name": "Battery 1",
-        "BaseUrl": "http://<Battery1-IP>",
-        "MaxCharge": 2200,
-        "MaxDischarge": 1700,
-        "Capacity": 5400
-      },
-      "2": {
-        "Name": "Battery 2",
-        "BaseUrl": "http://<Battery2-IP>",
-        "MaxCharge": 2200,
-        "MaxDischarge": 1700,
-        "Capacity": 5400
-      },
-      "3": {
-        "Name": "Battery 3",
-        "BaseUrl": "http://<Battery3-IP>",
-        "MaxCharge": 2200,
-        "MaxDischarge": 1700,
-        "Capacity": 5400
-      }
-    }
-  },
+```
+<svg class="icon">
+  <use xlink:href="open-iconic.svg#account-login" class="icon-account-login"></use>
+</svg>
+```
 
-  "Sessy:Meters": {
-    "Endpoints": {
-      "P1": {
-        "Name": "P1",
-        "BaseUrl": "http://<P1-Meter-IP>"
-      }
-    }
-  },
+Sizing icons only needs basic CSS. All the icons are in a square format, so just set the `<svg>` tag with equal width and height dimensions.
 
-  "PowerSystems": {
-    "Endpoints": {
-      "SolarEdge": {
-        "Interface": "Modbus",
-        "IpAddress": "<SolarEdge-Inverter-IP>",
-        "Port": 1502,
-        "SlaveId": 1,
-        "Latitude": 52.0,
-        "Longitude": 5.0,
-        "TimezoneOffset": 1
-      }
-    }
-  },
-  
-  "WeerOnline": {
-    "BaseUrl": "https://weerlive.nl/api/weerlive_api_v2.php",
-    "Location": "<Your-Location-Coordinates>"
-  },
-  
-  "ManagementSettings": {
-    "ManualChargingHours": [ 0, 1, 2, 11, 12, 13 ],
-    "ManualDischargingHours": [ 7, 8, 9, 17, 18 ],
-    "Timezone": "Europe/Amsterdam",
-    "CycleCost": 0.09,
-    "RequiredHomeEnergy": 16000
-  }
+```
+.icon {
+  width: 16px;
+  height: 16px;
 }
 ```
 
----
+Coloring icons is even easier. All you need to do is set the `fill` rule on the `<use>` tag.
 
-## Step 3: Configure Docker Container on Synology DSM
+```
+.icon-account-login {
+  fill: #f00;
+}
+```
 
-### **General Settings**
-- **Container Name**: `sessyweb`
-- **Enable auto-restart**: ✅ Checked
-- **Memory Limit**: `4096 MB`
+To learn more about SVG Sprites, read [Chris Coyier's guide](http://css-tricks.com/svg-sprites-use-better-icon-fonts/).
 
-### **Port Settings**
-| Local Port | Container Port | Protocol |
-|------------|---------------|----------|
-| `8100`     | `443`         | TCP      |
-| `8101`     | `80`          | TCP      |
+#### Using Open Iconic's Icon Font...
 
-### **Volume Settings**
-| NAS Folder Location           | Container Mount Point  | Permissions |
-|--------------------------------|------------------------|------------|
-| `/SessyController/Config`      | `/SessyController/Config` | Read/Write |
-| `/SessyController/data`        | `/data`               | Read/Write |
 
-### **Environment Variables**
-| Variable Name                | Value                                |
-|------------------------------|--------------------------------------|
-| `PATH`                        | `/usr/local/sbin:/usr/local/bin`    |
-| `ASPNETCORE_HTTP_PORTS`       | `80`                                |
-| `DOTNET_RUNNING_IN_CONTAINER` | `true`                              |
-| `DOTNET_VERSION`              | `6.0.36`                            |
-| `ASPNETCORE_URLS`             | `http://+:80`                      |
-| `CONFIG_PATH`                 | `/SessyController/Config`           |
+##### …with Bootstrap
 
----
+You can find our Bootstrap stylesheets in `font/css/open-iconic-bootstrap.{css, less, scss, styl}`
 
-## Step 4: Running the Container
 
-### **Deployment Steps on Synology NAS**
-1. **Open DSM → Docker → Container Manager**.
-2. **Create a new container** and choose the SessyWeb image.
-3. **Set up General Settings** (Container name, auto-restart, memory limit).
-4. **Configure Ports** (Map DSM ports to container ports).
-5. **Set up Volume Mounts** (Bind NAS folders to the container).
-6. **Define Environment Variables**.
-7. **Start the container**.
+```
+<link href="/open-iconic/font/css/open-iconic-bootstrap.css" rel="stylesheet">
+```
 
-### **Accessing SessyWeb**
-- **HTTP**: `http://NAS-IP:8101`
-- **HTTPS**: `https://NAS-IP:8100`
 
----
+```
+<span class="oi oi-icon-name" title="icon name" aria-hidden="true"></span>
+```
 
-## Troubleshooting
+##### …with Foundation
 
-- **Check logs**: `docker logs sessyweb`
-- **Ensure NAS firewall allows ports 8100/8101**
+You can find our Foundation stylesheets in `font/css/open-iconic-foundation.{css, less, scss, styl}`
 
----
+```
+<link href="/open-iconic/font/css/open-iconic-foundation.css" rel="stylesheet">
+```
 
-By following these steps, you will have **SessyWeb** running inside a **Docker container** on **Synology NAS**, with persistent storage and proper port mapping. 🚀
 
+```
+<span class="fi-icon-name" title="icon name" aria-hidden="true"></span>
+```
+
+##### …on its own
+
+You can find our default stylesheets in `font/css/open-iconic.{css, less, scss, styl}`
+
+```
+<link href="/open-iconic/font/css/open-iconic.css" rel="stylesheet">
+```
+
+```
+<span class="oi" data-glyph="icon-name" title="icon name" aria-hidden="true"></span>
+```
+
+
+## License
+
+### Icons
+
+All code (including SVG markup) is under the [MIT License](http://opensource.org/licenses/MIT).
+
+### Fonts
+
+All fonts are under the [SIL Licensed](http://scripts.sil.org/cms/scripts/page.php?item_id=OFL_web).
