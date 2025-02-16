@@ -1,4 +1,5 @@
-﻿using System.Collections.ObjectModel;
+﻿using SessyController.Configurations;
+using System.Collections.ObjectModel;
 using static SessyController.Services.Items.Session;
 
 namespace SessyController.Services.Items
@@ -10,7 +11,9 @@ namespace SessyController.Services.Items
         private double _homeNeeds { get; set; }
         private double _totalBatteryCapacity { get; set; }
         private double _netZeroHomeMinProfit { get; set; }
-        private ILogger<Sessions> _logger;
+        private ILogger<Sessions> _logger { get; set; }
+        private SettingsConfig _settingsConfig { get; set; }
+        private BatteryContainer _batteryContainer { get; set; }
 
         private List<Session> _sessionList { get; set; }
         private int _maxChargingHours { get; set; }
@@ -20,26 +23,23 @@ namespace SessyController.Services.Items
         private List<HourlyInfo> _hourlyInfos { get; set; }
 
         public Sessions(List<HourlyInfo> hourlyInfos,
-                        int maxChargingHours,
-                        int maxDischargingHours,
-                        double totalChargingCapacity,
-                        double totalDischargingCapacity,
-                        double totalBatteryCapacity,
-                        double homeNeeds,
-                        double cycleCost,
-                        double netZeroHomeMinProfit,
+                        SettingsConfig settingsConfig,
+                        BatteryContainer batteryContainer,
                         ILoggerFactory loggerFactory)
         {
+            _settingsConfig = settingsConfig;
+            _batteryContainer = batteryContainer;
+
             _sessionList = new List<Session>();
             _hourlyInfos = hourlyInfos;
-            _maxChargingHours = maxChargingHours;
-            _maxDischargingHours = maxDischargingHours;
-            _cycleCost = cycleCost;
-            _totalChargingCapacity = totalChargingCapacity;
-            _totalDischargingCapacity = totalDischargingCapacity;
-            _homeNeeds = homeNeeds;
-            _totalBatteryCapacity = totalBatteryCapacity;
-            _netZeroHomeMinProfit = netZeroHomeMinProfit;
+            _totalChargingCapacity = batteryContainer.GetChargingCapacity();
+            _totalDischargingCapacity = batteryContainer.GetDischargingCapacity();
+            _totalBatteryCapacity = batteryContainer.GetTotalCapacity();
+            _maxChargingHours = (int)Math.Ceiling(_totalBatteryCapacity / _totalChargingCapacity);
+            _maxDischargingHours = (int)Math.Ceiling(_totalBatteryCapacity / _totalDischargingCapacity);
+            _cycleCost = settingsConfig.CycleCost;
+            _homeNeeds = settingsConfig.RequiredHomeEnergy;
+            _netZeroHomeMinProfit = settingsConfig.NetZeroHomeMinProfit;
             _logger = loggerFactory.CreateLogger<Sessions>();
         }
 
@@ -91,7 +91,7 @@ namespace SessyController.Services.Items
                 {
                     case Modes.Charging:
                         {
-                            Session session = new Session(mode, _maxChargingHours);
+                            Session session = new Session(mode, _maxChargingHours, _batteryContainer, _settingsConfig);
                             session.AddHourlyInfo(hourlyInfo);
                             CompleteSession(session, _hourlyInfos, _maxChargingHours, _cycleCost, averagePrice);
                             _sessionList.Add(session);
@@ -100,7 +100,7 @@ namespace SessyController.Services.Items
 
                     case Modes.Discharging:
                         {
-                            Session session = new Session(mode, _maxDischargingHours);
+                            Session session = new Session(mode, _maxDischargingHours, _batteryContainer, _settingsConfig);
                             session.AddHourlyInfo(hourlyInfo);
                             CompleteSession(session, _hourlyInfos, _maxDischargingHours, _cycleCost, averagePrice);
                             _sessionList.Add(session);

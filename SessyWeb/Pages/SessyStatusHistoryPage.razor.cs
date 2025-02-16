@@ -18,7 +18,7 @@ namespace SessyWeb.Pages
 
         private List<GroupedSessyStatus>? StatusHistoryList { get; set; }
 
-        RadzenDataGrid<GroupedSessyStatus> historyGrid { get; set; }
+        RadzenDataGrid<GroupedSessyStatus>? historyGrid { get; set; }
 
         int count { get; set; }
 
@@ -82,7 +82,7 @@ namespace SessyWeb.Pages
                                     Status = group.Key.Status,
                                     StatusDetails = group.Key.StatusDetails,
                                     StartTime = startTime.Value,
-                                    EndTime = endTime.Value,
+                                    EndTime = endTime!.Value,
                                     Duration = endTime.Value - startTime.Value
                                 });
                             }
@@ -102,7 +102,7 @@ namespace SessyWeb.Pages
                             Status = group.Key.Status,
                             StatusDetails = group.Key.StatusDetails,
                             StartTime = startTime.Value,
-                            EndTime = endTime.Value,
+                            EndTime = endTime!.Value,
                             Duration = endTime.Value - startTime.Value
                         });
                     }

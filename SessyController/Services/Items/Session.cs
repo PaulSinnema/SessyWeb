@@ -1,4 +1,6 @@
-﻿namespace SessyController.Services.Items
+﻿using SessyController.Configurations;
+
+namespace SessyController.Services.Items
 {
     /// <summary>
     /// (Dis)charging session
@@ -12,7 +14,9 @@
             Discharging
         };
 
-        private Modes _mode;
+        private Modes _mode { get; set; }
+        private BatteryContainer _batteryContainer { get; set; }
+        private SettingsConfig _settingsConfig { get; set; }
 
         public Modes Mode
         {
@@ -47,20 +51,35 @@
         public double AveragePrice => HourlyInfos.Average(hp => hp.Price);
 
         /// <summary>
+        /// First hourlyInfo object in the session.
+        /// </summary>
+        public HourlyInfo? First => HourlyInfos.OrderBy(hi => hi.Time).FirstOrDefault();
+
+        /// <summary>
+        /// Last hourlyinfo object in the session.
+        /// </summary>
+        public HourlyInfo? Last => HourlyInfos.OrderByDescending(hi => hi.Time).FirstOrDefault();
+
+        /// <summary>
         /// The first date in the session
         /// </summary>
-        public DateTime FirstDate => HourlyInfos.Count > 0 ? HourlyInfos.Min(hp => hp.Time) : DateTime.MinValue;
+        public DateTime FirstDate => First?.Time ?? DateTime.MinValue;
 
         /// <summary>
         /// The last date in the session
         /// </summary>
-        public DateTime LastDate => HourlyInfos.Count > 0 ? HourlyInfos.Max(hp => hp.Time) : DateTime.MaxValue;
+        public DateTime LastDate => Last?.Time ?? DateTime.MaxValue;
 
-        public Session(Modes mode, int maxHours)
+        public Session(Modes mode,
+                       int maxHours,
+                       BatteryContainer batteryContainer,
+                       SettingsConfig settingsConfig)
         {
             HourlyInfos = new List<HourlyInfo>();
             MaxHours = maxHours;
             Mode = mode;
+            _batteryContainer = batteryContainer;
+            _settingsConfig = settingsConfig;
         }
 
         public IReadOnlyCollection<HourlyInfo> GetHourlyInfoList() => HourlyInfos.AsReadOnly();
@@ -112,9 +131,10 @@
             return HourlyInfos.Contains(hourlyInfo);
         }
 
-        public void RemoveAllAfter()
+        public bool RemoveAllAfter(int maxHours)
         {
-            int index = MaxHours;
+            int index = maxHours;
+            bool changed = false;
 
             switch (Mode)
             {
@@ -125,6 +145,7 @@
                         while (++index < list.Count)
                         {
                             RemoveHourlyInfo(list[index]);
+                            changed = true;
                         }
 
 
@@ -138,6 +159,7 @@
                         while (++index < list.Count)
                         {
                             RemoveHourlyInfo(list[index]);
+                            changed = true;
                         }
 
 
@@ -147,11 +169,36 @@
                 default:
                     throw new InvalidOperationException($"Invalid mode {Mode}");
             }
+
+            return changed;
         }
 
         public override string ToString()
         {
             return $"Session: {Mode}, FirstDate: {FirstDate}, LastDate {LastDate}, Count: {HourlyInfos.Count}, MaxHours: {MaxHours}";
+        }
+
+        /// <summary>
+        /// Get the hours needed to charge the batteries to 100%.
+        /// </summary>
+        internal int GetChargingHours()
+        {
+            if (First != null)
+            {
+                var index = HourlyInfos.IndexOf(First);
+
+                if (index > 0)
+                {
+                    var chargeLeft = HourlyInfos[index - 1].ChargeLeft;
+                    var toCharge = _batteryContainer.GetTotalCapacity() - chargeLeft;
+
+                    var chargingHours = (int)Math.Ceiling(toCharge / _batteryContainer.GetChargingCapacity());
+
+                    return chargingHours;
+                }
+            }
+
+            return MaxHours;
         }
     }
 }

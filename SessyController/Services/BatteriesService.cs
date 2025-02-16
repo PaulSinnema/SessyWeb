@@ -486,7 +486,11 @@ namespace SessyController.Services
 
         private async Task EvaluateSessions(Sessions sessions, List<HourlyInfo> hourlyInfos)
         {
-            await CalculateChargeLeft(hourlyInfos);
+            do
+            {
+                await CalculateChargeLeft(hourlyInfos);
+            } 
+            while (ShrinkSessions(sessions));
 
             sessions.CalculateProfits(_timeZoneService);
         }
@@ -513,7 +517,8 @@ namespace SessyController.Services
                 .OrderBy(hp => hp.Time)
                 .ToList();
             List<HourlyInfo> lastChargingSession = new List<HourlyInfo>();
-            HourlyInfo previous = null;
+
+            HourlyInfo? previous = null;
 
             foreach (var hourlyInfo in hourlyInfoList)
             {
@@ -780,8 +785,6 @@ namespace SessyController.Services
                         {
                             sessions.MergeSessions(lastSession, session);
 
-                            lastSession.RemoveAllAfter();
-
                             sessions.RemoveSession(session);
 
                             changed = true;
@@ -790,6 +793,26 @@ namespace SessyController.Services
                 }
 
                 lastSession = session;
+            }
+
+            return changed;
+        }
+
+        /// <summary>
+        /// Shrink sessions if the hours needed to charge to 100% is less than calculated.
+        /// </summary>
+        private bool ShrinkSessions(Sessions sessions)
+        {
+            bool changed = false;
+
+            foreach (var session in sessions.SessionList)
+            {
+                var maxHours = session.GetChargingHours();
+
+                if(session.RemoveAllAfter(maxHours))
+                {
+                    changed = true;
+                }
             }
 
             return changed;
@@ -828,14 +851,8 @@ namespace SessyController.Services
                 var loggerFactory = scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
 
                 Sessions sessions = new Sessions(hourlyInfos,
-                                                 maxChargingHours,
-                                                 maxDischargingHours,
-                                                 _sessyBatteryConfig.TotalChargingCapacity,
-                                                 _sessyBatteryConfig.TotalDischargingCapacity,
-                                                 totalBatteryCapacity,
-                                                 homeNeeds,
-                                                 _settingsConfig.CycleCost,
-                                                 _settingsConfig.NetZeroHomeMinProfit,
+                                                 _settingsConfig,
+                                                 _batteryContainer,
                                                  loggerFactory);
                 if (hourlyInfos != null && hourlyInfos.Count > 0)
                 {
