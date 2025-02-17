@@ -119,11 +119,7 @@ builder.Services.AddControllers();
 builder.Services.AddRadzenComponents();
 
 // Remove the antiforgery token.
-builder.Services.AddControllersWithViews(options =>
-{
-    options.Filters.Remove(new AutoValidateAntiforgeryTokenAttribute());
-});
-
+builder.Services.AddAntiforgery(options => options.SuppressXFrameOptionsHeader = true);
 
 builder.Services.AddRadzenCookieThemeService(options =>
 {
