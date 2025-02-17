@@ -9,9 +9,9 @@
 
 <div>
 	@{
-		if (Batteries != null)
+		if (BatteriesList != null)
 		{
-			foreach (var battery in Batteries)
+			foreach (var battery in BatteriesList)
 			{
 				<div style="min-width: 200px;">
 					<BatteryInfoComponent Battery=@battery />

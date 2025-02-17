@@ -15,9 +15,16 @@ namespace SessyWeb.Pages
             IsComponentActive = true;
         }
 
+        private bool _isDisposed = false;
+
         public virtual void Dispose()
         {
-            IsComponentActive = false;
+            if (!_isDisposed)
+            {
+                IsComponentActive = false;
+
+                _isDisposed = true;
+            }
         }
     }
 }

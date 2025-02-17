@@ -6,10 +6,9 @@ namespace SessyController.Services.Items
     /// <summary>
     /// This class is a container for all betteries.
     /// </summary>
-    public class BatteryContainer : IDisposable
+    public class BatteryContainer
     {
         private SessyBatteryConfig _sessyBatteryConfig;
-        private IServiceScope _scope { get; set; }
 
         public List<Battery>? Batteries { get; set; }
 
@@ -18,25 +17,28 @@ namespace SessyController.Services.Items
         {
             _sessyBatteryConfig = sessyBatteryConfig.Value;
 
-            _scope = serviceScopeFactory.CreateScope();
+            using var scope = serviceScopeFactory.CreateScope();
 
-            Batteries = GetBatteries(_scope);
+            Batteries = GetBatteries(scope.ServiceProvider);
         }
 
         /// <summary>
         /// Load information from appsettings for the batteries.
         /// </summary>
-        private List<Battery> GetBatteries(IServiceScope scope)
+        private List<Battery> GetBatteries(IServiceProvider serviceProvider)
         {
             var batteries = new List<Battery>();
 
             foreach (var batteryConfig in _sessyBatteryConfig.Batteries)
             {
-                var battery = scope.ServiceProvider.GetRequiredService<Battery>();
+                using (var scope = serviceProvider.CreateScope())
+                {
+                    var battery = scope.ServiceProvider.GetRequiredService<Battery>();
 
-                battery.Inject(batteryConfig.Key, batteryConfig.Value);
+                    battery.Inject(batteryConfig.Key, batteryConfig.Value);
 
-                batteries.Add(battery);
+                    batteries.Add(battery);
+                }
             }
 
             return batteries;
@@ -144,21 +146,6 @@ namespace SessyController.Services.Items
         private static PowerSetpoint GetSetpoint(Battery bat, int setpoint)
         {
             return new PowerSetpoint { Setpoint = setpoint };
-        }
-
-        private bool _isDisposed = false;
-
-        public void Dispose()
-        {
-            if (!_isDisposed)
-            {
-                Batteries.Clear();
-                Batteries = null;
-
-                _scope.Dispose();
-
-                _isDisposed = true;
-            }
         }
     }
 }

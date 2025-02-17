@@ -2,21 +2,15 @@
 
 namespace SessyWeb.Pages
 {
-    public partial class Index : PageBase
+    public partial class Batteries : PageBase
     {
-        public List<Battery>? Batteries = new List<Battery>();
+        public List<Battery>? BatteriesList = new List<Battery>();
 
         private CancellationTokenSource? _cts { get; set; }
 
-        public Index()
-        {
-            _cts = new();
-        }
-
         protected async override void OnInitialized()
         {
-            // Laad initiële data
-            Batteries = batteryContainer?.Batteries?.ToList();
+            base.OnInitialized();
 
             // Start de timer als een aparte taak
             await StartBatteryUpdateLoop();
@@ -26,23 +20,29 @@ namespace SessyWeb.Pages
         {
             using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
 
+            _cts = new();
+
             try
             {
-                while (await timer.WaitForNextTickAsync(_cts!.Token))
+                do
                 {
                     if (IsComponentActive)
                     {
                         // Take care of updating the UI in the render-thread
                         await InvokeAsync(() =>
                         {
-                            Batteries = batteryContainer?.Batteries?.ToList();
+                            BatteriesList = batteryContainer?.Batteries?.ToList();
                             StateHasChanged();
                         });
                     }
                 }
+                while (await timer.WaitForNextTickAsync(_cts!.Token));
             }
             catch (OperationCanceledException)
             {
+                _cts.Cancel();
+                _cts.Dispose();
+
                 Console.WriteLine("Index: Timer stopped");
             }
         }
@@ -53,10 +53,9 @@ namespace SessyWeb.Pages
         {
             if (!_isDisposed)
             {
-                _cts?.Cancel();
-                _cts?.Dispose();
-
                 _isDisposed = true;
+
+                base.Dispose();
             }
         }
     }

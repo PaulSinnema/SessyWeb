@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Radzen;
 using Radzen.Blazor;
 using SessyCommon.Extensions;
@@ -80,13 +81,13 @@ builder.Services.AddScoped<SolarEdgeService>();
 builder.Services.AddScoped<SolarService>();
 builder.Services.AddScoped<P1MeterService>();
 builder.Services.AddScoped<TcpClientProvider>();
-builder.Services.AddScoped<BatteryContainer>();
 builder.Services.AddScoped<SolarHistoryService>();
 builder.Services.AddScoped<SessyStatusHistoryService>();
 builder.Services.AddScoped<DbHelper>();
 builder.Services.AddScoped<ScreenSizeService>();
 builder.Services.AddScoped<EnergyHistoryService>();
 
+builder.Services.AddSingleton<BatteryContainer>();
 builder.Services.AddSingleton<TimeZoneService>();
 builder.Services.AddSingleton<WeatherService>();
 builder.Services.AddSingleton<DayAheadMarketService>();
@@ -99,8 +100,6 @@ builder.Services.AddHostedService(provider => provider.GetRequiredService<Batter
 builder.Services.AddHostedService(provider => provider.GetRequiredService<WeatherService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<SessyMonitorService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<EnergyMonitorService>());
-
-// Add services to the container.
 
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
@@ -118,6 +117,13 @@ builder.Services.AddScoped<BatteryManagementController>();
 
 builder.Services.AddControllers();
 builder.Services.AddRadzenComponents();
+
+// Remove the antiforgery token.
+builder.Services.AddControllersWithViews(options =>
+{
+    options.Filters.Remove(new AutoValidateAntiforgeryTokenAttribute());
+});
+
 
 builder.Services.AddRadzenCookieThemeService(options =>
 {
