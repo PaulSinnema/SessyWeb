@@ -84,18 +84,21 @@ builder.Services.AddScoped<BatteryContainer>();
 builder.Services.AddScoped<SolarHistoryService>();
 builder.Services.AddScoped<SessyStatusHistoryService>();
 builder.Services.AddScoped<DbHelper>();
+builder.Services.AddScoped<ScreenSizeService>();
+builder.Services.AddScoped<EnergyHistoryService>();
 
 builder.Services.AddSingleton<TimeZoneService>();
 builder.Services.AddSingleton<WeatherService>();
 builder.Services.AddSingleton<DayAheadMarketService>();
 builder.Services.AddSingleton<BatteriesService>();
 builder.Services.AddSingleton<SessyMonitorService>();
-builder.Services.AddScoped<ScreenSizeService>();
+builder.Services.AddSingleton<EnergyMonitorService>();
 
 builder.Services.AddHostedService(provider => provider.GetRequiredService<DayAheadMarketService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<BatteriesService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<WeatherService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<SessyMonitorService>());
+builder.Services.AddHostedService(provider => provider.GetRequiredService<EnergyMonitorService>());
 
 // Add services to the container.
 
