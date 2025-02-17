@@ -23,6 +23,8 @@ namespace SessyData.Model
 
         public DbSet<SolarHistory> SolarHistory => Set<SolarHistory>();
 
+        public DbSet<EnergyHistory> EnergyHistory => Set<EnergyHistory>();
+
         protected override void OnConfiguring(DbContextOptionsBuilder options)
             => options.UseSqlite(_connectionString);
     }
