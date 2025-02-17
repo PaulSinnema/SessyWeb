@@ -19,17 +19,18 @@ namespace SessyData.Migrations
 
             modelBuilder.Entity("SessyData.Model.EnergyHistory", b =>
                 {
-                    b.Property<DateTime>("Time")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Id")
-                        .HasColumnType("TEXT");
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
 
                     b.Property<double>("ConsumedTariff1")
                         .HasColumnType("REAL");
 
                     b.Property<double>("ConsumedTariff2")
                         .HasColumnType("REAL");
+
+                    b.Property<string>("MeterId")
+                        .HasColumnType("TEXT");
 
                     b.Property<double>("ProducedTariff1")
                         .HasColumnType("REAL");
@@ -43,15 +44,19 @@ namespace SessyData.Migrations
                     b.Property<double>("Temperature")
                         .HasColumnType("REAL");
 
-                    b.HasKey("Time");
+                    b.Property<DateTime>("Time")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
 
                     b.ToTable("EnergyHistory");
                 });
 
             modelBuilder.Entity("SessyData.Model.SessyStatusHistory", b =>
                 {
-                    b.Property<DateTime>("Time")
-                        .HasColumnType("TEXT");
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Name")
                         .HasColumnType("TEXT");
@@ -62,15 +67,19 @@ namespace SessyData.Migrations
                     b.Property<string>("StatusDetails")
                         .HasColumnType("TEXT");
 
-                    b.HasKey("Time");
+                    b.Property<DateTime>("Time")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
 
                     b.ToTable("SessyStatusHistory");
                 });
 
             modelBuilder.Entity("SessyData.Model.SolarHistory", b =>
                 {
-                    b.Property<DateTime>("Time")
-                        .HasColumnType("TEXT");
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
 
                     b.Property<double>("GeneratedPower")
                         .HasColumnType("REAL");
@@ -78,7 +87,10 @@ namespace SessyData.Migrations
                     b.Property<double>("GlobalRadiation")
                         .HasColumnType("REAL");
 
-                    b.HasKey("Time");
+                    b.Property<DateTime>("Time")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
 
                     b.ToTable("SolarHistory");
                 });

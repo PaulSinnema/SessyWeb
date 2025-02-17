@@ -116,7 +116,7 @@ namespace SessyController.Services
             energyHistoryList.Add(new EnergyHistory
             {
                 Time = time,
-                Id = p1Meter.Id,
+                MeterId = p1Meter.Id,
                 ConsumedTariff1 = p1Details.PowerConsumedTariff1,
                 ConsumedTariff2 = p1Details.PowerConsumedTariff2,
                 ProducedTariff1 = p1Details.PowerProducedTariff1,
