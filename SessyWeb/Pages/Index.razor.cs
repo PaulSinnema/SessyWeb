@@ -6,12 +6,15 @@ namespace SessyWeb.Pages
     {
         public List<Battery>? Batteries = new List<Battery>();
 
-        private CancellationTokenSource? _cts;
+        private CancellationTokenSource? _cts { get; set; }
+
+        public Index()
+        {
+            _cts = new();
+        }
 
         protected async override void OnInitialized()
         {
-            _cts = new();
-
             // Laad initiële data
             Batteries = batteryContainer?.Batteries?.ToList();
 
@@ -44,10 +47,17 @@ namespace SessyWeb.Pages
             }
         }
 
+        private bool _isDisposed = false;
+
         public override void Dispose()
         {
-            _cts?.Cancel();
-            _cts?.Dispose();
+            if (!_isDisposed)
+            {
+                _cts?.Cancel();
+                _cts?.Dispose();
+
+                _isDisposed = true;
+            }
         }
     }
 }
