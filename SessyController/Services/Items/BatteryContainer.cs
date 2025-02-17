@@ -6,21 +6,21 @@ namespace SessyController.Services.Items
     /// <summary>
     /// This class is a container for all betteries.
     /// </summary>
-    public class BatteryContainer
+    public class BatteryContainer : IDisposable
     {
         private SessyBatteryConfig _sessyBatteryConfig;
+        private IServiceScope _scope { get; set; }
 
-        public List<Battery> Batteries { get; set; }
+        public List<Battery>? Batteries { get; set; }
 
         public BatteryContainer(IServiceScopeFactory serviceScopeFactory,
                                 IOptions<SessyBatteryConfig> sessyBatteryConfig)
         {
             _sessyBatteryConfig = sessyBatteryConfig.Value;
 
-            using (var scope = serviceScopeFactory.CreateScope())
-            {
-                Batteries = GetBatteries(scope);
-            }
+            _scope = serviceScopeFactory.CreateScope();
+
+            Batteries = GetBatteries(_scope);
         }
 
         /// <summary>
@@ -86,7 +86,7 @@ namespace SessyController.Services.Items
         /// </summary>
         public double GetDischargingCapacity()
         {
-            return Batteries.Sum(bat => bat.GetMaxDischarge());
+            return Batteries!.Sum(bat => bat.GetMaxDischarge());
         }
 
         /// <summary>
@@ -144,6 +144,21 @@ namespace SessyController.Services.Items
         private static PowerSetpoint GetSetpoint(Battery bat, int setpoint)
         {
             return new PowerSetpoint { Setpoint = setpoint };
+        }
+
+        private bool _isDisposed = false;
+
+        public void Dispose()
+        {
+            if (!_isDisposed)
+            {
+                Batteries.Clear();
+                Batteries = null;
+
+                _scope.Dispose();
+
+                _isDisposed = true;
+            }
         }
     }
 }

@@ -7,7 +7,7 @@ namespace SessyController.Services.Items
     /// <summary>
     /// This class contains all P1 Meter configurations.
     /// </summary>
-    public class P1MeterContainer
+    public class P1MeterContainer : IDisposable
     {
         private SessyP1Config _sessyP1Config { get; set; }
         private P1MeterService _p1MeterService { get; set; }
@@ -55,7 +55,7 @@ namespace SessyController.Services.Items
             }
         }
 
-        public List<P1Meter> P1Meters { get; set; } = new List<P1Meter>();
+        public List<P1Meter>? P1Meters { get; set; } = new List<P1Meter>();
 
         /// <summary>
         /// Add a P1 Meter configuration to the list.
@@ -71,6 +71,18 @@ namespace SessyController.Services.Items
         public async Task<P1Details?> GetDetails(string id)
         {
             return await _p1MeterService!.GetP1DetailsAsync(id);
+        }
+
+        private bool _isDisposed = false;
+
+        public void Dispose()
+        {
+            if(!_isDisposed)
+            {
+                P1Meters.Clear();
+                P1Meters = null;
+                _isDisposed = true;
+            }    
         }
     }
 }

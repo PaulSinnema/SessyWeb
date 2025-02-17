@@ -3,7 +3,7 @@ using static SessyController.Services.ActivePowerStrategy;
 
 namespace SessyController.Services.Items
 {
-    public class Battery
+    public class Battery : IDisposable
     {
         private readonly SessyService _sessyService;
         private readonly LoggingService<Battery> _logger;
@@ -131,6 +131,11 @@ namespace SessyController.Services.Items
         private void EnsureInitialized()
         {
             if (!_initialized) throw new InvalidOperationException("Battery object not initialized");
+        }
+
+        public void Dispose()
+        {
+            
         }
     }
 }

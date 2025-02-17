@@ -1,0 +1,27 @@
+﻿@page "/energyhistory"
+@inherits PageBase
+@using SessyData.Model
+@using Radzen
+
+<a>History</a>
+
+<RadzenDataGrid @ref="energyGrid" 
+    Data="@EnergyHistoryList"
+    Context="data"
+    Count="@count"
+    LoadData="@LoadData"
+    AllowSorting="true"
+    AllowFiltering="true"
+    AllowPaging="true"
+    PageSize="20"
+    PagerHorizontalAlign="HorizontalAlign.Center">
+    <Columns>
+        <RadzenDataGridColumn Property="@nameof(EnergyHistory.Time)" Title="Time" />
+        <RadzenDataGridColumn Property="@nameof(EnergyHistory.ConsumedTariff1)" Title="Consumed tariff 1" />
+        <RadzenDataGridColumn Property="@nameof(EnergyHistory.ProducedTariff1)" Title="Produced tariff 1" />
+        <RadzenDataGridColumn Property="@nameof(EnergyHistory.ConsumedTariff2)" Title="Consumed tariff 2" />
+        <RadzenDataGridColumn Property="@nameof(EnergyHistory.ProducedTariff2)" Title="Produced tariff 2" />
+        <RadzenDataGridColumn Property="@nameof(EnergyHistory.TarrifIndicator)" Title="Tariff indicator" />
+        <RadzenDataGridColumn Property="@nameof(EnergyHistory.Temperature)" Title="Temperature" />
+    </Columns>
+</RadzenDataGrid>

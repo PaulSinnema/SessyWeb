@@ -5,7 +5,7 @@ namespace SessyController.Services.Items
     /// <summary>
     /// (Dis)charging session
     /// </summary>
-    public class Session
+    public class Session : IDisposable
     {
         public enum Modes
         {
@@ -199,6 +199,16 @@ namespace SessyController.Services.Items
             }
 
             return MaxHours;
+        }
+
+        private bool _isDisposed = false;
+
+        public void Dispose()
+        {
+            if(!_isDisposed)
+            {
+                _isDisposed = true;
+            }
         }
     }
 }

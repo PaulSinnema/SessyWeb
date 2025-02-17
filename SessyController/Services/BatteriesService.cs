@@ -1,5 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Options;
+﻿using Microsoft.Extensions.Options;
 using SessyCommon.Extensions;
 using SessyController.Configurations;
 using SessyController.Services.Items;
@@ -12,20 +11,22 @@ namespace SessyController.Services
     /// </summary>
     public partial class BatteriesService : BackgroundService
     {
-        private SessyService _sessyService;
-        private P1MeterService _p1MeterService;
-        private DayAheadMarketService _dayAheadMarketService;
-        private SolarEdgeService _solarEdgeService;
-        private readonly SolarService _solarService;
-        private readonly IServiceScopeFactory _serviceScopeFactory;
-        private IOptionsMonitor<SettingsConfig> _settingsConfigMonitor;
-        private SettingsConfig _settingsConfig;
-        private IOptionsMonitor<SessyBatteryConfig> _sessyBatteryConfigMonitor;
-        private SessyBatteryConfig _sessyBatteryConfig;
-        private readonly BatteryContainer _batteryContainer;
-        private readonly TimeZoneService _timeZoneService;
-        private readonly LoggingService<BatteriesService> _logger;
-        private static List<HourlyInfo> hourlyInfos { get; set; } = new List<HourlyInfo>();
+        private IServiceScope _scope { get; set; }
+        private SessyService? _sessyService { get; set; }
+        private P1MeterService? _p1MeterService { get; set; }
+        private DayAheadMarketService? _dayAheadMarketService { get; set; }
+        private SolarEdgeService? _solarEdgeService { get; set; }
+        private SolarService? _solarService { get; set; }
+        private IServiceScopeFactory _serviceScopeFactory { get; set; }
+        private IOptionsMonitor<SettingsConfig> _settingsConfigMonitor { get; set; }
+        private SettingsConfig _settingsConfig { get; set; }
+        private IOptionsMonitor<SessyBatteryConfig> _sessyBatteryConfigMonitor { get; set; }
+        private SessyBatteryConfig _sessyBatteryConfig { get; set; }
+        private BatteryContainer? _batteryContainer { get; set; }
+        private TimeZoneService? _timeZoneService { get; set; }
+        private LoggingService<BatteriesService> _logger { get; set; }
+
+        private static List<HourlyInfo>? hourlyInfos { get; set; } = new List<HourlyInfo>();
         private bool _settingsChanged = false;
 
         public BatteriesService(LoggingService<BatteriesService> logger,
@@ -61,16 +62,22 @@ namespace SessyController.Services
             if (_settingsConfig == null) throw new InvalidOperationException("ManagementSettings missing");
             if (_sessyBatteryConfig == null) throw new InvalidOperationException("Sessy:Batteries missing");
 
-            using (var scope = _serviceScopeFactory.CreateScope())
-            {
-                _sessyService = scope.ServiceProvider.GetRequiredService<SessyService>();
-                _p1MeterService = scope.ServiceProvider.GetRequiredService<P1MeterService>();
-                _dayAheadMarketService = scope.ServiceProvider.GetRequiredService<DayAheadMarketService>();
-                _solarEdgeService = scope.ServiceProvider.GetRequiredService<SolarEdgeService>();
-                _solarService = scope.ServiceProvider.GetRequiredService<SolarService>();
-                _batteryContainer = scope.ServiceProvider.GetRequiredService<BatteryContainer>();
-                _timeZoneService = scope.ServiceProvider.GetRequiredService<TimeZoneService>();
-            }
+            _scope = _serviceScopeFactory.CreateScope();
+
+            _sessyService = _scope.ServiceProvider.GetRequiredService<SessyService>();
+            _p1MeterService = _scope.ServiceProvider.GetRequiredService<P1MeterService>();
+            _dayAheadMarketService = _scope.ServiceProvider.GetRequiredService<DayAheadMarketService>();
+            _solarEdgeService = _scope.ServiceProvider.GetRequiredService<SolarEdgeService>();
+            _solarService = _scope.ServiceProvider.GetRequiredService<SolarService>();
+            _batteryContainer = _scope.ServiceProvider.GetRequiredService<BatteryContainer>();
+            _timeZoneService = _scope.ServiceProvider.GetRequiredService<TimeZoneService>();
+        }
+
+        public override Task StopAsync(CancellationToken cancellationToken)
+        {
+            _scope.Dispose();
+
+            return base.StopAsync(cancellationToken);
         }
 
         /// <summary>
@@ -489,7 +496,7 @@ namespace SessyController.Services
             do
             {
                 await CalculateChargeLeft(hourlyInfos);
-            } 
+            }
             while (ShrinkSessions(sessions));
 
             sessions.CalculateProfits(_timeZoneService);
@@ -809,7 +816,7 @@ namespace SessyController.Services
             {
                 var maxHours = session.GetChargingHours();
 
-                if(session.RemoveAllAfter(maxHours))
+                if (session.RemoveAllAfter(maxHours))
                 {
                     changed = true;
                 }
@@ -846,59 +853,79 @@ namespace SessyController.Services
             int maxDischargingHours = (int)Math.Ceiling(totalBatteryCapacity / dischargingPower);
             var homeNeeds = _settingsConfig.RequiredHomeEnergy;
 
-            using (var scope = _serviceScopeFactory.CreateScope())
+            var loggerFactory = _scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
+
+            Sessions sessions = new Sessions(hourlyInfos,
+                                             _settingsConfig,
+                                             _batteryContainer,
+                                             loggerFactory);
+            if (hourlyInfos != null && hourlyInfos.Count > 0)
             {
-                var loggerFactory = scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
-
-                Sessions sessions = new Sessions(hourlyInfos,
-                                                 _settingsConfig,
-                                                 _batteryContainer,
-                                                 loggerFactory);
-                if (hourlyInfos != null && hourlyInfos.Count > 0)
+                // Check the first element
+                if (hourlyInfos.Count > 1)
                 {
-                    // Check the first element
-                    if (hourlyInfos.Count > 1)
+                    if (hourlyInfos[0].SmoothedPrice < hourlyInfos[1].SmoothedPrice)
                     {
-                        if (hourlyInfos[0].SmoothedPrice < hourlyInfos[1].SmoothedPrice)
-                        {
-                            sessions.AddNewSession(Modes.Charging, hourlyInfos[0], averagePrice);
-                        }
-
-                        if (hourlyInfos[0].SmoothedPrice > hourlyInfos[1].SmoothedPrice)
-                        {
-                            sessions.AddNewSession(Modes.Discharging, hourlyInfos[0], averagePrice);
-                        }
+                        sessions.AddNewSession(Modes.Charging, hourlyInfos[0], averagePrice);
                     }
 
-                    // Check the elements in between.
-                    for (var i = 1; i < hourlyInfos.Count - 1; i++)
+                    if (hourlyInfos[0].SmoothedPrice > hourlyInfos[1].SmoothedPrice)
                     {
-                        if (hourlyInfos[i].SmoothedPrice < hourlyInfos[i - 1].SmoothedPrice && hourlyInfos[i].SmoothedPrice < hourlyInfos[i + 1].SmoothedPrice)
-                        {
-                            sessions.AddNewSession(Modes.Charging, hourlyInfos[i], averagePrice);
-                        }
-
-                        if (hourlyInfos[i].SmoothedPrice > hourlyInfos[i - 1].SmoothedPrice && hourlyInfos[i].SmoothedPrice > hourlyInfos[i + 1].SmoothedPrice)
-                        {
-                            sessions.AddNewSession(Modes.Discharging, hourlyInfos[i], averagePrice);
-                        }
-                    }
-
-                    // Check the last element
-                    if (hourlyInfos.Count > 1)
-                    {
-                        if (hourlyInfos[hourlyInfos.Count - 1].SmoothedPrice < hourlyInfos[hourlyInfos.Count - 2].SmoothedPrice)
-                            sessions.AddNewSession(Modes.Charging, hourlyInfos[hourlyInfos.Count - 1], averagePrice);
-
-                        if (hourlyInfos[hourlyInfos.Count - 1].SmoothedPrice > hourlyInfos[hourlyInfos.Count - 2].SmoothedPrice)
-                            sessions.AddNewSession(Modes.Discharging, hourlyInfos[hourlyInfos.Count - 1], averagePrice);
+                        sessions.AddNewSession(Modes.Discharging, hourlyInfos[0], averagePrice);
                     }
                 }
-                else
-                    _logger.LogWarning("HourlyInfos is empty!!");
 
-                return sessions;
+                // Check the elements in between.
+                for (var i = 1; i < hourlyInfos.Count - 1; i++)
+                {
+                    if (hourlyInfos[i].SmoothedPrice < hourlyInfos[i - 1].SmoothedPrice && hourlyInfos[i].SmoothedPrice < hourlyInfos[i + 1].SmoothedPrice)
+                    {
+                        sessions.AddNewSession(Modes.Charging, hourlyInfos[i], averagePrice);
+                    }
+
+                    if (hourlyInfos[i].SmoothedPrice > hourlyInfos[i - 1].SmoothedPrice && hourlyInfos[i].SmoothedPrice > hourlyInfos[i + 1].SmoothedPrice)
+                    {
+                        sessions.AddNewSession(Modes.Discharging, hourlyInfos[i], averagePrice);
+                    }
+                }
+
+                // Check the last element
+                if (hourlyInfos.Count > 1)
+                {
+                    if (hourlyInfos[hourlyInfos.Count - 1].SmoothedPrice < hourlyInfos[hourlyInfos.Count - 2].SmoothedPrice)
+                        sessions.AddNewSession(Modes.Charging, hourlyInfos[hourlyInfos.Count - 1], averagePrice);
+
+                    if (hourlyInfos[hourlyInfos.Count - 1].SmoothedPrice > hourlyInfos[hourlyInfos.Count - 2].SmoothedPrice)
+                        sessions.AddNewSession(Modes.Discharging, hourlyInfos[hourlyInfos.Count - 1], averagePrice);
+                }
+            }
+            else
+                _logger.LogWarning("HourlyInfos is empty!!");
+
+            return sessions;
+        }
+
+        private bool _isDisposed = false;
+
+        public override void Dispose()
+        {
+            if (!_isDisposed)
+            {
+                hourlyInfos.Clear();
+                hourlyInfos = null;
+                _sessyService = null;
+                _p1MeterService = null;
+                _dayAheadMarketService = null;
+                _solarEdgeService = null;
+                _solarService = null;
+                _batteryContainer = null;
+                _timeZoneService = null;
+
+                base.Dispose();
+
+                _isDisposed = true;
             }
         }
     }
+
 }

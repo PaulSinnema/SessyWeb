@@ -4,7 +4,7 @@ using static SessyController.Services.Items.Session;
 
 namespace SessyController.Services.Items
 {
-    public class Sessions
+    public class Sessions : IDisposable
     {
         private double _totalChargingCapacity { get; set; }
         private double _totalDischargingCapacity { get; set; }
@@ -15,7 +15,7 @@ namespace SessyController.Services.Items
         private SettingsConfig _settingsConfig { get; set; }
         private BatteryContainer _batteryContainer { get; set; }
 
-        private List<Session> _sessionList { get; set; }
+        private List<Session>? _sessionList { get; set; }
         private int _maxChargingHours { get; set; }
         private int _maxDischargingHours { get; set; }
         private double _cycleCost { get; set; }
@@ -316,6 +316,18 @@ namespace SessyController.Services.Items
         public override string ToString()
         {
             return $"Sessions: Count: {SessionList.Count}, Max charging hours: {_maxChargingHours}, Max discharging hours: {_maxDischargingHours}";
+        }
+
+        private bool _isDisposed = false;
+
+        public void Dispose()
+        {
+            if (!_isDisposed)
+            {
+                _sessionList.Clear();
+                _sessionList = null;
+                _isDisposed = true;
+            }
         }
     }
 }

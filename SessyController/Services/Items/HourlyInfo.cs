@@ -4,7 +4,7 @@ using static SessyController.Services.Items.Session;
 
 namespace SessyController.Services.Items
 {
-    public class HourlyInfo
+    public class HourlyInfo : IDisposable
     {
         public HourlyInfo(DateTime time, double price, IServiceScopeFactory serviceScopeFactory)
         {
@@ -12,23 +12,16 @@ namespace SessyController.Services.Items
             Price = price;
             _serviceScopeFactory = serviceScopeFactory;
 
-            using (var scope = _serviceScopeFactory.CreateScope())
-            {
-                _settingsConfigMonitor = scope.ServiceProvider.GetRequiredService<IOptionsMonitor<SettingsConfig>>();
-                _sessyBatteryConfigMonitor = scope.ServiceProvider.GetRequiredService<IOptionsMonitor<SessyBatteryConfig>>();
+            _scope = _serviceScopeFactory.CreateScope();
+                _settingsConfigMonitor = _scope.ServiceProvider.GetRequiredService<IOptionsMonitor<SettingsConfig>>();
 
                 _settingsConfigMonitor.OnChange((SettingsConfig settings) => _settingsConfig = settings);
-                _sessyBatteryConfigMonitor.OnChange((SessyBatteryConfig settings) => _sessyBatteryConfig = settings);
-            }
 
             _settingsConfig = _settingsConfigMonitor.CurrentValue;
-            _sessyBatteryConfig = _sessyBatteryConfigMonitor.CurrentValue;
         }
 
         private IOptionsMonitor<SettingsConfig> _settingsConfigMonitor;
-        private IOptionsMonitor<SessyBatteryConfig> _sessyBatteryConfigMonitor;
         private SettingsConfig _settingsConfig;
-        private SessyBatteryConfig _sessyBatteryConfig;
 
         /// <summary>
         /// Price from ENTSO-E
@@ -43,6 +36,7 @@ namespace SessyController.Services.Items
         public DateTime Time { get; set; }
 
         private IServiceScopeFactory _serviceScopeFactory;
+        private IServiceScope _scope { get; set; }
 
         /// <summary>
         /// How much profit does this (dis)charge give?
@@ -206,6 +200,18 @@ namespace SessyController.Services.Items
         public override string ToString()
         {
             return $"{Time}: Charging: {Charging}, Discharging: {Discharging}, Zero Net Home: {ZeroNetHome}, Price: {Price}, Charge left: {ChargeLeft}";
+        }
+
+        private bool _isDisposed = false;
+
+        public void Dispose()
+        {
+            if(!_isDisposed)
+            {
+                _scope.Dispose();
+
+                _isDisposed = true;
+            }    
         }
     }
 }

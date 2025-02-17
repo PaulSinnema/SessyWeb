@@ -20,6 +20,8 @@ namespace SessyController.Services
 
         private IServiceScopeFactory _serviceScopeFactory { get; set; }
 
+        private IServiceScope _scope;
+
         private LoggingService<EnergyMonitorService> _logger { get; set; }
 
         public EnergyMonitorService(LoggingService<EnergyMonitorService> logger,
@@ -34,13 +36,19 @@ namespace SessyController.Services
             _timeZoneService = timeZoneService;
             _serviceScopeFactory = serviceScopeFactory;
 
-            using (var scope = _serviceScopeFactory.CreateScope())
-            {
-                _energyHistoryService = scope.ServiceProvider.GetRequiredService<EnergyHistoryService>();
-                _p1MeterService = scope.ServiceProvider.GetRequiredService<P1MeterService>();
-            }
+            _scope = _serviceScopeFactory.CreateScope();
+
+            _energyHistoryService = _scope.ServiceProvider.GetRequiredService<EnergyHistoryService>();
+            _p1MeterService = _scope.ServiceProvider.GetRequiredService<P1MeterService>();
 
             _p1MeterContainer = new P1MeterContainer(_sessyP1ConfigMonitor, _p1MeterService);
+        }
+
+        public override Task StopAsync(CancellationToken cancellationToken)
+        {
+            _scope.Dispose();
+
+            return base.StopAsync(cancellationToken);
         }
 
         protected override async Task ExecuteAsync(CancellationToken cancelationToken)
@@ -59,7 +67,7 @@ namespace SessyController.Services
                 try
                 {
                     var now = _timeZoneService.Now;
-                    var delayTime = 60 - now.Minute;
+                    var delayTime = 60 - now.Minute + 1; // 1 Minute extra to be sure.
 
                     await Task.Delay(TimeSpan.FromMinutes(delayTime), cancelationToken);
                 }
@@ -73,7 +81,7 @@ namespace SessyController.Services
         private async Task Process(CancellationToken cancelationToken)
         {
 
-            while(!_weatherService.Initialized)
+            while (!_weatherService.Initialized)
                 await Task.Delay(TimeSpan.FromSeconds(1), cancelationToken);
 
             if (_weatherService.Initialized)

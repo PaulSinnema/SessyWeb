@@ -5,21 +5,22 @@ using SessyData.Model;
 namespace SessyData.Helpers
 {
 
-    public class DbHelper
+    public class DbHelper : IDisposable
     {
         private readonly IServiceScopeFactory _serviceScopeFactory;
+        private IServiceScope _scope { get; set; }
 
         public DbHelper(IServiceScopeFactory serviceScopeFactory)
         {
             _serviceScopeFactory = serviceScopeFactory;
+            _scope = _serviceScopeFactory.CreateScope();
         }
 
         public void ExecuteTransaction(Action<ModelContext> action)
         {
             try
             {
-                using var scope = _serviceScopeFactory.CreateScope();
-                var dbContext = scope.ServiceProvider.GetRequiredService<ModelContext>();
+                var dbContext = _scope.ServiceProvider.GetRequiredService<ModelContext>();
                 using var transaction = dbContext.Database.BeginTransaction();
 
                 try
@@ -44,13 +45,23 @@ namespace SessyData.Helpers
         {
             try
             {
-                using var scope = _serviceScopeFactory.CreateScope();
-                var dbContext = scope.ServiceProvider.GetRequiredService<ModelContext>();
+                var dbContext = _scope.ServiceProvider.GetRequiredService<ModelContext>();
+
                 return queryFunc(dbContext);
             }
             catch (Exception ex)
             {
                 throw new InvalidOperationException($"Database query error: {ex.Message}", ex);
+            }
+        }
+
+        private bool _isDisposed = false;
+
+        public void Dispose()
+        {
+            if(!_isDisposed)
+            {
+                _scope.Dispose();
             }
         }
     }

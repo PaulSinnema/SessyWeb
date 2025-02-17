@@ -9,16 +9,17 @@ namespace SessyController.Services
 {
     public class SessyMonitorService : BackgroundService
     {
-        private LoggingService<SessyMonitorService> _logger;
-        private IOptionsMonitor<SettingsConfig> _settingsConfigMonitor;
-        private IOptionsMonitor<SessyBatteryConfig> _sessyBatteryConfigMonitor;
-        private TimeZoneService _timeZoneService;
-        private IServiceScopeFactory _serviceScopeFactory;
-        private SessyStatusHistoryService _sessyStatusHistoryService;
-        private SettingsConfig _settingsConfig;
-        private SessyBatteryConfig _sessyBatteryConfig;
-        private SessyService _sessyService;
-        private BatteryContainer _batteryContainer;
+        private LoggingService<SessyMonitorService> _logger { get; set; }
+        private IOptionsMonitor<SettingsConfig> _settingsConfigMonitor { get; set; }
+        private IOptionsMonitor<SessyBatteryConfig> _sessyBatteryConfigMonitor { get; set; }
+        private TimeZoneService _timeZoneService { get; set; }
+        private IServiceScopeFactory _serviceScopeFactory { get; set; }
+        private SessyStatusHistoryService _sessyStatusHistoryService { get; set; }
+        private SettingsConfig _settingsConfig { get; set; }
+        private SessyBatteryConfig _sessyBatteryConfig { get; set; }
+        private IServiceScope _scope { get; set; }
+        private SessyService _sessyService { get; set; }
+        private BatteryContainer _batteryContainer { get; set; }
 
         public SessyMonitorService(LoggingService<SessyMonitorService> logger,
                                   IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
@@ -35,12 +36,12 @@ namespace SessyController.Services
             _settingsConfig = settingsConfigMonitor.CurrentValue;
             _sessyBatteryConfig = _sessyBatteryConfigMonitor.CurrentValue;
 
-            using (var scope = _serviceScopeFactory.CreateScope())
-            {
-                _sessyService = scope.ServiceProvider.GetRequiredService<SessyService>();
-                _batteryContainer = scope.ServiceProvider.GetRequiredService<BatteryContainer>();
-                _sessyStatusHistoryService = scope.ServiceProvider.GetRequiredService<SessyStatusHistoryService>();
-            }
+            _scope = _serviceScopeFactory.CreateScope();
+            
+                _sessyService = _scope.ServiceProvider.GetRequiredService<SessyService>();
+                _batteryContainer = _scope.ServiceProvider.GetRequiredService<BatteryContainer>();
+                _sessyStatusHistoryService = _scope.ServiceProvider.GetRequiredService<SessyStatusHistoryService>();
+            
         }
 
         protected override async Task ExecuteAsync(CancellationToken cancelationToken)
@@ -97,6 +98,18 @@ namespace SessyController.Services
             });
 
             _sessyStatusHistoryService.StoreSessyStatusHistoryList(statusList);
+        }
+
+        private bool _isDisposed = false;
+
+        public override void Dispose()
+        {
+            if(!_isDisposed)
+            {
+                _scope.Dispose();
+
+                base.Dispose();
+            }
         }
     }
 }

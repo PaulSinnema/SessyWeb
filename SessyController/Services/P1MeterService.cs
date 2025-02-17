@@ -9,17 +9,21 @@ using SessyController.Configurations;
 /// </summary>
 public class P1MeterService
 {
-    private readonly IHttpClientFactory _httpClientFactory;
-    private readonly SessyP1Config _p1Configuration;
+    private IHttpClientFactory _httpClientFactory { get; set; }
+    private IOptionsMonitor<SessyP1Config> _p1ConfigMonitor { get; set; }
+    private SessyP1Config _p1Configuration { get; set; }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="P1MeterService"/> class.
     /// </summary>
     /// <param name="httpClientFactory">The HTTP client factory for creating HTTP clients.</param>
-    public P1MeterService(IHttpClientFactory httpClientFactory, IOptions<SessyP1Config> p1Config)
+    public P1MeterService(IHttpClientFactory httpClientFactory, IOptionsMonitor<SessyP1Config> p1ConfigMonitor)
     {
         _httpClientFactory = httpClientFactory;
-        _p1Configuration = p1Config.Value;
+        _p1ConfigMonitor = p1ConfigMonitor;
+        _p1Configuration = _p1ConfigMonitor.CurrentValue;
+
+        _p1ConfigMonitor.OnChange((settings) => _p1Configuration = settings);
     }
 
     /// <summary>
