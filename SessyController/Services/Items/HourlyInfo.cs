@@ -59,6 +59,8 @@ namespace SessyController.Services.Items
 
         public double SolarPower { get; set; }
 
+        public double SolarPowerInWatts => SolarPower * 1000;
+
         public double SolarPowerVisual => SolarPower / 10 / _settingsConfig.SolarCorrection;
 
         private bool _charging = false;
@@ -186,7 +188,9 @@ namespace SessyController.Services.Items
         /// </summary>
         public bool ZeroNetHome
         {
-            get => !(Charging || Discharging) && Profit > _settingsConfig.NetZeroHomeMinProfit;
+            get => !(Charging || Discharging) &&
+                (Profit > _settingsConfig.NetZeroHomeMinProfit ||
+                SolarPowerInWatts > _settingsConfig.RequiredHomeEnergy / 24);
         }
 
         /// <summary>
@@ -199,7 +203,7 @@ namespace SessyController.Services.Items
         /// </summary>
         public override string ToString()
         {
-            return $"{Time}: Charging: {Charging}, Discharging: {Discharging}, Zero Net Home: {ZeroNetHome}, Price: {Price}, Charge left: {ChargeLeft}";
+            return $"{Time}: Charging: {Charging}, Discharging: {Discharging}, Zero Net Home: {ZeroNetHome}, Price: {Price}, Charge left: {ChargeLeft}, Solar power {SolarPower}";
         }
 
         private bool _isDisposed = false;

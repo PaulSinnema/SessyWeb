@@ -102,6 +102,8 @@ namespace SessyController.Services
 
                         if (currentHourlyInfo != null)
                         {
+                            currentHourlyInfo.SolarPower = 0.0;
+
                             foreach (var endpoint in _powerSystemsConfig.Endpoints.Values)
                             {
                                 var longitude = endpoint.Longitude;
@@ -116,7 +118,7 @@ namespace SessyController.Services
                                 {
                                     double solarFactor = GetSolarFactor(solarAzimuth, solarAltitude, solarPanel.Orientation, solarPanel.Tilt);
 
-                                    currentHourlyInfo.SolarPower = CalculateSolarPower(uurVerwachting.GlobalRadiation, solarFactor, solarPanel, solarAltitude);
+                                    currentHourlyInfo.SolarPower += CalculateSolarPower(uurVerwachting.GlobalRadiation, solarFactor, solarPanel, solarAltitude);
 
                                     currentHourlyInfo.SolarGlobalRadiation = uurVerwachting.GlobalRadiation;
                                 }

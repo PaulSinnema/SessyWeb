@@ -606,6 +606,8 @@ namespace SessyController.Services
                         default:
                             break;
                     }
+
+                    charge += hourlyInfo.SolarPowerInWatts;
                 }
 
                 if (hourlyInfo.Time < now.Date.AddHours(now.Hour))

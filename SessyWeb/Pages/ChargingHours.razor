@@ -12,9 +12,9 @@
 @if (HourlyInfos != null && HourlyInfos.Count() != 0)
 {
     <div style="width: 100%; overflow: auto;">
-        @* 		<div>Total expected solarpower: </div>
+        		<div>Total expected solarpower: </div>
 		<div>@TotalSolarPowerExpected</div>
- *@		<RadzenChart Style=@GraphStyle>
+		<RadzenChart Style=@GraphStyle>
             <RadzenLegend Position="LegendPosition.Top" Visible="true" />
             <RadzenChartTooltipOptions Shared="false" Visible="true" />
             <RadzenColumnSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Price" LineType="LineType.Dashed" ValueProperty="Price">
