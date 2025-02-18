@@ -20,7 +20,7 @@
             <RadzenPanel>
                 <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center">
                     <RadzenLabel Text="Theme:" Style="margin-right: 10px;"/>
-                    <RadzenDropDown Style="width: 100%;"
+                    <RadzenDropDown Style="width: 200px;"
                                     Name="ThemeDropDown"
                                     TValue="string"
                                     Value="@ThemeService.Theme"
@@ -30,6 +30,8 @@
                                     ValueProperty=@nameof(Theme.Value) />
                 </RadzenStack>
             </RadzenPanel>
+
+            <Clock />
         </RadzenStack>
     </RadzenHeader>
     <RadzenPanelMenu DisplayStyle="@DisplayStyle">
