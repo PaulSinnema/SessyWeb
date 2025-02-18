@@ -68,6 +68,15 @@ namespace SessyController.Services.Items
         }
 
         /// <summary>
+        /// State of charge of all Sessy batteries in Watts.
+        /// </summary>
+        /// <returns></returns>
+        public async Task<double> GetStateOfChargeInWatts()
+        {
+            return (await GetStateOfCharge()) * GetTotalCapacity();
+        }
+
+        /// <summary>
         /// Get the total capacity of all batteries.
         /// </summary>
         public double GetTotalCapacity()

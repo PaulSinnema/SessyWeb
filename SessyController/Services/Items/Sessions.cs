@@ -72,6 +72,16 @@ namespace SessyController.Services.Items
             return false;
         }
 
+        /// <summary>
+        /// Return the session that contains the hourlyinfo object.
+        /// </summary>
+        public Session? GetSession(HourlyInfo hourlyInfo)
+        {
+            return SessionList
+                .Where(se => se.GetHourlyInfoList().Contains(hourlyInfo))
+                .FirstOrDefault();
+        }
+
         public void RemoveFromSession(HourlyInfo hourlyInfo)
         {
             foreach (var session in _sessionList)

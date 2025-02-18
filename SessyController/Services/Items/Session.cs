@@ -20,7 +20,7 @@ namespace SessyController.Services.Items
 
         public Modes Mode
         {
-            get 
+            get
             {
                 return _mode;
             }
@@ -66,6 +66,11 @@ namespace SessyController.Services.Items
         public DateTime FirstDate => First?.Time ?? DateTime.MinValue;
 
         /// <summary>
+        /// The max this session needs to charge to.
+        /// </summary>
+        public double MaxChargeNeeded { get; set; }
+
+        /// <summary>
         /// The last date in the session
         /// </summary>
         public DateTime LastDate => Last?.Time ?? DateTime.MaxValue;
@@ -80,6 +85,7 @@ namespace SessyController.Services.Items
             Mode = mode;
             _batteryContainer = batteryContainer;
             _settingsConfig = settingsConfig;
+            MaxChargeNeeded = _batteryContainer.GetTotalCapacity();
         }
 
         public IReadOnlyCollection<HourlyInfo> GetHourlyInfoList() => HourlyInfos.AsReadOnly();
@@ -105,6 +111,14 @@ namespace SessyController.Services.Items
         {
             hourlyInfo.DisableCharging();
             hourlyInfo.DisableDischarging();
+        }
+
+        /// <summary>
+        /// Returns true is the average price of this session is cheaper than the session submitted.
+        /// </summary>
+        public bool IsCheaper(Session session)
+        {
+            return HourlyInfos.Min(hi => hi.Price) < session.HourlyInfos.Min(hi => hi.Price);
         }
 
         /// <summary>
@@ -173,39 +187,24 @@ namespace SessyController.Services.Items
             return changed;
         }
 
-        public override string ToString()
-        {
-            return $"Session: {Mode}, FirstDate: {FirstDate}, LastDate {LastDate}, Count: {HourlyInfos.Count}, MaxHours: {MaxHours}";
-        }
-
         /// <summary>
         /// Get the hours needed to charge the batteries to 100%.
         /// </summary>
         internal int GetChargingHours()
         {
-            if (First != null)
-            {
-                var index = HourlyInfos.IndexOf(First);
+            return (int)Math.Ceiling(MaxChargeNeeded / _batteryContainer.GetChargingCapacity());
+        }
 
-                if (index > 0)
-                {
-                    var chargeLeft = HourlyInfos[index - 1].ChargeLeft;
-                    var toCharge = _batteryContainer.GetTotalCapacity() - chargeLeft;
-
-                    var chargingHours = (int)Math.Ceiling(toCharge / _batteryContainer.GetChargingCapacity());
-
-                    return chargingHours;
-                }
-            }
-
-            return MaxHours;
+        public override string ToString()
+        {
+            return $"Session: {Mode}, FirstDate: {FirstDate}, LastDate {LastDate}, Count: {HourlyInfos.Count}, MaxChargeNeeded: {MaxChargeNeeded}, MaxHours: {MaxHours}";
         }
 
         private bool _isDisposed = false;
 
         public void Dispose()
         {
-            if(!_isDisposed)
+            if (!_isDisposed)
             {
                 _isDisposed = true;
             }

@@ -11,83 +11,83 @@
 
 @if (HourlyInfos != null && HourlyInfos.Count() != 0)
 {
-	<div style="width: 100%; overflow: auto;">
-@* 		<div>Total expected solarpower: </div>
+    <div style="width: 100%; overflow: auto;">
+        @* 		<div>Total expected solarpower: </div>
 		<div>@TotalSolarPowerExpected</div>
  *@		<RadzenChart Style=@GraphStyle>
-			<RadzenLegend Position="LegendPosition.Top" Visible="true" />
-			<RadzenChartTooltipOptions Shared="false" Visible="true" />
-			<RadzenColumnSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Price" LineType="LineType.Dashed" ValueProperty="Price">
-				<TooltipTemplate Context="data">
-					<ChargingHoursTooltip HourlyInfo=@data />
-				</TooltipTemplate>
-				<ChildContent>
-					<RadzenMarkers Visible="false" />
-					<RadzenSeriesDataLabels Visible="true" />
-				</ChildContent>
-			</RadzenColumnSeries>
-			<RadzenLineSeries Data="@HourlyInfos" Smooth="true" CategoryProperty="Time" Title="Smoothed price" LineType="LineType.Dotted" ValueProperty="SmoothedPrice">
-				<TooltipTemplate Context="data">
-					<ChargingHoursTooltip HourlyInfo=@data />
-				</TooltipTemplate>
-				<ChildContent>
-					<RadzenMarkers Visible="false" />
-					<RadzenSeriesDataLabels Visible="false" />
-				</ChildContent>
-			</RadzenLineSeries>
-				<RadzenLineSeries Data="@HourlyInfos" Smooth="true" CategoryProperty="Time" Title="Charging" ValueProperty="VisualizeInChart">
-				<TooltipTemplate Context="data">
-					<ChargingHoursTooltip HourlyInfo=@data />
-				</TooltipTemplate>
-				<ChildContent>
-					<RadzenMarkers Visible="false" />
-					<RadzenSeriesDataLabels Visible="false" />
-				</ChildContent>
-			</RadzenLineSeries>
-			<RadzenColumnSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Profit" ValueProperty="ProfitVisual" >
-				<TooltipTemplate Context="data">
-					<ChargingHoursTooltip HourlyInfo=@data />
-				</TooltipTemplate>
-				<ChildContent>
-					<RadzenMarkers Visible="false" />
-					<RadzenSeriesDataLabels Visible="false" />
-				</ChildContent>
-			</RadzenColumnSeries>
-				<RadzenLineSeries Data="@HourlyInfos" Smooth="true" CategoryProperty="Time" Title="Charge remaining" ValueProperty="ChargeLeftVisual">
-				<TooltipTemplate Context="data">
-					<ChargingHoursTooltip HourlyInfo=@data />
-				</TooltipTemplate>
-				<ChildContent>
-					<RadzenMarkers Visible="false" />
-					<RadzenSeriesDataLabels Visible="false" />
-				</ChildContent>
-			</RadzenLineSeries>
-				<RadzenLineSeries Data="@HourlyInfos" Smooth="true" CategoryProperty="Time" Title="Solar power" LineType="LineType.Dashed" ValueProperty="SolarPowerVisual" >
-				<TooltipTemplate Context="data">
-					<ChargingHoursTooltip HourlyInfo=@data />
-				</TooltipTemplate>
-				<ChildContent>
-					<RadzenMarkers Visible="false" />
-					<RadzenSeriesDataLabels Visible="false" />
-				</ChildContent>
-			</RadzenLineSeries>
-			<RadzenCategoryAxis Padding="20" Formatter="@FormatAsDayHour">
-				<RadzenGridLines Visible="true" />
-				<RadzenAxisTitle Text="Time" />
-			</RadzenCategoryAxis>
-			<RadzenValueAxis Formatter="@FormatAsPrice">
-				<RadzenGridLines Visible="true" />
-				<RadzenAxisTitle Text="Price" />
-			</RadzenValueAxis>
-			<RadzenBarOptions Radius="5" />
-		</RadzenChart>
-	</div>
+            <RadzenLegend Position="LegendPosition.Top" Visible="true" />
+            <RadzenChartTooltipOptions Shared="false" Visible="true" />
+            <RadzenColumnSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Price" LineType="LineType.Dashed" ValueProperty="Price">
+                <TooltipTemplate Context="data">
+                    <ChargingHoursTooltip HourlyInfo=@data />
+                </TooltipTemplate>
+                <ChildContent>
+                    <RadzenMarkers Visible="false" />
+                    <RadzenSeriesDataLabels Visible="true" />
+                </ChildContent>
+            </RadzenColumnSeries>
+            <RadzenLineSeries Data="@HourlyInfos" Smooth="true" CategoryProperty="Time" Title="Smoothed price" LineType="LineType.Dotted" ValueProperty="SmoothedPrice">
+                <TooltipTemplate Context="data">
+                    <ChargingHoursTooltip HourlyInfo=@data />
+                </TooltipTemplate>
+                <ChildContent>
+                    <RadzenMarkers Visible="false" />
+                    <RadzenSeriesDataLabels Visible="false" />
+                </ChildContent>
+            </RadzenLineSeries>
+            <RadzenLineSeries Data="@HourlyInfos" Smooth="true" CategoryProperty="Time" Title="Charging" ValueProperty="VisualizeInChart">
+                <TooltipTemplate Context="data">
+                    <ChargingHoursTooltip HourlyInfo=@data />
+                </TooltipTemplate>
+                <ChildContent>
+                    <RadzenMarkers Visible="false" />
+                    <RadzenSeriesDataLabels Visible="false" />
+                </ChildContent>
+            </RadzenLineSeries>
+            <RadzenColumnSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Profit" ValueProperty="ProfitVisual">
+                <TooltipTemplate Context="data">
+                    <ChargingHoursTooltip HourlyInfo=@data />
+                </TooltipTemplate>
+                <ChildContent>
+                    <RadzenMarkers Visible="false" />
+                    <RadzenSeriesDataLabels Visible="false" />
+                </ChildContent>
+            </RadzenColumnSeries>
+            <RadzenLineSeries Data="@HourlyInfos" Smooth="true" CategoryProperty="Time" Title="Charge remaining" ValueProperty="ChargeLeftVisual">
+                <TooltipTemplate Context="data">
+                    <ChargingHoursTooltip HourlyInfo=@data />
+                </TooltipTemplate>
+                <ChildContent>
+                    <RadzenMarkers Visible="false" />
+                    <RadzenSeriesDataLabels Visible="false" />
+                </ChildContent>
+            </RadzenLineSeries>
+            <RadzenLineSeries Data="@HourlyInfos" Smooth="true" CategoryProperty="Time" Title="Solar power" LineType="LineType.Dashed" ValueProperty="SolarPowerVisual">
+                <TooltipTemplate Context="data">
+                    <ChargingHoursTooltip HourlyInfo=@data />
+                </TooltipTemplate>
+                <ChildContent>
+                    <RadzenMarkers Visible="false" />
+                    <RadzenSeriesDataLabels Visible="false" />
+                </ChildContent>
+            </RadzenLineSeries>
+            <RadzenCategoryAxis Padding="20" Formatter="@FormatAsDayHour">
+                <RadzenGridLines Visible="true" />
+                <RadzenAxisTitle Text="Time" />
+            </RadzenCategoryAxis>
+            <RadzenValueAxis Formatter="@FormatAsPrice">
+                <RadzenGridLines Visible="true" />
+                <RadzenAxisTitle Text="Price" />
+            </RadzenValueAxis>
+            <RadzenBarOptions Radius="5" />
+        </RadzenChart>
+    </div>
 }
 else
 {
-	<div>
-		No prices yet, just a moment .....
-	</div>
+    <div>
+        No prices yet, just a moment .....
+    </div>
 }
 
 

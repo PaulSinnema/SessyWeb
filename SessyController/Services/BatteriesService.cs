@@ -231,11 +231,12 @@ namespace SessyController.Services
             if (currentHourlyInfo.Charging)
             {
                 bool batteriesAreFull = await AreAllBattiesFull(currentHourlyInfo);
+                bool chargeIsEnough = await IsMaxChargeNeededReached(currentHourlyInfo);
 
-                if (batteriesAreFull)
+                if (batteriesAreFull || chargeIsEnough)
                 {
                     StopChargingSession(sessions, currentHourlyInfo);
-                    _logger.LogWarning("Warning: Charging session stopped because batteries are full.");
+                    _logger.LogWarning("Warning: Charging session stopped because batteries are full (enough).");
                 }
             }
             else if (currentHourlyInfo.Discharging)
@@ -248,6 +249,23 @@ namespace SessyController.Services
                     _logger.LogWarning("Warning: Discharging session stopped because batteries are empty.");
                 }
             }
+        }
+
+        private async Task<bool> IsMaxChargeNeededReached(HourlyInfo currentHourlyInfo)
+        {
+            var session = sessions.GetSession(currentHourlyInfo);
+
+            if (session.MaxChargeNeeded > 0.0)
+            {
+                var currentChargeState = await _batteryContainer.GetStateOfChargeInWatts();
+
+                if (session.MaxChargeNeeded >= currentChargeState)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -415,7 +433,6 @@ namespace SessyController.Services
                 Sessions localSessions = CreateSessions(hourlyInfos);
 
                 RemoveExtraChargingSessions(localSessions);
-
 #if DEBUG
                 CheckSessions(hourlyInfos, localSessions);
 #endif
@@ -499,7 +516,9 @@ namespace SessyController.Services
             }
             while (ShrinkSessions(sessions));
 
-            sessions.CalculateProfits(_timeZoneService);
+            sessions.CalculateProfits(_timeZoneService!);
+
+            DetermineMaxToCharge(sessions);
         }
 
         /// <summary>
@@ -542,7 +561,9 @@ namespace SessyController.Services
                     {
                         case (true, false, false): // Charging
                             {
-                                charge = Math.Min(charge + chargingCapacity, totalCapacity);
+                                var session = sessions.GetSession(hourlyInfo);
+
+                                charge = Math.Min(charge + chargingCapacity, session.MaxChargeNeeded);
 
                                 if (lastChargingSession.Count > 0)
                                 {
@@ -620,7 +641,7 @@ namespace SessyController.Services
                 changed3 = false;
                 changed4 = false;
 
-                changed1 = MergeSessions(sessions);
+                changed1 = CombineSessions(sessions);
 
                 changed2 = RemoveExtraHours(sessions);
 
@@ -770,7 +791,7 @@ namespace SessyController.Services
         /// <summary>
         /// Merge succeeding sessions of the same type.
         /// </summary>
-        private bool MergeSessions(Sessions sessions)
+        private bool CombineSessions(Sessions sessions)
         {
             var changed = false;
 
@@ -811,6 +832,65 @@ namespace SessyController.Services
         private bool ShrinkSessions(Sessions sessions)
         {
             bool changed = false;
+
+            changed = RemoveHoursAboveChargeNeeded(sessions);
+
+            return changed;
+        }
+
+        /// <summary>
+        /// This routine detects charge session that follow each other and determines how much
+        /// charge is needed for the session.
+        /// </summary>
+        private bool DetermineMaxToCharge(Sessions sessions)
+        {
+            var changed = false;
+            Session? previousSession = null;
+            double maxChargeNeeded = 0.0;
+            var totalCapacity = _batteryContainer.GetTotalCapacity();
+
+            sessions.SessionList.ToList().ForEach(hi => hi.MaxChargeNeeded = totalCapacity);
+
+            foreach (var session in sessions.SessionList.OrderBy(se => se.FirstDate))
+            {
+                if (previousSession != null)
+                {
+                    if (session.Mode == Modes.Charging &&
+                        previousSession.Mode == Modes.Charging)
+                    { 
+                        if (previousSession.IsCheaper(session))
+                        {
+                            maxChargeNeeded = totalCapacity;
+                        }
+                        else
+                        {
+                            var infoObjectsBetween = hourlyInfos!
+                                .Where(hi => hi.Time < session.FirstDate && hi.Time > previousSession.LastDate && hi.ZeroNetHome)
+                                .ToList(); 
+
+                            if (infoObjectsBetween.Any())
+                            {
+                                // TODO: Determine needs from historic data.
+                                maxChargeNeeded = (_settingsConfig.RequiredHomeEnergy / 24) * infoObjectsBetween.Count();
+                                maxChargeNeeded *= 1.3; // We take a little more to be sure that we have enough.
+
+                                previousSession.MaxChargeNeeded = maxChargeNeeded;
+
+                                changed = true;
+                            }
+                        }
+                    }
+                }
+
+                previousSession = session;
+            }
+
+            return changed;
+        }
+
+        private static bool RemoveHoursAboveChargeNeeded(Sessions sessions)
+        {
+            var changed = false;
 
             foreach (var session in sessions.SessionList)
             {
