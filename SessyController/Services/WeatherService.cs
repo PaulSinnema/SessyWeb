@@ -86,7 +86,11 @@ namespace SessyController.Services
                 });
             }
 
-            _solarDataService.Store(statusList, (item, db) => !db.SolarData.Any(sd => sd.Time == item.Time));
+            _solarDataService.Store(statusList, (item, db) => 
+            {
+                var result = db.SolarData.Any(sd => sd.Time == item.Time);
+                return result;
+            });
         }
 
         private async Task<WeerData?> GetWeatherDataAsync()

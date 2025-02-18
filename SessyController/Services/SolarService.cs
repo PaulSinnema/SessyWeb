@@ -17,6 +17,8 @@ namespace SessyController.Services
 
         private SolarHistoryService _solarHistoryService { get; set; }
 
+        private SolarDataService _solarDataService { get; set; }
+
         private SettingsConfig _settingsConfig { get; set; }
         private IOptionsMonitor<SettingsConfig> _settingsConfigMonitor { get; set; }
 
@@ -43,6 +45,7 @@ namespace SessyController.Services
                             IOptions<PowerSystemsConfig> powerSystemsConfig,
                             WeatherService weatherService,
                             SolarHistoryService solarHistoryService,
+                            SolarDataService solarDataService,
                             IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
                             IServiceScopeFactory serviceScopeFactory)
         {
@@ -52,6 +55,7 @@ namespace SessyController.Services
             _powerSystemsConfig = powerSystemsConfig.Value;
             _weatherService = weatherService;
             _solarHistoryService = solarHistoryService;
+            _solarDataService = solarDataService;
             _settingsConfigMonitor = settingsConfigMonitor;
             _serviceScopeFactory = serviceScopeFactory;
 
@@ -85,20 +89,16 @@ namespace SessyController.Services
         {
             if (_weatherService.Initialized)
             {
-                var weatherData = _weatherService.GetWeatherData();
-
-                if (weatherData != null && weatherData.UurVerwachting != null)
+                var data = _solarDataService.GetList((db) =>
                 {
-                    StoreSolarRadiationData(weatherData);
+                    return db.SolarData.ToList();
+                });
 
-                    foreach (UurVerwachting? uurVerwachting in weatherData.UurVerwachting)
+                if (data != null)
+                {
+                    foreach (SolarData? solarData in data)
                     {
-                        if (uurVerwachting == null || uurVerwachting.Uur == null)
-                            throw new InvalidOperationException($"Uurverwachting or Uur is null");
-
-                        DateTime dateTime = DateTime.ParseExact(uurVerwachting.Uur, "dd-MM-yyyy HH:mm", CultureInfo.InvariantCulture);
-
-                        var currentHourlyInfo = hourlyInfos.Where(hi => hi.Time == dateTime).FirstOrDefault();
+                        var currentHourlyInfo = hourlyInfos.Where(hi => hi.Time == solarData.Time).FirstOrDefault();
 
                         if (currentHourlyInfo != null)
                         {
@@ -112,15 +112,15 @@ namespace SessyController.Services
                                 double solarAltitude;
                                 double solarAzimuth;
 
-                                CalculateSolarPosition(dateTime.Hour, latitude, longitude, endpoint.TimeZoneOffset, out solarAltitude, out solarAzimuth);
+                                CalculateSolarPosition(solarData.Time!.Value.Hour, latitude, longitude, endpoint.TimeZoneOffset, out solarAltitude, out solarAzimuth);
 
                                 foreach (PhotoVoltaic solarPanel in endpoint.SolarPanels.Values)
                                 {
                                     double solarFactor = GetSolarFactor(solarAzimuth, solarAltitude, solarPanel.Orientation, solarPanel.Tilt);
 
-                                    currentHourlyInfo.SolarPower += CalculateSolarPower(uurVerwachting.GlobalRadiation, solarFactor, solarPanel, solarAltitude);
+                                    currentHourlyInfo.SolarPower += CalculateSolarPower(solarData.GlobalRadiation, solarFactor, solarPanel, solarAltitude);
 
-                                    currentHourlyInfo.SolarGlobalRadiation = uurVerwachting.GlobalRadiation;
+                                    currentHourlyInfo.SolarGlobalRadiation = solarData.GlobalRadiation;
                                 }
                             }
                         }
@@ -129,24 +129,7 @@ namespace SessyController.Services
             }
         }
 
-        private void StoreSolarRadiationData(WeerData? weatherData)
-        {
-            var historyList = new List<SolarHistory>();
-
-            foreach (var item in weatherData?.UurVerwachting.Where(uv => uv.TimeStamp.HasValue))
-            {
-                historyList.Add(new SolarHistory
-                {
-                    GeneratedPower = 0.0,
-                    GlobalRadiation = item.GlobalRadiation,
-                    Time = item.TimeStamp!.Value
-                });
-            }
-
-            _solarHistoryService.Store(historyList, (item, db) => !db.SolarHistory.Any(sh => sh.Time == item.Time));
-        }
-
-        public double CalculateSolarPower(int globalRadiation, double solarFactor, PhotoVoltaic solarPanel, double solarAltitude)
+        public double CalculateSolarPower(double globalRadiation, double solarFactor, PhotoVoltaic solarPanel, double solarAltitude)
         {
             double totalPeakPower = solarPanel.HighestDailySolarProduction;
 

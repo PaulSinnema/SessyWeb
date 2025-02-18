@@ -259,7 +259,7 @@ namespace SessyController.Services
             {
                 var currentChargeState = await _batteryContainer.GetStateOfChargeInWatts();
 
-                if (session.MaxChargeNeeded >= currentChargeState)
+                if (session.MaxChargeNeeded < currentChargeState)
                 {
                     return true;
                 }
