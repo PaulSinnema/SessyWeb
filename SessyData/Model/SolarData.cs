@@ -10,5 +10,10 @@ namespace SessyData.Model
         public int Id { get; set; }
         public DateTime? Time { get; set; }
         public double GlobalRadiation { get; set; }
+
+        public override string ToString()
+        {
+            return $"Time: {Time}, Global radiation {GlobalRadiation}";
+        }
     }
 }

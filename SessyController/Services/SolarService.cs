@@ -89,9 +89,15 @@ namespace SessyController.Services
         {
             if (_weatherService.Initialized)
             {
+                var startDate = hourlyInfos.Min(hi => hi.Time);
+                var endDate = hourlyInfos.Max(hi => hi.Time);
+
                 var data = _solarDataService.GetList((db) =>
                 {
-                    return db.SolarData.ToList();
+                    return db.SolarData
+                        .Where(sd => sd.Time >= startDate && sd.Time <= endDate)
+                        .OrderBy(sd => sd.Time)
+                        .ToList();
                 });
 
                 if (data != null)
