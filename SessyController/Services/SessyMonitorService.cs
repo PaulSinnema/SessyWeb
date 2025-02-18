@@ -97,7 +97,7 @@ namespace SessyController.Services
                 StatusDetails = powerStatus.Sessy?.SystemStateDetails
             });
 
-            _sessyStatusHistoryService.StoreSessyStatusHistoryList(statusList);
+            _sessyStatusHistoryService.Store(statusList);
         }
 
         private bool _isDisposed = false;

@@ -1,5 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Radzen;
 using Radzen.Blazor;
 using SessyCommon.Extensions;
@@ -83,9 +82,9 @@ builder.Services.AddScoped<P1MeterService>();
 builder.Services.AddScoped<TcpClientProvider>();
 builder.Services.AddScoped<SolarHistoryService>();
 builder.Services.AddScoped<SessyStatusHistoryService>();
-builder.Services.AddScoped<DbHelper>();
 builder.Services.AddScoped<ScreenSizeService>();
 builder.Services.AddScoped<EnergyHistoryService>();
+builder.Services.AddScoped<DbHelper>();
 
 builder.Services.AddSingleton<BatteryContainer>();
 builder.Services.AddSingleton<TimeZoneService>();
@@ -94,6 +93,7 @@ builder.Services.AddSingleton<DayAheadMarketService>();
 builder.Services.AddSingleton<BatteriesService>();
 builder.Services.AddSingleton<SessyMonitorService>();
 builder.Services.AddSingleton<EnergyMonitorService>();
+builder.Services.AddSingleton<SolarDataService>();
 
 builder.Services.AddHostedService(provider => provider.GetRequiredService<DayAheadMarketService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<BatteriesService>());

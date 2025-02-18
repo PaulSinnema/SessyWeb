@@ -107,7 +107,7 @@ namespace SessyController.Services
 
         private EnergyHistory GetEnergyHistory(DateTime selectTime)
         {
-            var energyHistory = _energyHistoryService.GetEnergyHistory((ModelContext modelContext) =>
+            var energyHistory = _energyHistoryService.Get((ModelContext modelContext) =>
             {
                 return modelContext.EnergyHistory
                     .Where(eh => eh.Time == selectTime)
@@ -133,7 +133,7 @@ namespace SessyController.Services
                 Temperature = hourExpectancy.Temp
             });
 
-            _energyHistoryService.StoreSessyStatusHistoryList(energyHistoryList);
+            _energyHistoryService.Store(energyHistoryList);
         }
     }
 }

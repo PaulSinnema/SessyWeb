@@ -1,28 +1,12 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.Extensions.DependencyInjection;
 using SessyData.Helpers;
 using SessyData.Model;
 
 namespace SessyData.Services
 {
-    public class SessyStatusHistoryService
+    public class SessyStatusHistoryService : ServiceBase<SessyStatusHistory>
     {
-        private DbHelper _dbHelper { get; set; }
-
-        public SessyStatusHistoryService(DbHelper dbHelper)
-        {
-            _dbHelper = dbHelper;
-        }
-
-        public void StoreSessyStatusHistoryList(List<SessyStatusHistory> statusHistories)
-        {
-            _dbHelper.ExecuteTransaction(db =>
-            {
-                foreach (var statusHistory in statusHistories)
-                {
-                    db.SessyStatusHistory.Add(statusHistory);
-                }
-            });
-        }
+        public SessyStatusHistoryService(IServiceScopeFactory serviceScopeFactory) : base(serviceScopeFactory) { }
 
         public List<GroupedSessyStatus> GetSessyStatusHistory(Func<ModelContext, List<GroupedSessyStatus>> func)
         {

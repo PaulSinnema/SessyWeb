@@ -143,7 +143,7 @@ namespace SessyController.Services
                 });
             }
 
-            _solarHistoryService.StoreSolarHistoryList(historyList);
+            _solarHistoryService.Store(historyList, (item, db) => !db.SolarHistory.Any(sh => sh.Time == item.Time));
         }
 
         public double CalculateSolarPower(int globalRadiation, double solarFactor, PhotoVoltaic solarPanel, double solarAltitude)

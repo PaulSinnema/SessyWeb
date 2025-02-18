@@ -34,7 +34,7 @@ namespace SessyWeb.Pages
             var now = _timeZoneService!.Now;
             var filter = energyGrid.ColumnsCollection;
 
-            EnergyHistoryList = _energyHistoryService!.GetEnergyHistoryList((ModelContext modelContext) =>
+            EnergyHistoryList = _energyHistoryService!.GetList((ModelContext modelContext) =>
             {
                 var query = modelContext.EnergyHistory
                     .OrderBy(eh => eh.Time)

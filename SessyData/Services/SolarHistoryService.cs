@@ -1,29 +1,10 @@
-﻿using SessyData.Helpers;
+﻿using Microsoft.Extensions.DependencyInjection;
 using SessyData.Model;
 
 namespace SessyData.Services
 {
-    public class SolarHistoryService
+    public class SolarHistoryService : ServiceBase<SolarHistory>
     {
-        private DbHelper _dbHelper { get; set; }
-
-        public SolarHistoryService(DbHelper dbHelper)
-        {
-            _dbHelper = dbHelper;
-        }
-
-        public void StoreSolarHistoryList(List<SolarHistory> solarHistories)
-        {
-            _dbHelper.ExecuteTransaction(db =>
-            {
-                foreach (var solarHistory in solarHistories)
-                {
-                    if (!db.SolarHistory.Any(sh => sh.Time == solarHistory.Time))
-                    {
-                        db.SolarHistory.Add(solarHistory);
-                    }
-                }
-            });
-        }
+        public SolarHistoryService(IServiceScopeFactory serviceScopeFactory) : base(serviceScopeFactory) { }
     }
 }

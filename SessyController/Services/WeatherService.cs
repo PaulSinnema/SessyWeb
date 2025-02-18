@@ -1,18 +1,19 @@
-﻿using System.Text.Json;
-using System.Text.Json.Serialization;
-using System.Threading;
-using Microsoft.Extensions.Options;
+﻿using Microsoft.Extensions.Options;
 using SessyController.Configurations;
 using SessyData.Model;
+using SessyData.Services;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace SessyController.Services
 {
     public class WeatherService : BackgroundService
     {
-        private readonly IHttpClientFactory _httpClientFactory;
-        private readonly LoggingService<SessyService> _logger;
-        private readonly TimeZoneService _timeZoneService;
-        private readonly WeatherExpectancyConfig _WeatherExpectancyConfig;
+        private IHttpClientFactory _httpClientFactory { get; set; }
+        private  SolarDataService _solarDataService { get; set; }
+        private  LoggingService<SessyService> _logger { get; set; }
+        private  TimeZoneService _timeZoneService { get; set; }
+        private  WeatherExpectancyConfig _WeatherExpectancyConfig { get; set; }
 
         private WeerData? WeatherData { get; set; }
 
@@ -21,11 +22,13 @@ namespace SessyController.Services
         public WeatherService(LoggingService<SessyService> logger,
                               TimeZoneService timeZoneService,
                               IHttpClientFactory httpClientFactory,
+                              SolarDataService solarDataService,
                               IOptions<WeatherExpectancyConfig> sunExpectancyConfig)
         {
             _logger = logger;
             _timeZoneService = timeZoneService;
             _httpClientFactory = httpClientFactory;
+            _solarDataService = solarDataService;
             _WeatherExpectancyConfig = sunExpectancyConfig.Value;
         }
 
@@ -43,7 +46,9 @@ namespace SessyController.Services
 
                     try
                     {
-                        WeatherData = await GetWeerDataAsync();
+                        WeatherData = await GetWeatherDataAsync();
+
+                        StoreWeatherData(WeatherData);
 
                     }
                     finally
@@ -68,7 +73,23 @@ namespace SessyController.Services
             _logger.LogInformation("Weather service stopped.");
         }
 
-        private async Task<WeerData?> GetWeerDataAsync()
+        private void StoreWeatherData(WeerData? weatherData)
+        {
+            var statusList = new List<SolarData>();
+
+            foreach (var uurverwachting in weatherData.UurVerwachting)
+            {
+                statusList.Add(new SolarData
+                {
+                    Time = uurverwachting.TimeStamp,
+                    GlobalRadiation = uurverwachting.GlobalRadiation
+                });
+            }
+
+            _solarDataService.Store(statusList, (item, db) => !db.SolarData.Any(sd => sd.Time == item.Time));
+        }
+
+        private async Task<WeerData?> GetWeatherDataAsync()
         {
             var client = _httpClientFactory.CreateClient();
             client.BaseAddress = new Uri(_WeatherExpectancyConfig.BaseUrl);
