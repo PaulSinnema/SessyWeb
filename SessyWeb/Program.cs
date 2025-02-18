@@ -80,7 +80,6 @@ builder.Services.AddScoped<SolarEdgeService>();
 builder.Services.AddScoped<SolarService>();
 builder.Services.AddScoped<P1MeterService>();
 builder.Services.AddScoped<TcpClientProvider>();
-builder.Services.AddScoped<SolarHistoryService>();
 builder.Services.AddScoped<SessyStatusHistoryService>();
 builder.Services.AddScoped<ScreenSizeService>();
 builder.Services.AddScoped<EnergyHistoryService>();

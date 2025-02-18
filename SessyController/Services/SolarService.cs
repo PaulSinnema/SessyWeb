@@ -15,8 +15,6 @@ namespace SessyController.Services
 
         private WeatherService _weatherService { get; set; }
 
-        private SolarHistoryService _solarHistoryService { get; set; }
-
         private SolarDataService _solarDataService { get; set; }
 
         private SettingsConfig _settingsConfig { get; set; }
@@ -44,7 +42,6 @@ namespace SessyController.Services
                             LoggingService<SolarEdgeService> logger,
                             IOptions<PowerSystemsConfig> powerSystemsConfig,
                             WeatherService weatherService,
-                            SolarHistoryService solarHistoryService,
                             SolarDataService solarDataService,
                             IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
                             IServiceScopeFactory serviceScopeFactory)
@@ -54,7 +51,6 @@ namespace SessyController.Services
             _logger = logger;
             _powerSystemsConfig = powerSystemsConfig.Value;
             _weatherService = weatherService;
-            _solarHistoryService = solarHistoryService;
             _solarDataService = solarDataService;
             _settingsConfigMonitor = settingsConfigMonitor;
             _serviceScopeFactory = serviceScopeFactory;

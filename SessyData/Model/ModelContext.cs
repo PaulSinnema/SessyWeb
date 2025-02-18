@@ -21,8 +21,6 @@ namespace SessyData.Model
 
         public DbSet<SessyStatusHistory> SessyStatusHistory => Set<SessyStatusHistory>();
 
-        public DbSet<SolarHistory> SolarHistory => Set<SolarHistory>();
-
         public DbSet<EnergyHistory> EnergyHistory => Set<EnergyHistory>();
 
         public DbSet<SolarData> SolarData => Set<SolarData>();

@@ -549,7 +549,6 @@ namespace SessyController.Services
                 // .Where(hp => hp.Time.Date.AddHours(hp.Time.Hour) >= localTimeHour)
                 .OrderBy(hp => hp.Time)
                 .ToList();
-            List<HourlyInfo> lastChargingSession = new List<HourlyInfo>();
 
             HourlyInfo? previous = null;
 
@@ -568,21 +567,8 @@ namespace SessyController.Services
                     {
                         case (true, false, false): // Charging
                             {
-                                var session = sessions.GetSession(hourlyInfo);
+                                charge = Math.Min(charge + chargingCapacity, totalCapacity);
 
-                                charge = Math.Min(charge + chargingCapacity, session.MaxChargeNeeded);
-
-                                if (lastChargingSession.Count > 0)
-                                {
-                                    var lastDateCharging = lastChargingSession.Max(hi => hi.Time);
-
-                                    if ((hourlyInfo.Time - lastDateCharging).Hours > 2)
-                                    {
-                                        lastChargingSession.Clear();
-                                    }
-                                }
-
-                                lastChargingSession.Add(hourlyInfo);
                                 break;
                             }
 
