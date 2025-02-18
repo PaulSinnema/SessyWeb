@@ -7,111 +7,75 @@
 }
 else
 {
-    <RadzenCard title="Sessy battery">
-        <RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
-            <RadzenFormField Text="Name" Style="flex: 1;">
-                <RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
-                    @Battery!.GetName()
-                </RadzenColumn>
-            </RadzenFormField>
-        </RadzenRow>
+    <RadzenCard title="Sessy battery" Style="background-color: transparent; width:100%;">
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center">
+            <RadzenStack Orientation="Orientation.Vertical" AlignItems="AlignItems.Center">
+                <RadzenImage Path="/images/sessy_transparant.png" Style="margin-right:20px;" />
+            </RadzenStack>
+            <RadzenStack Orientation="Orientation.Vertical" AlignItems="AlignItems.Normal" Style="width: 100%; max-width: 800px;">
+                <RadzenCard class="rz-background-color-primary-light rz-shadow-0 rz-border-radius-0 rz-p-8" style="margin: 1rem calc(-1 * var(--rz-card-padding));">
+                    <RadzenText TextStyle="TextStyle.H6" class="rz-color-on-primary-light"><strong>@Battery!.GetName()</strong></RadzenText>
+                    <RadzenRow RowGap="0">
+                        <RadzenColumn SizeSM="4">
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Power status</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@powerStatus?.Status</b></RadzenText>
 
-        <RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
-            <RadzenFormField Text="Power status" Style="flex: 1;">
-                <RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
-                    @powerStatus?.Status
-                </RadzenColumn>
-            </RadzenFormField>
-        </RadzenRow>
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Setpoint</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b> @powerStatus?.Sessy?.PowerSetpoint</b></RadzenText>
 
-        <RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
-            <RadzenFormField Text="Power" Style="flex: 1;">
-                <RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
-                    @powerStatus?.Sessy?.Power
-                </RadzenColumn>
-            </RadzenFormField>
-        </RadzenRow>
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Power</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@powerStatus?.Sessy?.Power</b></RadzenText>
+                        </RadzenColumn>
 
-        <RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
-            <RadzenFormField Text="Setpoint" Style="flex: 1;">
-                <RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
-                    @powerStatus?.Sessy?.PowerSetpoint
-                </RadzenColumn>
-            </RadzenFormField>
-        </RadzenRow>
+                        <RadzenColumn SizeSM="4">
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">State of charge</RadzenText>
+                            <RadzenProgressBarCircular ProgressBarStyle="ProgressBarStyle.Primary" value=@(powerStatus.Sessy == null ? 0.0 : powerStatus.Sessy.StateOfCharge100) />
+                        </RadzenColumn>
 
-        <RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
-            <RadzenFormField Text="State of charge" Style="flex: 1;">
-                <RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
-                    <RadzenProgressBarCircular ProgressBarStyle="ProgressBarStyle.Primary" value=@(powerStatus.Sessy == null ? 0.0 : powerStatus.Sessy.StateOfCharge100) />
-                </RadzenColumn>
-            </RadzenFormField>
-        </RadzenRow>
+                        <RadzenColumn SizeSM="4">
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">System state</RadzenText>
+                            @if (powerStatus?.Sessy?.SystemState == Sessy.SystemStates.SYSTEM_STATE_ERROR)
+                            {
+                                <RadzenText TextStyle="TextStyle.Body1" class="rz-background-color-danger rz-color-on-primary-light"><b>@powerStatus?.Sessy?.SystemStateString</b></RadzenText>
+                            }
+                            else
+                            {
+                                <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@powerStatus?.Sessy?.SystemStateString</b></RadzenText>
+                            }
 
-        <RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
-            <RadzenFormField Text="System state" Style="flex: 1;">
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">System state details</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@powerStatus?.Sessy?.SystemStateDetails</b></RadzenText>
+                        </RadzenColumn>
 
-                @if (powerStatus?.Sessy?.SystemState == Sessy.SystemStates.SYSTEM_STATE_ERROR)
-                {
-                    <RadzenColumn class="rz-background-color-danger rz-color-white rz-p-4">
-                        @powerStatus?.Sessy?.SystemStateString
-                    </RadzenColumn>
-                }
-                else
-                {
-                    <RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
-                        @powerStatus?.Sessy?.SystemState.ToString()
-                    </RadzenColumn>
-                }
-            </RadzenFormField>
-        </RadzenRow>
+                        <RadzenColumn SizeSM="4">
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Inverted current in mAmpere</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@powerStatus?.Sessy?.Frequency</b></RadzenText>
 
-        <RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
-            <RadzenFormField Text="System state details" Style="flex: 1;">
-                <RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
-                    @powerStatus?.Sessy?.SystemStateDetails
-                </RadzenColumn>
-            </RadzenFormField>
-        </RadzenRow>
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Power status</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@powerStatus?.Status</b></RadzenText>
+                        </RadzenColumn>
 
-        <RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
-            <RadzenFormField Text="Inverted current in mAmpere" Style="flex: 1;">
-                <RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
-                    @powerStatus?.Sessy?.Frequency
-                </RadzenColumn>
-            </RadzenFormField>
-        </RadzenRow>
+                        <RadzenColumn SizeSM="4">
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Frequency</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@powerStatus?.Sessy?.Frequency</b></RadzenText>
 
-        <RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
-            <RadzenFormField Text="Frequency" Style="flex: 1;">
-                <RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
-                    @powerStatus?.Sessy?.InverterCurrentMa
-                </RadzenColumn>
-            </RadzenFormField>
-        </RadzenRow>
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Inverted current in mAmpere</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@powerStatus?.Sessy?.InverterCurrentMa</b></RadzenText>
+                        </RadzenColumn>
 
-        <RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
-            <RadzenFormField Text="Renewable phase 1 power" Style="flex: 1;">
-                <RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
-                    @powerStatus?.RenewableEnergyPhase1?.Power
-                </RadzenColumn>
-            </RadzenFormField>
-        </RadzenRow>
+                        <RadzenColumn SizeSM="4">
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Renewable phase 1 power</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@powerStatus?.RenewableEnergyPhase1?.Power</b></RadzenText>
 
-        <RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
-            <RadzenFormField Text="Renewable phase 2 power" Style="flex: 1;">
-                <RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
-                    @powerStatus?.RenewableEnergyPhase2?.Power
-                </RadzenColumn>
-            </RadzenFormField>
-        </RadzenRow>
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Renewable phase 2 power</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@powerStatus?.RenewableEnergyPhase2?.Power</b></RadzenText>
 
-        <RadzenRow class="rz-text-align-left rz-border-info-light" Gap="1rem">
-            <RadzenFormField Text="Renewable phase 3 power" Style="flex: 1;">
-                <RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-4">
-                    @powerStatus?.RenewableEnergyPhase3?.Power
-                </RadzenColumn>
-            </RadzenFormField>
-        </RadzenRow>
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Renewable phase 3 power</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@powerStatus?.RenewableEnergyPhase3?.Power</b></RadzenText>
+                        </RadzenColumn>
+                    </RadzenRow>
+                </RadzenCard>
+            </RadzenStack>
+        </RadzenStack>
     </RadzenCard>
 }
