@@ -99,7 +99,8 @@ namespace SessyController.Services
                         var weatherHourData = weatherData.UurVerwachting
                             .FirstOrDefault(uv => uv.TimeStamp == selectTime);
 
-                        StoreEnergyHistory(p1Meter, p1Details!, selectTime, weatherHourData!);
+                        if(weatherHourData != null)
+                            StoreEnergyHistory(p1Meter, p1Details!, selectTime, weatherHourData);
                     }
                 }
             }
