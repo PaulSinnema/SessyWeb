@@ -512,9 +512,16 @@ namespace SessyController.Services
         {
             do
             {
-                await CalculateChargeLeft(hourlyInfos);
+                await EvaluateChargingHoursAndProfitability(sessions, hourlyInfos);
             }
             while (ShrinkSessions(sessions));
+
+            await EvaluateChargingHoursAndProfitability(sessions, hourlyInfos);
+        }
+
+        private async Task EvaluateChargingHoursAndProfitability(Sessions sessions, List<HourlyInfo> hourlyInfos)
+        {
+            await CalculateChargeLeftAndProfits(hourlyInfos);
 
             sessions.CalculateProfits(_timeZoneService!);
 
@@ -524,7 +531,7 @@ namespace SessyController.Services
         /// <summary>
         /// Calculate the estimated charge per hour starting from the current hour.
         /// </summary>
-        public async Task CalculateChargeLeft(List<HourlyInfo> hourlyInfos)
+        public async Task CalculateChargeLeftAndProfits(List<HourlyInfo> hourlyInfos)
         {
             double stateOfCharge = await _batteryContainer.GetStateOfCharge();
             double totalCapacity = _batteryContainer.GetTotalCapacity();
@@ -586,18 +593,13 @@ namespace SessyController.Services
                             }
 
                         case (false, false, true): // Zero net home
+                            {
+                                charge = hourNeed > charge ? 0.0 : charge - hourNeed;
+                                break;
+                            }
+
                         case (false, false, false): // Disabled
                             {
-
-                                var kWh = Math.Min(_settingsConfig.RequiredHomeEnergy / 24, previous.ChargeLeft) / 1000;
-                                var selling = hourlyInfo.Price * kWh;
-                                var buying = lastChargingSession.Count > 0 ? lastChargingSession.Average(lcs => lcs.Price) * kWh : 0.0;
-
-                                if (selling - buying > _settingsConfig.NetZeroHomeMinProfit)
-                                {
-                                    charge = hourNeed > charge ? 0.0 : charge - hourNeed;
-                                }
-
                                 break;
                             }
 
@@ -857,7 +859,7 @@ namespace SessyController.Services
                 {
                     if (session.Mode == Modes.Charging &&
                         previousSession.Mode == Modes.Charging)
-                    { 
+                    {
                         if (previousSession.IsCheaper(session))
                         {
                             maxChargeNeeded = totalCapacity;
@@ -866,7 +868,7 @@ namespace SessyController.Services
                         {
                             var infoObjectsBetween = hourlyInfos!
                                 .Where(hi => hi.Time < session.FirstDate && hi.Time > previousSession.LastDate && hi.ZeroNetHome)
-                                .ToList(); 
+                                .ToList();
 
                             if (infoObjectsBetween.Any())
                             {
