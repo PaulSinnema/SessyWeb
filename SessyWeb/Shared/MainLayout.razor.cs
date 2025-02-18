@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Radzen;
 
 namespace SessyWeb.Shared
 {
@@ -6,7 +7,7 @@ namespace SessyWeb.Shared
     {
         public static string NewTheme { get; set; } = "Dark";
 
-        bool sidebar1Expanded = true;
+        public MenuItemDisplayStyle DisplayStyle { get; set; } = MenuItemDisplayStyle.Icon;
 
         [IgnoreAntiforgeryToken]
         void ChangeTheme(string theme)
@@ -15,9 +16,17 @@ namespace SessyWeb.Shared
             ThemeService.SetTheme(theme, true);
         }
 
+        void ToggleDisplayStyle()
+        {
+            if (DisplayStyle == MenuItemDisplayStyle.Icon)
+                DisplayStyle = MenuItemDisplayStyle.IconAndText;
+            else
+                DisplayStyle = MenuItemDisplayStyle.Icon;
+        }
+
         public void CollapseMenu()
         {
-            sidebar1Expanded = false;
+            DisplayStyle = MenuItemDisplayStyle.Icon;
         }
     }
 }

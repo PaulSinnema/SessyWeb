@@ -11,31 +11,14 @@
 <RadzenLayout>
     <RadzenHeader>
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0">
-            <RadzenSidebarToggle Click="@(() => sidebar1Expanded = !sidebar1Expanded)" />
+            <RadzenSidebarToggle Click="@ToggleDisplayStyle" />
+
             <a href="https://sessy.nl" target="_blank">
                 <RadzenImage Path="/Images/sessy.svg" />
             </a>
-        </RadzenStack>
-    </RadzenHeader>
-    <RadzenSidebar @bind-Expanded="@sidebar1Expanded">
-        <RadzenPanelMenu>
-            <RadzenPanelMenuItem Text="Batteries"
-                                 Click="@CollapseMenu"
-                                 Path="" Icon="home" />
-            <RadzenPanelMenuItem Text="Charging hours"
-                                 Path="charginghours"
-                                 Click="@CollapseMenu"
-                                 Icon="account_box" />
-            <RadzenPanelMenuItem Text="Sessy status history"
-                                 Path="sessystatushistory"
-                                 Click="@CollapseMenu"
-                                 Icon="account_box" />
-            <RadzenPanelMenuItem Text="Sessy energy history"
-                                 Path="energyhistory"
-                                 Click="@CollapseMenu"
-                                 Icon="account_box" />
+
             <RadzenPanel>
-                <RadzenRow>
+                <RadzenStack Orientation="Orientation.Horizontal">
                     <RadzenLabel Text="Choose theme:" />
                     <RadzenDropDown Style="width: 100%;"
                                     Name="ThemeDropDown"
@@ -45,11 +28,28 @@
                                     Data="@Themes.Free"
                                     TextProperty=@nameof(Theme.Text)
                                     ValueProperty=@nameof(Theme.Value) />
-                </RadzenRow>
+                </RadzenStack>
             </RadzenPanel>
+        </RadzenStack>
+    </RadzenHeader>
+    <RadzenPanelMenu DisplayStyle="@DisplayStyle">
+        <RadzenPanelMenuItem Text="Batteries"
+                             Click="@CollapseMenu"
+                             Path="" Icon="home" />
+        <RadzenPanelMenuItem Text="Charging hours"
+                             Path="charginghours"
+                             Click="@CollapseMenu"
+                             Icon="account_box" />
+        <RadzenPanelMenuItem Text="Sessy status history"
+                             Path="sessystatushistory"
+                             Click="@CollapseMenu"
+                             Icon="account_box" />
+        <RadzenPanelMenuItem Text="Sessy energy history"
+                             Path="energyhistory"
+                             Click="@CollapseMenu"
+                             Icon="account_box" />
 
-        </RadzenPanelMenu>
-    </RadzenSidebar>
+    </RadzenPanelMenu>
     <RadzenBody>
         <div class="rz-p-4">
             @Body
