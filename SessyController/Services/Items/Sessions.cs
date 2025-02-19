@@ -165,7 +165,7 @@ namespace SessyController.Services.Items
                             var totalDischargingCapacity = Math.Min(_totalDischargingCapacity, hourlyInfo.ChargeLeft) / 1000;
 
                             hourlyInfo.Selling = totalDischargingCapacity * hourlyInfo.Price;
-                            hourlyInfo.Buying = 0.00; // lastChargingSession.Count > 0 ? lastChargingSession.Average(lcs => lcs.Price) * kWh : 0.0;
+                            hourlyInfo.Buying = 0.00;
                             break;
                         }
 

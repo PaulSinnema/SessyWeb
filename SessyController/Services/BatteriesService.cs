@@ -259,7 +259,7 @@ namespace SessyController.Services
             {
                 var currentChargeState = await _batteryContainer.GetStateOfChargeInWatts();
 
-                if (session.MaxChargeNeeded < currentChargeState)
+                if (currentChargeState > session.MaxChargeNeeded)
                 {
                     return true;
                 }
@@ -418,14 +418,19 @@ namespace SessyController.Services
         private Sessions GetChargingHours()
         {
             DateTime now = _timeZoneService.Now;
+            DateTime nowHour = now.Date.AddHours(now.Hour);
 
-            hourlyInfos = hourlyInfos.OrderBy(hp => hp.Time)
+            hourlyInfos = hourlyInfos!.OrderBy(hp => hp.Time)
                 .ToList();
+
+            // var currentHourlyInfo = hourlyInfos.Where(hi => hi.Time == nowHour).First();
 
             DateTime currentSessionCreationDate = hourlyInfos.Max(hi => hi.Time);
 
             if (lastSessionCreationDate == null ||
                 lastSessionCreationDate != currentSessionCreationDate ||
+                //currentHourlyInfo.Discharging ||
+                //currentHourlyInfo.ZeroNetHome ||
                 _settingsChanged)
             {
                 lastSessionCreationDate = currentSessionCreationDate;
@@ -836,8 +841,8 @@ namespace SessyController.Services
         {
             var changed = false;
             Session? previousSession = null;
-            double maxChargeNeeded = 0.0;
             var totalCapacity = _batteryContainer.GetTotalCapacity();
+            double maxChargeNeeded = 0.0;
 
             sessions.SessionList.ToList().ForEach(hi => hi.MaxChargeNeeded = totalCapacity);
 

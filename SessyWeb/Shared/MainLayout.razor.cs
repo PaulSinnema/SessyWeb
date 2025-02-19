@@ -32,19 +32,28 @@ namespace SessyWeb.Shared
         {
             if (DisplayStyle == MenuItemDisplayStyle.Icon)
             {
-                DisplayStyle = MenuItemDisplayStyle.IconAndText;
-                MenuStyle = MenuStyleIconAndText;
+                MenuIconAndText();
             }
             else
             {
-                DisplayStyle = MenuItemDisplayStyle.Icon;
-                MenuStyle = MenuStyleIcon;
+                MenuIcon();
             }
         }
 
         public void CollapseMenu()
         {
+            MenuIcon();
+        }
+        private void MenuIcon()
+        {
             DisplayStyle = MenuItemDisplayStyle.Icon;
+            MenuStyle = MenuStyleIcon;
+        }
+
+        private void MenuIconAndText()
+        {
+            DisplayStyle = MenuItemDisplayStyle.IconAndText;
+            MenuStyle = MenuStyleIconAndText;
         }
     }
 }

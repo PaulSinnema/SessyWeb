@@ -192,7 +192,14 @@ namespace SessyController.Services.Items
         /// </summary>
         internal int GetChargingHours()
         {
-            return (int)Math.Ceiling(MaxChargeNeeded / _batteryContainer.GetChargingCapacity());
+            // return (int)Math.Ceiling(MaxChargeNeeded / _batteryContainer.GetChargingCapacity());
+
+            var chargeNeeded = MaxChargeNeeded - HourlyInfos.Average(hi => hi.ChargeLeft);
+
+            if (chargeNeeded >= 0)
+                return (int)Math.Ceiling(chargeNeeded / _batteryContainer.GetChargingCapacity());
+
+            return 0;
         }
 
         public override string ToString()

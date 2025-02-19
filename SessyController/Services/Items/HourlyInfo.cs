@@ -179,7 +179,7 @@ namespace SessyController.Services.Items
                 return Charging ? "Charging" :
                           Discharging ? "Discharging" :
                           ZeroNetHome ? "Net zero home" :
-                          "Disabled";
+                          Disabled ? "Disabled" : "Wrong state";
             }
         }
 
@@ -190,13 +190,13 @@ namespace SessyController.Services.Items
         {
             get => !(Charging || Discharging) &&
                 (Profit > _settingsConfig.NetZeroHomeMinProfit ||
-                SolarPowerInWatts > _settingsConfig.RequiredHomeEnergy / 24);
+                SolarPowerInWatts > 100.0);
         }
 
         /// <summary>
-        /// This list contains the hours found for charging against this price.
+        /// If no (dis)charging or Zero net home is in progress Sessy's are requested to disable.
         /// </summary>
-        public List<HourlyInfo>? HoursCharging { get; set; }
+        public bool Disabled => !(Charging || Discharging || ZeroNetHome);
 
         /// <summary>
         /// For better debugging
