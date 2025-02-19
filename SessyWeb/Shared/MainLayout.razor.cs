@@ -9,6 +9,18 @@ namespace SessyWeb.Shared
 
         public MenuItemDisplayStyle DisplayStyle { get; set; } = MenuItemDisplayStyle.Icon;
 
+        private const string MenuStyleIcon = "width: 100%; min-width: 50px;";
+        private const string MenuStyleIconAndText = "width: 100%; min-width: 200px;";
+
+        public string MenuStyle { get; set; }
+
+        protected override void OnInitialized()
+        {
+            MenuStyle = MenuStyleIcon;
+
+            base.OnInitialized();
+        }
+
         [IgnoreAntiforgeryToken]
         void ChangeTheme(string theme)
         {
@@ -19,9 +31,15 @@ namespace SessyWeb.Shared
         void ToggleDisplayStyle()
         {
             if (DisplayStyle == MenuItemDisplayStyle.Icon)
+            {
                 DisplayStyle = MenuItemDisplayStyle.IconAndText;
+                MenuStyle = MenuStyleIconAndText;
+            }
             else
+            {
                 DisplayStyle = MenuItemDisplayStyle.Icon;
+                MenuStyle = MenuStyleIcon;
+            }
         }
 
         public void CollapseMenu()
