@@ -70,7 +70,8 @@ namespace SessyController.Services
 
                 var solarPower = 0.0;
 
-                foreach (var hourlyInfo in hourlyInfos.Where(hi => hi.Time.Date == currentTime.Date))
+                foreach (var hourlyInfo in hourlyInfos
+                    .Where(hi => hi.Time.Date >= currentTime.Date && hi.Time.Date <= currentTime.Date.AddHours(24)))
                 {
                     solarPower += hourlyInfo.SolarPower;
                 }

@@ -15,7 +15,7 @@
         <RadzenCard Style="padding: 3px 3px 20px 30px;">
             <RadzenStack Orientation="Orientation.Vertical" Gap="2" AlignItems="AlignItems.Start">
                 <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Total expected solar power</RadzenText>
-                <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@TotalSolarPowerExpectedVisual kWh</b></RadzenText>
+                <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@TotalSolarPowerExpectedVisual kWh for @_timeZoneService!.Now.Date.ToString("dd MMM yyyy")</b></RadzenText>
             </RadzenStack>
         </RadzenCard>
         <RadzenChart Style=@GraphStyle>
