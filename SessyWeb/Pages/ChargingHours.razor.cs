@@ -20,10 +20,12 @@ namespace SessyWeb.Pages
 
         public double TotalSolarPowerExpected { get; set; }
 
+        public string TotalSolarPowerExpectedVisual => TotalSolarPowerExpected.ToString("0.###");
+
         private CancellationTokenSource _cts = new();
 
         private string RowHeightStyle { get; set; } = "height 20px";
-        private string GraphStyle { get; set; } = "height: 100%; min-width: 250px; visibility: hidden;";
+        private string GraphStyle { get; set; } = "min-width: 250px; visibility: hidden;";
 
         protected override async Task OnInitializedAsync()
         {
@@ -76,11 +78,11 @@ namespace SessyWeb.Pages
 
         private async Task ChangeChartStyle()
         {
-            // 20 pixels per data row (5)
+            // 25 pixels per data row (3)
             var width = HourlyInfos?.Count * 3 * 25;
             var height = await _screenSizeService!.GetScreenHeightAsync();
 
-            GraphStyle = $"min-height: {height - 200}px; width: {width}px; visibility: initial;";
+            GraphStyle = $"min-height: {height - 250}px; width: {width}px; visibility: initial;";
 
             StateHasChanged();
         }

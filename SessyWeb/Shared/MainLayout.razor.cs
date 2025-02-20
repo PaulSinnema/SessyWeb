@@ -21,7 +21,6 @@ namespace SessyWeb.Shared
             base.OnInitialized();
         }
 
-        [IgnoreAntiforgeryToken]
         void ChangeTheme(string theme)
         {
             NewTheme = theme;

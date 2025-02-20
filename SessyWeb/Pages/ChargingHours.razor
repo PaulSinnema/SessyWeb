@@ -12,9 +12,13 @@
 @if (HourlyInfos != null && HourlyInfos.Count() != 0)
 {
     <div style="width: 100%; overflow: auto;">
-        		<div>Total expected solarpower: </div>
-		<div>@TotalSolarPowerExpected</div>
-		<RadzenChart Style=@GraphStyle>
+        <RadzenCard Style="padding: 3px 3px 20px 30px;">
+            <RadzenStack Orientation="Orientation.Vertical" Gap="2" AlignItems="AlignItems.Start">
+                <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Total expected solarpower</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@TotalSolarPowerExpectedVisual kWh</b></RadzenText>
+            </RadzenStack>
+        </RadzenCard>
+        <RadzenChart Style=@GraphStyle>
             <RadzenLegend Position="LegendPosition.Top" Visible="true" />
             <RadzenChartTooltipOptions Shared="false" Visible="true" />
             <RadzenColumnSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Price" LineType="LineType.Dashed" ValueProperty="Price">
@@ -71,7 +75,7 @@
                     <RadzenSeriesDataLabels Visible="false" />
                 </ChildContent>
             </RadzenLineSeries>
-            <RadzenCategoryAxis Padding="20" Formatter="@FormatAsDayHour">
+            <RadzenCategoryAxis Padding="40" Formatter="@FormatAsDayHour">
                 <RadzenGridLines Visible="true" />
                 <RadzenAxisTitle Text="Time" />
             </RadzenCategoryAxis>
