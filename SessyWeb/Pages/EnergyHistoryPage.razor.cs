@@ -26,11 +26,13 @@ namespace SessyWeb.Pages
         protected override async Task OnAfterRenderAsync(bool firstRender)
         {
             if (firstRender)
-                await energyGrid.FirstPage();
+                await energyGrid!.FirstPage();
         }
 
         void LoadData(LoadDataArgs args)
         {
+            if (energyGrid == null) throw new InvalidOperationException($"{nameof(energyGrid)} can not be null here, did you forget a @ref?");
+
             var now = _timeZoneService!.Now;
             var filter = energyGrid.ColumnsCollection;
 

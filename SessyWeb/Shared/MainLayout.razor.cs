@@ -12,7 +12,7 @@ namespace SessyWeb.Shared
         private const string MenuStyleIcon = "width: 100%; min-width: 50px;";
         private const string MenuStyleIconAndText = "width: 100%; min-width: 200px;";
 
-        public string MenuStyle { get; set; }
+        public string? MenuStyle { get; set; }
 
         protected override void OnInitialized()
         {

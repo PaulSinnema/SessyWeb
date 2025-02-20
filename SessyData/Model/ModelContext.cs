@@ -9,9 +9,11 @@ namespace SessyData.Model
 
         public ModelContext(DbContextOptions<ModelContext> options) : base (options)
         {
+#pragma warning disable EF1001 // Internal EF Core API usage.
             var extension = options.FindExtension<SqliteOptionsExtension>();
+#pragma warning restore EF1001 // Internal EF Core API usage.
 
-            if(extension == null)
+            if (extension == null)
             {
                 throw new InvalidOperationException($"Connection string not found");
             }

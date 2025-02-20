@@ -81,7 +81,7 @@ namespace SessyController.Services.Items
         /// </summary>
         public double GetTotalCapacity()
         {
-            return Batteries.Sum(bat => bat.GetCapacity());
+            return Batteries!.Sum(bat => bat.GetCapacity());
         }
 
         /// <summary>
@@ -89,7 +89,7 @@ namespace SessyController.Services.Items
         /// </summary>
         public double GetChargingCapacity()
         {
-            return Batteries.Sum(bat => bat.GetMaxCharge());
+            return Batteries!.Sum(bat => bat.GetMaxCharge());
         }
 
         /// <summary>

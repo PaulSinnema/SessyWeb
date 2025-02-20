@@ -1,6 +1,9 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using SessyData.Helpers;
 using SessyData.Model;
+using System.ComponentModel.DataAnnotations;
+using System.Reflection;
 
 namespace SessyData.Services
 {
@@ -24,18 +27,58 @@ namespace SessyData.Services
             });
         }
 
-        public void Store(List<T> list, Func<T, ModelContext, bool> func)
+        public void Store(List<T> list, Func<T, ModelContext, bool> contains)
         {
             _dbHelper.ExecuteTransaction(db =>
             {
                 foreach (var item in list)
                 {
-                    if(!func(item, db))
+                    if(!contains(item, db))
                     {
                         db.Set<T>().Add(item);
                     }
                 }
             });
+        }
+
+        public void StoreOrUpdate(List<T> list, Func<T, ModelContext, T?> contains)
+        {
+            if (!typeof(IUpdatable<T>).IsAssignableFrom(typeof(T)))
+                throw new InvalidCastException($"For StoreOrUpdate the type {typeof(T).Name} must implement IUpdatable<{typeof(T).Name}>");
+
+            _dbHelper.ExecuteTransaction(async db =>
+            {
+                foreach (var item in list)
+                {
+                    var containedItem = contains(item, db);
+
+                    if (containedItem != null)
+                    {
+                        var itemToUpdate = await GetByKeyAsync(db, ((IUpdatable<T>)containedItem).Id);
+
+                        ((IUpdatable<T>)itemToUpdate!).Update(itemToUpdate);
+
+                        db.Set<T>().Update(containedItem);
+                    }
+                    else
+                    {
+                        db.Set<T>().Add(item);
+                    }
+                }
+            });
+        }
+
+        public async Task<T?> GetByKeyAsync(ModelContext db, int key)
+        {
+            var entityType = typeof(T);
+            var keyProperty = entityType.GetProperties()
+                .FirstOrDefault(p => p.GetCustomAttribute<KeyAttribute>() != null)
+                ?? entityType.GetProperties().FirstOrDefault(p => p.Name.Equals("Id", StringComparison.OrdinalIgnoreCase));
+
+            if (keyProperty == null)
+                throw new InvalidOperationException($"No [Key] attribute found on {entityType.Name}, and no default 'Id' property detected.");
+
+            return await db.Set<T>().FindAsync(key);
         }
 
 

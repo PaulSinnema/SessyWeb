@@ -25,12 +25,16 @@ namespace SessyWeb.Pages
 
         protected override async Task OnAfterRenderAsync(bool firstRender)
         {
+            if (historyGrid == null) throw new InvalidOperationException($"{nameof(historyGrid)} can not be null here, did you forget a @ref?");
+
             if (firstRender)
                 await historyGrid.FirstPage();
         }
 
         void LoadData(LoadDataArgs args)
         {
+            if (historyGrid == null) throw new InvalidOperationException($"{nameof(historyGrid)} can not be null here, did you forget a @ref?");
+            
             var now = _timeZoneService!.Now;
             var filter = historyGrid.ColumnsCollection;
 

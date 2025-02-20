@@ -135,9 +135,9 @@ namespace SessyController.Services
 
                     if (sessions != null)
                     {
-                        _solarService.GetExpectedSolarPower(hourlyInfos);
+                        _solarService.GetExpectedSolarPower(hourlyInfos!);
 
-                        await EvaluateSessions(sessions, hourlyInfos);
+                        await EvaluateSessions(sessions, hourlyInfos!);
 
                         HourlyInfo? currentHourlyInfo = GetCurrentHourlyInfo();
 

@@ -63,11 +63,8 @@ namespace SessyController.Services
                     _logger.LogException(ex, "An error occurred while getting the weather data.");
                 }
 
-                var currentTime = _timeZoneService.Now;
-
-                var delayHours = 24 - currentTime.Hour;
-
-                await Task.Delay(TimeSpan.FromHours(delayHours), cancelationToken);
+                // Wait 30 minutes
+                await Task.Delay(TimeSpan.FromMinutes(30), cancelationToken);
             }
 
             _logger.LogInformation("Weather service stopped.");
@@ -86,10 +83,9 @@ namespace SessyController.Services
                 });
             }
 
-            _solarDataService.Store(statusList, (item, db) => 
+            _solarDataService.StoreOrUpdate(statusList, (item, db) => 
             {
-                var result = db.SolarData.Any(sd => sd.Time == item.Time);
-                return result;
+                return db.SolarData.Where(sd => sd.Time == item.Time).FirstOrDefault(); // Contains
             });
         }
 

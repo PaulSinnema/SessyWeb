@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace SessyData.Model
 {
-    public class SolarData
+    public class SolarData : IUpdatable<SolarData>
     {
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)] // Auto-increment
@@ -14,6 +14,11 @@ namespace SessyData.Model
         public override string ToString()
         {
             return $"Time: {Time}, Global radiation {GlobalRadiation}";
+        }
+
+        public void Update(SolarData updateInfo)
+        {
+            GlobalRadiation = updateInfo.GlobalRadiation;
         }
     }
 }

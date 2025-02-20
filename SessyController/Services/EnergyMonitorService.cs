@@ -106,7 +106,7 @@ namespace SessyController.Services
             }
         }
 
-        private EnergyHistory GetEnergyHistory(DateTime selectTime)
+        private EnergyHistory? GetEnergyHistory(DateTime selectTime)
         {
             var energyHistory = _energyHistoryService.Get((ModelContext modelContext) =>
             {
