@@ -628,6 +628,8 @@ namespace SessyController.Services
             bool changed2;
             bool changed3;
             bool changed4;
+            bool changed5;
+            bool changed6;
 
             do
             {
@@ -635,15 +637,21 @@ namespace SessyController.Services
                 changed2 = false;
                 changed3 = false;
                 changed4 = false;
+                changed5 = false;
+                changed6 = false;
 
                 changed1 = CombineSessions(sessions);
 
-                changed2 = RemoveExtraHours(sessions);
+                changed2 = RemoveEmptySessions(sessions);
 
-                changed3 = RemoveEmptySessions(sessions);
+                changed3 = RemoveExtraHours(sessions);
 
-                changed4 = CheckProfitability(sessions);
-            } while (changed1 || changed2 || changed3 || changed4);
+                changed4 = RemoveEmptySessions(sessions);
+
+                changed5 = CheckProfitability(sessions);
+
+                changed6 = RemoveEmptySessions(sessions);
+            } while (changed1 || changed2 || changed3 || changed4 || changed5 || changed6);
         }
 
         /// <summary>
@@ -651,78 +659,47 @@ namespace SessyController.Services
         /// </summary>
         private bool CheckProfitability(Sessions sessions)
         {
-            var changed = false;
+            bool changed = false;
 
-            var sessionList = sessions.SessionList.OrderBy(se => se.FirstDate).ToList();
+            Session? lastSession = null;
 
-            for (int currentSession = 0; currentSession < sessionList.Count; currentSession++)
+            foreach (var session in sessions.SessionList.OrderBy(se => se.FirstDate))
             {
-                switch (sessionList[currentSession].Mode)
+                if(lastSession != null)
                 {
-                    case Modes.Charging:
+                    if (lastSession.Mode == Modes.Charging && session.Mode == Modes.Discharging)
+                    {
+                        using var chargeEnumerator = lastSession.GetHourlyInfoList().OrderBy(hi => hi.Price).ToList().GetEnumerator();
+                        using var dischargeEnumerator = session.GetHourlyInfoList().OrderByDescending(hi => hi.Price).ToList().GetEnumerator();
+
+                        var hasCharging = chargeEnumerator.MoveNext();
+                        var hasDischarging = dischargeEnumerator.MoveNext();
+
+                        while (hasCharging && hasDischarging)
                         {
-                            var dischargingSession = currentSession + 1;
-
-                            if (dischargingSession < sessionList.Count)
+                            if (chargeEnumerator.Current.Price + _settingsConfig.CycleCost > dischargeEnumerator.Current.Price)
                             {
-                                if (sessionList[dischargingSession].Mode == Modes.Discharging)
-                                {
-                                    var chargingHours = sessionList[currentSession].GetHourlyInfoList().OrderBy(hp => hp.Price).ToList();
-                                    var dischargingHours = sessionList[dischargingSession].GetHourlyInfoList().OrderBy(hp => hp.Price).ToList();
+                                session.RemoveHourlyInfo(dischargeEnumerator.Current);
 
-                                    var chargingEnumerator = chargingHours.GetEnumerator();
-                                    var dischargingEnumerator = dischargingHours.GetEnumerator();
+                                hasDischarging = dischargeEnumerator.MoveNext();
 
-                                    var hasCharging = chargingEnumerator.MoveNext();
-                                    var hasDischarging = dischargingEnumerator.MoveNext();
-
-                                    while (hasCharging || hasDischarging)
-                                    {
-                                        if (hasCharging)
-                                        {
-                                            if (hasDischarging)
-                                            {
-                                                if (chargingEnumerator.Current.Price + _settingsConfig.CycleCost > dischargingEnumerator.Current.Price)
-                                                {
-                                                    var dcSession = sessions.SessionList[dischargingSession];
-                                                    dcSession.RemoveHourlyInfo(dischargingEnumerator.Current);
-                                                    hasDischarging = dischargingEnumerator.MoveNext();
-                                                    changed = true;
-                                                }
-                                                else
-                                                {
-                                                    hasDischarging = dischargingEnumerator.MoveNext();
-                                                    hasCharging = chargingEnumerator.MoveNext();
-                                                }
-                                            }
-                                            else
-                                                break;
-                                        }
-                                        else
-                                        {
-                                            if (hasDischarging)
-                                            {
-                                                sessions.SessionList[dischargingSession].RemoveHourlyInfo(dischargingEnumerator.Current);
-                                                hasDischarging = dischargingEnumerator.MoveNext();
-                                                changed = true;
-                                            }
-                                        }
-                                    }
-                                }
-                                else
-                                    _logger.LogInformation($"Charging session without discharging session {sessionList[currentSession]}");
+                                changed = true;
+                            }
+                            else
+                            {
+                                hasCharging = chargeEnumerator.MoveNext();
+                                hasDischarging = dischargeEnumerator.MoveNext();
                             }
                         }
-                        break;
-
-                    case Modes.Discharging:
-                    default:
-                        break;
+                    }
                 }
+
+                lastSession = session;
             }
 
             return changed;
         }
+     
 
         /// <summary>
         /// Remove hours outside the max hours.
@@ -806,9 +783,9 @@ namespace SessyController.Services
 
                         if (hoursBetween <= 3)
                         {
-                            sessions.MergeSessions(lastSession, session);
+                            sessions.MergeSessions(session, lastSession);
 
-                            sessions.RemoveSession(session);
+                            sessions.RemoveSession(lastSession);
 
                             changed = true;
                         }

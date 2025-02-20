@@ -65,7 +65,7 @@ namespace SessyController.Services.Items
         {
             foreach (var se in _sessionList)
             {
-                if (se.GetHourlyInfoList().Contains(hourlyInfo))
+                if (se.GetHourlyInfoList().Any(hi => hi.Time == hourlyInfo.Time))
                     return true;
             }
 
@@ -102,18 +102,18 @@ namespace SessyController.Services.Items
                     case Modes.Charging:
                         {
                             Session session = new Session(mode, _maxChargingHours, _batteryContainer, _settingsConfig);
+                            _sessionList.Add(session);
                             session.AddHourlyInfo(hourlyInfo);
                             CompleteSession(session, _hourlyInfos, _maxChargingHours, _cycleCost, averagePrice);
-                            _sessionList.Add(session);
                             break;
                         }
 
                     case Modes.Discharging:
                         {
                             Session session = new Session(mode, _maxDischargingHours, _batteryContainer, _settingsConfig);
+                            _sessionList.Add(session);
                             session.AddHourlyInfo(hourlyInfo);
                             CompleteSession(session, _hourlyInfos, _maxDischargingHours, _cycleCost, averagePrice);
-                            _sessionList.Add(session);
                             break;
                         }
 
@@ -213,6 +213,8 @@ namespace SessyController.Services.Items
         /// </summary>
         public void CompleteSession(Session session, List<HourlyInfo> hourlyInfos, int maxHours, double cycleCost, double averagePrice)
         {
+            return;
+
             if (session.GetHourlyInfoList().Count != 1)
                 throw new InvalidOperationException($"Session has zero or more than 1 hourly price.");
 
@@ -313,6 +315,9 @@ namespace SessyController.Services.Items
             return foundSessions.Single();
         }
 
+        /// <summary>
+        /// Merges session2 into session1.
+        /// </summary>
         public void MergeSessions(Session session1, Session session2)
         {
             foreach (var hourlyInfo in session2.GetHourlyInfoList())

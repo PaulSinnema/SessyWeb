@@ -202,6 +202,11 @@ namespace SessyController.Services.Items
             return 0;
         }
 
+        /// <summary>
+        /// Are there hourlyInfo items in the session?
+        /// </summary>
+        public bool IsEmpty() => !HourlyInfos.Any();
+
         public override string ToString()
         {
             return $"Session: {Mode}, FirstDate: {FirstDate}, LastDate {LastDate}, Count: {HourlyInfos.Count}, MaxChargeNeeded: {MaxChargeNeeded}, MaxHours: {MaxHours}";
