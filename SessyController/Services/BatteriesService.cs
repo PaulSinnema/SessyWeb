@@ -127,6 +127,7 @@ namespace SessyController.Services
         {
             if (_dayAheadMarketService.PricesInitialized)
             {
+                // Prevent race conditions.
                 HourlyInfoSemaphore.Wait();
 
                 try
@@ -152,6 +153,11 @@ namespace SessyController.Services
                             await HandleAutomaticCharging(sessions);
                         }
                     }
+                }
+                catch(Exception ex)
+                {
+                    _logger.LogException(ex, $"Unhandled exception in Process: {ex.ToDetailedString()}");
+                    // Keep the loop running, just report in the log what went wrong.
                 }
                 finally
                 {
@@ -417,37 +423,43 @@ namespace SessyController.Services
         /// </summary>
         private Sessions GetChargingHours()
         {
-            DateTime now = _timeZoneService.Now;
-            DateTime nowHour = now.Date.AddHours(now.Hour);
-
-            hourlyInfos = hourlyInfos!.OrderBy(hp => hp.Time)
-                .ToList();
-
-            // var currentHourlyInfo = hourlyInfos.Where(hi => hi.Time == nowHour).First();
-
-            DateTime currentSessionCreationDate = hourlyInfos.Max(hi => hi.Time);
-
-            if (lastSessionCreationDate == null ||
-                lastSessionCreationDate != currentSessionCreationDate ||
-                //currentHourlyInfo.Discharging ||
-                //currentHourlyInfo.ZeroNetHome ||
-                _settingsChanged)
+            try
             {
-                lastSessionCreationDate = currentSessionCreationDate;
+                DateTime now = _timeZoneService.Now;
+                DateTime nowHour = now.Date.AddHours(now.Hour);
 
-                Sessions localSessions = CreateSessions(hourlyInfos);
+                hourlyInfos = hourlyInfos!
+                    .OrderBy(hp => hp.Time)
+                    .ToList();
 
-                RemoveExtraChargingSessions(localSessions);
+                DateTime currentSessionCreationDate = hourlyInfos.Max(hi => hi.Time);
+
+                if (lastSessionCreationDate == null ||
+                    lastSessionCreationDate != currentSessionCreationDate ||
+                    _settingsChanged)
+                {
+                    lastSessionCreationDate = currentSessionCreationDate;
+
+                    Sessions localSessions = CreateSessions(hourlyInfos);
+
+                    RemoveExtraChargingSessions(localSessions);
 #if DEBUG
-                CheckSessions(hourlyInfos, localSessions);
+                    CheckSessions(hourlyInfos, localSessions);
 #endif
 
-                _settingsChanged = false;
+                    _settingsChanged = false;
 
-                return localSessions;
+                    return localSessions;
+                }
+
+                return sessions!;
             }
+            catch (Exception ex)
+            {
+                _logger.LogException(ex, $"Unhandled exception in GetChargingHours {ex.ToDetailedString()}");
 
-            return sessions!;
+                return null;
+            }
         }
 
 #if DEBUG
@@ -640,7 +652,7 @@ namespace SessyController.Services
                 changed5 = false;
                 changed6 = false;
 
-                changed1 = CombineSessions(sessions);
+                changed1 = RemoveMoreExpensiveChargingSessions(sessions);
 
                 changed2 = RemoveEmptySessions(sessions);
 
@@ -665,7 +677,7 @@ namespace SessyController.Services
 
             foreach (var session in sessions.SessionList.OrderBy(se => se.FirstDate))
             {
-                if(lastSession != null)
+                if (lastSession != null)
                 {
                     if (lastSession.Mode == Modes.Charging && session.Mode == Modes.Discharging)
                     {
@@ -699,7 +711,7 @@ namespace SessyController.Services
 
             return changed;
         }
-     
+
 
         /// <summary>
         /// Remove hours outside the max hours.
@@ -763,36 +775,39 @@ namespace SessyController.Services
         /// <summary>
         /// Merge succeeding sessions of the same type.
         /// </summary>
-        private bool CombineSessions(Sessions sessions)
+        private bool RemoveMoreExpensiveChargingSessions(Sessions sessions)
         {
             var changed = false;
 
-            Session? lastSession = null;
+            Session? previousSession = null;
+
             var list = sessions.SessionList
                         .Where(se => se.GetHourlyInfoList().Count > 0)
-                        .OrderBy(se => se.FirstDate).ToList();
+                        .OrderBy(se => se.FirstDate)
+                        .ToList();
 
             foreach (var session in list)
             {
-                if (lastSession != null)
+                if (previousSession != null)
                 {
-                    if (lastSession.Mode == session.Mode)
+                    if (previousSession.Mode == session.Mode)
                     {
-                        var maxZeroNetHome = GetMaxZeroNetHomeHours(lastSession, session);
-                        var hoursBetween = (session.FirstDate - lastSession.LastDate).Hours;
+                        // var maxZeroNetHome = GetMaxZeroNetHomeHours(previousSession, session);
+                        var hoursBetween = (session.FirstDate - previousSession.LastDate).Hours;
 
                         if (hoursBetween <= 3)
                         {
-                            sessions.MergeSessions(session, lastSession);
-
-                            sessions.RemoveSession(lastSession);
+                            if (session.IsCheaper(previousSession))
+                                sessions.RemoveSession(previousSession);
+                            else
+                                sessions.RemoveSession(session);
 
                             changed = true;
                         }
                     }
                 }
 
-                lastSession = session;
+                previousSession = session;
             }
 
             return changed;
@@ -864,15 +879,16 @@ namespace SessyController.Services
         {
             var changed = false;
 
-            foreach (var session in sessions.SessionList)
-            {
-                var maxHours = session.GetChargingHours();
-
-                if (session.RemoveAllAfter(maxHours))
+            if (sessions.SessionList != null && sessions.SessionList.Count() > 0)
+                foreach (var session in sessions.SessionList)
                 {
-                    changed = true;
+                    var maxHours = session.GetChargingHours();
+
+                    if (session.RemoveAllAfter(maxHours))
+                    {
+                        changed = true;
+                    }
                 }
-            }
 
             return changed;
         }
@@ -911,17 +927,18 @@ namespace SessyController.Services
                                              _settingsConfig,
                                              _batteryContainer,
                                              loggerFactory);
+
             if (hourlyInfos != null && hourlyInfos.Count > 0)
             {
                 // Check the first element
                 if (hourlyInfos.Count > 1)
                 {
-                    if (hourlyInfos[0].SmoothedPrice < hourlyInfos[1].SmoothedPrice)
+                    if (hourlyInfos[0].Price < hourlyInfos[1].Price)
                     {
                         sessions.AddNewSession(Modes.Charging, hourlyInfos[0], averagePrice);
                     }
 
-                    if (hourlyInfos[0].SmoothedPrice > hourlyInfos[1].SmoothedPrice)
+                    if (hourlyInfos[0].Price > hourlyInfos[1].Price)
                     {
                         sessions.AddNewSession(Modes.Discharging, hourlyInfos[0], averagePrice);
                     }
@@ -930,12 +947,12 @@ namespace SessyController.Services
                 // Check the elements in between.
                 for (var i = 1; i < hourlyInfos.Count - 1; i++)
                 {
-                    if (hourlyInfos[i].SmoothedPrice < hourlyInfos[i - 1].SmoothedPrice && hourlyInfos[i].SmoothedPrice < hourlyInfos[i + 1].SmoothedPrice)
+                    if (hourlyInfos[i].Price < hourlyInfos[i - 1].Price && hourlyInfos[i].Price < hourlyInfos[i + 1].Price)
                     {
                         sessions.AddNewSession(Modes.Charging, hourlyInfos[i], averagePrice);
                     }
 
-                    if (hourlyInfos[i].SmoothedPrice > hourlyInfos[i - 1].SmoothedPrice && hourlyInfos[i].SmoothedPrice > hourlyInfos[i + 1].SmoothedPrice)
+                    if (hourlyInfos[i].Price > hourlyInfos[i - 1].Price && hourlyInfos[i].Price > hourlyInfos[i + 1].Price)
                     {
                         sessions.AddNewSession(Modes.Discharging, hourlyInfos[i], averagePrice);
                     }
@@ -944,10 +961,10 @@ namespace SessyController.Services
                 // Check the last element
                 if (hourlyInfos.Count > 1)
                 {
-                    if (hourlyInfos[hourlyInfos.Count - 1].SmoothedPrice < hourlyInfos[hourlyInfos.Count - 2].SmoothedPrice)
+                    if (hourlyInfos[hourlyInfos.Count - 1].Price < hourlyInfos[hourlyInfos.Count - 2].Price)
                         sessions.AddNewSession(Modes.Charging, hourlyInfos[hourlyInfos.Count - 1], averagePrice);
 
-                    if (hourlyInfos[hourlyInfos.Count - 1].SmoothedPrice > hourlyInfos[hourlyInfos.Count - 2].SmoothedPrice)
+                    if (hourlyInfos[hourlyInfos.Count - 1].Price > hourlyInfos[hourlyInfos.Count - 2].Price)
                         sessions.AddNewSession(Modes.Discharging, hourlyInfos[hourlyInfos.Count - 1], averagePrice);
                 }
             }

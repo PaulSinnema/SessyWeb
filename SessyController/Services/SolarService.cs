@@ -66,12 +66,12 @@ namespace SessyController.Services
         {
             if (hourlyInfos != null)
             {
-                var currentTime = _timeZoneService.Now;
+                var now = _timeZoneService.Now;
 
                 var solarPower = 0.0;
 
                 foreach (var hourlyInfo in hourlyInfos
-                    .Where(hi => hi.Time.Date >= currentTime.Date && hi.Time.Date <= currentTime.Date.AddHours(24)))
+                    .Where(hi => hi.Time.Date >= now.Date && hi.Time.Date <= now.Date.AddHours(24)))
                 {
                     solarPower += hourlyInfo.SolarPower;
                 }
