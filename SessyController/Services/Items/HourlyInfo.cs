@@ -113,17 +113,20 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Adds a gesmoothed price to each HourlyInfo object in the list.
         /// </summary>
-        public static void AddSmoothedPrices(List<HourlyInfo> hourlyData, int windowSize)
+        public static void AddSmoothedPrices(List<HourlyInfo> hourlyInfos, int windowSize)
         {
-            if (hourlyData == null || hourlyData.Count == 0) return;
+            if (hourlyInfos == null || hourlyInfos.Count == 0) return;
 
-            for (int i = 0; i < hourlyData.Count; i++)
+            for (int i = 0; i < hourlyInfos.Count; i++)
             {
                 int start = Math.Max(0, i - windowSize / 2);
-                int end = Math.Min(hourlyData.Count - 1, i + windowSize / 2);
+                int end = Math.Min(hourlyInfos.Count - 1, i + windowSize / 2);
 
-                double average = hourlyData.Skip(start).Take(end - start + 1).Average(h => h.Price);
-                hourlyData[i].SmoothedPrice = average;
+                var range = hourlyInfos.Skip(start).Take(end - start + 1);
+
+                double average = range.Count() > 0 ? range.Average(h => h.Price) : 0.0;
+
+                hourlyInfos[i].SmoothedPrice = average;
             }
         }
 

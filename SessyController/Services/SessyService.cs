@@ -190,7 +190,7 @@ namespace SessyController.Services
         {
             get
             {
-                return  Math.Round(StateOfCharge * 100.0, 1);
+                return Math.Round(StateOfCharge * 100.0, 1);
             }
         }
 
@@ -234,7 +234,7 @@ namespace SessyController.Services
         /// The current system state (e.g., "SYSTEM_STATE_STANDBY").
         /// </summary>
         // [JsonProperty("system_state")]
-        public SystemStates SystemState 
+        public SystemStates SystemState
         {
             get
             {
@@ -318,6 +318,32 @@ namespace SessyController.Services
 
         [JsonProperty("strategy")]
         public string? Strategy { get; set; }
+
+        public string StrategyVisual
+        {
+            get
+            {
+                var strategy = (PowerStrategies)Enum.Parse(typeof(PowerStrategies), Strategy!);
+
+                switch (strategy)
+                {
+                    case PowerStrategies.POWER_STRATEGY_NOM:
+                        return "Zero Net Home";
+                    case PowerStrategies.POWER_STRATEGY_ROI:
+                        return "Dynamic";
+                    case PowerStrategies.POWER_STRATEGY_API:
+                        return "Sessy Web (Open API)";
+                    case PowerStrategies.POWER_STRATEGY_IDLE:
+                        return "Idle";
+                    case PowerStrategies.POWER_STRATEGY_SESSY_CONNECT:
+                        return "Sessy connect";
+                    case PowerStrategies.POWER_STRATEGY_ECO:
+                        return "Eco mode";
+                    default:
+                        return "Unknown";
+                }
+            }
+        }
 
         [JsonProperty("status")]
         public string? Status { get; set; }

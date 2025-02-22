@@ -17,6 +17,8 @@ else
             <RadzenStack Orientation="Orientation.Vertical" AlignItems="AlignItems.Normal" Style="width: 100%; max-width: 1000px;">
                 <RadzenCard class="rz-background-color-primary-light rz-shadow-0 rz-border-radius-0 rz-p-8 rz-border-radius-2" style="margin: 1rem calc(-1 * var(--rz-card-padding));">
                     <RadzenText TextStyle="TextStyle.H6" class="rz-color-on-primary-light"><strong>@Battery!.GetName()</strong></RadzenText>
+                    <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Strategy</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H6" class="rz-color-on-primary-light"><strong>@ActivePowerStrategy?.StrategyVisual</strong></RadzenText>
                     <RadzenRow RowGap="0">
                         <RadzenColumn SizeSM="4">
                             <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Power status</RadzenText>

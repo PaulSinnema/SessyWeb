@@ -48,7 +48,7 @@ namespace SessyController.Services.Items
         /// <summary>
         /// The average price of all hourly prices in the session.
         /// </summary>
-        public double AveragePrice => HourlyInfos.Average(hp => hp.Price);
+        public double AveragePrice => HourlyInfos.Count > 0 ? HourlyInfos.Average(hp => hp.Price) : 0.0;
 
         /// <summary>
         /// First hourlyInfo object in the session.
@@ -194,10 +194,13 @@ namespace SessyController.Services.Items
         {
             // TODO: return (int)Math.Ceiling(MaxChargeNeeded / _batteryContainer.GetChargingCapacity());
 
-            var chargeNeeded = MaxChargeNeeded - HourlyInfos.Average(hi => hi.ChargeLeft);
+            if (HourlyInfos.Count() > 0)
+            {
+                var chargeNeeded = MaxChargeNeeded - HourlyInfos.Average(hi => hi.ChargeLeft);
 
-            if (chargeNeeded >= 0)
-                return (int)Math.Ceiling(chargeNeeded / _batteryContainer.GetChargingCapacity());
+                if (chargeNeeded >= 0)
+                    return (int)Math.Ceiling(chargeNeeded / _batteryContainer.GetChargingCapacity());
+            }
 
             return 0;
         }

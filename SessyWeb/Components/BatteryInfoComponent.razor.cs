@@ -14,6 +14,8 @@ namespace SessyWeb.Components
 
         private CancellationTokenSource _cts = new();
 
+        public ActivePowerStrategy? ActivePowerStrategy { get; set; }
+
         protected override async Task OnInitializedAsync()
         {
             await LoadPowerStatus(); // Directe eerste update
@@ -43,6 +45,7 @@ namespace SessyWeb.Components
             if (Battery != null)
             {
                 powerStatus = await Battery.GetPowerStatus();
+                ActivePowerStrategy = await Battery.GetActivePowerStrategy();
                 await InvokeAsync(StateHasChanged);
             }
         }
