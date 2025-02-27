@@ -154,7 +154,7 @@ namespace SessyController.Services
                         }
                     }
                 }
-                catch(Exception ex)
+                catch (Exception ex)
                 {
                     _logger.LogException(ex, $"Unhandled exception in Process: {ex.ToDetailedString()}");
                     // Keep the loop running, just report in the log what went wrong.
@@ -434,9 +434,9 @@ namespace SessyController.Services
 
                 DateTime currentSessionCreationDate = hourlyInfos.Max(hi => hi.Time);
 
-                if (lastSessionCreationDate == null ||
-                    lastSessionCreationDate != currentSessionCreationDate ||
-                    _settingsChanged)
+                //if (lastSessionCreationDate == null ||
+                //    lastSessionCreationDate != currentSessionCreationDate ||
+                //    _settingsChanged)
                 {
                     lastSessionCreationDate = currentSessionCreationDate;
 
@@ -445,10 +445,9 @@ namespace SessyController.Services
                     if (localSessions != null)
                     {
                         RemoveExtraChargingSessions(localSessions);
-// #if DEBUG
+                        // #if DEBUG
                         CheckSessions(hourlyInfos, localSessions);
-// #endif
-
+                        // #endif
                         _settingsChanged = false;
 
                         return localSessions;
@@ -891,7 +890,7 @@ namespace SessyController.Services
             return changed;
         }
 
-           private double GetMaxZeroNetHomeHours(Session lastSession, Session session)
+        private double GetMaxZeroNetHomeHours(Session lastSession, Session session)
         {
             var homeNeeds = _settingsConfig.RequiredHomeEnergy;
 
@@ -926,6 +925,7 @@ namespace SessyController.Services
                 Sessions sessions = new Sessions(hourlyInfos,
                                                  _settingsConfig,
                                                  _batteryContainer,
+                                                 _timeZoneService,
                                                  loggerFactory);
 
                 if (hourlyInfos != null && hourlyInfos.Count > 0)

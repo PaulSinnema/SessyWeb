@@ -14,6 +14,7 @@ namespace SessyController.Services.Items
         private ILogger<Sessions> _logger { get; set; }
         private SettingsConfig _settingsConfig { get; set; }
         private BatteryContainer _batteryContainer { get; set; }
+        private TimeZoneService? _timeZoneService { get; set; }
 
         private List<Session>? _sessionList { get; set; }
         private int _maxChargingHours { get; set; }
@@ -25,10 +26,12 @@ namespace SessyController.Services.Items
         public Sessions(List<HourlyInfo> hourlyInfos,
                         SettingsConfig settingsConfig,
                         BatteryContainer batteryContainer,
+                        TimeZoneService? timeZoneService,
                         ILoggerFactory loggerFactory)
         {
             _settingsConfig = settingsConfig;
             _batteryContainer = batteryContainer;
+            _timeZoneService = timeZoneService;
 
             _sessionList = new List<Session>();
             _hourlyInfos = hourlyInfos;
@@ -104,7 +107,7 @@ namespace SessyController.Services.Items
                             Session session = new Session(mode, _maxChargingHours, _batteryContainer, _settingsConfig);
                             _sessionList.Add(session);
                             session.AddHourlyInfo(hourlyInfo);
-                            CompleteSession(session, _hourlyInfos, _maxChargingHours, _cycleCost, averagePrice);
+                            CompleteSession(session, _hourlyInfos, _maxChargingHours, _cycleCost);
                             break;
                         }
 
@@ -113,7 +116,7 @@ namespace SessyController.Services.Items
                             Session session = new Session(mode, _maxDischargingHours, _batteryContainer, _settingsConfig);
                             _sessionList.Add(session);
                             session.AddHourlyInfo(hourlyInfo);
-                            CompleteSession(session, _hourlyInfos, _maxDischargingHours, _cycleCost, averagePrice);
+                            CompleteSession(session, _hourlyInfos, _maxDischargingHours, _cycleCost);
                             break;
                         }
 
@@ -211,95 +214,123 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Add neighbouring hours to the Session
         /// </summary>
-        public void CompleteSession(Session session, List<HourlyInfo> hourlyInfos, int maxHours, double cycleCost, double averagePrice)
+        public void CompleteSession(Session session, List<HourlyInfo> hourlyInfos, int maxHours, double cycleCost)
         {
-            return;
-
             if (session.GetHourlyInfoList().Count != 1)
                 throw new InvalidOperationException($"Session has zero or more than 1 hourly price.");
 
-            var index = hourlyInfos.IndexOf(session.GetHourlyInfoList().First());
+            var now = _timeZoneService.Now;
+            var hourlyInfosFromNow = hourlyInfos
+                .Where(hi => hi.Time > now.Date.AddHours(now.Hour).AddHours(-1))
+                .OrderBy(hi => hi.Time)
+                .ToList();
+            var index = hourlyInfosFromNow.IndexOf(session.GetHourlyInfoList().First());
             var prev = index - 1;
             var next = index + 1;
 
-            for (var i = 0; i < maxHours - 1; i++)
-            {
-                switch (session.Mode)
+            if (index >= 0)
+            { 
+                for (var i = 0; i < maxHours - 1; i++)
                 {
-                    case Modes.Charging:
-                        {
-                            if (prev >= 0)
+                    var averagePrice = GetAveragePriceInWindow(hourlyInfosFromNow, index, 20);
+
+                    switch (session.Mode)
+                    {
+                        case Modes.Charging:
                             {
-                                if (next < hourlyInfos.Count)
+                                if (prev >= 0)
                                 {
-                                    if (hourlyInfos[next].Price < hourlyInfos[prev].Price)
+                                    if (next < hourlyInfosFromNow.Count)
                                     {
-                                        if (hourlyInfos[next].Price < averagePrice)
-                                            AddHourlyInfo(session, hourlyInfos[next++]);
+                                        if (hourlyInfosFromNow[next].Price < hourlyInfosFromNow[prev].Price)
+                                        {
+                                            if (hourlyInfosFromNow[next].Price < averagePrice)
+                                                AddHourlyInfo(session, hourlyInfosFromNow[next++]);
+                                        }
+                                        else
+                                        {
+                                            if (hourlyInfosFromNow[prev].Price < averagePrice)
+                                                AddHourlyInfo(session, hourlyInfosFromNow[prev--]);
+                                        }
                                     }
                                     else
                                     {
-                                        if (hourlyInfos[prev].Price < averagePrice)
-                                            AddHourlyInfo(session, hourlyInfos[prev--]);
+                                        if (hourlyInfosFromNow[prev].Price < averagePrice)
+                                            AddHourlyInfo(session, hourlyInfosFromNow[prev--]);
                                     }
                                 }
                                 else
                                 {
-                                    if (hourlyInfos[prev].Price < averagePrice)
-                                        AddHourlyInfo(session, hourlyInfos[prev--]);
-                                }
-                            }
-                            else
-                            {
-                                if (next < hourlyInfos.Count)
-                                {
-                                    if (hourlyInfos[next].Price < averagePrice)
-                                        AddHourlyInfo(session, hourlyInfos[next++]);
-                                }
-                            }
-
-                            break;
-                        }
-
-                    case Modes.Discharging:
-                        {
-                            if (prev >= 0)
-                            {
-                                if (next < hourlyInfos.Count)
-                                {
-                                    if (hourlyInfos[next].Price > hourlyInfos[prev].Price)
+                                    if (next < hourlyInfosFromNow.Count)
                                     {
-                                        if (hourlyInfos[next].Price > averagePrice)
-                                            AddHourlyInfo(session, hourlyInfos[next++]);
+                                        if (hourlyInfosFromNow[next].Price < averagePrice)
+                                            AddHourlyInfo(session, hourlyInfosFromNow[next++]);
+                                    }
+                                }
+
+                                break;
+                            }
+
+                        case Modes.Discharging:
+                            {
+                                if (prev >= 0)
+                                {
+                                    if (next < hourlyInfosFromNow.Count)
+                                    {
+                                        if (hourlyInfosFromNow[next].Price > hourlyInfosFromNow[prev].Price)
+                                        {
+                                            if (hourlyInfosFromNow[next].Price > averagePrice)
+                                                AddHourlyInfo(session, hourlyInfosFromNow[next++]);
+                                        }
+                                        else
+                                        {
+                                            if (hourlyInfosFromNow[prev].Price > averagePrice)
+                                                AddHourlyInfo(session, hourlyInfosFromNow[prev--]);
+                                        }
                                     }
                                     else
                                     {
-                                        if (hourlyInfos[prev].Price > averagePrice)
-                                            AddHourlyInfo(session, hourlyInfos[prev--]);
+                                        if (hourlyInfosFromNow[prev].Price > averagePrice)
+                                            AddHourlyInfo(session, hourlyInfosFromNow[prev--]);
                                     }
                                 }
                                 else
                                 {
-                                    if (hourlyInfos[prev].Price > averagePrice)
-                                        AddHourlyInfo(session, hourlyInfos[prev--]);
+                                    if (next < hourlyInfosFromNow.Count)
+                                    {
+                                        if (hourlyInfosFromNow[next].Price > averagePrice)
+                                            AddHourlyInfo(session, hourlyInfosFromNow[next++]);
+                                    }
                                 }
-                            }
-                            else
-                            {
-                                if (next < hourlyInfos.Count)
-                                {
-                                    if (hourlyInfos[next].Price > averagePrice)
-                                        AddHourlyInfo(session, hourlyInfos[next++]);
-                                }
+
+                                break;
                             }
 
+                        default:
                             break;
-                        }
-
-                    default:
-                        break;
+                    }
                 }
             }
+        }
+
+        private double GetAveragePriceInWindow(List<HourlyInfo> hourlyInfos, int index, int window = 10)
+        {
+            var halfWindow = window / 2;
+            var start = index - halfWindow;
+            var end = index + halfWindow;
+
+            if (start < 0) start = 0;
+            if (end > hourlyInfos.Count) end = hourlyInfos.Count - 1;
+
+            var list = hourlyInfos
+                .OrderBy(hi => hi.Time)
+                .ToList()
+                .GetRange(start, end - start);
+
+            if (list.Count > 0)
+                return list.Average(hi => hi.Price);
+
+            return hourlyInfos[index].Price;
         }
 
         public Session FindSession(HourlyInfo hourlyInfo)
