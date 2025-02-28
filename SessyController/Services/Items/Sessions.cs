@@ -220,8 +220,9 @@ namespace SessyController.Services.Items
                 throw new InvalidOperationException($"Session has zero or more than 1 hourly price.");
 
             var now = _timeZoneService.Now;
+            var selectDateHour = now.Date.AddHours(now.Hour).AddHours(-1);
             var hourlyInfosFromNow = hourlyInfos
-                .Where(hi => hi.Time > now.Date.AddHours(now.Hour).AddHours(-1))
+                .Where(hi => hi.Time >= selectDateHour)
                 .OrderBy(hi => hi.Time)
                 .ToList();
             var index = hourlyInfosFromNow.IndexOf(session.GetHourlyInfoList().First());

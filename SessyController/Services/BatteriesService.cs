@@ -434,9 +434,9 @@ namespace SessyController.Services
 
                 DateTime currentSessionCreationDate = hourlyInfos.Max(hi => hi.Time);
 
-                //if (lastSessionCreationDate == null ||
-                //    lastSessionCreationDate != currentSessionCreationDate ||
-                //    _settingsChanged)
+                if (lastSessionCreationDate == null ||
+                    lastSessionCreationDate != currentSessionCreationDate ||
+                    _settingsChanged)
                 {
                     lastSessionCreationDate = currentSessionCreationDate;
 
