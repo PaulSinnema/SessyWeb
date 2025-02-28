@@ -113,7 +113,7 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Adds a gesmoothed price to each HourlyInfo object in the list.
         /// </summary>
-        public static void AddSmoothedPrices(List<HourlyInfo> hourlyInfos, int windowSize)
+        public static void AddSmoothedPrices(List<HourlyInfo> hourlyInfos, int windowSize = 3)
         {
             if (hourlyInfos == null || hourlyInfos.Count == 0) return;
 

@@ -24,7 +24,7 @@ namespace SessyController.Services.Items
             {
                 return _mode;
             }
-            set
+            private set
             {
                 _mode = value;
 
@@ -162,7 +162,6 @@ namespace SessyController.Services.Items
                             changed = true;
                         }
 
-
                         break;
                     }
 
@@ -175,7 +174,6 @@ namespace SessyController.Services.Items
                             RemoveHourlyInfo(list[index]);
                             changed = true;
                         }
-
 
                         break;
                     }
@@ -194,7 +192,7 @@ namespace SessyController.Services.Items
         {
             // TODO: return (int)Math.Ceiling(MaxChargeNeeded / _batteryContainer.GetChargingCapacity());
 
-            if (HourlyInfos.Count() > 0)
+            if (!IsEmpty())
             {
                 var chargeNeeded = MaxChargeNeeded - HourlyInfos.Average(hi => hi.ChargeLeft);
 
@@ -212,7 +210,9 @@ namespace SessyController.Services.Items
 
         public override string ToString()
         {
-            return $"Session: {Mode}, FirstDate: {FirstDate}, LastDate {LastDate}, Count: {HourlyInfos.Count}, MaxChargeNeeded: {MaxChargeNeeded}, MaxHours: {MaxHours}";
+            var empty = IsEmpty() ? "!!!" : string.Empty;
+
+            return $"{empty}Session: {Mode}, FirstDate: {FirstDate}, LastDate {LastDate}, Count: {HourlyInfos.Count}, MaxChargeNeeded: {MaxChargeNeeded}, MaxHours: {MaxHours}";
         }
 
         private bool _isDisposed = false;

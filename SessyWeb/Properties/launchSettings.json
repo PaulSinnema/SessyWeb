@@ -21,7 +21,8 @@
       "launchBrowser": true,
       "launchUrl": "{Scheme}://{ServiceHost}:{ServicePort}",
       "environmentVariables": {
-        "ASPNETCORE_URLS": "http://+:80" // <-- HTTPS verwijderd
+        "ASPNETCORE_URLS": "http://+:80", // <-- HTTPS verwijderd
+        "ASPNETCORE_ENVIRONMENT": "Development"
       },
       "workingDirectory": "/app", // <-- Werkmap expliciet ingesteld
       "useSSL": false, // <-- SSL uitzetten voor eenvoudiger debugging
