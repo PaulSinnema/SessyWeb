@@ -1,10 +1,11 @@
-﻿using System;
-using System.Collections.Concurrent;
-using System.Xml;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using SessyCommon.Extensions;
 using SessyController.Configurations;
 using SessyController.Services.Items;
+using System;
+using System.Collections.Concurrent;
+using System.Xml;
 
 namespace SessyController.Services
 {
@@ -100,10 +101,13 @@ namespace SessyController.Services
                 {
                     // Ignore cancellation exception during delay
                 }
+                catch(Exception ex)
+                {
+                    _logger.LogError($"Something went wrong during delay, keep processing {ex.ToDetailedString()}");
+                }
             }
 
             _logger.LogInformation("EPEXHourlyInfosService stopped.");
-
         }
 
         /// <summary>

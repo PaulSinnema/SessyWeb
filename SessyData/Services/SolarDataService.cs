@@ -1,5 +1,4 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
-using SessyData.Helpers;
 using SessyData.Model;
 
 namespace SessyData.Services

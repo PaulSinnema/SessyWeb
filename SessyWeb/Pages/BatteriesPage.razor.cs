@@ -2,11 +2,11 @@
 
 namespace SessyWeb.Pages
 {
-    public partial class Batteries : PageBase
+    public partial class BatteriesPage : PageBase
     {
         public List<Battery>? BatteriesList = new List<Battery>();
 
-        private CancellationTokenSource? _cts { get; set; }
+        private CancellationTokenSource _cts = new();
 
         protected async override void OnInitialized()
         {
@@ -20,7 +20,7 @@ namespace SessyWeb.Pages
         {
             using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
 
-            _cts = new();
+            _cts.Cancel();
 
             try
             {
@@ -43,7 +43,7 @@ namespace SessyWeb.Pages
                 _cts.Cancel();
                 _cts.Dispose();
 
-                Console.WriteLine("Index: Timer stopped");
+                Console.WriteLine("Batteries page: Timer stopped");
             }
         }
 

@@ -24,6 +24,9 @@ namespace SessyController.Services
         private SessyBatteryConfig _sessyBatteryConfig { get; set; }
         private BatteryContainer? _batteryContainer { get; set; }
         private TimeZoneService? _timeZoneService { get; set; }
+        private PowerEstimatesService _powerEstimatesService { get; set; }
+        private WeatherService _weatherService { get; set; }
+
         private LoggingService<BatteriesService> _logger { get; set; }
 
         private static List<HourlyInfo>? hourlyInfos { get; set; } = new List<HourlyInfo>();
@@ -71,6 +74,8 @@ namespace SessyController.Services
             _solarService = _scope.ServiceProvider.GetRequiredService<SolarService>();
             _batteryContainer = _scope.ServiceProvider.GetRequiredService<BatteryContainer>();
             _timeZoneService = _scope.ServiceProvider.GetRequiredService<TimeZoneService>();
+            _powerEstimatesService = _scope.ServiceProvider.GetRequiredService<PowerEstimatesService>();
+            _weatherService = _scope.ServiceProvider.GetRequiredService<WeatherService>();
         }
 
         public override Task StopAsync(CancellationToken cancellationToken)
@@ -183,7 +188,7 @@ namespace SessyController.Services
             }
         }
 
-        private async Task HandleAutomaticCharging(Sessions? sessions)
+        private async Task HandleAutomaticCharging(Sessions sessions)
         {
             HourlyInfo? currentHourlyInfo = GetCurrentHourlyInfo();
 
@@ -232,7 +237,7 @@ namespace SessyController.Services
         /// If batteries are full stop charging this session
         /// If batteries are empty stop discharging this session
         /// </summary>
-        private async Task CancelSessionIfStateRequiresIt(Sessions? sessions, HourlyInfo currentHourlyInfo)
+        private async Task CancelSessionIfStateRequiresIt(Sessions sessions, HourlyInfo currentHourlyInfo)
         {
             if (currentHourlyInfo.Charging)
             {
@@ -277,7 +282,7 @@ namespace SessyController.Services
         /// <summary>
         /// Cancel charging for current and future consecutive charging hours.
         /// </summary>
-        private static void StopChargingSession(Sessions? sessions, HourlyInfo currentHourlyInfo)
+        private void StopChargingSession(Sessions sessions, HourlyInfo currentHourlyInfo)
         {
             if (hourlyInfos != null)
             {
@@ -295,13 +300,15 @@ namespace SessyController.Services
                     if (!enumPrices.MoveNext())
                         return;
                 }
+
+                RemoveEmptySessions(sessions);
             }
         }
 
         /// <summary>
         /// Cancel discharging for current and future consecutive discharging hours.
         /// </summary>
-        private static void StopDischargingSession(Sessions? sessions, HourlyInfo currentHourlyInfo)
+        private void StopDischargingSession(Sessions sessions, HourlyInfo currentHourlyInfo)
         {
             if (hourlyInfos != null)
             {
@@ -320,6 +327,8 @@ namespace SessyController.Services
                         return;
                 }
             }
+
+            RemoveEmptySessions(sessions);
         }
 
         /// <summary>
@@ -798,7 +807,10 @@ namespace SessyController.Services
                     if (previousSession.Mode == session.Mode)
                     {
                         // var maxZeroNetHome = GetMaxZeroNetHomeHours(previousSession, session);
-                        var hoursBetween = (session.FirstDate - previousSession.LastDate).Hours;
+                        var hoursBetween = (session.FirstDate.AddHours(-1) - previousSession.LastDate.AddHours(1)).Hours;
+                        // TODO: Get the temperature for the current hour in the loop not the actual current temperature
+                        //var temperature = _weatherService.GetCurrentTemperature();
+                        //var power = _powerEstimatesService.GetPowerHistory(previousSession.LastDate, session.FirstDate, temperature);
 
                         if (hoursBetween <= 3)
                         {
@@ -890,13 +902,14 @@ namespace SessyController.Services
             return changed;
         }
 
-        private double GetMaxZeroNetHomeHours(Session lastSession, Session session)
+        private double GetMaxZeroNetHomeHours(Session previousSession, Session session)
         {
             var homeNeeds = _settingsConfig.RequiredHomeEnergy;
+            var currentCharge = _batteryContainer.GetStateOfChargeInWatts();
 
-            if (lastSession.Mode == Modes.Charging && session.Mode == Modes.Charging)
+            if (previousSession.Mode == Modes.Charging && session.Mode == Modes.Charging)
             {
-                var timeSpan = session.FirstDate - lastSession.LastDate;
+                var timeSpan = session.FirstDate - previousSession.LastDate;
 
                 return timeSpan.Hours;
             }

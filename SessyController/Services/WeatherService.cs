@@ -134,6 +134,17 @@ namespace SessyController.Services
             }
         }
 
+        public double GetCurrentTemperature()
+        {
+            var now = _timeZoneService.Now.Date.AddHours(_timeZoneService.Now.Hour);
+
+            return WeatherData.UurVerwachting
+                .Where(uv => uv.TimeStamp.HasValue &&
+                             uv.TimeStamp.Value.Date.AddHours(uv.TimeStamp.Value.Hour) == now)
+                .Select(uv => uv.Temp)
+                .First();
+        }
+
         public class LiveWeer
         {
             [JsonPropertyName("plaats")]
