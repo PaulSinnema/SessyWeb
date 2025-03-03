@@ -41,13 +41,16 @@ namespace SessyWeb.Pages
             if(firstRender)
             {
                 _screenSizeService!.OnScreenHeightChanged += HandleResize;
+                _batteriesService!.DataChanged += BatteriesServiceDataChanged;
+                _batteriesService!.OnHeartBeat += HeartBeat;
+
                 await _screenSizeService.InitializeAsync();
 
                 await InvokeAsync(async () =>
                 {
                     var height = await _screenSizeService!.GetScreenHeightAsync();
                     
-                    await ChangeChartStyle(height);
+                    ChangeChartStyle(height);
 
                     StateHasChanged();
                 });
@@ -56,11 +59,36 @@ namespace SessyWeb.Pages
             await base.OnAfterRenderAsync(firstRender);
         }
 
-        private async void HandleResize(int height)
+        private async Task HeartBeat()
         {
             await InvokeAsync(async () =>
             {
-                await ChangeChartStyle(height);
+                IsBeating = true;
+                StateHasChanged();
+
+                await Task.Delay(3000).ContinueWith(_ =>
+                {
+                    IsBeating = false;
+                    InvokeAsync(StateHasChanged);
+                });
+            });
+        }
+
+        private bool IsBeating = false;
+
+        private async Task BatteriesServiceDataChanged()
+        {
+            await InvokeAsync(() =>
+            {
+                StateHasChanged();
+            });
+        }
+
+        private async void HandleResize(int height)
+        {
+            await InvokeAsync(() =>
+            {
+                ChangeChartStyle(height);
 
                 StateHasChanged();
             });
@@ -78,7 +106,7 @@ namespace SessyWeb.Pages
                 {
                     if (IsComponentActive)
                     {
-                        await InvokeAsync(async () =>
+                        await InvokeAsync(() =>
                         {
                             var now = _timeZoneService!.Now;
 
@@ -98,7 +126,7 @@ namespace SessyWeb.Pages
             }
         }
 
-        private async Task ChangeChartStyle(int height)
+        private void ChangeChartStyle(int height)
         {
             // 25 pixels per data row (3)
             var width = HourlyInfos?.Count * 3 * 25;
@@ -134,6 +162,8 @@ namespace SessyWeb.Pages
         public override void Dispose()
         {
             _screenSizeService!.OnScreenHeightChanged -= HandleResize;
+            _batteriesService!.DataChanged -= BatteriesServiceDataChanged;
+            _batteriesService!.OnHeartBeat -= HeartBeat;
 
             base.Dispose();
         }

@@ -13,9 +13,10 @@ namespace SessyController.Services.Items
             _serviceScopeFactory = serviceScopeFactory;
 
             _scope = _serviceScopeFactory.CreateScope();
-                _settingsConfigMonitor = _scope.ServiceProvider.GetRequiredService<IOptionsMonitor<SettingsConfig>>();
 
-                _settingsConfigMonitor.OnChange((SettingsConfig settings) => _settingsConfig = settings);
+            _settingsConfigMonitor = _scope.ServiceProvider.GetRequiredService<IOptionsMonitor<SettingsConfig>>();
+
+            _settingsConfigMonitor.OnChange((SettingsConfig settings) => _settingsConfig = settings);
 
             _settingsConfig = _settingsConfigMonitor.CurrentValue;
         }
@@ -64,6 +65,20 @@ namespace SessyController.Services.Items
         public double SolarPowerVisual => SolarPower / 10 / _settingsConfig.SolarCorrection;
 
         private bool _charging = false;
+
+        public void Reset()
+        {
+            Charging = false;
+            Discharging = false;
+            SolarPower = 0.0;
+            ChargeLeft = 0.0;
+            Buying = 0.0;
+            Selling = 0.0;
+            ChargeLeftPercentage = 0.0;
+            SolarGlobalRadiation = 0.0;
+            SolarPower = 0.0;
+            SmoothedPrice = 0.0;
+        }
 
         /// <summary>
         /// If true charging is requested.
@@ -213,12 +228,12 @@ namespace SessyController.Services.Items
 
         public void Dispose()
         {
-            if(!_isDisposed)
+            if (!_isDisposed)
             {
                 _scope.Dispose();
 
                 _isDisposed = true;
-            }    
+            }
         }
     }
 }

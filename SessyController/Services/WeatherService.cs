@@ -109,7 +109,7 @@ namespace SessyController.Services
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogException(ex, $"Error trying to deserialize reponse from WeerOnline: {response}");
+                    _logger.LogException(ex, $"Error trying to deserialize reponse from WeerOnline:\n\nResponse:{response}\n\nContent:{content}");
                     throw;
                 }
             }

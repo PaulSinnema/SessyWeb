@@ -182,14 +182,9 @@ namespace SessyController.Services.Items
 
                     case (false, false, false): // Disabled
                         {
-                            var kWh = Math.Min(_homeNeeds / 24, hourlyInfo.ChargeLeft) / 1000;
-                            hourlyInfo.Selling = hourlyInfo.Price * kWh;
-                            hourlyInfo.Buying = lastChargingSession.Count > 0 ? lastChargingSession.Average(lcs => lcs.Price) * kWh : 0.0;
+                            hourlyInfo.Selling = 0.0;
+                            hourlyInfo.Buying = 0.0;
 
-                            if (!(hourlyInfo.Profit > _netZeroHomeMinProfit))
-                            {
-                                hourlyInfo.Buying = hourlyInfo.Selling = 0.00;
-                            }
                             break;
                         }
 

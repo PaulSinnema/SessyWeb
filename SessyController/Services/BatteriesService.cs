@@ -9,7 +9,7 @@ namespace SessyController.Services
     /// <summary>
     /// This service maintains all batteries in the system.
     /// </summary>
-    public partial class BatteriesService : BackgroundService
+    public partial class BatteriesService : SessyBackgroundService
     {
         private IServiceScope _scope { get; set; }
         private SessyService? _sessyService { get; set; }
@@ -30,7 +30,7 @@ namespace SessyController.Services
         private LoggingService<BatteriesService> _logger { get; set; }
 
         private static List<HourlyInfo>? hourlyInfos { get; set; } = new List<HourlyInfo>();
-        private bool _settingsChanged = false;
+        private bool _settingsChanged { get; set; } = false;
 
         public BatteriesService(LoggingService<BatteriesService> logger,
                                 IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
@@ -97,6 +97,8 @@ namespace SessyController.Services
             {
                 try
                 {
+                    await HeartBeatAsync();
+
                     await Process(cancelationToken);
                 }
                 catch (Exception ex)
@@ -137,13 +139,13 @@ namespace SessyController.Services
 
                 try
                 {
-                    _sessions = DetermineChargingHours(_sessions!);
+                    await DetermineChargingHours();
 
                     if (_sessions != null)
                     {
                         _solarService.GetExpectedSolarPower(hourlyInfos!);
 
-                        await EvaluateSessions(_sessions, hourlyInfos!);
+                        await EvaluateSessions();
 
                         HourlyInfo? currentHourlyInfo = GetCurrentHourlyInfo();
 
@@ -301,7 +303,7 @@ namespace SessyController.Services
                         return;
                 }
 
-                RemoveEmptySessions(sessions);
+                RemoveEmptySessions();
             }
         }
 
@@ -328,7 +330,7 @@ namespace SessyController.Services
                 }
             }
 
-            RemoveEmptySessions(sessions);
+            RemoveEmptySessions();
         }
 
         /// <summary>
@@ -376,16 +378,14 @@ namespace SessyController.Services
         /// <summary>
         /// Determine when to charge the batteries.
         /// </summary>
-        public Sessions? DetermineChargingHours(Sessions? sessions)
+        public async Task DetermineChargingHours()
         {
             DateTime localTime = _timeZoneService.Now;
 
             if (FetchPricesFromENTSO_E(localTime))
             {
-                sessions = GetChargingHours();
+                await GetChargingHours();
             }
-
-            return sessions;
         }
 
         /// <summary>
@@ -408,6 +408,8 @@ namespace SessyController.Services
                 // There are already info objects present, supplement with missing.
                 foreach (var hourlyInfo in fetchedPrices)
                 {
+                    hourlyInfo.Reset();
+
                     if (!hourlyInfos.Any(hp => hp.Time == hourlyInfo.Time))
                     {
                         hourlyInfos.Add(hourlyInfo);
@@ -427,10 +429,14 @@ namespace SessyController.Services
 
         private DateTime? lastSessionCreationDate { get; set; } = null;
 
+        public delegate Task DataChangedDelegate();
+
+        public event DataChangedDelegate? DataChanged;
+
         /// <summary>
         /// In this routine it is determined when to charge the batteries.
         /// </summary>
-        private Sessions? GetChargingHours()
+        private async Task GetChargingHours()
         {
             try
             {
@@ -449,27 +455,25 @@ namespace SessyController.Services
                 {
                     lastSessionCreationDate = currentSessionCreationDate;
 
-                    Sessions? localSessions = CreateSessions(hourlyInfos);
+                    _sessions = CreateSessions(hourlyInfos);
 
-                    if (localSessions != null)
+                    if (_sessions != null)
                     {
-                        RemoveExtraChargingSessions(localSessions);
+                        await RemoveExtraChargingSessions();
                         // #if DEBUG
-                        CheckSessions(hourlyInfos, localSessions);
+                        CheckSessions();
                         // #endif
                         _settingsChanged = false;
-
-                        return localSessions;
                     }
                 }
-
-                return _sessions!;
             }
             catch (Exception ex)
             {
                 _logger.LogException(ex, $"Unhandled exception in GetChargingHours {ex.ToDetailedString()}");
-
-                return null;
+            }
+            finally
+            {
+                DataChanged?.Invoke();
             }
         }
 
@@ -477,9 +481,9 @@ namespace SessyController.Services
         /// This method is voor debugging purposes only. It checks the content of hourlyInfos
         /// and sessions.
         /// </summary>
-        private void CheckSessions(List<HourlyInfo> hourlyInfos, Sessions sessions)
+        private void CheckSessions()
         {
-            foreach (var session in sessions.SessionList)
+            foreach (var session in _sessions.SessionList)
             {
                 if (session.GetHourlyInfoList().Count() == 0)
                     throw new InvalidOperationException($"Session without HourlyInfos");
@@ -490,10 +494,10 @@ namespace SessyController.Services
                 {
                     case (true, false, false): // Charging
                         {
-                            if (!sessions.InAnySession(hourlyInfo))
+                            if (!_sessions.InAnySession(hourlyInfo))
                                 throw new InvalidOperationException($"Info not in a session {hourlyInfo}");
 
-                            Session session = CheckSession(sessions, hourlyInfo);
+                            Session session = CheckSession(_sessions, hourlyInfo);
 
                             if (session.Mode != Modes.Charging)
                                 throw new InvalidOperationException($"Charging info in wrong session {hourlyInfo}");
@@ -503,10 +507,10 @@ namespace SessyController.Services
 
                     case (false, true, false): // Discharging
                         {
-                            if (!sessions.InAnySession(hourlyInfo))
+                            if (!_sessions.InAnySession(hourlyInfo))
                                 throw new InvalidOperationException($"Info not in a session {hourlyInfo}");
 
-                            Session session = CheckSession(sessions, hourlyInfo);
+                            Session session = CheckSession(_sessions, hourlyInfo);
 
                             if (session.Mode != Modes.Discharging)
                                 throw new InvalidOperationException($"Discharging info in wrong session {hourlyInfo}");
@@ -517,7 +521,7 @@ namespace SessyController.Services
                     case (false, false, true): // Zero Net Home
                     case (false, false, false): // Disabled
                         {
-                            if (sessions.InAnySession(hourlyInfo))
+                            if (_sessions.InAnySession(hourlyInfo))
                                 throw new InvalidOperationException($"Zero net home or disabled hour in a (dis)charging session {hourlyInfo}");
                         }
 
@@ -539,30 +543,28 @@ namespace SessyController.Services
             return session;
         }
 
-        private async Task EvaluateSessions(Sessions sessions, List<HourlyInfo> hourlyInfos)
+        private async Task EvaluateSessions()
         {
             do
             {
-                await EvaluateChargingHoursAndProfitability(sessions, hourlyInfos);
+                await EvaluateChargingHoursAndProfitability();
             }
-            while (ShrinkSessions(sessions));
-
-            await EvaluateChargingHoursAndProfitability(sessions, hourlyInfos);
+            while (ShrinkSessions());
         }
 
-        private async Task EvaluateChargingHoursAndProfitability(Sessions sessions, List<HourlyInfo> hourlyInfos)
+        private async Task EvaluateChargingHoursAndProfitability()
         {
-            await CalculateChargeLeftAndProfits(hourlyInfos);
+            await CalculateChargeLeft(hourlyInfos!);
 
-            sessions.CalculateProfits(_timeZoneService!);
+            _sessions.CalculateProfits(_timeZoneService!);
 
-            DetermineMaxToCharge(sessions);
+            DetermineMaxToCharge();
         }
 
         /// <summary>
         /// Calculate the estimated charge per hour starting from the current hour.
         /// </summary>
-        public async Task CalculateChargeLeftAndProfits(List<HourlyInfo> hourlyInfos)
+        public async Task CalculateChargeLeft(List<HourlyInfo> hourlyInfos)
         {
             double stateOfCharge = await _batteryContainer.GetStateOfCharge();
             double totalCapacity = _batteryContainer.GetTotalCapacity();
@@ -634,8 +636,8 @@ namespace SessyController.Services
                 }
                 else
                 {
-                    hourlyInfo.ChargeLeft = charge;
-                    hourlyInfo.ChargeLeftPercentage = charge / (totalCapacity / 100);
+                    hourlyInfo.ChargeLeft = Math.Min(charge, totalCapacity);
+                    hourlyInfo.ChargeLeftPercentage = hourlyInfo.ChargeLeft / (totalCapacity / 100);
                 }
 
                 previous = hourlyInfo;
@@ -648,7 +650,7 @@ namespace SessyController.Services
         /// - Charging sessions larger than the max charging hours
         /// - Discharging sessions that are not profitable.
         /// </summary>
-        private void RemoveExtraChargingSessions(Sessions sessions)
+        private async Task RemoveExtraChargingSessions()
         {
             bool changed1;
             bool changed2;
@@ -666,30 +668,30 @@ namespace SessyController.Services
                 changed5 = false;
                 changed6 = false;
 
-                changed1 = RemoveMoreExpensiveChargingSessions(sessions);
+                changed1 = await RemoveMoreExpensiveChargingSessions();
 
-                changed2 = RemoveEmptySessions(sessions);
+                changed2 = RemoveEmptySessions();
 
-                changed3 = RemoveExtraHours(sessions);
+                changed3 = RemoveExtraHours();
 
-                changed4 = RemoveEmptySessions(sessions);
+                changed4 = RemoveEmptySessions();
 
-                changed5 = CheckProfitability(sessions);
+                changed5 = CheckProfitability();
 
-                changed6 = RemoveEmptySessions(sessions);
+                changed6 = RemoveEmptySessions();
             } while (changed1 || changed2 || changed3 || changed4 || changed5 || changed6);
         }
 
         /// <summary>
         /// Check if discharging sessions are profitable.
         /// </summary>
-        private bool CheckProfitability(Sessions sessions)
+        private bool CheckProfitability()
         {
             bool changed = false;
 
             Session? lastSession = null;
 
-            foreach (var session in sessions.SessionList.OrderBy(se => se.FirstDate))
+            foreach (var session in _sessions.SessionList.OrderBy(se => se.FirstDate))
             {
                 if (lastSession != null)
                 {
@@ -730,13 +732,13 @@ namespace SessyController.Services
         /// <summary>
         /// Remove hours outside the max hours.
         /// </summary>
-        private bool RemoveExtraHours(Sessions sessions)
+        private bool RemoveExtraHours()
         {
             var changed = false;
 
             List<HourlyInfo> listToLimit;
 
-            foreach (var session in sessions.SessionList.ToList())
+            foreach (var session in _sessions.SessionList.ToList())
             {
                 switch (session.Mode)
                 {
@@ -770,15 +772,15 @@ namespace SessyController.Services
         /// <summary>
         /// Remove sessions without (dis)charging hours.
         /// </summary>
-        private bool RemoveEmptySessions(Sessions sessions)
+        private bool RemoveEmptySessions()
         {
             var changed = false;
 
-            foreach (var session in sessions.SessionList.ToList())
+            foreach (var session in _sessions.SessionList.ToList())
             {
                 if (session.GetHourlyInfoList().Count() == 0)
                 {
-                    sessions.RemoveSession(session);
+                    _sessions.RemoveSession(session);
                     changed = true;
                 }
             }
@@ -789,13 +791,13 @@ namespace SessyController.Services
         /// <summary>
         /// Merge succeeding sessions of the same type.
         /// </summary>
-        private bool RemoveMoreExpensiveChargingSessions(Sessions sessions)
+        private async Task<bool> RemoveMoreExpensiveChargingSessions()
         {
             var changed = false;
 
             Session? previousSession = null;
 
-            var list = sessions.SessionList
+            var list = _sessions.SessionList
                         .Where(se => se.GetHourlyInfoList().Count > 0)
                         .OrderBy(se => se.FirstDate)
                         .ToList();
@@ -806,20 +808,36 @@ namespace SessyController.Services
                 {
                     if (previousSession.Mode == session.Mode)
                     {
-                        // var maxZeroNetHome = GetMaxZeroNetHomeHours(previousSession, session);
-                        var hoursBetween = (session.FirstDate.AddHours(-1) - previousSession.LastDate.AddHours(1)).Hours;
+                        var hoursBetween = (session.FirstDate - previousSession.LastDate).Hours;
                         // TODO: Get the temperature for the current hour in the loop not the actual current temperature
                         //var temperature = _weatherService.GetCurrentTemperature();
                         //var power = _powerEstimatesService.GetPowerHistory(previousSession.LastDate, session.FirstDate, temperature);
 
-                        if (hoursBetween <= 3)
+                        if (session.Mode == Modes.Charging)
                         {
-                            if (session.IsCheaper(previousSession))
-                                sessions.RemoveSession(previousSession);
-                            else
-                                sessions.RemoveSession(session);
+                            var maxZeroNetHomeHours = await GetMaxZeroNetHomeHours(previousSession, session);
 
-                            changed = true;
+                            if (hoursBetween <= maxZeroNetHomeHours)
+                            {
+                                if (session.IsCheaper(previousSession))
+                                    _sessions.RemoveSession(previousSession);
+                                else
+                                    _sessions.RemoveSession(session);
+
+                                changed = true;
+                            }
+                        }
+                        else if (session.Mode == Modes.Discharging)
+                        {
+                            if (hoursBetween <= 3)
+                            {
+                                if (session.IsCheaper(previousSession))
+                                    _sessions.RemoveSession(session);
+                                else
+                                    _sessions.RemoveSession(previousSession);
+
+                                changed = true;
+                            }
                         }
                     }
                 }
@@ -833,11 +851,11 @@ namespace SessyController.Services
         /// <summary>
         /// Shrink sessions if the hours needed to charge to 100% is less than calculated.
         /// </summary>
-        private bool ShrinkSessions(Sessions sessions)
+        private bool ShrinkSessions()
         {
             var changed = false;
 
-            foreach (var session in sessions.SessionList)
+            foreach (var session in _sessions.SessionList)
             {
                 var maxHours = session.GetChargingHours();
 
@@ -847,7 +865,7 @@ namespace SessyController.Services
                 }
             }
 
-            RemoveEmptySessions(sessions);
+            RemoveEmptySessions();
 
             return changed;
         }
@@ -856,16 +874,16 @@ namespace SessyController.Services
         /// This routine detects charge session that follow each other and determines how much
         /// charge is needed for the session.
         /// </summary>
-        private bool DetermineMaxToCharge(Sessions sessions)
+        private bool DetermineMaxToCharge()
         {
             var changed = false;
             Session? previousSession = null;
             var totalCapacity = _batteryContainer.GetTotalCapacity();
             double maxChargeNeeded = 0.0;
 
-            sessions.SessionList.ToList().ForEach(hi => hi.MaxChargeNeeded = totalCapacity);
+            _sessions.SessionList.ToList().ForEach(hi => hi.MaxChargeNeeded = totalCapacity);
 
-            foreach (var session in sessions.SessionList.OrderBy(se => se.FirstDate))
+            foreach (var session in _sessions.SessionList.OrderBy(se => se.FirstDate))
             {
                 if (previousSession != null)
                 {
@@ -902,19 +920,12 @@ namespace SessyController.Services
             return changed;
         }
 
-        private double GetMaxZeroNetHomeHours(Session previousSession, Session session)
+        private async Task<double> GetMaxZeroNetHomeHours(Session previousSession, Session session)
         {
-            var homeNeeds = _settingsConfig.RequiredHomeEnergy;
-            var currentCharge = _batteryContainer.GetStateOfChargeInWatts();
+            var homeNeeds = _settingsConfig.RequiredHomeEnergy / 24.0;
+            var currentCharge = await _batteryContainer.GetStateOfChargeInWatts();
 
-            if (previousSession.Mode == Modes.Charging && session.Mode == Modes.Charging)
-            {
-                var timeSpan = session.FirstDate - previousSession.LastDate;
-
-                return timeSpan.Hours;
-            }
-
-            return 24.0;
+            return currentCharge / homeNeeds;
         }
 
         /// <summary>
