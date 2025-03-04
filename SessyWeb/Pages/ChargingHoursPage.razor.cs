@@ -31,7 +31,9 @@ namespace SessyWeb.Pages
         {
             await base.OnInitializedAsync();
 
-            HourlyInfos = _batteriesService?.GetHourlyInfos();
+            GetOnlyCurrentHourlyInfos();
+
+            await HandleScreenHeight();
         }
 
         protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -59,15 +61,13 @@ namespace SessyWeb.Pages
         {
             var height = await _screenSizeService!.GetScreenHeightAsync();
 
-            ChangeChartStyle(height);
+            HandleResize(height);
         }
 
         private async Task HeartBeat()
         {
             await InvokeAsync(async () =>
             {
-                await ShowData();
-
                 IsBeating = true;
                 StateHasChanged();
 
@@ -87,6 +87,8 @@ namespace SessyWeb.Pages
             {
                 await HandleScreenHeight();
 
+                await ShowData();
+
                 StateHasChanged();
             });
         }
@@ -96,8 +98,6 @@ namespace SessyWeb.Pages
             await InvokeAsync(() =>
             {
                 ChangeChartStyle(height);
-
-                StateHasChanged();
             });
         }
 
@@ -107,8 +107,6 @@ namespace SessyWeb.Pages
             {
                 await InvokeAsync(() =>
                 {
-                    GetOnlyCurrentHourlyInfos();
-
                     TotalSolarPowerExpected = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(HourlyInfos);
                 });
             }
@@ -125,7 +123,6 @@ namespace SessyWeb.Pages
 
         private void ChangeChartStyle(int height)
         {
-            GetOnlyCurrentHourlyInfos();
             // 25 pixels per data row (3)
             var width = HourlyInfos?.Count * 3 * 25;
 
