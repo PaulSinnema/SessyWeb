@@ -100,20 +100,26 @@ namespace SessyController.Services.Items
         public IReadOnlyCollection<HourlyInfo> GetHourlyInfoList() => HourlyInfos.AsReadOnly();
 
         /// <summary>
-        /// Add a price to the list
+        /// Add a hourly info object to the list if not already in the list.
         /// </summary>
         public void AddHourlyInfo(HourlyInfo hourlyInfo)
         {
-            hourlyInfo.SetModes(_mode);
+            if (!Contains(hourlyInfo))
+            {
+                hourlyInfo.SetModes(_mode);
 
-            HourlyInfos.Add(hourlyInfo);
+                HourlyInfos.Add(hourlyInfo);
+            }
         }
 
         public void RemoveHourlyInfo(HourlyInfo hourlyInfo)
         {
-            DisableChargingAndDischarging(hourlyInfo);
+            if (Contains(hourlyInfo))
+            {
+                DisableChargingAndDischarging(hourlyInfo);
 
-            HourlyInfos.Remove(hourlyInfo);
+                HourlyInfos.Remove(hourlyInfo);
+            }
         }
 
         private void DisableChargingAndDischarging(HourlyInfo hourlyInfo)

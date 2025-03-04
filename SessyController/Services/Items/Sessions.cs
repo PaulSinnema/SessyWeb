@@ -210,15 +210,12 @@ namespace SessyController.Services.Items
 
         /// <summary>
         /// Adds an hourly info object to the sessions hourly info list if it is not contained in
-        /// any other session. Throws an exception if the hourly info object is already present in
-        /// another session.
+        /// any other session.
         /// </summary>
         public void AddHourlyInfo(Session session, HourlyInfo hourlyInfo)
         {
             if (!InAnySession(hourlyInfo))
                 session.AddHourlyInfo(hourlyInfo);
-            else
-                throw new InvalidOperationException($"Hourly info object already in another session {hourlyInfo}");
         }
 
         /// <summary>

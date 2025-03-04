@@ -956,37 +956,49 @@ namespace SessyController.Services
                 {
                     if (hourlyInfos[0].Price < hourlyInfos[1].Price)
                     {
-                        _sessions.AddNewSession(Modes.Charging, hourlyInfos[0]);
+                        if (!_sessions.InAnySession(hourlyInfos[0]))
+                            _sessions.AddNewSession(Modes.Charging, hourlyInfos[0]);
                     }
 
                     if (hourlyInfos[0].Price > hourlyInfos[1].Price)
                     {
-                        _sessions.AddNewSession(Modes.Discharging, hourlyInfos[0]);
+                        if (!_sessions.InAnySession(hourlyInfos[0]))
+                            _sessions.AddNewSession(Modes.Discharging, hourlyInfos[0]);
                     }
                 }
 
                 // Check the elements in between.
-                for (var i = 1; i < hourlyInfos.Count - 2; i++)
+                for (var index = 1; index < hourlyInfos.Count - 2; index++)
                 {
-                    if (hourlyInfos[i].Price < hourlyInfos[i - 1].Price && hourlyInfos[i].Price < hourlyInfos[i + 1].Price)
+                    if (hourlyInfos[index].Price < hourlyInfos[index - 1].Price && hourlyInfos[index].Price < hourlyInfos[index + 1].Price)
                     {
-                        _sessions.AddNewSession(Modes.Charging, hourlyInfos[i]);
+                        if(!_sessions.InAnySession(hourlyInfos[index]))
+                            _sessions.AddNewSession(Modes.Charging, hourlyInfos[index]);
                     }
 
-                    if (hourlyInfos[i].Price > hourlyInfos[i - 1].Price && hourlyInfos[i].Price > hourlyInfos[i + 1].Price)
+                    if (hourlyInfos[index].Price > hourlyInfos[index - 1].Price && hourlyInfos[index].Price > hourlyInfos[index + 1].Price)
                     {
-                        _sessions.AddNewSession(Modes.Discharging, hourlyInfos[i]);
+                        if (!_sessions.InAnySession(hourlyInfos[index]))
+                            _sessions.AddNewSession(Modes.Discharging, hourlyInfos[index]);
                     }
                 }
 
                 // Check the last element
                 if (hourlyInfos.Count > 1)
                 {
-                    if (hourlyInfos[hourlyInfos.Count - 1].Price < hourlyInfos[hourlyInfos.Count - 2].Price)
-                        _sessions.AddNewSession(Modes.Charging, hourlyInfos[hourlyInfos.Count - 1]);
+                    var index = hourlyInfos.Count - 1;
 
-                    if (hourlyInfos[hourlyInfos.Count - 1].Price > hourlyInfos[hourlyInfos.Count - 2].Price)
-                        _sessions.AddNewSession(Modes.Discharging, hourlyInfos[hourlyInfos.Count - 1]);
+                    if (hourlyInfos[index].Price < hourlyInfos[index - 1].Price)
+                    {
+                        if (!_sessions.InAnySession(hourlyInfos[index]))
+                            _sessions.AddNewSession(Modes.Charging, hourlyInfos[index]);
+                    }
+
+                    if (hourlyInfos[index].Price > hourlyInfos[index - 1].Price)
+                    {
+                        if (!_sessions.InAnySession(hourlyInfos[index]))
+                            _sessions.AddNewSession(Modes.Discharging, hourlyInfos[index]);
+                    }
                 }
             }
             else
