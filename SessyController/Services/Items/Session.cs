@@ -1,4 +1,5 @@
-﻿using SessyController.Configurations;
+﻿using SessyCommon.Extensions;
+using SessyController.Configurations;
 
 namespace SessyController.Services.Items
 {
@@ -33,6 +34,14 @@ namespace SessyController.Services.Items
                     hourlyPrice.SetModes(_mode);
                 }
             }
+        }
+
+        /// <summary>
+        /// Returns true if the hourlyInfo is contained in the sessions list.
+        /// </summary>
+        public bool Contains(HourlyInfo hourlyInfo)
+        {
+            return HourlyInfos.Any(hi => hi.Time.DateHour() == hourlyInfo.Time.DateHour());
         }
 
         /// <summary>
@@ -138,11 +147,6 @@ namespace SessyController.Services.Items
             }
 
             HourlyInfos.Clear();
-        }
-
-        public bool Contains(HourlyInfo hourlyInfo)
-        {
-            return HourlyInfos.Contains(hourlyInfo);
         }
 
         public bool RemoveAllAfter(int maxHours)

@@ -168,6 +168,7 @@ namespace SessyController.Services
                 }
                 finally
                 {
+                    DataChanged?.Invoke();
                     HourlyInfoSemaphore.Release();
                 }
             }
@@ -394,7 +395,7 @@ namespace SessyController.Services
         /// </summary>
         private bool FetchPricesFromENTSO_E(DateTime localTime)
         {
-            // Get the available hourly prices from now.
+            // Get the available hourly prices.
             var fetchedPrices = _dayAheadMarketService.GetPrices()
                 .OrderBy(hp => hp.Time)
                 .ToList();
@@ -449,13 +450,13 @@ namespace SessyController.Services
 
                 DateTime currentSessionCreationDate = hourlyInfos.Max(hi => hi.Time);
 
-                if (lastSessionCreationDate == null ||
-                    lastSessionCreationDate != currentSessionCreationDate ||
-                    _settingsChanged)
+                //if (lastSessionCreationDate == null ||
+                //    lastSessionCreationDate != currentSessionCreationDate ||
+                //    _settingsChanged)
                 {
                     lastSessionCreationDate = currentSessionCreationDate;
 
-                    _sessions = CreateSessions(hourlyInfos);
+                    CreateSessions();
 
                     if (_sessions != null)
                     {
@@ -470,10 +471,6 @@ namespace SessyController.Services
             catch (Exception ex)
             {
                 _logger.LogException(ex, $"Unhandled exception in GetChargingHours {ex.ToDetailedString()}");
-            }
-            finally
-            {
-                DataChanged?.Invoke();
             }
         }
 
@@ -931,12 +928,14 @@ namespace SessyController.Services
         /// <summary>
         /// Determine when the prices are the highest en the lowest.
         /// </summary>
-        private Sessions? CreateSessions(List<HourlyInfo> hourlyInfos)
+        private void CreateSessions()
         {
-            if (hourlyInfos.Count() > 0)
-            {
-                var averagePrice = hourlyInfos.Average(hp => hp.Price);
+            _sessions?.Dispose();
 
+            _sessions = null;
+
+            if (hourlyInfos != null && hourlyInfos.Count() > 0)
+            {
                 double totalBatteryCapacity = _batteryContainer.GetTotalCapacity();
                 double chargingPower = _batteryContainer.GetChargingCapacity();
                 double dischargingPower = _batteryContainer.GetDischargingCapacity();
@@ -946,59 +945,52 @@ namespace SessyController.Services
 
                 var loggerFactory = _scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
 
-                Sessions sessions = new Sessions(hourlyInfos,
-                                                 _settingsConfig,
-                                                 _batteryContainer,
-                                                 _timeZoneService,
-                                                 loggerFactory);
+                _sessions = new Sessions(hourlyInfos,
+                                         _settingsConfig,
+                                         _batteryContainer,
+                                         _timeZoneService,
+                                         loggerFactory);
 
-                if (hourlyInfos != null && hourlyInfos.Count > 0)
+                // Check the first element
+                if (hourlyInfos.Count > 1)
                 {
-                    // Check the first element
-                    if (hourlyInfos.Count > 1)
+                    if (hourlyInfos[0].Price < hourlyInfos[1].Price)
                     {
-                        if (hourlyInfos[0].Price < hourlyInfos[1].Price)
-                        {
-                            sessions.AddNewSession(Modes.Charging, hourlyInfos[0], averagePrice);
-                        }
-
-                        if (hourlyInfos[0].Price > hourlyInfos[1].Price)
-                        {
-                            sessions.AddNewSession(Modes.Discharging, hourlyInfos[0], averagePrice);
-                        }
+                        _sessions.AddNewSession(Modes.Charging, hourlyInfos[0]);
                     }
 
-                    // Check the elements in between.
-                    for (var i = 1; i < hourlyInfos.Count - 1; i++)
+                    if (hourlyInfos[0].Price > hourlyInfos[1].Price)
                     {
-                        if (hourlyInfos[i].Price < hourlyInfos[i - 1].Price && hourlyInfos[i].Price < hourlyInfos[i + 1].Price)
-                        {
-                            sessions.AddNewSession(Modes.Charging, hourlyInfos[i], averagePrice);
-                        }
-
-                        if (hourlyInfos[i].Price > hourlyInfos[i - 1].Price && hourlyInfos[i].Price > hourlyInfos[i + 1].Price)
-                        {
-                            sessions.AddNewSession(Modes.Discharging, hourlyInfos[i], averagePrice);
-                        }
-                    }
-
-                    // Check the last element
-                    if (hourlyInfos.Count > 1)
-                    {
-                        if (hourlyInfos[hourlyInfos.Count - 1].Price < hourlyInfos[hourlyInfos.Count - 2].Price)
-                            sessions.AddNewSession(Modes.Charging, hourlyInfos[hourlyInfos.Count - 1], averagePrice);
-
-                        if (hourlyInfos[hourlyInfos.Count - 1].Price > hourlyInfos[hourlyInfos.Count - 2].Price)
-                            sessions.AddNewSession(Modes.Discharging, hourlyInfos[hourlyInfos.Count - 1], averagePrice);
+                        _sessions.AddNewSession(Modes.Discharging, hourlyInfos[0]);
                     }
                 }
-                else
-                    _logger.LogWarning("HourlyInfos is empty!!");
 
-                return sessions;
+                // Check the elements in between.
+                for (var i = 1; i < hourlyInfos.Count - 2; i++)
+                {
+                    if (hourlyInfos[i].Price < hourlyInfos[i - 1].Price && hourlyInfos[i].Price < hourlyInfos[i + 1].Price)
+                    {
+                        _sessions.AddNewSession(Modes.Charging, hourlyInfos[i]);
+                    }
+
+                    if (hourlyInfos[i].Price > hourlyInfos[i - 1].Price && hourlyInfos[i].Price > hourlyInfos[i + 1].Price)
+                    {
+                        _sessions.AddNewSession(Modes.Discharging, hourlyInfos[i]);
+                    }
+                }
+
+                // Check the last element
+                if (hourlyInfos.Count > 1)
+                {
+                    if (hourlyInfos[hourlyInfos.Count - 1].Price < hourlyInfos[hourlyInfos.Count - 2].Price)
+                        _sessions.AddNewSession(Modes.Charging, hourlyInfos[hourlyInfos.Count - 1]);
+
+                    if (hourlyInfos[hourlyInfos.Count - 1].Price > hourlyInfos[hourlyInfos.Count - 2].Price)
+                        _sessions.AddNewSession(Modes.Discharging, hourlyInfos[hourlyInfos.Count - 1]);
+                }
             }
-
-            return null;
+            else
+                _logger.LogWarning("HourlyInfos is empty!!");
         }
 
         private bool _isDisposed = false;

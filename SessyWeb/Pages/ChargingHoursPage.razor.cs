@@ -32,13 +32,11 @@ namespace SessyWeb.Pages
             await base.OnInitializedAsync();
 
             HourlyInfos = _batteriesService?.GetHourlyInfos();
-
-            await StartLoop();
         }
 
         protected override async Task OnAfterRenderAsync(bool firstRender)
         {
-            if(firstRender)
+            if (firstRender)
             {
                 _screenSizeService!.OnScreenHeightChanged += HandleResize;
                 _batteriesService!.DataChanged += BatteriesServiceDataChanged;
@@ -48,9 +46,7 @@ namespace SessyWeb.Pages
 
                 await InvokeAsync(async () =>
                 {
-                    var height = await _screenSizeService!.GetScreenHeightAsync();
-                    
-                    ChangeChartStyle(height);
+                    await HandleScreenHeight();
 
                     StateHasChanged();
                 });
@@ -59,10 +55,19 @@ namespace SessyWeb.Pages
             await base.OnAfterRenderAsync(firstRender);
         }
 
+        private async Task HandleScreenHeight()
+        {
+            var height = await _screenSizeService!.GetScreenHeightAsync();
+
+            ChangeChartStyle(height);
+        }
+
         private async Task HeartBeat()
         {
             await InvokeAsync(async () =>
             {
+                await ShowData();
+
                 IsBeating = true;
                 StateHasChanged();
 
@@ -78,8 +83,10 @@ namespace SessyWeb.Pages
 
         private async Task BatteriesServiceDataChanged()
         {
-            await InvokeAsync(() =>
+            await InvokeAsync(async () =>
             {
+                await HandleScreenHeight();
+
                 StateHasChanged();
             });
         }
@@ -94,43 +101,33 @@ namespace SessyWeb.Pages
             });
         }
 
-        private async Task StartLoop()
+        private async Task ShowData()
         {
-            _cts.Cancel();
-
-            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
-
-            try
+            if (IsComponentActive)
             {
-                do
+                await InvokeAsync(() =>
                 {
-                    if (IsComponentActive)
-                    {
-                        await InvokeAsync(() =>
-                        {
-                            var now = _timeZoneService!.Now;
+                    GetOnlyCurrentHourlyInfos();
 
-                            HourlyInfos = _batteriesService?.GetHourlyInfos()?
-                                .Where(hi => hi.Time >= now.Date.AddHours(now.Hour - 1))
-                                .ToList();
+                    TotalSolarPowerExpected = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(HourlyInfos);
+                });
+            }
+        }
 
-                            TotalSolarPowerExpected = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(HourlyInfos);
-                        });
-                    }
-                }
-                while (await timer.WaitForNextTickAsync(_cts.Token));
-            }
-            catch (OperationCanceledException)
-            {
-                Console.WriteLine("Charging hours page: Timer stopped.");
-            }
+        private void GetOnlyCurrentHourlyInfos()
+        {
+            var now = _timeZoneService!.Now;
+
+            HourlyInfos = _batteriesService?.GetHourlyInfos()?
+                .Where(hi => hi.Time >= now.Date.AddHours(now.Hour - 1))
+                .ToList();
         }
 
         private void ChangeChartStyle(int height)
         {
+            GetOnlyCurrentHourlyInfos();
             // 25 pixels per data row (3)
             var width = HourlyInfos?.Count * 3 * 25;
-            // var height = await _screenSizeService!.GetScreenHeightAsync();
 
             GraphStyle = $"min-height: {height - 250}px; width: {width}px; visibility: initial;";
         }
