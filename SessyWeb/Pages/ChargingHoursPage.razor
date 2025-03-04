@@ -5,31 +5,40 @@
 @using Radzen.Blazor
 @using SessyWeb.Components
 
-@inject TooltipService tooltipService
-
 @using SessyController.Services.Items
 
 @if (HourlyInfos != null && HourlyInfos.Count() != 0)
 {
     <div style="width: 100%; overflow: auto;">
-        <RadzenCard Style="padding: 3px 3px 20px 30px;">
+        <RadzenCard Style="padding: 3px 3px 5px 10px;">
             <RadzenStack Orientation="Orientation.Horizontal" Gap="2" AlignItems="AlignItems.Start">
-            <RadzenStack Orientation="Orientation.Vertical" Gap="2" AlignItems="AlignItems.Start">
-                <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Total expected solar power</RadzenText>
-                <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@TotalSolarPowerExpectedVisual kWh for @_timeZoneService!.Now.Date.ToString("dd MMM yyyy")</b></RadzenText>
-            </RadzenStack>
-                <RadzenCard>
-                    <div style="height: 20px; width: 20px; display: flex; align-items: center; justify-content: center;">
-                        @if (IsBeating)
-                        {
-                            <i class="fas fa-heart heartbeat" style="color: indianred; font-size: 24px;"></i>
-                        }
-                        else
-                        {
-                            <i class="fas fa-heart" style="color: transparent; font-size: 24px;"></i>
-                        }
-                    </div>
-                </RadzenCard>
+                <RadzenStack Orientation="Orientation.Vertical" Gap="2" AlignItems="AlignItems.Start" Style="width: 250px;">
+                    <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Total expected solar power</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@TotalSolarPowerExpectedVisual kWh for @_timeZoneService!.Now.Date.ToString("dd MMM yyyy")</b></RadzenText>
+                </RadzenStack>
+                <RadzenStack Orientation="Orientation.Horizontal" Style="width: 100%;">
+                    <RadzenCard>
+                        <div style="height: 20px; width: 20px; display: flex; align-items: center; justify-content: center;">
+                            @if (IsBeating)
+                            {
+                                <i class="fas fa-heart heartbeat" style="color: indianred; font-size: 24px;"></i>
+                            }
+                            else
+                            {
+                                <i class="fas fa-heart" style="color: transparent; font-size: 24px;"></i>
+                            }
+                        </div>
+                    </RadzenCard>
+                    <RadzenStack Orientation="Orientation.Vertical" AlignItems="AlignItems.End" Style="width: 100%;">
+                        <RadzenCard>
+                            @*<i class="fas fa-info" style="color: yellow; font-size: 24px;" @onclick="@ShowExplanation"></i>
+ *@                            <RadzenButton @ref="ExplanationButton" 
+                                             Click="@(args=>ShowTooltipWithHtml(ExplanationButton!.Element, new TooltipOptions() { Style = "background-color: transparent;)", Duration = null }))">
+                                <i class="fas fa-info" style="color: yellow; font-size: 24px;"></i>
+                            </RadzenButton>
+                        </RadzenCard>
+                    </RadzenStack>
+                </RadzenStack>
             </RadzenStack>
         </RadzenCard>
         <RadzenChart Style=@GraphStyle>
@@ -53,7 +62,7 @@
                     <RadzenSeriesDataLabels Visible="false" />
                 </ChildContent>
             </RadzenLineSeries>
-            <RadzenLineSeries Data="@HourlyInfos" Smooth="true" CategoryProperty="Time" Title="Charging" ValueProperty="VisualizeInChart">
+            <RadzenLineSeries Data="@HourlyInfos" Smooth="true" CategoryProperty="Time" Title="Charging mode" ValueProperty="VisualizeInChart">
                 <TooltipTemplate Context="data">
                     <ChargingHoursTooltip HourlyInfo=@data />
                 </TooltipTemplate>
@@ -62,7 +71,7 @@
                     <RadzenSeriesDataLabels Visible="false" />
                 </ChildContent>
             </RadzenLineSeries>
-            <RadzenColumnSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Profit" ValueProperty="ProfitVisual">
+            <RadzenColumnSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Revenue" ValueProperty="ProfitVisual">
                 <TooltipTemplate Context="data">
                     <ChargingHoursTooltip HourlyInfo=@data />
                 </TooltipTemplate>
@@ -109,3 +118,12 @@ else
 }
 
 
+@code {
+    RadzenButton? ExplanationButton;
+
+    void ShowTooltipWithHtml(ElementReference elementReference, TooltipOptions options = null) => tooltipService.Open(elementReference, ds =>
+@<div style="background-color: transparent;">
+        <RadzenImage Path="/Images/ChartExplanation.jpg" Style="padding: 5px;" />
+
+    </div>, options);
+}

@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Components;
+using Radzen;
 using SessyController.Services;
 using SessyController.Services.Items;
 using SessyWeb.Services;
@@ -7,6 +8,8 @@ namespace SessyWeb.Pages
 {
     public partial class ChargingHoursPage : PageBase
     {
+        [Inject]
+        public TooltipService? tooltipService { get; set; }
         [Inject]
         public BatteriesService? _batteriesService { get; set; }
         [Inject]
@@ -151,6 +154,11 @@ namespace SessyWeb.Pages
             }
 
             return "";
+        }
+
+        public void ShowExplanation()
+        {
+
         }
 
         public override void Dispose()
