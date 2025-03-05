@@ -74,6 +74,7 @@ namespace SessyController.Services.Items
             ChargeLeft = 0.0;
             Buying = 0.0;
             Selling = 0.0;
+            ChargeLeft = 0.0;
             ChargeLeftPercentage = 0.0;
             SolarGlobalRadiation = 0.0;
             SolarPower = 0.0;
@@ -207,7 +208,7 @@ namespace SessyController.Services.Items
         public bool ZeroNetHome
         {
             get => !(Charging || Discharging) &&
-                (Profit > _settingsConfig.NetZeroHomeMinProfit ||
+                (Profit >= _settingsConfig.NetZeroHomeMinProfit ||
                 SolarPowerInWatts > 100.0);
         }
 

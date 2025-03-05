@@ -1,4 +1,5 @@
-﻿using SessyController.Configurations;
+﻿using SessyCommon.Extensions;
+using SessyController.Configurations;
 using System.Collections.ObjectModel;
 using static SessyController.Services.Items.Session;
 
@@ -216,6 +217,36 @@ namespace SessyController.Services.Items
         {
             if (!InAnySession(hourlyInfo))
                 session.AddHourlyInfo(hourlyInfo);
+        }
+
+        public double GetMaxZeroNetHomeHours(Session previousSession, Session session)
+        {
+            var homeNeeds = _settingsConfig.RequiredHomeEnergy / 24.0;
+            double currentCharge = 1.0; // await _batteryContainer.GetStateOfChargeInWatts();
+
+            var first = previousSession.LastDate.AddHours(1);
+            var last = session.FirstDate.AddHours(-1);
+            var hours = 0;
+            var firstTime = true;
+
+            foreach (var hourlyInfo in _hourlyInfos)
+            {
+                if(hourlyInfo.Time >= first && hourlyInfo.Time <= last && currentCharge >= 0)
+                {
+                    if(firstTime)
+                    {
+                        currentCharge = hourlyInfo.ChargeLeft;
+                        firstTime = false;
+                    }
+
+                    hours++;
+
+                    if(hourlyInfo.ZeroNetHome)
+                        currentCharge -= homeNeeds;
+                }
+            }
+
+            return hours;
         }
 
         /// <summary>

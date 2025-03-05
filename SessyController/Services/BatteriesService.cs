@@ -391,39 +391,17 @@ namespace SessyController.Services
 
         /// <summary>
         /// Get the day-ahead-prices from ENTSO-E.
-        /// This routine gets info objects or adds missing ones.
         /// </summary>
         private bool FetchPricesFromENTSO_E(DateTime localTime)
         {
             // Get the available hourly prices.
-            var fetchedPrices = _dayAheadMarketService.GetPrices()
+            hourlyInfos = _dayAheadMarketService.GetPrices()
                 .OrderBy(hp => hp.Time)
                 .ToList();
 
-            if (hourlyInfos == null) // First time fetch
-            {
-                hourlyInfos = fetchedPrices;
-            }
-            else
-            {
-                // There are already info objects present, supplement with missing.
-                foreach (var hourlyInfo in fetchedPrices)
-                {
-                    hourlyInfo.Reset();
-
-                    if (!hourlyInfos.Any(hp => hp.Time == hourlyInfo.Time))
-                    {
-                        hourlyInfos.Add(hourlyInfo);
-                    }
-                }
-
-                HourlyInfo.AddSmoothedPrices(hourlyInfos, 3);
-            }
+            HourlyInfo.AddSmoothedPrices(hourlyInfos, 3);
 
             var maxTime = localTime.Date.AddDays(-1);
-
-            // Remove yesterdays info objects.
-            hourlyInfos.RemoveAll(hi => hi.Time < maxTime);
 
             return hourlyInfos != null && hourlyInfos.Count > 0;
         }
@@ -563,9 +541,8 @@ namespace SessyController.Services
         /// </summary>
         public async Task CalculateChargeLeft(List<HourlyInfo> hourlyInfos)
         {
-            double stateOfCharge = await _batteryContainer.GetStateOfCharge();
-            double totalCapacity = _batteryContainer.GetTotalCapacity();
             double charge = 0.0;
+            double totalCapacity = _batteryContainer.GetTotalCapacity();
             double dayNeed = _settingsConfig.RequiredHomeEnergy;
             double hourNeed = dayNeed / 24;
             double chargingCapacity = _sessyBatteryConfig.TotalChargingCapacity;
@@ -576,28 +553,24 @@ namespace SessyController.Services
             hourlyInfos.ForEach(hi => hi.ChargeLeft = 0.0);
 
             var hourlyInfoList = hourlyInfos
-                // .Where(hp => hp.Time.Date.AddHours(hp.Time.Hour) >= localTimeHour)
+                .Where(hp => hp.Time.Date.AddHours(hp.Time.Hour) >= localTimeHour)
                 .OrderBy(hp => hp.Time)
                 .ToList();
 
             HourlyInfo? previous = null;
 
+            charge = await _batteryContainer.GetStateOfChargeInWatts();
+
             foreach (var hourlyInfo in hourlyInfoList)
             {
                 if (previous != null)
                 {
-                    if (hourlyInfo.Time == now.Date.AddHours(now.Hour))
-                    {
-                        charge = stateOfCharge * totalCapacity;
-                        previous.ChargeLeft = charge;
-                        previous.ChargeLeftPercentage = charge / (totalCapacity / 100);
-                    }
-
                     switch ((hourlyInfo.Charging, hourlyInfo.Discharging, hourlyInfo.ZeroNetHome))
                     {
                         case (true, false, false): // Charging
                             {
                                 charge = Math.Min(charge + chargingCapacity, totalCapacity);
+                                charge += hourlyInfo.SolarPowerInWatts;
 
                                 break;
                             }
@@ -611,6 +584,7 @@ namespace SessyController.Services
                         case (false, false, true): // Zero net home
                             {
                                 charge = hourNeed > charge ? 0.0 : charge - hourNeed;
+                                charge += hourlyInfo.SolarPowerInWatts;
                                 break;
                             }
 
@@ -622,8 +596,6 @@ namespace SessyController.Services
                         default:
                             break;
                     }
-
-                    charge += hourlyInfo.SolarPowerInWatts;
                 }
 
                 if (hourlyInfo.Time < now.Date.AddHours(now.Hour))
@@ -642,7 +614,7 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// In this fase all session are created. Now it's time to evaluate which
+        /// In this fase creating all sessions has finished. Now it's time to evaluate which
         /// ones to keep. The following sessions are filtered out.
         /// - Charging sessions larger than the max charging hours
         /// - Discharging sessions that are not profitable.
@@ -805,14 +777,14 @@ namespace SessyController.Services
                 {
                     if (previousSession.Mode == session.Mode)
                     {
-                        var hoursBetween = (session.FirstDate - previousSession.LastDate).Hours;
+                        var hoursBetween = (session.FirstDate - previousSession.LastDate).Hours - 1;
                         // TODO: Get the temperature for the current hour in the loop not the actual current temperature
                         //var temperature = _weatherService.GetCurrentTemperature();
                         //var power = _powerEstimatesService.GetPowerHistory(previousSession.LastDate, session.FirstDate, temperature);
 
                         if (session.Mode == Modes.Charging)
                         {
-                            var maxZeroNetHomeHours = await GetMaxZeroNetHomeHours(previousSession, session);
+                            var maxZeroNetHomeHours = _sessions.GetMaxZeroNetHomeHours(previousSession, session);
 
                             if (hoursBetween <= maxZeroNetHomeHours)
                             {
@@ -915,14 +887,6 @@ namespace SessyController.Services
             }
 
             return changed;
-        }
-
-        private async Task<double> GetMaxZeroNetHomeHours(Session previousSession, Session session)
-        {
-            var homeNeeds = _settingsConfig.RequiredHomeEnergy / 24.0;
-            var currentCharge = await _batteryContainer.GetStateOfChargeInWatts();
-
-            return currentCharge / homeNeeds;
         }
 
         /// <summary>
