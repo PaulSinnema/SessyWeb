@@ -138,7 +138,7 @@ namespace SessyWeb.Pages
             {
                 var price = (double)value;
 
-                return $"{price:c3}";
+                return $"{price:n5}";
             }
 
             return "";

@@ -11,6 +11,9 @@ namespace SessyController.Services.Items
     {
         private SessyP1Config _sessyP1Config { get; set; }
         private P1MeterService _p1MeterService { get; set; }
+
+        private IDisposable? _sessyP1ConfigSubscription { get; set; }
+
         private IOptionsMonitor<SessyP1Config> _sessyP1ConfigMonitor { get; set; }
 
         public P1MeterContainer(IOptionsMonitor<SessyP1Config> sessyP1ConfigMonitor,
@@ -20,7 +23,7 @@ namespace SessyController.Services.Items
             _sessyP1Config = _sessyP1ConfigMonitor.CurrentValue;
             _p1MeterService = p1MeterService;
 
-            _sessyP1ConfigMonitor.OnChange((settings) =>
+            _sessyP1ConfigSubscription = _sessyP1ConfigMonitor.OnChange((settings) =>
             {
                 _sessyP1Config = settings;
 
@@ -77,12 +80,13 @@ namespace SessyController.Services.Items
 
         public void Dispose()
         {
-            if(!_isDisposed)
+            if (!_isDisposed)
             {
+                _sessyP1ConfigSubscription.Dispose();
                 P1Meters.Clear();
                 P1Meters = null;
                 _isDisposed = true;
-            }    
+            }
         }
     }
 }

@@ -158,7 +158,7 @@ using (var scope = app.Services.CreateScope())
 
     if (dbContext.Database.HasPendingModelChanges())
     {
-        Console.WriteLine("There a pending database changes");
+        Console.WriteLine("There are pending database changes");
 
         dbContext.Database.Migrate();
     }

@@ -37,11 +37,11 @@ namespace SessyController.Services
             _sessyBatteryConfig = _sessyBatteryConfigMonitor.CurrentValue;
 
             _scope = _serviceScopeFactory.CreateScope();
-            
-                _sessyService = _scope.ServiceProvider.GetRequiredService<SessyService>();
-                _batteryContainer = _scope.ServiceProvider.GetRequiredService<BatteryContainer>();
-                _sessyStatusHistoryService = _scope.ServiceProvider.GetRequiredService<SessyStatusHistoryService>();
-            
+
+            _sessyService = _scope.ServiceProvider.GetRequiredService<SessyService>();
+            _batteryContainer = _scope.ServiceProvider.GetRequiredService<BatteryContainer>();
+            _sessyStatusHistoryService = _scope.ServiceProvider.GetRequiredService<SessyStatusHistoryService>();
+
         }
 
         protected override async Task ExecuteAsync(CancellationToken cancelationToken)
@@ -104,7 +104,7 @@ namespace SessyController.Services
 
         public override void Dispose()
         {
-            if(!_isDisposed)
+            if (!_isDisposed)
             {
                 _scope.Dispose();
 

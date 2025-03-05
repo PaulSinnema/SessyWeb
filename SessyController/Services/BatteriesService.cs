@@ -19,8 +19,14 @@ namespace SessyController.Services
         private SolarService? _solarService { get; set; }
         private IServiceScopeFactory _serviceScopeFactory { get; set; }
         private IOptionsMonitor<SettingsConfig> _settingsConfigMonitor { get; set; }
+
+        private IDisposable? _sessyBatteryConfigSubscription { get; set; }
+
         private SettingsConfig _settingsConfig { get; set; }
         private IOptionsMonitor<SessyBatteryConfig> _sessyBatteryConfigMonitor { get; set; }
+
+        private IDisposable? _settingsConfigSubscription { get; set; }
+
         private SessyBatteryConfig _sessyBatteryConfig { get; set; }
         private BatteryContainer? _batteryContainer { get; set; }
         private TimeZoneService? _timeZoneService { get; set; }
@@ -48,12 +54,12 @@ namespace SessyController.Services
             _settingsConfigMonitor = settingsConfigMonitor;
             _sessyBatteryConfigMonitor = sessyBatteryConfigMonitor;
 
-            _settingsConfigMonitor.OnChange((SettingsConfig settings) =>
+            _settingsConfigSubscription = _settingsConfigMonitor.OnChange(settings =>
             {
                 _settingsConfig = settings;
                 _settingsChanged = true;
             });
-            _sessyBatteryConfigMonitor.OnChange((SessyBatteryConfig settings) =>
+            _sessyBatteryConfigSubscription = _sessyBatteryConfigMonitor.OnChange((SessyBatteryConfig settings) =>
             {
                 _sessyBatteryConfig = settings;
                 _settingsChanged = true;
@@ -97,6 +103,8 @@ namespace SessyController.Services
             {
                 try
                 {
+                    GC.Collect();
+
                     await HeartBeatAsync();
 
                     await Process(cancelationToken);
@@ -394,6 +402,16 @@ namespace SessyController.Services
         /// </summary>
         private bool FetchPricesFromENTSO_E(DateTime localTime)
         {
+            if(hourlyInfos != null)
+            {
+                foreach (var hourlyInfo in hourlyInfos)
+                {
+                    hourlyInfo.Dispose();
+                }
+
+                hourlyInfos.Clear();
+            }
+
             // Get the available hourly prices.
             hourlyInfos = _dayAheadMarketService.GetPrices()
                 .OrderBy(hp => hp.Time)
@@ -973,6 +991,9 @@ namespace SessyController.Services
         {
             if (!_isDisposed)
             {
+                _settingsConfigSubscription.Dispose();
+                _sessyBatteryConfigSubscription.Dispose();
+
                 hourlyInfos.Clear();
                 hourlyInfos = null;
                 _sessyService = null;
@@ -982,6 +1003,8 @@ namespace SessyController.Services
                 _solarService = null;
                 _batteryContainer = null;
                 _timeZoneService = null;
+
+                _scope.Dispose();
 
                 base.Dispose();
 

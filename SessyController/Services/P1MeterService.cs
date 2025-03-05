@@ -7,11 +7,13 @@ using SessyController.Configurations;
 /// <summary>
 /// API client for interacting with the P1 Meter.
 /// </summary>
-public class P1MeterService
+public class P1MeterService : IDisposable
 {
     private IHttpClientFactory _httpClientFactory { get; set; }
     private IOptionsMonitor<SessyP1Config> _p1ConfigMonitor { get; set; }
     private SessyP1Config _p1Configuration { get; set; }
+
+    private IDisposable? _p1ConfigSubscription { get; set; }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="P1MeterService"/> class.
@@ -23,7 +25,7 @@ public class P1MeterService
         _p1ConfigMonitor = p1ConfigMonitor;
         _p1Configuration = _p1ConfigMonitor.CurrentValue;
 
-        _p1ConfigMonitor.OnChange((settings) => _p1Configuration = settings);
+        _p1ConfigSubscription = _p1ConfigMonitor.OnChange((settings) => _p1Configuration = settings);
     }
 
     /// <summary>
@@ -121,6 +123,17 @@ public class P1MeterService
 
         // Ensure the response is successful
         response.EnsureSuccessStatusCode();
+    }
+
+    private bool isDisposed = false;
+
+    public void Dispose()
+    {
+        if (!isDisposed)
+        {
+            _p1ConfigSubscription.Dispose();
+            isDisposed = true;
+        }
     }
 
     /// <summary>

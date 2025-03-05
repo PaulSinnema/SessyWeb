@@ -16,12 +16,13 @@ namespace SessyController.Services.Items
 
             _settingsConfigMonitor = _scope.ServiceProvider.GetRequiredService<IOptionsMonitor<SettingsConfig>>();
 
-            _settingsConfigMonitor.OnChange((SettingsConfig settings) => _settingsConfig = settings);
+            _settingsConfigSubscription = _settingsConfigMonitor.OnChange((SettingsConfig settings) => _settingsConfig = settings);
 
             _settingsConfig = _settingsConfigMonitor.CurrentValue;
         }
 
         private IOptionsMonitor<SettingsConfig> _settingsConfigMonitor;
+        private IDisposable? _settingsConfigSubscription { get; set; }
         private SettingsConfig _settingsConfig;
 
         /// <summary>
@@ -231,6 +232,7 @@ namespace SessyController.Services.Items
         {
             if (!_isDisposed)
             {
+                _settingsConfigSubscription.Dispose();
                 _scope.Dispose();
 
                 _isDisposed = true;

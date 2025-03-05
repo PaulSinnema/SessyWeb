@@ -8,7 +8,7 @@ using static SessyController.Services.WeatherService;
 
 namespace SessyController.Services
 {
-    public class SolarService
+    public class SolarService : IDisposable
     {
         private IConfiguration _configuration { get; set; }
         private LoggingService<SolarEdgeService> _logger { get; set; }
@@ -18,6 +18,9 @@ namespace SessyController.Services
         private SolarDataService _solarDataService { get; set; }
 
         private SettingsConfig _settingsConfig { get; set; }
+
+        private IDisposable? _settingsConfigSubscription { get; set; }
+
         private IOptionsMonitor<SettingsConfig> _settingsConfigMonitor { get; set; }
 
         private IServiceScopeFactory _serviceScopeFactory { get; set; }
@@ -56,7 +59,7 @@ namespace SessyController.Services
             _serviceScopeFactory = serviceScopeFactory;
 
             _settingsConfig = _settingsConfigMonitor.CurrentValue;
-            _settingsConfigMonitor.OnChange((settings) => _settingsConfig = settings);
+            _settingsConfigSubscription = _settingsConfigMonitor.OnChange((settings) => _settingsConfig = settings);
         }
 
         /// <summary>
@@ -188,6 +191,17 @@ namespace SessyController.Services
             var factor = Math.Max(0, Math.Cos(angleDifference * Math.PI / 180) * tiltFactor);
 
             return factor * _settingsConfig.SolarCorrection;
+        }
+
+        private bool isDisposed = false;
+
+        public void Dispose()
+        {
+            if (!isDisposed)
+            {
+                _settingsConfigSubscription.Dispose();
+                isDisposed = true;
+            }
         }
     }
 }
