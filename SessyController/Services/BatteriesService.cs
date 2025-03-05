@@ -402,7 +402,7 @@ namespace SessyController.Services
         /// </summary>
         private bool FetchPricesFromENTSO_E(DateTime localTime)
         {
-            if(hourlyInfos != null)
+            if (hourlyInfos != null)
             {
                 foreach (var hourlyInfo in hourlyInfos)
                 {
@@ -442,24 +442,15 @@ namespace SessyController.Services
                     .OrderBy(hp => hp.Time)
                     .ToList();
 
-                DateTime currentSessionCreationDate = hourlyInfos.Max(hi => hi.Time);
+                CreateSessions();
 
-                //if (lastSessionCreationDate == null ||
-                //    lastSessionCreationDate != currentSessionCreationDate ||
-                //    _settingsChanged)
+                if (_sessions != null)
                 {
-                    lastSessionCreationDate = currentSessionCreationDate;
-
-                    CreateSessions();
-
-                    if (_sessions != null)
-                    {
-                        await RemoveExtraChargingSessions();
-                        // #if DEBUG
-                        CheckSessions();
-                        // #endif
-                        _settingsChanged = false;
-                    }
+                    await RemoveExtraChargingSessions();
+                    // #if DEBUG
+                    CheckSessions();
+                    // #endif
+                    _settingsChanged = false;
                 }
             }
             catch (Exception ex)
@@ -545,11 +536,11 @@ namespace SessyController.Services
 
         private async Task EvaluateChargingHoursAndProfitability()
         {
-            await CalculateChargeLeft(hourlyInfos!);
-
             _sessions.CalculateProfits(_timeZoneService!);
 
-            DetermineMaxToCharge();
+            CalculateMaxChargeNeeded();
+
+            await CalculateChargeLeft(hourlyInfos!);
         }
 
         /// <summary>
@@ -585,7 +576,9 @@ namespace SessyController.Services
                     {
                         case (true, false, false): // Charging
                             {
-                                charge = Math.Min(charge + chargingCapacity, totalCapacity);
+                                var session = _sessions.GetSession(hourlyInfo);
+                                var capacityNeeded = Math.Min(totalCapacity, session.MaxChargeNeeded);
+                                charge = Math.Min(charge + chargingCapacity, capacityNeeded);
                                 charge += hourlyInfo.SolarPowerInWatts;
 
                                 break;
@@ -643,6 +636,7 @@ namespace SessyController.Services
             bool changed4;
             bool changed5;
             bool changed6;
+            bool changed7;
 
             do
             {
@@ -652,6 +646,7 @@ namespace SessyController.Services
                 changed4 = false;
                 changed5 = false;
                 changed6 = false;
+                changed7 = false;
 
                 changed1 = RemoveMoreExpensiveChargingSessions();
 
@@ -664,7 +659,34 @@ namespace SessyController.Services
                 changed5 = CheckProfitability();
 
                 changed6 = RemoveEmptySessions();
-            } while (changed1 || changed2 || changed3 || changed4 || changed5 || changed6);
+
+                changed7 = await RemoveSessionIfMaxChargeIsReached();
+            } while (changed1 || changed2 || changed3 || changed4 || changed5 || changed6 || changed7);
+        }
+
+        /// <summary>
+        /// Remove the current session if the charge is reached.
+        /// </summary>
+        private async Task<bool> RemoveSessionIfMaxChargeIsReached()
+        {
+            var changed = false;
+            var now = _timeZoneService.Now;
+
+            var currentHourlyInfo = hourlyInfos!.FirstOrDefault(hi => hi.Time.DateHour() == now.DateHour());
+
+            if (currentHourlyInfo != null)
+            {
+                if (await IsMaxChargeNeededReached(currentHourlyInfo))
+                {
+                    var session = _sessions.GetSession(currentHourlyInfo);
+
+                    _sessions.RemoveSession(session);
+
+                    changed = true;
+                }
+            }
+
+            return changed;
         }
 
         /// <summary>
@@ -859,7 +881,7 @@ namespace SessyController.Services
         /// This routine detects charge session that follow each other and determines how much
         /// charge is needed for the session.
         /// </summary>
-        private bool DetermineMaxToCharge()
+        private bool CalculateMaxChargeNeeded()
         {
             var changed = false;
             Session? previousSession = null;
@@ -952,7 +974,7 @@ namespace SessyController.Services
                 {
                     if (hourlyInfos[index].Price < hourlyInfos[index - 1].Price && hourlyInfos[index].Price < hourlyInfos[index + 1].Price)
                     {
-                        if(!_sessions.InAnySession(hourlyInfos[index]))
+                        if (!_sessions.InAnySession(hourlyInfos[index]))
                             _sessions.AddNewSession(Modes.Charging, hourlyInfos[index]);
                     }
 
