@@ -149,14 +149,26 @@ builder.Services.AddSingleton<RadzenTheme>(provider =>
 
 var app = builder.Build();
 
+Console.WriteLine("Migrating database (if needed)");
+
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     var dbContext = services.GetRequiredService<ModelContext>();
 
-    dbContext.Database.Migrate();
+    if (dbContext.Database.HasPendingModelChanges())
+    {
+        Console.WriteLine("There a pending database changes");
+
+        dbContext.Database.Migrate();
+    }
+    else
+    {
+        Console.WriteLine("There are no pending database changes");
+    }
 }
 
+Console.WriteLine("Database Migration complete");
 
 app.UseExceptionHandler(errorApp =>
 {
@@ -181,6 +193,10 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+else
+{
+    Console.WriteLine("Production environment");
+}
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
@@ -199,5 +215,7 @@ app.UseRouting();
 app.MapBlazorHub();
 app.MapFallbackToPage("/_Host");
 app.MapControllers();
+
+Console.WriteLine("Sessy web is starting....");
 
 app.Run();

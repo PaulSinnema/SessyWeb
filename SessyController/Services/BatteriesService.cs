@@ -401,8 +401,6 @@ namespace SessyController.Services
 
             HourlyInfo.AddSmoothedPrices(hourlyInfos, 3);
 
-            var maxTime = localTime.Date.AddDays(-1);
-
             return hourlyInfos != null && hourlyInfos.Count > 0;
         }
 
@@ -637,7 +635,7 @@ namespace SessyController.Services
                 changed5 = false;
                 changed6 = false;
 
-                changed1 = await RemoveMoreExpensiveChargingSessions();
+                changed1 = RemoveMoreExpensiveChargingSessions();
 
                 changed2 = RemoveEmptySessions();
 
@@ -760,7 +758,7 @@ namespace SessyController.Services
         /// <summary>
         /// Merge succeeding sessions of the same type.
         /// </summary>
-        private async Task<bool> RemoveMoreExpensiveChargingSessions()
+        private bool RemoveMoreExpensiveChargingSessions()
         {
             var changed = false;
 

@@ -222,7 +222,7 @@ namespace SessyController.Services.Items
         public double GetMaxZeroNetHomeHours(Session previousSession, Session session)
         {
             var homeNeeds = _settingsConfig.RequiredHomeEnergy / 24.0;
-            double currentCharge = 1.0; // await _batteryContainer.GetStateOfChargeInWatts();
+            double currentCharge = 1.0;
 
             var first = previousSession.LastDate.AddHours(1);
             var last = session.FirstDate.AddHours(-1);
