@@ -245,7 +245,7 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// If batteries are full stop charging this session
+        /// If batteries are full (enough) stop charging this session
         /// If batteries are empty stop discharging this session
         /// </summary>
         private async Task CancelSessionIfStateRequiresIt(Sessions sessions, HourlyInfo currentHourlyInfo)
@@ -273,11 +273,15 @@ namespace SessyController.Services
             }
         }
 
+        /// <summary>
+        /// Check wether the current hourly info is in a charging session and return
+        /// true if so and the calculated max charge needed is reached.
+        /// </summary>
         private async Task<bool> IsMaxChargeNeededReached(HourlyInfo currentHourlyInfo)
         {
             var session = _sessions.GetSession(currentHourlyInfo);
 
-            if (session.MaxChargeNeeded > 0.0)
+            if (session != null && session.MaxChargeNeeded > 0.0)
             {
                 var currentChargeState = await _batteryContainer.GetStateOfChargeInWatts();
 

@@ -80,11 +80,11 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Return the session that contains the hourly info.
         /// </summary>
-        public Session GetSession(HourlyInfo hourlyInfo)
+        public Session? GetSession(HourlyInfo hourlyInfo)
         {
             return SessionList
                 .Where(se => se.Contains(hourlyInfo))
-                .First();
+                .FirstOrDefault();
         }
 
         /// <summary>
