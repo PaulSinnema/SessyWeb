@@ -39,11 +39,18 @@ namespace SessyWeb.Services
 
         public async ValueTask DisposeAsync()
         {
-            if (_module != null)
+            try
             {
-                await _module.DisposeAsync();
+                if (_module != null)
+                {
+                    await _module.DisposeAsync();
+                }
+                _dotNetRef?.Dispose();
             }
-            _dotNetRef?.Dispose();
+            catch (Exception)
+            {
+                // Keep it silent.
+            }
         }
     }
 }

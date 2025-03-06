@@ -36,7 +36,14 @@ namespace SessyWeb.Pages
 
             GetOnlyCurrentHourlyInfos();
 
-            await HandleScreenHeight();
+            try
+            {
+                await InvokeAsync(async () => await HandleScreenHeight());
+            }
+            catch (Exception)
+            {
+                // Keep it silent.
+            }
         }
 
         protected override async Task OnAfterRenderAsync(bool firstRender)
