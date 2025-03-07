@@ -17,6 +17,8 @@ namespace SessyController.Services
         private TimeZoneService _timeZoneService { get; set; }
         private P1MeterService _p1MeterService { get; set; }
 
+        private DayAheadMarketService _dayAheadMarketService { get; set; }
+
         private EnergyHistoryService _energyHistoryService { get; set; }
 
         private IServiceScopeFactory _serviceScopeFactory { get; set; }
@@ -41,6 +43,7 @@ namespace SessyController.Services
 
             _energyHistoryService = _scope.ServiceProvider.GetRequiredService<EnergyHistoryService>();
             _p1MeterService = _scope.ServiceProvider.GetRequiredService<P1MeterService>();
+            _dayAheadMarketService = _scope.ServiceProvider.GetRequiredService<DayAheadMarketService>();
 
             _p1MeterContainer = new P1MeterContainer(_sessyP1ConfigMonitor, _p1MeterService);
         }
@@ -85,6 +88,9 @@ namespace SessyController.Services
             while (!_weatherService.Initialized)
                 await Task.Delay(TimeSpan.FromSeconds(1), cancelationToken);
 
+            while (!_dayAheadMarketService.PricesInitialized)
+                await Task.Delay(TimeSpan.FromSeconds(1), cancelationToken);
+
             if (_weatherService.Initialized)
             {
                 foreach (P1Meter? p1Meter in _p1MeterContainer.P1Meters)
@@ -96,12 +102,15 @@ namespace SessyController.Services
                     {
                         var p1Details = await _p1MeterContainer.GetDetails(p1Meter.Id!);
                         var weatherData = _weatherService.GetWeatherData();
+                        var prices = _dayAheadMarketService.GetPrices();
 
                         var weatherHourData = weatherData.UurVerwachting
                             .FirstOrDefault(uv => uv.TimeStamp == selectTime);
+                        var hourlyInfo = prices
+                            .FirstOrDefault(hi => hi.Time.DateHour() == selectTime);
 
                         if(weatherHourData != null)
-                            StoreEnergyHistory(p1Meter, p1Details!, selectTime, weatherHourData);
+                            StoreEnergyHistory(p1Meter, p1Details!, hourlyInfo, selectTime, weatherHourData);
                     }
                 }
             }
@@ -119,7 +128,7 @@ namespace SessyController.Services
             return energyHistory;
         }
 
-        private void StoreEnergyHistory(P1Meter p1Meter, P1Details p1Details, DateTime time, UurVerwachting hourExpectancy)
+        private void StoreEnergyHistory(P1Meter p1Meter, P1Details p1Details, HourlyInfo? hourlyInfo, DateTime time, UurVerwachting hourExpectancy)
         {
             var energyHistoryList = new List<EnergyHistory>();
 
@@ -132,7 +141,9 @@ namespace SessyController.Services
                 ProducedTariff1 = p1Details.PowerProducedTariff1,
                 ProducedTariff2 = p1Details.PowerProducedTariff2,
                 TarrifIndicator = p1Details.TariffIndicator,
-                Temperature = hourExpectancy.Temp
+                Temperature = hourExpectancy.Temp,
+                GlobalRadiation = hourExpectancy.GlobalRadiation,
+                Price = hourlyInfo != null ? hourlyInfo.Price : 0.0
             });
 
             _energyHistoryService.Store(energyHistoryList);
