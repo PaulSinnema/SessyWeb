@@ -2,6 +2,7 @@
 
 SessyWeb is a web-based interface for managing **Sessy batteries** in a smart home environment. This guide provides precise step-by-step instructions on how to set up and run SessyWeb inside a Docker container.
 
+![Explanation of the chart](./SessyWeb/wwwroot/Images/ChartExplanation.jpg)
 
 ---
 
