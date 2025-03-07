@@ -121,7 +121,7 @@ else
 @code {
     RadzenButton? ExplanationButton;
 
-    void ShowTooltipWithHtml(ElementReference elementReference, TooltipOptions options = null) => tooltipService.Open(elementReference, ds =>
+    void ShowTooltipWithHtml(ElementReference elementReference, TooltipOptions? options = null) => tooltipService!.Open(elementReference, ds =>
 @<div style="background-color: transparent;">
         <RadzenImage Path="/Images/ChartExplanation.jpg" Style="padding: 5px;" />
 

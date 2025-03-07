@@ -156,16 +156,7 @@ using (var scope = app.Services.CreateScope())
     var services = scope.ServiceProvider;
     var dbContext = services.GetRequiredService<ModelContext>();
 
-    if (dbContext.Database.HasPendingModelChanges())
-    {
-        Console.WriteLine("There are pending database changes");
-
-        dbContext.Database.Migrate();
-    }
-    else
-    {
-        Console.WriteLine("There are no pending database changes");
-    }
+    dbContext.Database.Migrate();
 }
 
 Console.WriteLine("Database Migration complete");

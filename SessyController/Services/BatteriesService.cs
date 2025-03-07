@@ -682,7 +682,9 @@ namespace SessyController.Services
             {
                 if (await IsMaxChargeNeededReached(currentHourlyInfo))
                 {
-                    var session = _sessions.GetSession(currentHourlyInfo);
+                    Session? session = _sessions.GetSession(currentHourlyInfo);
+
+                    if (session == null) throw new InvalidOperationException($"Session not found for {currentHourlyInfo}");
 
                     _sessions.RemoveSession(session);
 

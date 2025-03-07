@@ -24,7 +24,9 @@ namespace SessyData.Migrations
                     ProducedTariff1 = table.Column<double>(type: "REAL", nullable: false),
                     ProducedTariff2 = table.Column<double>(type: "REAL", nullable: false),
                     TarrifIndicator = table.Column<int>(type: "INTEGER", nullable: false),
-                    Temperature = table.Column<double>(type: "REAL", nullable: false)
+                    Temperature = table.Column<double>(type: "REAL", nullable: false),
+                    Price = table.Column<double>(type: "REAL", nullable: false),
+                    GlobalRadiation = table.Column<double>(type: "REAL", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -48,18 +50,17 @@ namespace SessyData.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "SolarHistory",
+                name: "SolarData",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "INTEGER", nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
-                    Time = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    GlobalRadiation = table.Column<double>(type: "REAL", nullable: false),
-                    GeneratedPower = table.Column<double>(type: "REAL", nullable: false)
+                    Time = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    GlobalRadiation = table.Column<double>(type: "REAL", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_SolarHistory", x => x.Id);
+                    table.PrimaryKey("PK_SolarData", x => x.Id);
                 });
         }
 
@@ -73,7 +74,7 @@ namespace SessyData.Migrations
                 name: "SessyStatusHistory");
 
             migrationBuilder.DropTable(
-                name: "SolarHistory");
+                name: "SolarData");
         }
     }
 }

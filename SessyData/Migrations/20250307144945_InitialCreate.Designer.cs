@@ -11,8 +11,8 @@ using SessyData.Model;
 namespace SessyData.Migrations
 {
     [DbContext(typeof(ModelContext))]
-    [Migration("20250218100044_AddSolarDataEntity")]
-    partial class AddSolarDataEntity
+    [Migration("20250307144945_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -32,8 +32,14 @@ namespace SessyData.Migrations
                     b.Property<double>("ConsumedTariff2")
                         .HasColumnType("REAL");
 
+                    b.Property<double>("GlobalRadiation")
+                        .HasColumnType("REAL");
+
                     b.Property<string>("MeterId")
                         .HasColumnType("TEXT");
+
+                    b.Property<double>("Price")
+                        .HasColumnType("REAL");
 
                     b.Property<double>("ProducedTariff1")
                         .HasColumnType("REAL");
@@ -93,26 +99,6 @@ namespace SessyData.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("SolarData");
-                });
-
-            modelBuilder.Entity("SessyData.Model.SolarHistory", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<double>("GeneratedPower")
-                        .HasColumnType("REAL");
-
-                    b.Property<double>("GlobalRadiation")
-                        .HasColumnType("REAL");
-
-                    b.Property<DateTime>("Time")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("SolarHistory");
                 });
 #pragma warning restore 612, 618
         }

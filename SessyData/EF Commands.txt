@@ -1,1 +1,3 @@
 ﻿dotnet ef migrations add InitialCreate --project C:\Projects\Sessy\SessyData\SessyData.csproj --startup-project C:\Projects\Sessy\SessyWeb\SessyWeb.csproj
+dotnet ef migrations script --project C:\Projects\Sessy\SessyData\SessyData.csproj --startup-project C:\Projects\Sessy\SessyWeb\SessyWeb.csproj
+dotnet ef database update --verbose  --project C:\Projects\Sessy\SessyData\SessyData.csproj --startup-project C:\Projects\Sessy\SessyWeb\SessyWeb.csproj

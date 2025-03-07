@@ -16,5 +16,7 @@ namespace SessyData.Model
         public double ProducedTariff2 { get; set; }
         public int TarrifIndicator { get; set; }
         public double Temperature { get; set; }
+        public double Price { get; set; }
+        public double GlobalRadiation { get; set; }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Options;
+using SessyCommon.Extensions;
 using SessyController.Configurations;
 using SessyController.Services.Items;
 using SessyData.Model;
@@ -89,7 +90,7 @@ namespace SessyController.Services
                 foreach (P1Meter? p1Meter in _p1MeterContainer.P1Meters)
                 {
                     var now = _timeZoneService.Now;
-                    var selectTime = now.Date.AddHours(now.Hour);
+                    var selectTime = now.DateHour();
 
                     if (GetEnergyHistory(selectTime) == null)
                     {

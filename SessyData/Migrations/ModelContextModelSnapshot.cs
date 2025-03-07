@@ -29,8 +29,14 @@ namespace SessyData.Migrations
                     b.Property<double>("ConsumedTariff2")
                         .HasColumnType("REAL");
 
+                    b.Property<double>("GlobalRadiation")
+                        .HasColumnType("REAL");
+
                     b.Property<string>("MeterId")
                         .HasColumnType("TEXT");
+
+                    b.Property<double>("Price")
+                        .HasColumnType("REAL");
 
                     b.Property<double>("ProducedTariff1")
                         .HasColumnType("REAL");
