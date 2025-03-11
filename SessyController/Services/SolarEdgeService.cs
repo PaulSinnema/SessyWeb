@@ -1,10 +1,10 @@
-﻿using Microsoft.Extensions.Options;
-using NModbus;
-using SessyCommon.Converters;
+﻿using Djohnnie.SolarEdge.ModBus.TCP;
+using Djohnnie.SolarEdge.ModBus.TCP.Constants;
+using Types = Djohnnie.SolarEdge.ModBus.TCP.Types;
+using Microsoft.Extensions.Options;
 using SessyCommon.Extensions;
 using SessyController.Configurations;
 using SessyController.Providers;
-
 namespace SessyController.Services
 {
     /// <summary>
@@ -55,24 +55,24 @@ namespace SessyController.Services
         /// <returns>Unscaled AC Power output</returns>
         public async Task<ushort> GetACPower()
         {
-            Configurations.Endpoint endpoint = GetEndpointConfig();
+            using var client = await _tcpClientProvider.GetModbusClient("SolarEdge");
 
-            ushort[] result = await ReadHoldingRegisters(endpoint.SlaveId, acPowerStartAddress, 1);
+            var result = await client.ReadHoldingRegisters<Types.UInt16>(SunspecConsts.I_AC_Power);
 
-            return result[0];
+            return result.Value;
         }
 
         /// <summary>
         /// Gets the scaling factor to be used to convert AC power to watts
         /// </summary>
         /// <returns>Scaling factor</returns>
-        public async Task<ushort> GetACPowerScaleFactor()
+        public async Task<short> GetACPowerScaleFactor()
         {
-            Configurations.Endpoint endpoint = GetEndpointConfig();
+            using var client = await _tcpClientProvider.GetModbusClient("SolarEdge");
 
-            ushort[] result = await ReadHoldingRegisters(endpoint.SlaveId, acPowerSFStartAddress, 1);
+            var result = await client.ReadHoldingRegisters<Types.Int16>(SunspecConsts.I_AC_Power_SF);
 
-            return result[0];
+            return result.Value;
         }
 
         /// <summary>
@@ -80,55 +80,54 @@ namespace SessyController.Services
         /// </summary>
         public async Task<ushort> GetStatus()
         {
-            Configurations.Endpoint endpoint = GetEndpointConfig();
+            using var client = await _tcpClientProvider.GetModbusClient("SolarEdge");
 
-            ushort[] result = await ReadHoldingRegisters(endpoint.SlaveId, statusStartAddress, 1);
+            var result = await client.ReadHoldingRegisters<Types.UInt16>(SunspecConsts.I_Status);
 
-            return result[0];
+            return result.Value;
         }
 
         public async Task EnableDynamicPower()
         {
             try
             {
-                Configurations.Endpoint endpoint = GetEndpointConfig();
+                using var client = await _tcpClientProvider.GetModbusClient("SolarEdge");
 
-                await WriteUshortToRegister(endpoint.SlaveId, enableDynamicPowerControl, 1);
-                await WriteUintToRegisters(endpoint.SlaveId, advancedPwrControlEn, 1);
-                await WriteUintToRegisters(endpoint.SlaveId, reactivePwrConfig, 4);
+                await client.WriteSingleRegister(SunspecConsts.AdvancedPwrControlEn, (UInt32)1);
+                await client.WriteSingleRegister(SunspecConsts.ReactivePwrConfig, (UInt32)4);
 
-                await CommitValues(endpoint);
+                await CommitValues(client);
 
-                var enableDynamicPowerControlRead = await ReadUshortFromRegister(endpoint.SlaveId, enableDynamicPowerControl);
-                var advancePowerControlRead = await ReadUintFromRegisters(endpoint.SlaveId, advancedPwrControlEn);
-                var reactivePwrConfigRead = await ReadUintFromRegisters(endpoint.SlaveId, reactivePwrConfig);
+                var enableDynamicPowerControlRead = await client.ReadHoldingRegisters<Types.UInt32>(SunspecConsts.AdvancedPwrControlEn);
+                var reactivePwrConfigRead = await client.ReadHoldingRegisters<Types.UInt32>(SunspecConsts.ReactivePwrConfig);
 
-                if (enableDynamicPowerControlRead != 1 || advancePowerControlRead != 1 || reactivePwrConfigRead != 4)
+                if (enableDynamicPowerControlRead.Value != 1 || 
+                    reactivePwrConfigRead.Value != 4)
                     throw new InvalidOperationException($"Enabling advanced power control failed");
             }
             catch (Exception ex)
             {
                 throw new InvalidOperationException($"Enable advanced power control failed {ex.ToDetailedString()}");
             }
-
         }
 
-        private async Task<bool> CommitValues(Configurations.Endpoint endpoint)
+        private async Task<bool> CommitValues(ModbusClient client)
         {
-            const ushort commitChanges = 0xF100;
             ushort result = 0;
 
-            await WriteUshortToRegister(endpoint.SlaveId, commitChanges, 1);
+            await client.WriteSingleRegister(SunspecConsts.CommitPowerControlSettings, 1);
 
             for (int i = 0; i < 30; i++)
             {
-                result = await ReadUshortFromRegister(endpoint.SlaveId, commitChanges);
+                var read = await client.ReadHoldingRegisters<Types.UInt16>(SunspecConsts.CommitPowerControlSettings);
 
-                if (result == 0x00)
+                if (read.Value == 0x00)
                 {
                     _logger.LogInformation("Modbus commit succeeded");
                     return true;
                 }
+
+                result = read.Value;
 
                 await Task.Delay(TimeSpan.FromMilliseconds(500));
             }
@@ -138,252 +137,115 @@ namespace SessyController.Services
 
         public async Task RestoreDynamicPowerSettings()
         {
-            Configurations.Endpoint endpoint = GetEndpointConfig();
+            UInt32 AdvancedPwrControlEnValue = 0;
+            UInt32 ReactivePwrConfigValue = 0;
+           // UInt16 RestorePowerControlDefaultSettingsValue = 1;
 
-            await WriteUshortToRegister(endpoint.SlaveId, RestorePowerControlDefaultSettings, 1);
+            try
+            {
+                using var client = await _tcpClientProvider.GetModbusClient("SolarEdge");
 
-            await CommitValues(endpoint);
+                await client.WriteSingleRegister(SunspecConsts.AdvancedPwrControlEn, AdvancedPwrControlEnValue);
+                await client.WriteSingleRegister(SunspecConsts.ReactivePwrConfig, ReactivePwrConfigValue);
+                // await client.WriteSingleRegister(SunspecConsts.RestorePowerControlDefaultSettings, RestorePowerControlDefaultSettingsValue);
 
-            var RestorePowerControlDefaultSettingsRead = await ReadUshortFromRegister(endpoint.SlaveId, RestorePowerControlDefaultSettings);
+                await CommitValues(client);
 
-            if (RestorePowerControlDefaultSettingsRead != 0) throw new InvalidOperationException($"Restoring default values failed");
+                var enableDynamicPowerControlRead = await client.ReadHoldingRegisters<Types.UInt32>(SunspecConsts.AdvancedPwrControlEn);
+                var reactivePwrConfigRead = await client.ReadHoldingRegisters<Types.UInt32>(SunspecConsts.ReactivePwrConfig);
+
+                if (enableDynamicPowerControlRead.Value != AdvancedPwrControlEnValue ||
+                    reactivePwrConfigRead.Value != ReactivePwrConfigValue)
+                    throw new InvalidOperationException($"Restore advanced power settings failed");
+               // var RestorePowerControlDefaultSettingsRead = await client.ReadHoldingRegisters<Types.UInt16>(SunspecConsts.RestorePowerControlDefaultSettings);
+
+                //if (RestorePowerControlDefaultSettingsRead.Value != 0) throw new InvalidOperationException($"Restoring default values failed");
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException($"Restore advanced power control settings failed {ex.ToDetailedString()}");
+            }
         }
 
         public async Task<ushort> GetCosPhiQPreference()
         {
-            Configurations.Endpoint endpoint = GetEndpointConfig();
+            using var client = await _tcpClientProvider.GetModbusClient("SolarEdge");
 
-            ushort preference = await ReadUshortFromRegister(endpoint.SlaveId, cosPhiQPreference);
+            var preference = await client.ReadHoldingRegisters<Types.UInt16>(cosPhiQPreference);
 
-            return preference;
+            return preference.Value;
         }
 
         public async Task<ushort> GetActiveReactivePreference()
         {
-            Configurations.Endpoint endpoint = GetEndpointConfig();
+            using var client = await _tcpClientProvider.GetModbusClient("SolarEdge");
 
-            ushort preference = await ReadUshortFromRegister(endpoint.SlaveId, activeReactivePreference);
+            var preference = await client.ReadHoldingRegisters<Types.UInt16>(activeReactivePreference);
 
-            return preference;
+            return preference.Value;
         }
 
         public async Task<float> GetActivePowerLimit()
         {
-            Configurations.Endpoint endpoint = GetEndpointConfig();
+            using var client = await _tcpClientProvider.GetModbusClient("SolarEdge");
 
-            float powerSet = await ReadFloatFromRegisters(endpoint.SlaveId, activePowerLimit, false);
+            var powerSet = await client.ReadHoldingRegisters<Types.Float32>(activePowerLimit);
 
-            return powerSet;
+            return powerSet.Value;
         }
 
         public async Task<float> GetReactivePowerLimit()
         {
-            Configurations.Endpoint endpoint = GetEndpointConfig();
+            using var client = await _tcpClientProvider.GetModbusClient("SolarEdge");
 
-            float powerSet = await ReadFloatFromRegisters(endpoint.SlaveId, reactivePowerLimit, false);
+            var powerSet = await client.ReadHoldingRegisters<Types.Float32>(reactivePowerLimit);
 
-            return powerSet;
+            return powerSet.Value;
         }
 
         public async Task<float> GetDynamicActivePowerLimit()
         {
-            Configurations.Endpoint endpoint = GetEndpointConfig();
+            using var client = await _tcpClientProvider.GetModbusClient("SolarEdge");
 
-            float powerSet = await ReadFloatFromRegisters(endpoint.SlaveId, dynamicActivePowerLimit, false);
+            var powerSet = await client.ReadHoldingRegisters<Types.Float32>(dynamicActivePowerLimit);
 
-            return powerSet;
+            return powerSet.Value;
         }
 
-        public async Task SetActivePowerLimit(float power)
+        public async Task SetActivePowerLimit(UInt16 power)
         {
-            if (power < 0) throw new ArgumentOutOfRangeException(nameof(power));
+            if (power < 0 || power > 100) throw new ArgumentOutOfRangeException(nameof(power));
 
-            await WriteFloatValueToAddress(activePowerLimit, power);
+            using var client = await _tcpClientProvider.GetModbusClient("SolarEdge");
+
+            await client.WriteSingleRegister(SunspecConsts.ActivePowerLimit, power);
         }
 
         public async Task SetReactivePowerLimit(float power)
         {
             if (power < 0) throw new ArgumentOutOfRangeException(nameof(power));
 
-            await WriteFloatValueToAddress(reactivePowerLimit, power);
+            using var client = await _tcpClientProvider.GetModbusClient("SolarEdge");
+
+            await client.WriteSingleRegister(reactivePowerLimit, power);
         }
 
         public async Task SetDynamicActivePowerLimit(float power)
         {
             if (power < 0) throw new ArgumentOutOfRangeException(nameof(power));
 
-            await WriteFloatValueToAddress(dynamicActivePowerLimit, power);
+            using var client = await _tcpClientProvider.GetModbusClient("SolarEdge");
+
+            await client.WriteSingleRegister(dynamicActivePowerLimit, power);
         }
 
         public async Task SetDynamicReactivePowerLimit(float power)
         {
             if (power < 0) throw new ArgumentOutOfRangeException(nameof(power));
 
-            await WriteFloatValueToAddress(dynamicReactivePowerLimit, power);
-        }
+            using var client = await _tcpClientProvider.GetModbusClient("SolarEdge");
 
-        private async Task WriteFloatValueToAddress(ushort address, float value)
-        {
-            Configurations.Endpoint endpoint = GetEndpointConfig();
-
-            await WriteFloatToRegisters(endpoint.SlaveId, address, value, false);
-
-            await CommitValues(endpoint);
-
-            float powerSet = await ReadFloatFromRegisters(endpoint.SlaveId, address, false);
-
-            if (powerSet != value) throw new InvalidOperationException($"Setting active power limit failed");
-        }
-
-        private async Task<float> ReadFloatFromRegisters(byte slaveId, ushort address = 0, bool isBigEndian = false)
-        {
-            var results = await ReadHoldingRegisters(slaveId, address, 2);
-
-            var result = ModbusHelper.RegistersToFloat(results, isBigEndian);
-
-            return result;
-        }
-
-        private async Task<uint> ReadUintFromRegisters(byte slaveId, ushort address = 0, bool isBigEndian = false)
-        {
-            var results = await ReadHoldingRegisters(slaveId, address, 2);
-
-            var result = ModbusHelper.RegistersToUInt(results, isBigEndian);
-
-            return result;
-        }
-
-        private async Task<ushort> ReadUshortFromRegister(byte slaveId, ushort address = 0)
-        {
-            var results = await ReadHoldingRegisters(slaveId, address, 1);
-
-            return results[0];
-        }
-
-        /// <summary>
-        /// Read holding registers function code 3.
-        /// </summary>
-        /// <param name="startAddress"></param>
-        /// <param name="numberOfRegisters"></param>
-        /// <returns>List of ushort values.</returns>
-        /// <exception cref="InvalidOperationException"></exception>
-        private async Task<ushort[]> ReadHoldingRegisters(byte slaveId, ushort startAddress = 0, ushort numberOfRegisters = 1)
-        {
-            try
-            {
-                var tcpClient = _tcpClientProvider.GetTcpClient("SolarEdge");
-
-                // Create a Modbus master
-                var factory = new ModbusFactory(null, true);
-                using var master = factory.CreateMaster(tcpClient);
-
-                Configurations.Endpoint endpoint = GetEndpointConfig();
-
-                // Read holding registers (Function Code 0x03)
-                ushort[] registers = await master.ReadHoldingRegistersAsync(slaveId, startAddress, numberOfRegisters);
-
-                return registers;
-            }
-            catch (Exception ex)
-            {
-                var message = $"Error getting SolarEdge data: start address: {startAddress:X}, number of registers: {numberOfRegisters}";
-
-                _logger.LogError(ex.ToDetailedString(message));
-
-                throw new InvalidOperationException(message, ex);
-            }
-        }
-
-        private async Task WriteUshortToRegister(byte slaveId, ushort startAddress = 0, ushort value = 0)
-        {
-            try
-            {
-                var tcpClient = _tcpClientProvider.GetTcpClient("SolarEdge");
-
-                // Create a Modbus master
-                var factory = new ModbusFactory(null, true);
-                using var master = factory.CreateMaster(tcpClient);
-
-                // Write holding registers (Function Code 0x03)
-                await master.WriteSingleRegisterAsync(slaveId, startAddress, value);
-            }
-            catch (Exception ex)
-            {
-                var message = $"Error writing SolarEdge (ushort) data: start address: 0x{startAddress:X}";
-
-                _logger.LogError(ex.ToDetailedString(message));
-
-                throw new InvalidOperationException(message, ex);
-            }
-        }
-
-        private async Task WriteUintToRegisters(byte slaveId, ushort startAddress = 0, uint value = 0, bool isBigEndian = false)
-        {
-            try
-            {
-                var tcpClient = _tcpClientProvider.GetTcpClient("SolarEdge");
-
-                // Create a Modbus master
-                var factory = new ModbusFactory();
-                using var master = factory.CreateMaster(tcpClient);
-
-                var data = ModbusHelper.ConvertUIntToRegisters(value, isBigEndian);
-
-                await master.WriteMultipleRegistersAsync(slaveId, startAddress++, data);
-            }
-            catch (Exception ex)
-            {
-                var message = $"Error writing SolarEdge (uint) data: start address: 0x{startAddress:X}";
-
-                _logger.LogError(ex.ToDetailedString(message));
-
-                throw new InvalidOperationException(message, ex);
-            }
-        }
-
-        /// <summary>
-        /// Write registers function code 3.
-        /// </summary>
-        /// <param name="startAddress"></param>
-        /// <param name="numberOfRegisters"></param>
-        /// <returns>List of ushort values.</returns>
-        /// <exception cref="InvalidOperationException"></exception>
-        private async Task WriteFloatToRegisters(byte slaveId, ushort startAddress = 0, float value = 0.0f, bool isBigEndian = false)
-        {
-            try
-            {
-                var tcpClient = _tcpClientProvider.GetTcpClient("SolarEdge");
-
-                // Create a Modbus master
-                var factory = new ModbusFactory(null, true);
-                using var master = factory.CreateMaster(tcpClient);
-
-                var valuesToWrite = ModbusHelper.ConvertFloatToRegisters(value, isBigEndian);
-
-                await master.WriteMultipleRegistersAsync(slaveId, startAddress, valuesToWrite);
-            }
-            catch (Exception ex)
-            {
-                var message = $"Error writing SolarEdge data: start address: {startAddress:X}";
-
-                _logger.LogError(ex.ToDetailedString(message));
-
-                throw new InvalidOperationException(message, ex);
-            }
-        }
-
-        private Configurations.Endpoint GetEndpointConfig()
-        {
-            if (!_powerSystemsConfig.Endpoints.TryGetValue("SolarEdge", out var endpoint))
-            {
-                var message = "SolarEdge configuration is missing";
-
-                _logger.LogError(message);
-
-                throw new InvalidOperationException(message);
-            }
-
-            return endpoint;
+            await client.WriteSingleRegister(dynamicReactivePowerLimit, power);
         }
     }
 }

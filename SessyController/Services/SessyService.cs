@@ -1,8 +1,9 @@
-﻿using System.Net.Http.Headers;
-using System.Text;
-using Microsoft.Extensions.Options;
+﻿using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using SessyController.Configurations;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json.Serialization;
 
 namespace SessyController.Services
 {
@@ -116,6 +117,19 @@ namespace SessyController.Services
             response.EnsureSuccessStatusCode();
         }
 
+        public async Task<DynamicStrategy?> GetDynamicScheduleAsync(string id)
+        {
+            _logger.LogInformation($"GetDynamicScheduleAsync({id})");
+
+            SessyBatteryEndpoint battery = GetBatteryConfiguration(id);
+            using var client = CreateHttpClient(battery);
+            var response = await client.GetAsync("/api/v1/dynamic/schedule");
+            response.EnsureSuccessStatusCode();
+            var content = await response.Content.ReadAsStringAsync();
+            var result = JsonConvert.DeserializeObject<DynamicStrategy>(content);
+            return result;
+        }
+
         /// <summary>
         /// Get the configuration for a battery with Id.
         /// </summary>
@@ -135,6 +149,35 @@ namespace SessyController.Services
         }
     }
 
+    public class DynamicStrategy
+    {
+        [JsonProperty("status")]
+        public string? Status { get; set; }
+
+        [JsonProperty("power_strategy")]
+        public List<PowerStrategy>? PowerStrategy { get; set; }
+
+        [JsonProperty("energy_prices")]
+        public List<EnergyPrices>? EnergyPrices { get; set; }
+    }
+
+    public class PowerStrategy
+    {
+        [JsonProperty("date")]
+        public string? Date { get; set; }
+
+        [JsonProperty("power")]
+        public List<int>? Power { get; set; }
+    }
+
+    public class EnergyPrices
+    {
+        [JsonProperty("date")]
+        public string? Date { get; set; }
+
+        [JsonProperty("price")]
+        public List<int>? Price { get; set; }
+    }
 
     /// <summary>
     /// Represents the overall power status of the battery, including charge state, frequency, and phase information.

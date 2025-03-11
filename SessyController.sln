@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SessyData", "SessyData\Sess
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SessyCommon", "SessyCommon\SessyCommon.csproj", "{9E143A97-7463-40E2-A44A-1B02B045C36F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Djohnnie.SolarEdge.ModBus.TCP", "Djohnnie.SolarEdge.ModBus.TCP\Djohnnie.SolarEdge.ModBus.TCP.csproj", "{D55D8045-DF6B-ACF7-A679-2AAEC13962DD}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -33,6 +35,10 @@ Global
 		{9E143A97-7463-40E2-A44A-1B02B045C36F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9E143A97-7463-40E2-A44A-1B02B045C36F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9E143A97-7463-40E2-A44A-1B02B045C36F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D55D8045-DF6B-ACF7-A679-2AAEC13962DD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D55D8045-DF6B-ACF7-A679-2AAEC13962DD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D55D8045-DF6B-ACF7-A679-2AAEC13962DD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D55D8045-DF6B-ACF7-A679-2AAEC13962DD}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

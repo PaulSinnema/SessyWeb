@@ -6,10 +6,10 @@ namespace SessyController.Services.Items
 {
     public class HourlyInfo : IDisposable
     {
-        public HourlyInfo(DateTime time, double price, IServiceScopeFactory serviceScopeFactory)
+        public HourlyInfo(DateTime time, double? price, IServiceScopeFactory serviceScopeFactory)
         {
             Time = time;
-            Price = price;
+            Price = price.HasValue ? price.Value : 0.0;
             _serviceScopeFactory = serviceScopeFactory;
 
             _scope = _serviceScopeFactory.CreateScope();

@@ -1,9 +1,9 @@
-﻿using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
+﻿using Microsoft.Extensions.Options;
 using SessyCommon.Extensions;
 using SessyController.Configurations;
 using SessyController.Services.Items;
-using System;
+using SessyData.Model;
+using SessyData.Services;
 using System.Collections.Concurrent;
 using System.Xml;
 
@@ -40,6 +40,7 @@ namespace SessyController.Services
         private static LoggingService<DayAheadMarketService>? _logger;
         private readonly TimeZoneService _timeZoneService;
         private readonly IServiceScopeFactory _serviceScopeFactory;
+        private readonly EPEXPricesDataService _epexPricesDataService;
 
         public bool PricesAvailable { get; internal set; } = false;
         public bool PricesInitialized { get; internal set; } = false;
@@ -50,6 +51,7 @@ namespace SessyController.Services
                                     IHttpClientFactory httpClientFactory,
                                     IOptions<SettingsConfig> settingsConfig,
                                     TimeZoneService timeZoneService,
+                                    EPEXPricesDataService epexPricesDataService,
                                     IServiceScopeFactory serviceScopeFactory)
         {
             _securityToken = configuration[ConfigSecurityTokenKey];
@@ -59,6 +61,7 @@ namespace SessyController.Services
             _settingsConfig = settingsConfig.Value;
             _timeZoneService = timeZoneService;
             _serviceScopeFactory = serviceScopeFactory;
+            _epexPricesDataService = epexPricesDataService;
             _logger = logger;
         }
 
@@ -101,7 +104,7 @@ namespace SessyController.Services
                 {
                     // Ignore cancellation exception during delay
                 }
-                catch(Exception ex)
+                catch (Exception ex)
                 {
                     _logger.LogError($"Something went wrong during delay, keep processing {ex.ToDetailedString()}");
                 }
@@ -115,8 +118,10 @@ namespace SessyController.Services
         /// </summary>
         public async Task Process(CancellationToken cancellationToken)
         {
+            var now = _timeZoneService.Now;
+
             // Fetch day-ahead market prices
-            _prices = await FetchDayAheadPricesAsync(DateTime.UtcNow.AddDays(-1), 2, cancellationToken);
+            _prices = await FetchDayAheadPricesAsync(now, 1, cancellationToken);
 
             PricesAvailable = _prices != null && _prices.Count > 0;
 
@@ -130,10 +135,21 @@ namespace SessyController.Services
         {
             List<HourlyInfo> hourlyInfos = new List<HourlyInfo>();
 
-            if (_prices != null)
+            var now = _timeZoneService.Now;
+            var start = now.AddDays(-1).Date;
+            var end = now.AddDays(1).Date.AddHours(23);
+
+            var data = _epexPricesDataService.GetList((db) =>
             {
-                hourlyInfos = _prices.OrderBy(vk => vk.Key)
-                    .Select(vk => new HourlyInfo(vk.Key, vk.Value, _serviceScopeFactory))
+                return db.EPEXPrices
+                    .Where(ep => ep.Time >= start && ep.Time <= end)
+                    .ToList();
+            });
+
+            if (data != null)
+            {
+                hourlyInfos = data.OrderBy(ep => ep.Time)
+                    .Select(ep => new HourlyInfo(ep.Time, ep.Price, _serviceScopeFactory))
                     .ToList();
 
                 return hourlyInfos;
@@ -145,12 +161,12 @@ namespace SessyController.Services
         /// <summary>
         /// Get the day-ahead-prices from ENTSO-E Api.
         /// </summary>
-        private static async Task<ConcurrentDictionary<DateTime, double>> FetchDayAheadPricesAsync(DateTime date, int futureDays, CancellationToken cancellationToken)
+        private async Task<ConcurrentDictionary<DateTime, double>> FetchDayAheadPricesAsync(DateTime date, int futureDays, CancellationToken cancellationToken)
         {
-            date = date.Date;
+            date = date.AddDays(-1);
             var pastDate = date.Date; // new DateTime(date.Year, date.Month, date.Day, 0, 0, 0);
             string periodStartString = pastDate.ToString(FormatDate) + FormatTime;
-            var futureDate = date.AddDays(futureDays);
+            var futureDate = date.AddDays(futureDays + 1);
             string periodEndString = futureDate.ToString(FormatDate) + FormatTime;
             string url = $"{ApiUrl}?documentType=A44&in_Domain={_inDomain}&out_Domain={_inDomain}&periodStart={periodStartString}&periodEnd={periodEndString}&securityToken={_securityToken}";
 
@@ -167,7 +183,9 @@ namespace SessyController.Services
                 var endDate = prices.Keys.Max();
 
                 // Detect and fill gaps in the prices with average prices.
-                FillMissingPoints(prices, date, endDate, TimeSpan.FromHours(1));
+                FillMissingPoints(prices, date.Date, endDate, TimeSpan.FromHours(1));
+
+                StorePrices(prices);
 
                 return prices;
             }
@@ -175,6 +193,25 @@ namespace SessyController.Services
             _logger.LogError("Unable to create HttpClient");
 
             return new ConcurrentDictionary<DateTime, double>();
+        }
+
+        private void StorePrices(ConcurrentDictionary<DateTime, double> prices)
+        {
+            var statusList = new List<EPEXPrices>();
+
+            foreach (var keyValuePair in prices)
+            {
+                statusList.Add(new EPEXPrices
+                {
+                    Time = keyValuePair.Key,
+                    Price = keyValuePair.Value
+                });
+            }
+
+            _epexPricesDataService.StoreOrUpdate(statusList, (item, db) =>
+            {
+                return db.EPEXPrices.Where(sd => sd.Time == item.Time).FirstOrDefault(); // Contains
+            });
         }
 
         /// <summary>
@@ -260,7 +297,6 @@ namespace SessyController.Services
                 {
                     // Search for the previous and future prices.
                     var previousPrice = GetPreviousPrice(prices, currentTime);
-                    var nextPrice = GetNextPrice(prices, currentTime);
 
                     _logger.LogInformation($"Price missing for {currentTime}");
 
@@ -286,12 +322,6 @@ namespace SessyController.Services
         {
             var previousTimes = prices.Keys.Where(t => t < timestamp).OrderByDescending(t => t);
             return previousTimes.Any() ? prices[previousTimes.First()] : (double?)null;
-        }
-
-        private static double? GetNextPrice(ConcurrentDictionary<DateTime, double> prices, DateTime timestamp)
-        {
-            var nextTimes = prices.Keys.Where(t => t > timestamp).OrderBy(t => t);
-            return nextTimes.Any() ? prices[nextTimes.First()] : (double?)null;
         }
     }
 }

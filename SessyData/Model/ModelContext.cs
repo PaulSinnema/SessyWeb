@@ -27,6 +27,8 @@ namespace SessyData.Model
 
         public DbSet<SolarData> SolarData => Set<SolarData>();
 
+        public DbSet<EPEXPrices> EPEXPrices => Set<EPEXPrices>();
+
         protected override void OnConfiguring(DbContextOptionsBuilder options)
             => options.UseSqlite(_connectionString);
     }

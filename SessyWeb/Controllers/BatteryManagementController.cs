@@ -73,8 +73,8 @@ namespace SessyWeb.Controllers
         [HttpGet("SolarEdgeService:GetACPowerInWatts", Name = "{id}/GetACPowerInWatts")]
         public async Task<IActionResult> GetACPowerInWatts()
         {
-            ushort powerOutput = await _solarEdgeService.GetACPower();
-            ushort scaleFactor = await _solarEdgeService.GetACPowerScaleFactor();
+            var powerOutput = await _solarEdgeService.GetACPower();
+            var scaleFactor = await _solarEdgeService.GetACPowerScaleFactor();
 
             return Ok(powerOutput * Math.Pow(10, scaleFactor));
         }
@@ -98,13 +98,13 @@ namespace SessyWeb.Controllers
         [HttpGet("SolarEdgeService:GetACPowerScaleFactor", Name = "{id}/GetACPowerScaleFactor")]
         public async Task<IActionResult> GetACPowerScaleFactor()
         {
-            ushort scaleFactor = await _solarEdgeService.GetACPowerScaleFactor();
+            short scaleFactor = await _solarEdgeService.GetACPowerScaleFactor();
 
             return Ok(scaleFactor);
         }
 
         /// <summary>
-        /// Enable dynamic power limit (does not work yet).
+        /// Enable dynamic power limit.
         /// </summary>
         /// <returns>Scale factor</returns>
         [HttpPut("SolarEdgeService:EnableDynamicPower", Name = "{id}/EnableDynamicPower")]
@@ -116,10 +116,10 @@ namespace SessyWeb.Controllers
         }
 
         /// <summary>
-        /// Disable dynamic power limit (does not work yet).
+        /// Restore dynamic power limit  settings.
         /// </summary>
-        [HttpPut("SolarEdgeService:DisableDynamicPower", Name = "{id}/DisableDynamicPower")]
-        public async Task<IActionResult> EnableDynamicPowerLimit()
+        [HttpPut("SolarEdgeService:RestoreDynamicPowerSettings", Name = "{id}/RestoreDynamicPowerSettings")]
+        public async Task<IActionResult> RestoreDynamicPowerSettings()
         {
             await _solarEdgeService.RestoreDynamicPowerSettings();
 
@@ -213,6 +213,7 @@ namespace SessyWeb.Controllers
 
             return new OkResult();
         }
+
         /// <summary>
         /// Retrieves the current operational status of the inverter.
         /// </summary>
@@ -266,6 +267,19 @@ namespace SessyWeb.Controllers
             await _sessyService.SetPowerSetpointAsync(id, powerSetpoint);
 
             return new OkResult();
+        }
+
+        /// <summary>
+        /// Gets the current dynamic schedule.
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        [HttpGet("SessyService:GetDynamicSchedule", Name = "{id}/GetDynamicSchedule")]
+        public async Task<IActionResult> GetDynamicSchedule(string id)
+        {
+            DynamicStrategy? status = await _sessyService.GetDynamicScheduleAsync(id);
+
+            return Ok(status);
         }
 
         #endregion

@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Options;
+﻿using Djohnnie.SolarEdge.ModBus.TCP;
+using Microsoft.Extensions.Options;
 using SessyController.Configurations;
 
 namespace SessyController.Providers
@@ -14,19 +15,38 @@ namespace SessyController.Providers
             _solarEdgeConfig = solarEdgeConfig.Value;
         }
 
-        public System.Net.Sockets.TcpClient GetTcpClient(string endpointName)
+        //public System.Net.Sockets.TcpClient GetTcpClient(string endpointName)
+        //{
+        //    if(!_solarEdgeConfig.Endpoints.TryGetValue(endpointName, out var config))
+        //    {
+        //        throw new InvalidOperationException($"No TcpClient configuration found for endpoint: {endpointName}");
+        //    }
+
+        //    if(config.IpAddress == null)
+        //    {
+        //        throw new InvalidOperationException($"No IP Address found for endpoint: {endpointName}");
+        //    }    
+
+        //    return new System.Net.Sockets.TcpClient(config.IpAddress, config.Port);
+        //}
+
+        public async Task<ModbusClient> GetModbusClient(string endpointName)
         {
-            if(!_solarEdgeConfig.Endpoints.TryGetValue(endpointName, out var config))
+            if (!_solarEdgeConfig.Endpoints.TryGetValue(endpointName, out var config))
             {
                 throw new InvalidOperationException($"No TcpClient configuration found for endpoint: {endpointName}");
             }
 
-            if(config.IpAddress == null)
+            if (config.IpAddress == null)
             {
                 throw new InvalidOperationException($"No IP Address found for endpoint: {endpointName}");
-            }    
+            }
 
-            return new System.Net.Sockets.TcpClient(config.IpAddress, config.Port);
+            var client = new ModbusClient(config.IpAddress, config.Port);
+
+            await client.Connect();
+
+            return client;
         }
     }
 }
