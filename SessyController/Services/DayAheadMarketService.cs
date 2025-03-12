@@ -129,7 +129,7 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Get the fetched prices for today and tomorrow (if present) as a sorted dictionary.
+        /// Get the fetched prices for yesterday, today and tomorrow (if present) as a sorted list.
         /// </summary>
         public List<HourlyInfo> GetPrices()
         {
@@ -195,6 +195,9 @@ namespace SessyController.Services
             return new ConcurrentDictionary<DateTime, double>();
         }
 
+        /// <summary>
+        /// Store the prices in the database if not present.
+        /// </summary>
         private void StorePrices(ConcurrentDictionary<DateTime, double> prices)
         {
             var statusList = new List<EPEXPrices>();
@@ -208,9 +211,9 @@ namespace SessyController.Services
                 });
             }
 
-            _epexPricesDataService.StoreOrUpdate(statusList, (item, db) =>
+            _epexPricesDataService.Store(statusList, (item, db) =>
             {
-                return db.EPEXPrices.Where(sd => sd.Time == item.Time).FirstOrDefault(); // Contains
+                return db.EPEXPrices.Any(sd => sd.Time == item.Time); // Contains
             });
         }
 

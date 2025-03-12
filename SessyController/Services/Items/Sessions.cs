@@ -52,15 +52,18 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Removes a session from the sessions session list and changes the modes
         /// of all hourly info objects it contained.
-        public void RemoveSession(Session session)
+        public void RemoveSession(Session? session)
         {
-            foreach (var hourlyItem in session.GetHourlyInfoList())
+            if (session != null)
             {
-                hourlyItem.DisableCharging();
-                hourlyItem.DisableDischarging();
-            }
+                foreach (var hourlyItem in session.GetHourlyInfoList())
+                {
+                    hourlyItem.DisableCharging();
+                    hourlyItem.DisableDischarging();
+                }
 
-            _sessionList.Remove(session);
+                _sessionList.Remove(session);
+            }
         }
 
         /// <summary>

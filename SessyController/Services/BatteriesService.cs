@@ -244,31 +244,67 @@ namespace SessyController.Services
                 .FirstOrDefault(hp => hp.Time.Date == localTime.Date && hp.Time.Hour == localTime.Hour);
         }
 
+        private class SessionInfo
+        {
+            public SessionInfo(Session? session)
+            {
+                FirstDate = session.FirstDate;
+                LastDate = session.LastDate;
+            }
+
+            public DateTime FirstDate { get; private set; }
+            public DateTime LastDate { get; private set; }
+
+            public bool IsInsideTimeFrame(HourlyInfo hourlyInfo)
+            {
+                return FirstDate <= hourlyInfo.Time && LastDate >= hourlyInfo.Time;
+            }
+        }
+
+        private SessionInfo? _lastSessionCanceled { get; set; } = null;
+
         /// <summary>
         /// If batteries are full (enough) stop charging this session
         /// If batteries are empty stop discharging this session
         /// </summary>
         private async Task CancelSessionIfStateRequiresIt(Sessions sessions, HourlyInfo currentHourlyInfo)
         {
-            if (currentHourlyInfo.Charging)
-            {
-                bool batteriesAreFull = await AreAllBattiesFull(currentHourlyInfo);
-                bool chargeIsEnough = await IsMaxChargeNeededReached(currentHourlyInfo);
+            var session = sessions.GetSession(currentHourlyInfo);
 
-                if (batteriesAreFull || chargeIsEnough)
+            if (session != null)
+            {
+                if (_lastSessionCanceled != null)
                 {
-                    StopChargingSession(sessions, currentHourlyInfo);
-                    _logger.LogWarning("Warning: Charging session stopped because batteries are full (enough).");
+                    if (_lastSessionCanceled.IsInsideTimeFrame(currentHourlyInfo))
+                    {
+                        _logger.LogWarning($"Session was previously canceled {session}");
+
+                        StopSession(session);
+
+                        return;
+                    }
                 }
-            }
-            else if (currentHourlyInfo.Discharging)
-            {
-                bool batteriesAreEmpty = await AreAllBattiesEmpty(currentHourlyInfo);
 
-                if (batteriesAreEmpty)
+                if (currentHourlyInfo.Charging)
                 {
-                    StopDischargingSession(sessions, currentHourlyInfo);
-                    _logger.LogWarning("Warning: Discharging session stopped because batteries are empty.");
+                    bool batteriesAreFull = await AreAllBatteriesFull();
+                    bool chargeIsEnough = await IsMaxChargeNeededReached(currentHourlyInfo);
+
+                    if (batteriesAreFull || chargeIsEnough)
+                    {
+                        StopSession(session);
+                        _logger.LogInformation("Warning: Charging session stopped because batteries are full (enough).");
+                    }
+                }
+                else if (currentHourlyInfo.Discharging)
+                {
+                    bool batteriesAreEmpty = await AreAllBatteriesEmpty();
+
+                    if (batteriesAreEmpty)
+                    {
+                        StopSession(session);
+                        _logger.LogInformation("Warning: Discharging session stopped because batteries are empty.");
+                    }
                 }
             }
         }
@@ -295,61 +331,19 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Cancel charging for current and future consecutive charging hours.
+        /// Cancel (dis)charging for current session.
         /// </summary>
-        private void StopChargingSession(Sessions sessions, HourlyInfo currentHourlyInfo)
+        private void StopSession(Session? session)
         {
-            if (hourlyInfos != null)
-            {
-                var enumPrices = hourlyInfos.GetEnumerator();
+            _lastSessionCanceled = new SessionInfo(session);
 
-                if (enumPrices.MoveNext())
-                    while (enumPrices.Current.Time < currentHourlyInfo.Time)
-                        if (!enumPrices.MoveNext())
-                            return;
-
-                while (enumPrices.Current.Charging)
-                {
-                    sessions.RemoveFromSession(enumPrices.Current); // Stop charging
-
-                    if (!enumPrices.MoveNext())
-                        return;
-                }
-
-                RemoveEmptySessions();
-            }
-        }
-
-        /// <summary>
-        /// Cancel discharging for current and future consecutive discharging hours.
-        /// </summary>
-        private void StopDischargingSession(Sessions sessions, HourlyInfo currentHourlyInfo)
-        {
-            if (hourlyInfos != null)
-            {
-                var enumPrices = hourlyInfos.GetEnumerator();
-
-                if (enumPrices.MoveNext())
-                    while (enumPrices.Current.Time < currentHourlyInfo.Time)
-                        if (!enumPrices.MoveNext())
-                            return;
-
-                while (enumPrices.Current.Discharging)
-                {
-                    sessions.RemoveFromSession(enumPrices.Current); // Stop discharging
-
-                    if (!enumPrices.MoveNext())
-                        return;
-                }
-            }
-
-            RemoveEmptySessions();
+            _sessions.RemoveSession(session);
         }
 
         /// <summary>
         /// Returns true if all batteries have state SYSTEM_STATE_BATTERY_FULL
         /// </summary>
-        private async Task<bool> AreAllBattiesFull(HourlyInfo currentHourlyInfo)
+        private async Task<bool> AreAllBatteriesFull()
         {
             var batteriesAreFull = true;
 
@@ -370,7 +364,7 @@ namespace SessyController.Services
         /// <summary>
         /// Returns true if all batteries have state SYSTEM_STATE_BATTERY_EMPTY
         /// </summary>
-        private async Task<bool> AreAllBattiesEmpty(HourlyInfo currentHourlyInfo)
+        private async Task<bool> AreAllBatteriesEmpty()
         {
             var batteriesAreEmpty = true;
 
@@ -561,7 +555,9 @@ namespace SessyController.Services
             var now = _timeZoneService.Now;
             var localTimeHour = now.Date.AddHours(now.Hour);
 
-            hourlyInfos.ForEach(hi => hi.ChargeLeft = 0.0);
+            charge = await _batteryContainer.GetStateOfChargeInWatts();
+
+            hourlyInfos.ForEach(hi => hi.ChargeLeft = charge);
 
             var hourlyInfoList = hourlyInfos
                 .Where(hp => hp.Time.Date.AddHours(hp.Time.Hour) >= localTimeHour)
@@ -569,8 +565,6 @@ namespace SessyController.Services
                 .ToList();
 
             HourlyInfo? previous = null;
-
-            charge = await _batteryContainer.GetStateOfChargeInWatts();
 
             foreach (var hourlyInfo in hourlyInfoList)
             {
