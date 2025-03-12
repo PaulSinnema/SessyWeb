@@ -121,6 +121,14 @@ namespace SessyController.Services.Items
             return remaining;
         }
 
+        /// <summary>
+        /// Get power strategy and EPEX prices from the battery
+        /// </summary>
+        public async Task<DynamicStrategy?> GetDynamicScheduleAsync()
+        {
+            return await _sessyService.GetDynamicScheduleAsync(Id);
+        }
+
         internal void Inject(string id, SessyBatteryEndpoint endpoint)
         {
             Id = id;

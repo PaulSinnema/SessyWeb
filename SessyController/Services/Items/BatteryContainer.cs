@@ -148,7 +148,7 @@ namespace SessyController.Services.Items
         }
 
         /// <summary>
-        /// Set the setpoint for (dis)charging.
+        /// Get the setpoint for (dis)charging.
         /// Positive is discharging
         /// Negative is charging
         /// </summary>
