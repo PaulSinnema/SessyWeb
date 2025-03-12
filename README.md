@@ -16,10 +16,6 @@ Before proceeding, ensure that you have:
   - **Windows**: [Download Docker Desktop](https://docs.docker.com/desktop/install/windows-install/)
   - **Mac**: [Download Docker Desktop](https://docs.docker.com/desktop/install/mac-install/)
 
-- **ENTSO-E Account**  
-  - An account with **ENTSO-E Transparency Platform** is required to retrieve real-time energy data.
-  - Obtain your **SecurityToken** from the [ENTSO-E API portal](https://transparency.entsoe.eu/).
-
 ---
 
 ## Step 1: Clone the Repository
@@ -52,9 +48,6 @@ SessyWeb requires a properly configured `appsettings.json` file to function corr
   },
   
   "AllowedHosts": "*",
-  
-  "ENTSO-E:InDomain": "10YXX----------L",
-  "ENTSO-E:ResolutionFormat": "PT60M",
   
   "Sessy:Batteries": {
     "Batteries": {
@@ -107,15 +100,21 @@ SessyWeb requires a properly configured `appsettings.json` file to function corr
   
   "WeerOnline": {
     "BaseUrl": "https://weerlive.nl/api/weerlive_api_v2.php",
-    "Location": "<Your-Location-Coordinates>"
+    "Location": "<Your-Location-Coordinates longitude and Latitude (nn.nnn,nn.nnn)>"
   },
   
-  "ManagementSettings": {
-    "ManualChargingHours": [ 0, 1, 2, 11, 12, 13 ],
-    "ManualDischargingHours": [ 7, 8, 9, 17, 18 ],
-    "Timezone": "Europe/Amsterdam",
-    "CycleCost": 0.09,
-    "RequiredHomeEnergy": 16000
+"ManagementSettings": {
+    // Charging hours when no ENTSO-E prices are available
+    // Missing hours are treated as Stop all (dis)charging
+    "ManualChargingHours": [ 0, 1, 2, 3, 4, 12, 13, 23 ],
+    "ManualDischargingHours": [ 18, 19 ],
+    "ManualNetZeroHomeHours": [ 5, 6, 7, 8 ,9, 10, 11, 14, 15, 16, 17, 20, 21 ],
+
+    "Timezone": "Europe/Amsterdam", // Timezone where the application is running.
+    "CycleCost": 0.09, // The minimum price difference in Euros justifying (dis)charging.
+    "NetZeroHomeMinProfit": 0.00, // Minimum profit for Net Zero Home to be enabled in non (dis)charging hours
+    "RequiredHomeEnergy": 16000, // The needs for the home in Watts (will have to estimate that in future release).
+    "SolarCorrection": 2.1 // Double value for correcting the solar estimates
   }
 }
 ```
