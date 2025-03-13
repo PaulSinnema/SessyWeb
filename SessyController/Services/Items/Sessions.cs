@@ -1,5 +1,4 @@
-﻿using SessyCommon.Extensions;
-using SessyController.Configurations;
+﻿using SessyController.Configurations;
 using System.Collections.ObjectModel;
 using static SessyController.Services.Items.Session;
 
@@ -11,7 +10,6 @@ namespace SessyController.Services.Items
         private double _totalDischargingCapacity { get; set; }
         private double _homeNeeds { get; set; }
         private double _totalBatteryCapacity { get; set; }
-        private double _netZeroHomeMinProfit { get; set; }
         private ILogger<Sessions> _logger { get; set; }
         private SettingsConfig _settingsConfig { get; set; }
         private BatteryContainer _batteryContainer { get; set; }
@@ -43,7 +41,6 @@ namespace SessyController.Services.Items
             _maxDischargingHours = (int)Math.Ceiling(_totalBatteryCapacity / _totalDischargingCapacity);
             _cycleCost = settingsConfig.CycleCost;
             _homeNeeds = settingsConfig.RequiredHomeEnergy;
-            _netZeroHomeMinProfit = settingsConfig.NetZeroHomeMinProfit;
             _logger = loggerFactory.CreateLogger<Sessions>();
         }
 
@@ -154,6 +151,8 @@ namespace SessyController.Services.Items
                 // .Where(hp => hp.Time.Date.AddHours(hp.Time.Hour) >= localTimeHour)
                 .OrderBy(hi => hi.Time))
             {
+                hourlyInfo.NetZeroHomeProfit = CalculateNetZeroHomeProfit(lastChargingSession, hourlyInfo);
+
                 switch ((hourlyInfo.Charging, hourlyInfo.Discharging, hourlyInfo.ZeroNetHome))
                 {
                     case (true, false, false): // Charging
@@ -210,6 +209,18 @@ namespace SessyController.Services.Items
 
                 previousHour = hourlyInfo;
             }
+        }
+
+        /// <summary>
+        /// Calculate the profit if NetZeroHome were enabled for this hour.
+        /// </summary>
+        private double CalculateNetZeroHomeProfit(List<HourlyInfo> lastChargingSession, HourlyInfo hourlyInfo)
+        {
+            var kWh = Math.Min(_homeNeeds / 24, hourlyInfo.ChargeLeft) / 1000;
+            var selling = hourlyInfo.Price * kWh;
+            var buying = lastChargingSession.Count > 0 ? lastChargingSession.Average(lcs => lcs.Price) * kWh : 0.0;
+
+            return selling - buying;
         }
 
         /// <summary>

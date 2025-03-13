@@ -11,10 +11,11 @@
 {
     <div style="width: 100%; overflow: auto;">
         <RadzenCard Style="padding: 3px 3px 5px 10px;">
-            <RadzenStack Orientation="Orientation.Horizontal" Gap="2" AlignItems="AlignItems.Start">
+            <RadzenStack Orientation="Orientation.Horizontal" Gap="2" AlignItems="AlignItems.Start"> 
                 <RadzenStack Orientation="Orientation.Vertical" Gap="2" AlignItems="AlignItems.Start" Style="width: 250px;">
                     <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Total expected solar power</RadzenText>
-                    <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@TotalSolarPowerExpectedVisual kWh for @_timeZoneService!.Now.Date.ToString("dd MMM yyyy")</b></RadzenText>
+                    <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@TotalSolarPowerExpectedTodayVisual kWh for @_timeZoneService!.Now.Date.ToString("dd MMM yyyy")</b></RadzenText>
+                    <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@TotalSolarPowerExpectedTomorrowVisual kWh for @_timeZoneService!.Now.Date.AddDays(1).ToString("dd MMM yyyy")</b></RadzenText>
                 </RadzenStack>
                 <RadzenStack Orientation="Orientation.Horizontal" Style="width: 100%;">
                     <RadzenCard>
@@ -93,6 +94,12 @@
                 <TooltipTemplate Context="data">
                     <ChargingHoursTooltip HourlyInfo=@data />
                 </TooltipTemplate>
+                <ChildContent>
+                    <RadzenMarkers Visible="false" />
+                    <RadzenSeriesDataLabels Visible="false" />
+                </ChildContent>
+            </RadzenLineSeries>
+            <RadzenLineSeries Data="@ChargeNeededInfos" Smooth="true" CategoryProperty="Time" Title="Charge needed" LineType="LineType.Dashed" ValueProperty="@nameof(ChargeNeededInfo.ChargeNeededVisual)">
                 <ChildContent>
                     <RadzenMarkers Visible="false" />
                     <RadzenSeriesDataLabels Visible="false" />

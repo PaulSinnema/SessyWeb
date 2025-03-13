@@ -19,11 +19,22 @@ namespace SessyWeb.Pages
         [Inject]
         public ScreenSizeService? _screenSizeService { get; set; }
 
+        public struct ChargeNeededInfo
+        {
+            public DateTime Time { get; set; }
+            public double ChargeNeeded { get; set; }
+            public double ChargeNeededVisual => ChargeNeeded / 100000;
+        }
+
         public List<HourlyInfo>? HourlyInfos { get; set; } = new List<HourlyInfo>();
 
-        public double TotalSolarPowerExpected { get; set; }
+        public List<ChargeNeededInfo>? ChargeNeededInfos { get; set; }
 
-        public string TotalSolarPowerExpectedVisual => TotalSolarPowerExpected.ToString("0.###");
+        public double TotalSolarPowerExpectedToday { get; private set; }
+        public double TotalSolarPowerExpectedTomorrow { get; private set; }
+
+        public string TotalSolarPowerExpectedTodayVisual => TotalSolarPowerExpectedToday.ToString("0.###");
+        public string TotalSolarPowerExpectedTomorrowVisual => TotalSolarPowerExpectedTomorrow.ToString("0.###");
 
         private CancellationTokenSource _cts = new();
 
@@ -95,9 +106,14 @@ namespace SessyWeb.Pages
         {
             await InvokeAsync(async () =>
             {
+                var now = _timeZoneService!.Now;
+
                 await HandleScreenHeight();
 
-                await ShowData();
+                TotalSolarPowerExpectedToday = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(now);
+                TotalSolarPowerExpectedTomorrow = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(now.AddDays(1));
+
+                GetOnlyCurrentHourlyInfos();
 
                 StateHasChanged();
             });
@@ -111,17 +127,6 @@ namespace SessyWeb.Pages
             });
         }
 
-        private async Task ShowData()
-        {
-            if (IsComponentActive)
-            {
-                await InvokeAsync(() =>
-                {
-                    TotalSolarPowerExpected = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(HourlyInfos);
-                });
-            }
-        }
-
         private void GetOnlyCurrentHourlyInfos()
         {
             var now = _timeZoneService!.Now;
@@ -129,6 +134,43 @@ namespace SessyWeb.Pages
             HourlyInfos = _batteriesService?.GetHourlyInfos()?
                 .Where(hi => hi.Time >= now.Date.AddHours(now.Hour - 1))
                 .ToList();
+
+            GetChargeNeededList();
+        }
+
+        private void GetChargeNeededList()
+        {
+            ChargeNeededInfos = new();
+
+            if (HourlyInfos != null)
+            {
+                var sessions = _batteriesService!.GetSessions();
+
+                if (sessions != null)
+                {
+                    foreach (var hourlyInfo in HourlyInfos)
+                    {
+                        var session = sessions.GetSession(hourlyInfo);
+
+                        if (session != null && hourlyInfo.Charging)
+                        {
+                            ChargeNeededInfos.Add(new ChargeNeededInfo
+                            {
+                                Time = hourlyInfo.Time,
+                                ChargeNeeded = session.MaxChargeNeeded
+                            });
+                        }
+                        else
+                        {
+                            ChargeNeededInfos.Add(new ChargeNeededInfo
+                            {
+                                Time = hourlyInfo.Time,
+                                ChargeNeeded = 0.0
+                            });
+                        }
+                    }
+                }
+            }
         }
 
         private void ChangeChartStyle(int height)

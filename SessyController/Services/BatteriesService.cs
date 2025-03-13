@@ -36,7 +36,6 @@ namespace SessyController.Services
         private LoggingService<BatteriesService> _logger { get; set; }
 
         private static List<HourlyInfo>? hourlyInfos { get; set; } = new List<HourlyInfo>();
-        private bool _settingsChanged { get; set; } = false;
 
         public BatteriesService(LoggingService<BatteriesService> logger,
                                 IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
@@ -57,12 +56,11 @@ namespace SessyController.Services
             _settingsConfigSubscription = _settingsConfigMonitor.OnChange(settings =>
             {
                 _settingsConfig = settings;
-                _settingsChanged = true;
             });
+
             _sessyBatteryConfigSubscription = _sessyBatteryConfigMonitor.OnChange((SessyBatteryConfig settings) =>
             {
                 _sessyBatteryConfig = settings;
-                _settingsChanged = true;
             });
 
             _settingsConfig = settingsConfigMonitor.CurrentValue;
@@ -176,8 +174,9 @@ namespace SessyController.Services
                 }
                 finally
                 {
-                    DataChanged?.Invoke();
                     HourlyInfoSemaphore.Release();
+
+                    DataChanged?.Invoke();
                 }
             }
         }
@@ -197,6 +196,11 @@ namespace SessyController.Services
             {
                 HourlyInfoSemaphore.Release();
             }
+        }
+
+        public Sessions? GetSessions()
+        {
+                return _sessions;
         }
 
         private async Task HandleAutomaticCharging(Sessions sessions)
@@ -400,16 +404,6 @@ namespace SessyController.Services
         /// </summary>
         private bool FetchPricesFromENTSO_E(DateTime localTime)
         {
-            if (hourlyInfos != null)
-            {
-                foreach (var hourlyInfo in hourlyInfos)
-                {
-                    hourlyInfo.Dispose();
-                }
-
-                hourlyInfos.Clear();
-            }
-
             // Get the available hourly prices.
             hourlyInfos = _dayAheadMarketService.GetPrices()
                 .OrderBy(hp => hp.Time)
@@ -445,10 +439,8 @@ namespace SessyController.Services
                 if (_sessions != null)
                 {
                     await RemoveExtraChargingSessions();
-                    // #if DEBUG
+
                     CheckSessions();
-                    // #endif
-                    _settingsChanged = false;
                 }
             }
             catch (Exception ex)

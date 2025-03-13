@@ -1,15 +1,18 @@
-﻿using SessyCommon.Extensions;
+﻿using Microsoft.Extensions.Options;
+using SessyCommon.Extensions;
+using SessyController.Configurations;
 using SessyController.Services.Items;
 using SessyData.Model;
 using SessyData.Services;
 using System.Collections.Concurrent;
+using System.Runtime;
 
 namespace SessyController.Services
 {
     /// <summary>
     /// This background service fetches the prices from a Sessy battery..
     /// </summary>
-    public class DayAheadMarketService : BackgroundService
+    public class DayAheadMarketService : BackgroundService, IDisposable
     {
         private ConcurrentDictionary<DateTime, double>? _prices { get; set; }
         private static LoggingService<DayAheadMarketService>? _logger { get; set; }
@@ -17,6 +20,9 @@ namespace SessyController.Services
         private BatteryContainer _batteryContainer { get; set; }
         private IServiceScopeFactory _serviceScopeFactory { get; set; }
         private EPEXPricesDataService _epexPricesDataService { get; set; }
+        private IOptionsMonitor<SettingsConfig> _settingsConfigMonitor { get; set; }
+        private SettingsConfig _settingsConfig { get; set; }
+        private IDisposable? _settingsConfigMonitorSubscription { get; set; }
 
         public bool PricesAvailable { get; internal set; } = false;
         public bool PricesInitialized { get; internal set; } = false;
@@ -25,12 +31,19 @@ namespace SessyController.Services
                                     TimeZoneService timeZoneService,
                                     BatteryContainer batteryContainer,
                                     EPEXPricesDataService epexPricesDataService,
+                                    IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
                                     IServiceScopeFactory serviceScopeFactory)
         {
             _timeZoneService = timeZoneService;
             _batteryContainer = batteryContainer;
             _serviceScopeFactory = serviceScopeFactory;
             _epexPricesDataService = epexPricesDataService;
+            _settingsConfigMonitor = settingsConfigMonitor;
+
+            _settingsConfig = _settingsConfigMonitor.CurrentValue;
+
+            _settingsConfigMonitorSubscription = _settingsConfigMonitor.OnChange((settings) => _settingsConfig = settings);
+
             _logger = logger;
         }
 
@@ -124,7 +137,7 @@ namespace SessyController.Services
                 if (data != null)
                 {
                     hourlyInfos = data.OrderBy(ep => ep.Time)
-                        .Select(ep => new HourlyInfo(ep.Time, ep.Price, _serviceScopeFactory))
+                        .Select(ep => new HourlyInfo(ep.Time, ep.Price, _settingsConfig))
                         .ToList();
 
                     return hourlyInfos;
@@ -188,6 +201,20 @@ namespace SessyController.Services
             {
                 return db.EPEXPrices.Any(sd => sd.Time == item.Time); // Contains
             });
+        }
+
+        private bool _isDisposed = false;
+
+        public override void Dispose()
+        {
+            if (!_isDisposed)
+            {
+                _settingsConfigMonitorSubscription.Dispose();
+
+                _isDisposed = true;
+            }
+
+            base.Dispose();
         }
     }
 }

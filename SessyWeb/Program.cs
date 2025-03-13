@@ -31,26 +31,25 @@ Console.WriteLine($"Configuratiemap: {configDirectory}");
 if (!Directory.Exists(configDirectory))
     Console.WriteLine($"Config directory does not exist: {configDirectory}");
 
-// 🔹 2. Laad appsettings.json vanuit de opgegeven directory
 string appSettingsPath = Path.Combine(configDirectory, "appsettings.json");
+
 if (File.Exists(appSettingsPath))
 {
     builder.Configuration.AddJsonFile(appSettingsPath, optional: false, reloadOnChange: true);
 }
 else
 {
-    Console.WriteLine("⚠️ Waarschuwing: appsettings.json ontbreekt!");
+    Console.WriteLine("⚠️ Warning: appsettings.json missing!");
 }
 
-// 🔹 3. Laad secrets.json als het aanwezig is
 string secretsPath = Path.Combine(configDirectory, "secrets.json");
 if (File.Exists(secretsPath))
 {
-    builder.Configuration.AddJsonFile(secretsPath, optional: true, reloadOnChange: true);
+    builder.Configuration.AddJsonFile(secretsPath, optional: false, reloadOnChange: true);
 }
 else
 {
-    Console.WriteLine("⚠️ Waarschuwing: secrets.json ontbreekt, geheimen worden niet geladen.");
+    Console.WriteLine("⚠️ Warning: secrets.json missing, secrets are not loaded.");
 }
 
 builder.Services.AddDbContext<ModelContext>(options =>

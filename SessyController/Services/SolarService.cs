@@ -63,18 +63,28 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Gets the expected solar power from Now for the next 24 hours
+        /// Gets the expected solar power from Now for today
         /// </summary>
-        public double GetTotalSolarPowerExpected(List<HourlyInfo>? hourlyInfos)
+        public double GetTotalSolarPowerExpected(DateTime forDate)
         {
+            using var scope = _serviceScopeFactory.CreateScope();
+
+            var batteryService = scope.ServiceProvider.GetRequiredService<BatteriesService>();
+
+            var hourlyInfos = batteryService.GetHourlyInfos();
+
             if (hourlyInfos != null)
             {
-                var now = _timeZoneService.Now;
-
                 var solarPower = 0.0;
+                var start = forDate.Date;
+                var end = forDate.Date.AddHours(23);
 
-                foreach (var hourlyInfo in hourlyInfos
-                    .Where(hi => hi.Time.Date >= now.Date && hi.Time.Date <= now.Date.AddHours(24)))
+                var list = hourlyInfos
+                    .Where(hi => hi.Time >= start && hi.Time <= end)
+                    .OrderBy(hi => hi.Time)
+                    .ToList();
+
+                foreach (var hourlyInfo in list)
                 {
                     solarPower += hourlyInfo.SolarPower;
                 }

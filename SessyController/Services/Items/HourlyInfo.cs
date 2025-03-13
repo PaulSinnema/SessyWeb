@@ -1,29 +1,19 @@
-﻿using Microsoft.Extensions.Options;
-using SessyController.Configurations;
+﻿using SessyController.Configurations;
 using static SessyController.Services.Items.Session;
 
 namespace SessyController.Services.Items
 {
-    public class HourlyInfo : IDisposable
+    public class HourlyInfo
     {
-        public HourlyInfo(DateTime time, double? price, IServiceScopeFactory serviceScopeFactory)
+        public HourlyInfo(DateTime time, double? price, SettingsConfig settingsConfig)
         {
             Time = time;
             Price = price.HasValue ? price.Value : 0.0;
-            _serviceScopeFactory = serviceScopeFactory;
 
-            _scope = _serviceScopeFactory.CreateScope();
-
-            _settingsConfigMonitor = _scope.ServiceProvider.GetRequiredService<IOptionsMonitor<SettingsConfig>>();
-
-            _settingsConfigSubscription = _settingsConfigMonitor.OnChange((SettingsConfig settings) => _settingsConfig = settings);
-
-            _settingsConfig = _settingsConfigMonitor.CurrentValue;
+            _settingsConfig = settingsConfig;
         }
 
-        private IOptionsMonitor<SettingsConfig> _settingsConfigMonitor;
-        private IDisposable? _settingsConfigSubscription { get; set; }
-        private SettingsConfig _settingsConfig;
+        private SettingsConfig _settingsConfig { get; set; }
 
         /// <summary>
         /// Price from ENTSO-E
@@ -37,13 +27,16 @@ namespace SessyController.Services.Items
         /// </summary>
         public DateTime Time { get; set; }
 
-        private IServiceScopeFactory _serviceScopeFactory;
-        private IServiceScope _scope { get; set; }
-
         /// <summary>
         /// How much profit does this (dis)charge give?
         /// </summary>
         public double Profit => Selling - Buying;
+
+        /// <summary>
+        /// This is the profit if Net Zero Home were enabled. It is used
+        /// to determine if NetZeroHome should be enabled or not.
+        /// </summary>
+        public double NetZeroHomeProfit { get; set; }
 
         public double ProfitVisual => Profit / 10;
 
@@ -209,8 +202,10 @@ namespace SessyController.Services.Items
         public bool ZeroNetHome
         {
             get => !(Charging || Discharging) &&
-                (Profit >= _settingsConfig.NetZeroHomeMinProfit ||
-                SolarPowerInWatts > 100.0);
+                (
+                    NetZeroHomeProfit >= _settingsConfig.NetZeroHomeMinProfit ||
+                    SolarPowerInWatts > 100.0
+                );
         }
 
         /// <summary>
@@ -224,19 +219,6 @@ namespace SessyController.Services.Items
         public override string ToString()
         {
             return $"{Time}: Charging: {Charging}, Discharging: {Discharging}, Zero Net Home: {ZeroNetHome}, Price: {Price}, Charge left: {ChargeLeft}, Solar power {SolarPower}";
-        }
-
-        private bool _isDisposed = false;
-
-        public void Dispose()
-        {
-            if (!_isDisposed)
-            {
-                _settingsConfigSubscription.Dispose();
-                _scope.Dispose();
-
-                _isDisposed = true;
-            }
         }
     }
 }
