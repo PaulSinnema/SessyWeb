@@ -47,13 +47,13 @@ namespace SessyWeb.Pages
                 if (list.Count > 0)
                 {
                     var date = list.First().Time;
-                    var month = date.Month;
-                    var year = date.Year;
-                    var day = date.Day;
+                    var start = date.Date;
+                    var end = start.AddHours(23);
 
-                    if (FinancialResultsList != null)
-                        return FinancialResultsList
-                            .Where(fr => fr.Day == day && fr.Month == month && fr.Year == year)
+                    var finResults = _finacialResultsService!.GetFinancialResults(start, end);
+
+                    if (finResults != null)
+                        return finResults
                             .Sum(fr => fr.Cost);
                 }
             }

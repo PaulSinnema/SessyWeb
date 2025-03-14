@@ -15,17 +15,15 @@
     AllowFiltering="true"
     AllowPaging="true"
     AllowGrouping="false"
-    PageSize="35"
+    PageSize="288"
     ShowPagingSummary="true"
     GroupFootersAlwaysVisible="true"
     Render="@OnRender"
     Density="Density.Compact"
+    AllGroupsExpanded="false"
     PagerHorizontalAlign="HorizontalAlign.Center">
     <Columns>
         <RadzenDataGridColumn Property="@nameof(FinancialResult.YearMonth)" Title="Time">
-            <GroupFooterTemplate>
-                Total cost: <b> @String.Format(new System.Globalization.CultureInfo("nl-NL"), "{0:C}", GetMonthlyTotalCost(context.Data.Items.Cast<FinancialResult>()))</b>
-            </GroupFooterTemplate>
         </RadzenDataGridColumn>
         <RadzenDataGridColumn Property="@nameof(FinancialResult.Time)" Title="Time" />
 @*         <RadzenDataGridColumn Property="@nameof(FinancialResult.Month)" Title="Month" />
@@ -33,8 +31,13 @@
         <RadzenDataGridColumn Property="@nameof(FinancialResult.Hour)" Title="Hour" />
  *@        <RadzenDataGridColumn Property="@nameof(FinancialResult.Consumed)" Title="Consumed" />
         <RadzenDataGridColumn Property="@nameof(FinancialResult.Produced)" Title="Produced" />
+        <RadzenDataGridColumn Property="@nameof(FinancialResult.Grid)" Title="Grid" />
         <RadzenDataGridColumn Property="@nameof(FinancialResult.Price)" Title="Price" />
-        <RadzenDataGridColumn Property="@nameof(FinancialResult.Cost)" Title="Cost" />
+        <RadzenDataGridColumn Property="@nameof(FinancialResult.Cost)" Title="Cost" FormatString="{0:C}" FormatProvider="@GetFormatProvider()" >
+            <GroupFooterTemplate>
+                <b> @String.Format(GetFormatProvider(), "{0:C}", GetMonthlyTotalCost(context.Data.Items.Cast<FinancialResult>()))</b>
+            </GroupFooterTemplate>
+        </RadzenDataGridColumn>
         <RadzenDataGridColumn Property="@nameof(FinancialResult.Cost)" Title="Revenue" />
     </Columns>
 </RadzenDataGrid>

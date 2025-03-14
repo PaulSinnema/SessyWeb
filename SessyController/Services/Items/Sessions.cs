@@ -166,7 +166,7 @@ namespace SessyController.Services.Items
                             {
                                 var lastDateCharging = lastChargingSession.Max(hi => hi.Time);
 
-                                if (hourlyInfo.Time.Hour - lastDateCharging.Hour > 1)
+                                if ((hourlyInfo.Time - lastDateCharging).Hours > 1)
                                 {
                                     lastChargingSession.Clear();
                                 }

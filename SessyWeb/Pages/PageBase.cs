@@ -26,6 +26,11 @@ namespace SessyWeb.Pages
                 _isDisposed = true;
             }
         }
+
+        public IFormatProvider GetFormatProvider()
+        {
+            return new System.Globalization.CultureInfo("nl-NL");
+        }
     }
 }
 
