@@ -200,7 +200,7 @@ namespace SessyController.Services
 
         public Sessions? GetSessions()
         {
-                return _sessions;
+            return _sessions;
         }
 
         private async Task HandleAutomaticCharging(Sessions sessions)
@@ -552,21 +552,30 @@ namespace SessyController.Services
             hourlyInfos.ForEach(hi => hi.ChargeLeft = charge);
 
             var hourlyInfoList = hourlyInfos
-                .Where(hp => hp.Time.Date.AddHours(hp.Time.Hour) >= localTimeHour)
                 .OrderBy(hp => hp.Time)
                 .ToList();
+
+            List<HourlyInfo>? lastChargingSession = null;
 
             HourlyInfo? previous = null;
 
             foreach (var hourlyInfo in hourlyInfoList)
             {
+                var session = _sessions.GetSession(hourlyInfo);
+
+                if (session != null && session.Mode == Modes.Charging)
+                {
+                    lastChargingSession = session.GetHourlyInfoList().ToList();
+                }
+
+                hourlyInfo.NetZeroHomeProfit = _sessions.CalculateNetZeroHomeProfit(lastChargingSession, hourlyInfo);
+
                 if (previous != null)
                 {
                     switch ((hourlyInfo.Charging, hourlyInfo.Discharging, hourlyInfo.ZeroNetHome))
                     {
                         case (true, false, false): // Charging
                             {
-                                var session = _sessions.GetSession(hourlyInfo);
                                 var capacityNeeded = Math.Min(totalCapacity, session.MaxChargeNeeded);
                                 charge = Math.Min(charge + chargingCapacity, capacityNeeded);
                                 charge += hourlyInfo.SolarPowerInWatts;

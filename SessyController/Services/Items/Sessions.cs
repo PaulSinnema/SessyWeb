@@ -151,8 +151,6 @@ namespace SessyController.Services.Items
                 // .Where(hp => hp.Time.Date.AddHours(hp.Time.Hour) >= localTimeHour)
                 .OrderBy(hi => hi.Time))
             {
-                hourlyInfo.NetZeroHomeProfit = CalculateNetZeroHomeProfit(lastChargingSession, hourlyInfo);
-
                 switch ((hourlyInfo.Charging, hourlyInfo.Discharging, hourlyInfo.ZeroNetHome))
                 {
                     case (true, false, false): // Charging
@@ -214,13 +212,18 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Calculate the profit if NetZeroHome were enabled for this hour.
         /// </summary>
-        private double CalculateNetZeroHomeProfit(List<HourlyInfo> lastChargingSession, HourlyInfo hourlyInfo)
+        public double CalculateNetZeroHomeProfit(List<HourlyInfo>? lastChargingSession, HourlyInfo hourlyInfo)
         {
-            var kWh = Math.Min(_homeNeeds / 24, hourlyInfo.ChargeLeft) / 1000;
-            var selling = hourlyInfo.Price * kWh;
-            var buying = lastChargingSession.Count > 0 ? lastChargingSession.Average(lcs => lcs.Price) * kWh : 0.0;
+            if (lastChargingSession != null)
+            {
+                var kWh = Math.Min(_homeNeeds / 24, hourlyInfo.ChargeLeft) / 1000;
+                var selling = hourlyInfo.Price * kWh;
+                var buying = lastChargingSession.Count > 0 ? lastChargingSession.Average(lcs => lcs.Price) * kWh : 0.0;
 
-            return selling - buying;
+                return selling - buying;
+            }
+
+            return 0.0;
         }
 
         /// <summary>
