@@ -11,14 +11,15 @@ namespace SessyData.Model
         public DateTime Time { get; set; }
         public double? Price { get; set; }
 
+        public void Update(EPEXPrices updateInfo)
+        {
+            Time = updateInfo.Time;
+            Price = updateInfo.Price;
+        }
+
         public override string ToString()
         {
             return $"Time: {Time}, Price: {Price}";
-        }
-
-        public void Update(EPEXPrices updateInfo)
-        {
-            Price = updateInfo.Price;
         }
     }
 }

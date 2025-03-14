@@ -5,9 +5,6 @@
     {
         public int Id { get; set; }
 
-        void Update(T updateInfo)
-        {
-
-        }
+        abstract void Update(T updateInfo);
     }
 }

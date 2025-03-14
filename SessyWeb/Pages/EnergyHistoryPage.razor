@@ -14,6 +14,7 @@
     AllowFiltering="true"
     AllowPaging="true"
     PageSize="20"
+    Density="Density.Compact"
     PagerHorizontalAlign="HorizontalAlign.Center">
     <Columns>
         <RadzenDataGridColumn Property="@nameof(EnergyHistory.Time)" Title="Time" SortOrder="SortOrder.Ascending" />
@@ -23,7 +24,58 @@
         <RadzenDataGridColumn Property="@nameof(EnergyHistory.ProducedTariff2)" Title="Produced tariff 2" />
         <RadzenDataGridColumn Property="@nameof(EnergyHistory.TarrifIndicator)" Title="Tariff indicator" />
         <RadzenDataGridColumn Property="@nameof(EnergyHistory.Temperature)" Title="Temperature" />
-        <RadzenDataGridColumn Property="@nameof(EnergyHistory.Price)" Title="Price" />
+        <RadzenDataGridColumn Property="@nameof(EnergyHistory.Price)" Title="Price" >
+            <EditTemplate Context="fr">
+                <RadzenNumeric @bind-Value="fr.Price" Style="width:100%" InputAttributes="@(new Dictionary<string, object>() { { "aria-label", "Select freight" } })" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
         <RadzenDataGridColumn Property="@nameof(EnergyHistory.GlobalRadiation)" Title="Global radiation" />
+        <RadzenDataGridColumn Context="order" Filterable="false" Sortable="false" TextAlign="TextAlign.Right" Frozen="true" FrozenPosition="FrozenColumnPosition.Right">
+            <Template Context="fr">
+                <RadzenButton Icon="add_circle"
+                              ButtonStyle="ButtonStyle.Success"
+                              Variant="Variant.Flat"
+                              Size="ButtonSize.Small"
+                              Shade="Shade.Lighter"
+                              Click="@(() => InsertAfterRow(fr))"
+                              title="Add new row after this row" />
+                              @* Disabled="@(editMode == DataGridEditMode.Single && ordersToInsert.Count() > 0)" *@
+                <RadzenButton Icon="edit" 
+                              ButtonStyle="ButtonStyle.Light"
+                              Variant="Variant.Flat"
+                              Size="ButtonSize.Small"
+                              class="rz-my-1 rz-ms-1"
+                              Click="@(args => EditRow(fr))"
+                              @onclick:stopPropagation="true" />
+@*                 <RadzenButton Icon="delete" 
+                              ButtonStyle="ButtonStyle.Danger"
+                              Variant="Variant.Flat"
+                              Size="ButtonSize.Small"
+                              Shade="Shade.Lighter"
+                              class="rz-my-1 rz-ms-1"
+                              Click="@(args => DeleteRow(fr))"
+                              @onclick:stopPropagation="true" />
+ *@            </Template>
+            <EditTemplate Context="fr">
+                <RadzenButton Icon="check"
+                              ButtonStyle="ButtonStyle.Success"
+                              Variant="Variant.Flat"
+                              Size="ButtonSize.Small"
+                              Click="@((args) => SaveRow(fr))" aria-label="Save" />
+                <RadzenButton Icon="close"
+                              ButtonStyle="ButtonStyle.Light"
+                              Variant="Variant.Flat"
+                              Size="ButtonSize.Small"
+                              class="rz-my-1 rz-ms-1"
+                              Click="@((args) => CancelEdit(fr))" aria-label="Cancel" />
+   @*              <RadzenButton Icon="delete"
+                              ButtonStyle="ButtonStyle.Danger"
+                              Variant="Variant.Flat"
+                              Size="ButtonSize.Small"
+                              Shade="Shade.Lighter"
+                              class="rz-my-1 rz-ms-1"
+                              Click="@(args => DeleteRow(fr))" aria-label="Delete" />
+    *@         </EditTemplate>
+        </RadzenDataGridColumn>
     </Columns>
 </RadzenDataGrid>

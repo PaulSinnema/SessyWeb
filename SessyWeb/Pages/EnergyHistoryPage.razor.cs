@@ -1,10 +1,13 @@
 ﻿using Microsoft.AspNetCore.Components;
+using Microsoft.EntityFrameworkCore;
 using Radzen;
 using Radzen.Blazor;
 using SessyController.Services;
 using SessyData.Model;
 using SessyData.Services;
 using System.Linq.Dynamic.Core;
+using System.Threading.Tasks;
+using static NuGet.Packaging.PackagingConstants;
 
 namespace SessyWeb.Pages
 {
@@ -31,10 +34,10 @@ namespace SessyWeb.Pages
 
         void LoadData(LoadDataArgs args)
         {
-            if (energyGrid == null) throw new InvalidOperationException($"{nameof(energyGrid)} can not be null here, did you forget a @ref?");
+            EnsureEnergyGrid();
 
             var now = _timeZoneService!.Now;
-            var filter = energyGrid.ColumnsCollection;
+            var filter = energyGrid!.ColumnsCollection;
 
             EnergyHistoryList = _energyHistoryService!.GetList((ModelContext modelContext) =>
             {
@@ -57,6 +60,65 @@ namespace SessyWeb.Pages
                 return query.Skip(args.Skip!.Value).Take(args.Top!.Value).ToList();
             });
         }
+
+        private void EnsureEnergyGrid()
+        {
+            if (energyGrid == null) throw new InvalidOperationException($"{nameof(energyGrid)} can not be null here, did you forget a @ref?");
+        }
+
+
+        async Task EditRow(EnergyHistory history)
+        {
+            if (!energyGrid.IsValid) return;
+
+            await energyGrid!.EditRow(history);
+        }
+
+        void OnUpdateRow(EnergyHistory energyHistory)
+        {
+            List<EnergyHistory> list = new List<EnergyHistory> { energyHistory };
+
+            _energyHistoryService!.Update(list, (item, db) => db.EnergyHistory.Where(eh => eh.Id == energyHistory.Id).FirstOrDefault());
+        }
+
+        async Task SaveRow(EnergyHistory energyHistory)
+        {
+            await energyGrid!.UpdateRow(energyHistory);
+        }
+
+        async Task CancelEdit(EnergyHistory energyHistory)
+        {
+            energyGrid!.CancelEditRow(energyHistory);
+
+            await energyGrid.Reload();
+        }
+
+        async Task DeleteRow(EnergyHistory energyHistory)
+        {
+            _energyHistoryService!.Remove(new List<EnergyHistory> { energyHistory }, (item, db) => db.EnergyHistory.Where(eh => eh.Id == item.Id).FirstOrDefault());
+
+            await energyGrid!.Reload();
+        }
+
+        async Task InsertRow()
+        {
+            if (!energyGrid!.IsValid) return;
+
+            var energyHistory = new EnergyHistory();
+            await energyGrid.InsertRow(energyHistory);
+        }
+
+        async Task InsertAfterRow(EnergyHistory row)
+        {
+            if (!energyGrid!.IsValid) return;
+
+            var energyHistory = new EnergyHistory();
+            await energyGrid.InsertAfterRow(energyHistory, row);
+        }
+
+        void OnCreateRow(EnergyHistory energyHistory)
+        {
+            _energyHistoryService.Add(new List<EnergyHistory> { energyHistory }, (item, db) => db.EnergyHistory.Where(eh => eh.Id == item.Id).FirstOrDefault());
+        }
     }
 }
-

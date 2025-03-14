@@ -41,10 +41,37 @@ namespace SessyData.Services
             });
         }
 
-        public void StoreOrUpdate(List<T> list, Func<T, ModelContext, T?> contains)
+        private static void EnsureUpdatable()
         {
             if (!typeof(IUpdatable<T>).IsAssignableFrom(typeof(T)))
                 throw new InvalidCastException($"For StoreOrUpdate the type {typeof(T).Name} must implement IUpdatable<{typeof(T).Name}>");
+        }
+
+        public void Add(List<T> list, Func<T, ModelContext, T?> contains)
+        {
+            EnsureUpdatable();
+
+            _dbHelper.ExecuteTransaction(async db =>
+            {
+                foreach (var item in list)
+                {
+                    var containedItem = contains(item, db);
+
+                    if (containedItem != null)
+                    {
+                        throw new InvalidOperationException($"Item to add is duplicate {item}");
+                    }
+                    else
+                    {
+                        db.Set<T>().Add(item);
+                    }
+                }
+            });
+        }
+
+        public void AddOrUpdate(List<T> list, Func<T, ModelContext, T?> contains)
+        {
+            EnsureUpdatable();
 
             _dbHelper.ExecuteTransaction(async db =>
             {
@@ -68,7 +95,57 @@ namespace SessyData.Services
             });
         }
 
-        public async Task<T?> GetByKeyAsync(ModelContext db, int key)
+        public void Update(List<T> list, Func<T, ModelContext, T?> contains)
+        {
+            EnsureUpdatable();
+
+            _dbHelper.ExecuteTransaction(async db =>
+            {
+                foreach (var item in list)
+                {
+                    var containedItem = contains(item, db);
+
+                    if (containedItem != null)
+                    {
+                        var itemToUpdate = await GetByKeyAsync(db, ((IUpdatable<T>)containedItem).Id);
+
+                        ((IUpdatable<T>)itemToUpdate!).Update(itemToUpdate);
+
+                        db.Set<T>().Update(containedItem);
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException($"Item to update was not fout {item}");
+                    }
+                }
+            });
+        }
+
+        public void Remove(List<T> list, Func<T, ModelContext, T?> contains)
+        {
+            EnsureUpdatable();
+
+            _dbHelper.ExecuteTransaction(async db =>
+            {
+                foreach (var item in list)
+                {
+                    var containedItem = contains(item, db);
+
+                    if (containedItem != null)
+                    {
+                        var itemToRemove = await GetByKeyAsync(db, ((IUpdatable<T>)containedItem).Id);
+
+                        db.Set<T>().Remove(containedItem);
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException($"Item to remove was not found {item}");
+                    }
+                }
+            });
+        }
+
+        private async Task<T?> GetByKeyAsync(ModelContext db, int key)
         {
             var entityType = typeof(T);
             var keyProperty = entityType.GetProperties()
@@ -80,7 +157,6 @@ namespace SessyData.Services
 
             return await db.Set<T>().FindAsync(key);
         }
-
 
         public T? Get(Func<ModelContext, T?> func)
         {

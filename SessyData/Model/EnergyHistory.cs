@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace SessyData.Model
 {
-    public class EnergyHistory
+    public class EnergyHistory : IUpdatable<EnergyHistory>
     {
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)] // Auto-increment
@@ -18,5 +18,19 @@ namespace SessyData.Model
         public double Temperature { get; set; }
         public double Price { get; set; }
         public double GlobalRadiation { get; set; }
+
+        public void Update(EnergyHistory updateInfo)
+        {
+            Time = updateInfo.Time;
+            MeterId = updateInfo.MeterId;
+            ConsumedTariff1 = updateInfo.ConsumedTariff1;
+            ConsumedTariff2 = updateInfo.ConsumedTariff2;
+            ProducedTariff1 = updateInfo.ProducedTariff1;
+            ProducedTariff2 = updateInfo.ProducedTariff2;
+            TarrifIndicator = updateInfo.TarrifIndicator;
+            Temperature = updateInfo.Temperature;
+            Price = updateInfo.Price;
+            GlobalRadiation = updateInfo.GlobalRadiation;
+        }
     }
 }
