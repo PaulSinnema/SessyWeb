@@ -4,7 +4,7 @@
     using SessyController.Services;
     using System.Timers;
 
-    public partial class Clock : ComponentBase, IDisposable
+    public partial class Clock : BaseComponent, IDisposable
     {
         [Inject]
         private TimeZoneService? _timeZoneService { get; set; }

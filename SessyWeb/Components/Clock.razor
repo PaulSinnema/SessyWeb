@@ -1,4 +1,6 @@
-﻿<RadzenStack Orientation="Orientation.Vertical" AlignItems="AlignItems.End" Style="width:100%; padding-right: 10px;">
+﻿@inherits BaseComponent
+
+<RadzenStack Orientation="Orientation.Vertical" AlignItems="AlignItems.End" Style="width:100%; padding-right: 10px;">
     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Style="height: 100%;">
         <RadzenText TextStyle="TextStyle.DisplayH5" Class="clock-style" Text="@CurrentTime" />
     </RadzenStack>

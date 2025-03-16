@@ -5,7 +5,7 @@ using SessyController.Services.Items;
 namespace SessyWeb.Components
 {
 
-    public partial class BatteryInfo : ComponentBase
+    public partial class BatteryInfo : BaseComponent
     {
         [Parameter]
         public Battery? Battery { get; set; }

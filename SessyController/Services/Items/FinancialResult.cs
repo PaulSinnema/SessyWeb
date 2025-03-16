@@ -13,7 +13,13 @@
         public double Grid => Produced - Consumed;
         public double Price { get; set; }
         public double Cost { get; set; }
+    }
 
-
+    public class FinancialMonthResult
+    {
+        public int Year { get; set; }
+        public int Month { get; set; }
+        public string YearMonth => $"{Year}/{Month}";
+        public List<FinancialResult>? FinancialResultsList { get; set; } = new();
     }
 }

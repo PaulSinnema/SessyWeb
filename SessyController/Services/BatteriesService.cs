@@ -281,7 +281,7 @@ namespace SessyController.Services
                 {
                     if (_lastSessionCanceled.IsInsideTimeFrame(currentHourlyInfo))
                     {
-                        _logger.LogWarning($"Session was previously canceled {session}");
+                        _logger.LogInformation($"Session was previously canceled {session}");
 
                         StopSession(session);
 

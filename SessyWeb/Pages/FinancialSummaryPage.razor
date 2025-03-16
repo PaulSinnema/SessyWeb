@@ -1,0 +1,7 @@
+﻿@page "/finacialsummary"
+<RadzenCard>
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Center" Gap="0.5rem" class="rz-p-12">
+        <RadzenLabel Text="Select Year/Month" Component="DatePickerYearMonth" />
+        <RadzenDatePicker @bind-Value=@value ShowDays=false DateFormat="yyyy/MM" CurrentDateChanged=@OnCurrentDateChanged Name="DatePickerYearMonth" />
+    </RadzenStack>
+</RadzenCard>

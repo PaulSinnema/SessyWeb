@@ -13,7 +13,7 @@ namespace SessyController.Services
             _energyHistoryService = energyHistoryService;
         }
 
-        public List<FinancialResult> GetFinancialResults(DateTime start, DateTime end)
+        public List<FinancialMonthResult> GetFinancialMonthResults(DateTime start, DateTime end)
         {
             var histories = _energyHistoryService.GetList((db) =>
             {
@@ -25,10 +25,18 @@ namespace SessyController.Services
 
             EnergyHistory? lastHistory = null;
 
-            List<FinancialResult> financialResultList = new();
+            List<FinancialMonthResult>? monthResults = new();
 
             foreach (var history in histories)
             {
+                var monthResult = monthResults.Where(mr => mr.Year == history.Time.Year && mr.Month == history.Time.Month).FirstOrDefault();
+
+                if(monthResult == null)
+                {
+                    monthResult = new FinancialMonthResult { Year = history.Time.Year, Month = history.Time.Month };
+                    monthResults.Add(monthResult);
+                }
+
                 if(lastHistory != null)
                 {
                     var consumed1 = history.ConsumedTariff1 - lastHistory.ConsumedTariff1;
@@ -39,7 +47,7 @@ namespace SessyController.Services
                     var netUsage = (produced1 + produced2) - (consumed1 + consumed2);
                     var revenue = netUsage * lastHistory.Price / 1000;
 
-                    financialResultList.Add(new FinancialResult
+                    monthResult.FinancialResultsList.Add(new FinancialResult
                     {
                         Consumed = consumed1 + consumed2,
                         Produced = produced1 + produced2,
@@ -52,7 +60,7 @@ namespace SessyController.Services
                 lastHistory = history;
             }
 
-            return financialResultList.OrderBy(fr => fr.Time).ToList();
+            return monthResults;
         }
     }
 }

@@ -16,9 +16,9 @@ namespace SessyWeb.Pages
         [Inject]
         private TimeZoneService? _timeZoneService { get; set; }
 
-        private List<FinancialResult>? FinancialResultsList { get; set; }
+        private List<FinancialMonthResult>? FinancialMonthResultsList { get; set; }
 
-        RadzenDataGrid<FinancialResult>? financialResultsGrid { get; set; }
+        RadzenDataGrid<FinancialMonthResult>? financialMonthResultsGrid { get; set; }
 
         int count { get; set; }
 
@@ -26,10 +26,14 @@ namespace SessyWeb.Pages
         protected override async Task OnAfterRenderAsync(bool firstRender)
         {
             if (firstRender)
-                await financialResultsGrid!.FirstPage();
+                await financialMonthResultsGrid!.FirstPage();
         }
 
-        void OnRender(DataGridRenderEventArgs<FinancialResult> args)
+        public double GetMonthlyTotalCost(FinancialMonthResult monthResult)
+        {
+            return monthResult.FinancialResultsList!.Sum(fr => fr.Cost);
+        }
+        public void OnRender(DataGridRenderEventArgs<FinancialMonthResult> args)
         {
             if (args.FirstRender)
             {
@@ -38,44 +42,21 @@ namespace SessyWeb.Pages
             }
         }
 
-        public double GetMonthlyTotalCost(IEnumerable<FinancialResult> items)
-        {
-            if (items != null)
-            {
-                var list = items.ToList();
-
-                if (list.Count > 0)
-                {
-                    var date = list.First().Time;
-                    var start = date.Date;
-                    var end = start.AddHours(23);
-
-                    var finResults = _finacialResultsService!.GetFinancialResults(start, end);
-
-                    if (finResults != null)
-                        return finResults
-                            .Sum(fr => fr.Cost);
-                }
-            }
-
-            return 0.0;
-        }
-
         void LoadData(LoadDataArgs args)
         {
-            if (financialResultsGrid == null) throw new InvalidOperationException($"{nameof(financialResultsGrid)} can not be null here, did you forget a @ref?");
+            if (financialMonthResultsGrid == null) throw new InvalidOperationException($"{nameof(financialMonthResultsGrid)} can not be null here, did you forget a @ref?");
 
             var now = _timeZoneService!.Now.DateHour();
             var start = now.AddDays(-(now.Day - 1));
             var end = start.AddDays(30);
 
-            var filter = financialResultsGrid.ColumnsCollection;
+            var filter = financialMonthResultsGrid.ColumnsCollection;
 
-            var query = _finacialResultsService!.GetFinancialResults(start, end).AsQueryable();
+            var query = _finacialResultsService!.GetFinancialMonthResults(start, end).AsQueryable();
 
             if (!string.IsNullOrEmpty(args.Filter))
             {
-                query = query.Where(financialResultsGrid.ColumnsCollection);
+                query = query.Where(financialMonthResultsGrid.ColumnsCollection);
             }
 
             if (!string.IsNullOrEmpty(args.OrderBy))
@@ -85,7 +66,7 @@ namespace SessyWeb.Pages
 
             count = query.Count();
 
-            FinancialResultsList = query.Skip(args.Skip!.Value).Take(args.Top!.Value).ToList();
+            FinancialMonthResultsList = query.Skip(args.Skip!.Value).Take(args.Top!.Value).ToList();
         }
     }
 }

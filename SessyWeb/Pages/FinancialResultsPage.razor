@@ -1,43 +1,31 @@
 ﻿@page "/financialResults"
 @inherits PageBase
 @using SessyController.Services.Items
+@using SessyWeb.Components
 @using SessyData.Model
 @using Radzen
 
 <a>Financial results</a>
 
-<RadzenDataGrid @ref="financialResultsGrid" 
-    Data="@FinancialResultsList"
-    Context="data"
-    Count="@count"
-    LoadData="@LoadData"
-    AllowSorting="true"
-    AllowFiltering="true"
-    AllowPaging="true"
-    AllowGrouping="false"
-    PageSize="288"
-    ShowPagingSummary="true"
-    GroupFootersAlwaysVisible="true"
-    Render="@OnRender"
-    Density="Density.Compact"
-    AllGroupsExpanded="false"
-    PagerHorizontalAlign="HorizontalAlign.Center">
+<RadzenDataGrid @ref=financialMonthResultsGrid
+                Data="@FinancialMonthResultsList"
+                Context="monthData"
+                Render="@OnRender"
+                LoadData="@LoadData"
+                PageSize="1"
+                ShowPagingSummary="true"
+                GroupFootersAlwaysVisible="true"
+                AllGroupsExpanded="false">
     <Columns>
-        <RadzenDataGridColumn Property="@nameof(FinancialResult.YearMonth)" Title="Time">
-        </RadzenDataGridColumn>
-        <RadzenDataGridColumn Property="@nameof(FinancialResult.Time)" Title="Time" />
-@*         <RadzenDataGridColumn Property="@nameof(FinancialResult.Month)" Title="Month" />
-        <RadzenDataGridColumn Property="@nameof(FinancialResult.Day)" Title="Day" />
-        <RadzenDataGridColumn Property="@nameof(FinancialResult.Hour)" Title="Hour" />
- *@        <RadzenDataGridColumn Property="@nameof(FinancialResult.Consumed)" Title="Consumed" />
-        <RadzenDataGridColumn Property="@nameof(FinancialResult.Produced)" Title="Produced" />
-        <RadzenDataGridColumn Property="@nameof(FinancialResult.Grid)" Title="Grid" />
-        <RadzenDataGridColumn Property="@nameof(FinancialResult.Price)" Title="Price" />
-        <RadzenDataGridColumn Property="@nameof(FinancialResult.Cost)" Title="Cost" FormatString="{0:C}" FormatProvider="@GetFormatProvider()" >
+        <RadzenDataGridColumn Property="@nameof(FinancialMonthResult.YearMonth)" Title="YearMonth" Width="100px" />
+        <RadzenDataGridColumn TItem="FinancialMonthResult" Title="Day" Context="MonthResult">
+            <Template>
+                <FinancialDayResultComponent FinancialResultsList="@MonthResult.FinancialResultsList" />
+            </Template>
             <GroupFooterTemplate>
-                <b> @String.Format(GetFormatProvider(), "{0:C}", GetMonthlyTotalCost(context.Data.Items.Cast<FinancialResult>()))</b>
+                <b> @String.Format(GetFormatProvider(), "Total: {0:C}", GetMonthlyTotalCost(@MonthResult.Data.Items.AsQueryable().FirstOrDefault()))</b>
+               
             </GroupFooterTemplate>
         </RadzenDataGridColumn>
-        <RadzenDataGridColumn Property="@nameof(FinancialResult.Cost)" Title="Revenue" />
     </Columns>
 </RadzenDataGrid>
