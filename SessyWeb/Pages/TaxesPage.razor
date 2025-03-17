@@ -1,15 +1,18 @@
-﻿@page "/energyhistory"
+﻿@page "/taxes"
 @inherits PageBase
 @using SessyData.Model
 @using Radzen
 
-<a>History</a>
+<a>Taxes</a>
 
-<RadzenDataGrid @ref="energyGrid"
-                Data="@EnergyHistoryList"
+<RadzenDataGrid @ref="taxesGrid"
+                Data="@TaxesList"
+                TItem="Taxes"
                 Context="data"
                 Count="@count"
                 LoadData="@LoadData"
+                RowUpdate="@OnUpdateRow"
+                RowCreate="@OnCreateRow"
                 AllowSorting="true"
                 AllowFiltering="true"
                 AllowPaging="true"
@@ -17,22 +20,24 @@
                 Density="Density.Compact"
                 PagerHorizontalAlign="HorizontalAlign.Center">
     <HeaderTemplate>
-        <RadzenButton ButtonStyle="ButtonStyle.Success" Icon="add_circle" Text="Add energy data" Click="@InsertRow" />
+        <RadzenButton ButtonStyle="ButtonStyle.Success" Icon="add_circle" Text="Add taxes" Click="@InsertRow" />
     </HeaderTemplate>
     <Columns>
-        <RadzenDataGridColumn Property="@nameof(EnergyHistory.Time)" Title="Time" SortOrder="SortOrder.Ascending" />
-        <RadzenDataGridColumn Property="@nameof(EnergyHistory.ConsumedTariff1)" Title="Consumed tariff 1" />
-        <RadzenDataGridColumn Property="@nameof(EnergyHistory.ProducedTariff1)" Title="Produced tariff 1" />
-        <RadzenDataGridColumn Property="@nameof(EnergyHistory.ConsumedTariff2)" Title="Consumed tariff 2" />
-        <RadzenDataGridColumn Property="@nameof(EnergyHistory.ProducedTariff2)" Title="Produced tariff 2" />
-        <RadzenDataGridColumn Property="@nameof(EnergyHistory.TarrifIndicator)" Title="Tariff indicator" />
-        <RadzenDataGridColumn Property="@nameof(EnergyHistory.Temperature)" Title="Temperature" />
-        <RadzenDataGridColumn Property="@nameof(EnergyHistory.Price)" Title="Price">
+        <RadzenDataGridColumn Property="@nameof(Taxes.Time)" Title="Time" SortOrder="SortOrder.Ascending">
             <EditTemplate Context="fr">
-                <RadzenNumeric @bind-Value="fr.Price" Style="width:100%" InputAttributes="@(new Dictionary<string, object>() { { "aria-label", "Select freight" } })" />
+                <RadzenDatePicker @bind-Value="fr.Time" Style="width:100%" />
             </EditTemplate>
         </RadzenDataGridColumn>
-        <RadzenDataGridColumn Property="@nameof(EnergyHistory.GlobalRadiation)" Title="Global radiation" />
+        <RadzenDataGridColumn Property="@nameof(Taxes.EnergyTax)" Title="Energy tax">
+            <EditTemplate Context="fr">
+                <RadzenNumeric @bind-Value="fr.EnergyTax" Style="width:100%" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn Property="@nameof(Taxes.ValueAddedTax)" Title="Value added tax">
+            <EditTemplate Context="fr">
+                <RadzenNumeric @bind-Value="fr.ValueAddedTax" Style="width:100%" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
         <RadzenDataGridColumn Context="order" Filterable="false" Sortable="false" TextAlign="TextAlign.Right" Frozen="true" FrozenPosition="FrozenColumnPosition.Right">
             <Template Context="fr">
                 <RadzenButton Icon="add_circle"
@@ -49,7 +54,7 @@
                               class="rz-my-1 rz-ms-1"
                               Click="@(args => EditRow(fr))"
                               @onclick:stopPropagation="true" />
-                @*                 <RadzenButton Icon="delete" 
+                <RadzenButton Icon="delete"
                               ButtonStyle="ButtonStyle.Danger"
                               Variant="Variant.Flat"
                               Size="ButtonSize.Small"
@@ -57,7 +62,7 @@
                               class="rz-my-1 rz-ms-1"
                               Click="@(args => DeleteRow(fr))"
                               @onclick:stopPropagation="true" />
- *@            </Template>
+            </Template>
             <EditTemplate Context="fr">
                 <RadzenButton Icon="check"
                               ButtonStyle="ButtonStyle.Success"
@@ -70,14 +75,14 @@
                               Size="ButtonSize.Small"
                               class="rz-my-1 rz-ms-1"
                               Click="@((args) => CancelEdit(fr))" aria-label="Cancel" />
-                @*              <RadzenButton Icon="delete"
+                <RadzenButton Icon="delete"
                               ButtonStyle="ButtonStyle.Danger"
                               Variant="Variant.Flat"
                               Size="ButtonSize.Small"
                               Shade="Shade.Lighter"
                               class="rz-my-1 rz-ms-1"
                               Click="@(args => DeleteRow(fr))" aria-label="Delete" />
-    *@         </EditTemplate>
+            </EditTemplate>
         </RadzenDataGridColumn>
     </Columns>
 </RadzenDataGrid>

@@ -85,6 +85,7 @@ builder.Services.AddScoped<EnergyHistoryService>();
 builder.Services.AddScoped<DbHelper>();
 builder.Services.AddScoped<PowerEstimatesService>();
 builder.Services.AddScoped<FinancialResultsService>();
+builder.Services.AddScoped<TaxesService>();
 
 builder.Services.AddSingleton<BatteryContainer>();
 builder.Services.AddSingleton<TimeZoneService>();

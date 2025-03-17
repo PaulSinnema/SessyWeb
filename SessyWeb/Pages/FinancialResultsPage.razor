@@ -17,7 +17,7 @@
                 GroupFootersAlwaysVisible="true"
                 AllGroupsExpanded="false">
     <Columns>
-        <RadzenDataGridColumn Property="@nameof(FinancialMonthResult.YearMonth)" Title="YearMonth" Width="100px" />
+        <RadzenDataGridColumn Property="@nameof(FinancialMonthResult.YearMonth)" Title="YearMonth" Width="100px" Visible=false />
         <RadzenDataGridColumn TItem="FinancialMonthResult" Title="Day" Context="MonthResult">
             <Template>
                 <FinancialDayResultComponent FinancialResultsList="@MonthResult.FinancialResultsList" />
