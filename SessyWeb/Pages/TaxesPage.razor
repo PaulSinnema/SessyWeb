@@ -38,6 +38,11 @@
                 <RadzenNumeric @bind-Value="fr.ValueAddedTax" Style="width:100%" />
             </EditTemplate>
         </RadzenDataGridColumn>
+        <RadzenDataGridColumn Property="@nameof(Taxes.TaxReduction)" Title="Tax reduction">
+            <EditTemplate Context="fr">
+                <RadzenNumeric @bind-Value="fr.TaxReduction" Style="width:100%" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
         <RadzenDataGridColumn Context="order" Filterable="false" Sortable="false" TextAlign="TextAlign.Right" Frozen="true" FrozenPosition="FrozenColumnPosition.Right">
             <Template Context="fr">
                 <RadzenButton Icon="add_circle"

@@ -115,7 +115,7 @@ namespace SessyData.Services
                     }
                     else
                     {
-                        throw new InvalidOperationException($"Item to update was not fout {item}");
+                        throw new InvalidOperationException($"Item to update was not found {item}");
                     }
                 }
             });

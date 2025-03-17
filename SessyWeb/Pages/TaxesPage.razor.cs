@@ -51,7 +51,17 @@ namespace SessyWeb.Pages
             var list = _taxesService.GetList((set => { return set.ToList(); }));
 
             if (list.Count == 0)
-                _taxesService.Add(new List<Taxes> { new Taxes { Time = new DateTime(2025, 1, 1, 0, 0, 0), EnergyTax = 0.1228, ValueAddedTax = 21.0 } }, (tax, set) => { return false; });
+                _taxesService.Add(new List<Taxes>
+                                        {
+                                            new Taxes 
+                                            {
+                                                Time = new DateTime(2025, 1, 1, 0, 0, 0),
+                                                EnergyTax = 0.1228,
+                                                ValueAddedTax = 21.0,
+                                                TaxReduction = 635.19
+                                            }
+                                        },
+                                    (tax, set) => { return false; });
         }
 
         void LoadData(LoadDataArgs args)

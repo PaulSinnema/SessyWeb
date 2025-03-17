@@ -11,7 +11,7 @@ namespace SessyWeb.Pages
     public partial class FinancialResultsPage : PageBase
     {
         [Inject]
-        private FinancialResultsService? _finacialResultsService { get; set; }
+        private FinancialResultsService? _financialResultsService { get; set; }
 
         [Inject]
         private TimeZoneService? _timeZoneService { get; set; }
@@ -52,7 +52,7 @@ namespace SessyWeb.Pages
 
             var filter = financialMonthResultsGrid.ColumnsCollection;
 
-            var query = _finacialResultsService!.GetFinancialMonthResults(start, end).AsQueryable();
+            var query = _financialResultsService!.GetFinancialMonthResults(start, end).AsQueryable();
 
             if (!string.IsNullOrEmpty(args.Filter))
             {

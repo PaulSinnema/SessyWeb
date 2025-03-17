@@ -8,9 +8,12 @@ namespace SessyController.Services
     {
         private EnergyHistoryService _energyHistoryService { get; set; }
 
-        public FinancialResultsService(EnergyHistoryService energyHistoryService)
+        private TaxesService _taxesService;
+
+        public FinancialResultsService(EnergyHistoryService energyHistoryService, TaxesService taxesService)
         {
             _energyHistoryService = energyHistoryService;
+            _taxesService = taxesService;
         }
 
         public List<FinancialMonthResult> GetFinancialMonthResults(DateTime start, DateTime end)
@@ -45,13 +48,14 @@ namespace SessyController.Services
                     var produced2 = history.ProducedTariff2 - lastHistory.ProducedTariff2;
 
                     var netUsage = (produced1 + produced2) - (consumed1 + consumed2);
-                    var revenue = netUsage * lastHistory.Price / 1000;
+                    var price = GetTaxedPrice(lastHistory);
+                    var revenue = netUsage * price / 1000;
 
                     monthResult.FinancialResultsList.Add(new FinancialResult
                     {
                         Consumed = consumed1 + consumed2,
                         Produced = produced1 + produced2,
-                        Price = lastHistory.Price,
+                        Price = price,
                         Time = lastHistory.Time,
                         Cost = revenue
                     });
@@ -61,6 +65,20 @@ namespace SessyController.Services
             }
 
             return monthResults;
+        }
+
+        /// <summary>
+        /// Returns the taxed price.
+        /// </summary>
+        private double GetTaxedPrice(EnergyHistory history)
+        {
+            Taxes? taxes = _taxesService.GetTaxesForDate(history.Time);
+
+            if(taxes == null) throw new InvalidOperationException($"There is no valid tax record for date {history.Time}");
+
+            var price = history.Price + taxes.EnergyTax;
+
+            return price + (price * taxes.ValueAddedTax / 100);
         }
     }
 }
