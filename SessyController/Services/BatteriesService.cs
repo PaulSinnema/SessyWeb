@@ -957,7 +957,7 @@ namespace SessyController.Services
                 // Check the first element
                 if (hourlyInfos.Count > 1)
                 {
-                    if (hourlyInfos[0].Price < hourlyInfos[1].Price)
+                    if (hourlyInfos[0].Price <= hourlyInfos[1].Price)
                     {
                         if (!_sessions.InAnySession(hourlyInfos[0]))
                             _sessions.AddNewSession(Modes.Charging, hourlyInfos[0]);
@@ -973,13 +973,13 @@ namespace SessyController.Services
                 // Check the elements in between.
                 for (var index = 1; index < hourlyInfos.Count - 2; index++)
                 {
-                    if (hourlyInfos[index].Price < hourlyInfos[index - 1].Price && hourlyInfos[index].Price < hourlyInfos[index + 1].Price)
+                    if (hourlyInfos[index].Price < hourlyInfos[index - 1].Price && hourlyInfos[index].Price <= hourlyInfos[index + 1].Price)
                     {
                         if (!_sessions.InAnySession(hourlyInfos[index]))
                             _sessions.AddNewSession(Modes.Charging, hourlyInfos[index]);
                     }
 
-                    if (hourlyInfos[index].Price > hourlyInfos[index - 1].Price && hourlyInfos[index].Price > hourlyInfos[index + 1].Price)
+                    if (hourlyInfos[index].Price > hourlyInfos[index - 1].Price && hourlyInfos[index].Price >= hourlyInfos[index + 1].Price)
                     {
                         if (!_sessions.InAnySession(hourlyInfos[index]))
                             _sessions.AddNewSession(Modes.Discharging, hourlyInfos[index]);
@@ -987,7 +987,7 @@ namespace SessyController.Services
                 }
 
                 // Check the last element
-                if (hourlyInfos.Count > 1)
+                if (hourlyInfos.Count >= 1)
                 {
                     var index = hourlyInfos.Count - 1;
 
