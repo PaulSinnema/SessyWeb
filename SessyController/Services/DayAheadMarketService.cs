@@ -127,9 +127,9 @@ namespace SessyController.Services
                 var start = now.AddDays(-1).Date;
                 var end = now.AddDays(1).Date.AddHours(23);
 
-                var data = _epexPricesDataService.GetList((db) =>
+                var data = _epexPricesDataService.GetList((set) =>
                 {
-                    return db.EPEXPrices
+                    return set
                         .Where(ep => ep.Time >= start && ep.Time <= end)
                         .ToList();
                 });
@@ -197,9 +197,9 @@ namespace SessyController.Services
                 });
             }
 
-            _epexPricesDataService.Store(statusList, (item, db) =>
+            _epexPricesDataService.Add(statusList, (item, set) =>
             {
-                return db.EPEXPrices.Any(sd => sd.Time == item.Time); // Contains
+                return set.Any(sd => sd.Time == item.Time); // Contains
             });
         }
 

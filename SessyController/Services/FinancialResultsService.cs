@@ -15,9 +15,9 @@ namespace SessyController.Services
 
         public List<FinancialMonthResult> GetFinancialMonthResults(DateTime start, DateTime end)
         {
-            var histories = _energyHistoryService.GetList((db) =>
+            var histories = _energyHistoryService.GetList((set) =>
             {
-                return db.EnergyHistory
+                return set
                     .Where(eh => eh.Time >= start && eh.Time <= end)
                     .OrderBy(eh => eh.Time)
                     .ToList();

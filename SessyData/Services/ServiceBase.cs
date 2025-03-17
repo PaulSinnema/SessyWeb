@@ -19,7 +19,7 @@ namespace SessyData.Services
             _dbHelper = _scope.ServiceProvider.GetRequiredService<DbHelper>();
         }
 
-        public void Store(List<T> list)
+        public void AddRange(List<T> list)
         {
             _dbHelper.ExecuteTransaction(db =>
             {
@@ -27,13 +27,13 @@ namespace SessyData.Services
             });
         }
 
-        public void Store(List<T> list, Func<T, ModelContext, bool> contains)
+        public void Add(List<T> list, Func<T, DbSet<T>, bool> contains)
         {
             _dbHelper.ExecuteTransaction(db =>
             {
                 foreach (var item in list)
                 {
-                    if(!contains(item, db))
+                    if(!contains(item, db.Set<T>()))
                     {
                         db.Set<T>().Add(item);
                     }
@@ -47,15 +47,15 @@ namespace SessyData.Services
                 throw new InvalidCastException($"For StoreOrUpdate the type {typeof(T).Name} must implement IUpdatable<{typeof(T).Name}>");
         }
 
-        public void Add(List<T> list, Func<T, ModelContext, T?> contains)
+        public void Add(List<T> list, Func<T, DbSet<T>, T?> contains)
         {
             EnsureUpdatable();
 
-            _dbHelper.ExecuteTransaction(async db =>
+            _dbHelper.ExecuteTransaction(db =>
             {
                 foreach (var item in list)
                 {
-                    var containedItem = contains(item, db);
+                    var containedItem = contains(item, db.Set<T>());
 
                     if (containedItem != null)
                     {
@@ -69,7 +69,7 @@ namespace SessyData.Services
             });
         }
 
-        public void AddOrUpdate(List<T> list, Func<T, ModelContext, T?> contains)
+        public void AddOrUpdate(List<T> list, Func<T, DbSet<T>, T?> contains)
         {
             EnsureUpdatable();
 
@@ -77,7 +77,7 @@ namespace SessyData.Services
             {
                 foreach (var item in list)
                 {
-                    var containedItem = contains(item, db);
+                    var containedItem = contains(item, db.Set<T>());
 
                     if (containedItem != null)
                     {
@@ -95,7 +95,7 @@ namespace SessyData.Services
             });
         }
 
-        public void Update(List<T> list, Func<T, ModelContext, T?> contains)
+        public void Update(List<T> list, Func<T, DbSet<T>, T?> contains)
         {
             EnsureUpdatable();
 
@@ -103,7 +103,7 @@ namespace SessyData.Services
             {
                 foreach (var item in list)
                 {
-                    var containedItem = contains(item, db);
+                    var containedItem = contains(item, db.Set<T>());
 
                     if (containedItem != null)
                     {
@@ -121,7 +121,7 @@ namespace SessyData.Services
             });
         }
 
-        public void Remove(List<T> list, Func<T, ModelContext, T?> contains)
+        public void Remove(List<T> list, Func<T, DbSet<T>, T?> contains)
         {
             EnsureUpdatable();
 
@@ -129,7 +129,7 @@ namespace SessyData.Services
             {
                 foreach (var item in list)
                 {
-                    var containedItem = contains(item, db);
+                    var containedItem = contains(item, db.Set<T>());
 
                     if (containedItem != null)
                     {
@@ -158,19 +158,19 @@ namespace SessyData.Services
             return await db.Set<T>().FindAsync(key);
         }
 
-        public T? Get(Func<ModelContext, T?> func)
+        public T? Get(Func<DbSet<T>, T?> func)
         {
-            return _dbHelper.ExecuteQuery((ModelContext dbContext) =>
+            return _dbHelper.ExecuteQuery((ModelContext db) =>
             {
-                return func(dbContext);
+                return func(db.Set<T>());
             });
         }
 
-        public List<T> GetList(Func<ModelContext, List<T>> func)
+        public List<T> GetList(Func<DbSet<T>, List<T>> func)
         {
-            return _dbHelper.ExecuteQuery((ModelContext dbContext) =>
+            return _dbHelper.ExecuteQuery((ModelContext db) =>
             {
-                return func(dbContext);
+                return func(db.Set<T>());
             });
         }
 

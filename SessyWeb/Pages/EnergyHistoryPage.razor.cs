@@ -39,9 +39,9 @@ namespace SessyWeb.Pages
             var now = _timeZoneService!.Now;
             var filter = energyGrid!.ColumnsCollection;
 
-            EnergyHistoryList = _energyHistoryService!.GetList((ModelContext modelContext) =>
+            EnergyHistoryList = _energyHistoryService!.GetList((set) =>
             {
-                var query = modelContext.EnergyHistory
+                var query = set
                     .OrderBy(eh => eh.Time)
                     .AsQueryable();
 
@@ -69,7 +69,7 @@ namespace SessyWeb.Pages
 
         async Task EditRow(EnergyHistory history)
         {
-            if (!energyGrid.IsValid) return;
+            if (!energyGrid!.IsValid) return;
 
             await energyGrid!.EditRow(history);
         }
@@ -78,7 +78,7 @@ namespace SessyWeb.Pages
         {
             List<EnergyHistory> list = new List<EnergyHistory> { energyHistory };
 
-            _energyHistoryService!.Update(list, (item, db) => db.EnergyHistory.Where(eh => eh.Id == energyHistory.Id).FirstOrDefault());
+            _energyHistoryService!.Update(list, (item, set) => set.Where(eh => eh.Id == energyHistory.Id).FirstOrDefault());
         }
 
         async Task SaveRow(EnergyHistory energyHistory)
@@ -95,7 +95,7 @@ namespace SessyWeb.Pages
 
         async Task DeleteRow(EnergyHistory energyHistory)
         {
-            _energyHistoryService!.Remove(new List<EnergyHistory> { energyHistory }, (item, db) => db.EnergyHistory.Where(eh => eh.Id == item.Id).FirstOrDefault());
+            _energyHistoryService!.Remove(new List<EnergyHistory> { energyHistory }, (item, set) => set.Where(eh => eh.Id == item.Id).FirstOrDefault());
 
             await energyGrid!.Reload();
         }
@@ -118,7 +118,7 @@ namespace SessyWeb.Pages
 
         void OnCreateRow(EnergyHistory energyHistory)
         {
-            _energyHistoryService.Add(new List<EnergyHistory> { energyHistory }, (item, db) => db.EnergyHistory.Where(eh => eh.Id == item.Id).FirstOrDefault());
+            _energyHistoryService!.Add(new List<EnergyHistory> { energyHistory }, (item, set) => set.Where(eh => eh.Id == item.Id).FirstOrDefault());
         }
     }
 }

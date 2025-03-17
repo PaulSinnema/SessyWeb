@@ -118,9 +118,9 @@ namespace SessyController.Services
 
         private EnergyHistory? GetEnergyHistory(DateTime selectTime)
         {
-            var energyHistory = _energyHistoryService.Get((ModelContext modelContext) =>
+            var energyHistory = _energyHistoryService.Get((set) =>
             {
-                return modelContext.EnergyHistory
+                return set
                     .Where(eh => eh.Time == selectTime)
                     .FirstOrDefault();
             });
@@ -146,7 +146,7 @@ namespace SessyController.Services
                 Price = hourlyInfo != null ? hourlyInfo.Price : 0.0
             });
 
-            _energyHistoryService.Store(energyHistoryList);
+            _energyHistoryService.AddRange(energyHistoryList);
         }
     }
 }

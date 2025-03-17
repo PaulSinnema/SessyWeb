@@ -102,9 +102,9 @@ namespace SessyController.Services
                 var startDate = hourlyInfos.Min(hi => hi.Time);
                 var endDate = hourlyInfos.Max(hi => hi.Time);
 
-                var data = _solarDataService.GetList((db) =>
+                var data = _solarDataService.GetList((set) =>
                 {
-                    return db.SolarData
+                    return set
                         .Where(sd => sd.Time >= startDate && sd.Time <= endDate)
                         .OrderBy(sd => sd.Time)
                         .ToList();

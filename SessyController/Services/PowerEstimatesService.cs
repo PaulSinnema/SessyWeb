@@ -64,9 +64,9 @@ namespace SessyController.Services
             if (dayEnd == 6)
                 dayEnd = 0;
 
-            var data = _energyHistoryService.GetList((db) =>
+            var data = _energyHistoryService.GetList((set) =>
             {
-                return db.EnergyHistory
+                return set
                     .Where(eh => (((int)eh.Time.DayOfWeek) == dayStart ||
                                   ((int)eh.Time.DayOfWeek) == dayEnd)
                                  //&&
