@@ -80,6 +80,11 @@ namespace SessyController.Services.Items
         public double MaxChargeNeeded { get; set; }
 
         /// <summary>
+        /// The min this session must leave in the batteries during discharge.
+        /// </summary>
+        public double MinChargeNeeded { get; set; }
+
+        /// <summary>
         /// The last date in the session
         /// </summary>
         public DateTime LastDate => Last?.Time ?? DateTime.MaxValue;

@@ -303,8 +303,9 @@ namespace SessyController.Services
                 else if (currentHourlyInfo.Discharging)
                 {
                     bool batteriesAreEmpty = await AreAllBatteriesEmpty();
+                    bool chargeAtMinimum = await IsMinChargeNeededReached(currentHourlyInfo);
 
-                    if (batteriesAreEmpty)
+                    if (batteriesAreEmpty || chargeAtMinimum)
                     {
                         StopSession(session);
                         _logger.LogInformation("Warning: Discharging session stopped because batteries are empty.");
@@ -314,18 +315,39 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Check wether the current hourly info is in a charging session and return
+        /// Check whether the current hourly info is in a charging session and return
         /// true if so and the calculated max charge needed is reached.
         /// </summary>
         private async Task<bool> IsMaxChargeNeededReached(HourlyInfo currentHourlyInfo)
         {
             var session = _sessions.GetSession(currentHourlyInfo);
 
-            if (session != null && session.MaxChargeNeeded > 0.0)
+            if (session != null && session.Mode == Modes.Charging && session.MaxChargeNeeded > 0.0)
             {
                 var currentChargeState = await _batteryContainer.GetStateOfChargeInWatts();
 
-                if (currentChargeState > session.MaxChargeNeeded)
+                if (currentChargeState >= session.MaxChargeNeeded)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Check whether the current hourly info is in a discharging session and return
+        /// true if so and the calculated min charge needed is reached.
+        /// </summary>
+        private async Task<bool> IsMinChargeNeededReached(HourlyInfo currentHourlyInfo)
+        {
+            var session = _sessions.GetSession(currentHourlyInfo);
+
+            if (session != null && session.Mode == Modes.Discharging && session.MinChargeNeeded > 0.0)
+            {
+                var currentChargeState = await _batteryContainer.GetStateOfChargeInWatts();
+
+                if (currentChargeState <= session.MinChargeNeeded)
                 {
                     return true;
                 }
@@ -528,7 +550,7 @@ namespace SessyController.Services
         {
             _sessions.CalculateProfits(_timeZoneService!);
 
-            CalculateMaxChargeNeeded();
+            CalculateMinMaxChargeNeeded();
 
             await CalculateChargeLeft(hourlyInfos!);
         }
@@ -585,7 +607,7 @@ namespace SessyController.Services
 
                         case (false, true, false): // Discharging
                             {
-                                charge = dischargingCapacity > charge ? 0.0 : charge - dischargingCapacity;
+                                charge = Math.Max(charge - dischargingCapacity, session.MinChargeNeeded);
                                 break;
                             }
 
@@ -817,9 +839,6 @@ namespace SessyController.Services
                     if (previousSession.Mode == session.Mode)
                     {
                         var hoursBetween = (session.FirstDate - previousSession.LastDate).Hours - 1;
-                        // TODO: Get the temperature for the current hour in the loop not the actual current temperature
-                        //var temperature = _weatherService.GetCurrentTemperature();
-                        //var power = _powerEstimatesService.GetPowerHistory(previousSession.LastDate, session.FirstDate, temperature);
 
                         if (session.Mode == Modes.Charging)
                         {
@@ -882,7 +901,7 @@ namespace SessyController.Services
         /// This routine detects charge session that follow each other and determines how much
         /// charge is needed for the session.
         /// </summary>
-        private bool CalculateMaxChargeNeeded()
+        private bool CalculateMinMaxChargeNeeded()
         {
             var changed = false;
             Session? previousSession = null;
@@ -898,27 +917,19 @@ namespace SessyController.Services
                     if (session.Mode == Modes.Charging &&
                         previousSession.Mode == Modes.Charging)
                     {
-                        if (previousSession.IsCheaper(session))
-                        {
-                            maxChargeNeeded = totalCapacity;
-                        }
-                        else
-                        {
-                            var infoObjectsBetween = hourlyInfos!
-                                .Where(hi => hi.Time < session.FirstDate && hi.Time > previousSession.LastDate && hi.ZeroNetHome)
-                                .ToList();
+                        CalculateMaxChargeNeeded(ref changed, previousSession, totalCapacity, ref maxChargeNeeded, session);
+                    }
 
-                            if (infoObjectsBetween.Any())
-                            {
-                                // TODO: Determine needs from historic data.
-                                maxChargeNeeded = (_settingsConfig.RequiredHomeEnergy / 24) * infoObjectsBetween.Count();
-                                maxChargeNeeded *= 1.3; // We take a little more to be sure that we have enough.
+                    if (previousSession.Mode == Modes.Discharging)
+                    {
+                        List<HourlyInfo> infoObjectsBetween = GetInfoObjectsBetween(previousSession, session);
 
-                                previousSession.MaxChargeNeeded = maxChargeNeeded;
+                        var estimateNeeded = GetEstimatePowerNeeded(infoObjectsBetween);
 
-                                changed = true;
-                            }
-                        }
+                        var count = infoObjectsBetween.Where(io => io.ZeroNetHome).Count();
+                        var solar = infoObjectsBetween.Sum(io => io.SolarPowerInWatts);
+
+                        previousSession.MinChargeNeeded = count * (_settingsConfig.RequiredHomeEnergy / 24);
                     }
                 }
 
@@ -926,6 +937,53 @@ namespace SessyController.Services
             }
 
             return changed;
+        }
+
+        private double GetEstimatePowerNeeded(List<HourlyInfo> infoObjectsBetween)
+        {
+            double power = 0.0;
+
+            foreach (var hourlyInfo in infoObjectsBetween.Where(hi => hi.ZeroNetHome))
+            {
+                var temperature = _weatherService.GetTemperature(hourlyInfo.Time);
+
+                if (temperature != null)
+                {
+                    power += _powerEstimatesService.GetPowerEstimate(hourlyInfo.Time, temperature.Value);
+                }
+            }
+
+            return power;
+        }
+
+        private void CalculateMaxChargeNeeded(ref bool changed, Session previousSession, double totalCapacity, ref double maxChargeNeeded, Session session)
+        {
+            if (previousSession.IsCheaper(session))
+            {
+                maxChargeNeeded = totalCapacity;
+            }
+            else
+            {
+                List<HourlyInfo> infoObjectsBetween = GetInfoObjectsBetween(previousSession, session);
+
+                if (infoObjectsBetween.Any())
+                {
+                    // TODO: Determine needs from historic data.
+                    maxChargeNeeded = (_settingsConfig.RequiredHomeEnergy / 24) * infoObjectsBetween.Count();
+                    maxChargeNeeded *= 1.3; // We take a little more to be sure that we have enough.
+
+                    previousSession.MaxChargeNeeded = maxChargeNeeded;
+
+                    changed = true;
+                }
+            }
+        }
+
+        private static List<HourlyInfo> GetInfoObjectsBetween(Session previousSession, Session session)
+        {
+            return hourlyInfos!
+                .Where(hi => hi.Time < session.FirstDate && hi.Time > previousSession.LastDate && hi.ZeroNetHome)
+                .ToList();
         }
 
         /// <summary>

@@ -2,8 +2,10 @@
 using SessyController.Configurations;
 using SessyData.Model;
 using SessyData.Services;
+using SessyCommon;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using SessyCommon.Extensions;
 
 namespace SessyController.Services
 {
@@ -140,6 +142,13 @@ namespace SessyController.Services
                              uv.TimeStamp.Value.Date.AddHours(uv.TimeStamp.Value.Hour) == now)
                 .Select(uv => uv.Temp)
                 .First();
+        }
+
+        internal int? GetTemperature(DateTime time)
+        {
+            var data = WeatherData.UurVerwachting.Where(uv => uv.TimeStamp.Value.DateHour() == time.DateHour()).FirstOrDefault();
+
+            return data == null ? null : data.Temp;
         }
 
         public class LiveWeer

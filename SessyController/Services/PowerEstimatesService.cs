@@ -21,6 +21,7 @@ namespace SessyController.Services
         private SolarService _solarService { get; set; }
         private BatteryContainer _batteryContainer { get; set; }
         private TimeZoneService _timeZoneService { get; set; }
+        private WeatherService _weatherService { get; set; }
 
         public PowerEstimatesService(LoggingService<BatteriesService> logger,
                                 IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
@@ -45,60 +46,47 @@ namespace SessyController.Services
             _solarService = _scope.ServiceProvider.GetRequiredService<SolarService>();
             _batteryContainer = _scope.ServiceProvider.GetRequiredService<BatteryContainer>();
             _timeZoneService = _scope.ServiceProvider.GetRequiredService<TimeZoneService>();
+            _weatherService = _scope.ServiceProvider.GetRequiredService<WeatherService>();
         }
 
         /// <summary>
         /// Gets the power consumed on a period in the week from history.
         /// </summary>
-        public double GetPowerHistory(DateTime start, DateTime end, double temperature, double tempTolerance = 2)
+        public double GetPowerEstimate(DateTime date, double temperature, double tempTolerance = 2)
         {
-            // TODO: The data in the EnergyHistory is not enough to get the estimate of power required.
+            var tempFrom = temperature - tempTolerance;
+            var tempTo = tempTolerance + tempTolerance;
+            var dayOfWeek = date.DayOfWeek;
 
-            if (start > end) throw new InvalidOperationException($"Start must be smaller than or equal to end. Start:{start} End:{end}");
-
-            var dayStart = (int)start.DayOfWeek;
-            var dayEnd = (int)end.DayOfWeek;
-            var hourStart = start.Hour;
-            var hourEnd = end.Hour;
-
-            if (dayEnd == 6)
-                dayEnd = 0;
-
-            var data = _energyHistoryService.GetList((set) =>
+            var histories = _energyHistoryService.GetList((set) =>
             {
                 return set
-                    .Where(eh => (((int)eh.Time.DayOfWeek) == dayStart ||
-                                  ((int)eh.Time.DayOfWeek) == dayEnd)
-                                 //&&
-                                 //eh.Time.Hour >= start.Hour &&
-                                 //eh.Time.Hour <= end.Hour
-                                 &&
-                                 eh.Temperature > temperature - tempTolerance &&
-                                 eh.Temperature < temperature + tempTolerance
-                                 )
+                    .Where(eh => eh.Temperature >= tempFrom &&
+                                 eh.Temperature <= tempTo &&
+                                 eh.Time.DayOfWeek == dayOfWeek)
                     .OrderByDescending(eh => eh.Time)
                     .ToList();
             });
 
-            if(data.Count > 0)
+            foreach (var history in histories)
             {
-                EnergyHistory? previousHistory = null;
-
-                foreach (var eh in data)
+                var previous = _energyHistoryService.Get((set) =>
                 {
-                    if(previousHistory != null)
-                    {
-                        if((previousHistory.Time - eh.Time).Hours <= 12)
-                        {
-                            var power1 = previousHistory.ConsumedTariff1 - eh.ConsumedTariff1;
-                            var power2 = previousHistory.ConsumedTariff2 - eh.ConsumedTariff2;
+                    return set
+                        .Where(eh => eh.Time == history.Time)
+                        .SingleOrDefault();
+                });
 
-                            return power1 + power2;
-                        }
-                    }
+                if(previous != null)
+                {
+                    var consumed1 = history.ConsumedTariff1 - previous.ConsumedTariff1;
+                    var consumed2 = history.ConsumedTariff2 - previous.ConsumedTariff2;
+                    var produced1 = history.ProducedTariff1 - previous.ProducedTariff1;
+                    var produced2 = history.ProducedTariff2 - previous.ProducedTariff2;
 
-                    previousHistory = eh;
+                    var power = 
                 }
+
             }
 
             return 0.0;
