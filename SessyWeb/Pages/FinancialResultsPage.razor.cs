@@ -29,7 +29,7 @@ namespace SessyWeb.Pages
                 await financialMonthResultsGrid!.FirstPage();
         }
 
-        public double GetMonthlyTotalCost(FinancialMonthResult monthResult)
+        public decimal GetMonthlyTotalCost(FinancialMonthResult monthResult)
         {
             return monthResult.FinancialResultsList!.Sum(fr => fr.Cost);
         }

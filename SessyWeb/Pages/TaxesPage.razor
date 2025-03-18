@@ -8,9 +8,9 @@
 <RadzenDataGrid @ref="taxesGrid"
                 Data="@TaxesList"
                 TItem="Taxes"
-                Context="data"
                 Count="@count"
                 LoadData="@LoadData"
+                IsLoading="@isLoading"
                 RowUpdate="@OnUpdateRow"
                 RowCreate="@OnCreateRow"
                 AllowSorting="true"
@@ -18,7 +18,7 @@
                 AllowPaging="true"
                 PageSize="20"
                 Density="Density.Compact"
-                PagerHorizontalAlign="HorizontalAlign.Center">
+                PagerHorizontalAlign="HorizontalAlign.Left">
     <HeaderTemplate>
         <RadzenButton ButtonStyle="ButtonStyle.Success" Icon="add_circle" Text="Add taxes" Click="@InsertRow" />
     </HeaderTemplate>

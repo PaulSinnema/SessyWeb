@@ -31,7 +31,7 @@ namespace SessyWeb.Components
             }
         }
 
-        public double GetDailyTotalCost(IEnumerable<FinancialResult> items)
+        public decimal GetDailyTotalCost(IEnumerable<FinancialResult> items)
         {
             return items.Sum(fr => fr.Cost);
         }

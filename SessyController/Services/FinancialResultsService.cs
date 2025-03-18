@@ -49,7 +49,7 @@ namespace SessyController.Services
 
                     var netUsage = (produced1 + produced2) - (consumed1 + consumed2);
                     var price = GetTaxedPrice(lastHistory);
-                    var revenue = netUsage * price / 1000;
+                    var cost = (decimal)netUsage * price / 1000;
 
                     monthResult.FinancialResultsList.Add(new FinancialResult
                     {
@@ -57,7 +57,7 @@ namespace SessyController.Services
                         Produced = produced1 + produced2,
                         Price = price,
                         Time = lastHistory.Time,
-                        Cost = revenue
+                        Cost = cost
                     });
                 }
 
@@ -70,15 +70,15 @@ namespace SessyController.Services
         /// <summary>
         /// Returns the taxed price.
         /// </summary>
-        private double GetTaxedPrice(EnergyHistory history)
+        private decimal GetTaxedPrice(EnergyHistory history)
         {
             Taxes? taxes = _taxesService.GetTaxesForDate(history.Time);
 
             if(taxes == null) throw new InvalidOperationException($"There is no valid tax record for date {history.Time}");
 
-            var price = history.Price + taxes.EnergyTax;
+            decimal price = (decimal)history.Price + (decimal)taxes.EnergyTax;
 
-            return price + (price * taxes.ValueAddedTax / 100);
+            return price * (1 + (decimal)taxes.ValueAddedTax / (decimal)100);
         }
     }
 }

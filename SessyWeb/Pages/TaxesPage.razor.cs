@@ -17,43 +17,32 @@ namespace SessyWeb.Pages
         [Inject]
         private TaxesService? _taxesService { get; set; }
 
-        private List<Taxes>? TaxesList { get; set; }
+        private List<Taxes>? TaxesList { get; set; } = new();
 
         RadzenDataGrid<Taxes>? taxesGrid { get; set; }
 
-        DateTime value;
-
-        protected override void OnInitialized()
-        {
-            value = _timezoneService!.Now;
-
-            base.OnInitialized();
-        }
-
-        public void OnCurrentDateChanged(DateTime dateTime)
-        {
-            value = dateTime;
-        }
+        public bool isLoading { get; set; } = false;
 
         int count { get; set; }
 
 
         protected override async Task OnAfterRenderAsync(bool firstRender)
         {
-            SolveDataGridBug();
+            AddRowFor2025();
 
             if (firstRender)
-                await taxesGrid!.FirstPage();
+                await taxesGrid!.FirstPage(true);
         }
 
-        private void SolveDataGridBug()
+        private void AddRowFor2025()
         {
-            var list = _taxesService.GetList((set => { return set.ToList(); }));
+            var list = _taxesService!.GetList((set => { return set.ToList(); }));
 
             if (list.Count == 0)
+            {
                 _taxesService.Add(new List<Taxes>
                                         {
-                                            new Taxes 
+                                            new Taxes
                                             {
                                                 Time = new DateTime(2025, 1, 1, 0, 0, 0),
                                                 EnergyTax = 0.1228,
@@ -62,13 +51,19 @@ namespace SessyWeb.Pages
                                             }
                                         },
                                     (tax, set) => { return false; });
+
+                taxesGrid!.Reload();
+            }
         }
 
-        void LoadData(LoadDataArgs args)
+        async Task LoadData(LoadDataArgs args)
         {
-            EnsureEnergyGrid();
+            isLoading = true;
 
-            var now = _timezoneService!.Now;
+            await Task.Yield();
+
+            EnsureTaxesGrid();
+
             var filter = taxesGrid!.ColumnsCollection;
 
             TaxesList = _taxesService!.GetList((set) =>
@@ -91,9 +86,11 @@ namespace SessyWeb.Pages
 
                 return query.Skip(args.Skip!.Value).Take(args.Top!.Value).ToList();
             });
+
+            isLoading = false;
         }
 
-        private void EnsureEnergyGrid()
+        private void EnsureTaxesGrid()
         {
             if (taxesGrid == null) throw new InvalidOperationException($"{nameof(taxesGrid)} can not be null here, did you forget a @ref?");
         }
@@ -126,7 +123,8 @@ namespace SessyWeb.Pages
 
         async Task DeleteRow(Taxes taxes)
         {
-            _taxesService!.Remove(new List<Taxes> { taxes }, (item, set) => set.Where(eh => eh.Id == item.Id).FirstOrDefault());
+            if(taxes.Id != 0)
+                _taxesService!.Remove(new List<Taxes> { taxes }, (item, set) => set.Where(eh => eh.Id == item.Id).FirstOrDefault());
 
             await taxesGrid!.Reload();
         }
@@ -135,8 +133,9 @@ namespace SessyWeb.Pages
         {
             if (!taxesGrid!.IsValid) return;
 
-            var taxes = new Taxes { Time = _timezoneService.Now.Date };
+            var taxes = new Taxes { Time = _timezoneService!.Now.Date };
             await taxesGrid.InsertRow(taxes);
+            count++;
         }
 
         async Task InsertAfterRow(Taxes row)
@@ -145,6 +144,7 @@ namespace SessyWeb.Pages
 
             var taxes = new Taxes();
             await taxesGrid.InsertAfterRow(taxes, row);
+            count++;
         }
 
         void OnCreateRow(Taxes taxes)

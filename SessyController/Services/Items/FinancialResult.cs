@@ -11,8 +11,8 @@
         public double Consumed { get; set; }
         public double Produced { get; set; }
         public double Grid => Produced - Consumed;
-        public double Price { get; set; }
-        public double Cost { get; set; }
+        public decimal Price { get; set; }
+        public decimal Cost { get; set; }
     }
 
     public class FinancialMonthResult
