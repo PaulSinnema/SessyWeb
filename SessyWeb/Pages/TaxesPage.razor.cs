@@ -45,9 +45,10 @@ namespace SessyWeb.Pages
                                             new Taxes
                                             {
                                                 Time = new DateTime(2025, 1, 1, 0, 0, 0),
-                                                EnergyTax = 0.1228,
+                                                EnergyTax = 0.10154,
                                                 ValueAddedTax = 21.0,
-                                                TaxReduction = 635.19
+                                                TaxReduction = 635.19,
+                                                PurchaseCompensation = 0.011
                                             }
                                         },
                                     (tax, set) => { return false; });

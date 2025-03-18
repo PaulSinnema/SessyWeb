@@ -76,7 +76,7 @@ namespace SessyController.Services
 
             if(taxes == null) throw new InvalidOperationException($"There is no valid tax record for date {history.Time}");
 
-            decimal price = (decimal)history.Price + (decimal)taxes.EnergyTax;
+            decimal price = (decimal)history.Price + (decimal)taxes.EnergyTax + (decimal)taxes.PurchaseCompensation;
 
             return price * (1 + (decimal)taxes.ValueAddedTax / (decimal)100);
         }

@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Components;
 using Radzen;
+using Radzen.Blazor;
 using SessyController.Services;
 using SessyController.Services.Items;
 using SessyWeb.Services;
@@ -199,7 +200,7 @@ namespace SessyWeb.Pages
             {
                 var dateTime = (DateTime)value;
 
-                return $"{dateTime.Day}-{dateTime.Month}/{dateTime.Hour}";
+                return $"{dateTime.Day}/{dateTime.Month} {dateTime.Hour}:00:00";
             }
 
             return "";
