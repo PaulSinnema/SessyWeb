@@ -48,9 +48,9 @@ namespace SessyWeb.Pages
 
         private async Task EnergyMonitorServiceDataChanged()
         {
-            await InvokeAsync(() =>
+            await InvokeAsync(async () =>
             {
-                financialMonthResultsGrid!.Reload();
+                await financialMonthResultsGrid!.Reload();
                 StateHasChanged();
             });
         }
