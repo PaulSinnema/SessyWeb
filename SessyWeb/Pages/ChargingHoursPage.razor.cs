@@ -211,7 +211,7 @@ namespace SessyWeb.Pages
             {
                 var dateTime = (DateTime)value;
 
-                return $"{dateTime.Day}/{dateTime.Month} {dateTime.Hour}:00:00";
+                return $"{dateTime.Day}/{dateTime.Month} {dateTime.Hour}u";
             }
 
             return "";

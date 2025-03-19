@@ -102,7 +102,7 @@ namespace SessyController.Services
             {
                 try
                 {
-                    GC.Collect();
+                    GC.Collect(); // TODO: Move it's own background service.
 
                     await HeartBeatAsync();
 
@@ -298,7 +298,7 @@ namespace SessyController.Services
                     if (batteriesAreFull || chargeIsEnough)
                     {
                         StopSession(session);
-                        _logger.LogInformation("Warning: Charging session stopped because batteries are full (enough).");
+                        _logger.LogWarning($"Warning: Charging session stopped because batteries are full (enough). {session}, batteries are full: {batteriesAreFull}, charge at maximum: {chargeIsEnough}");
                     }
                 }
                 else if (currentHourlyInfo.Discharging)
@@ -309,7 +309,7 @@ namespace SessyController.Services
                     if (batteriesAreEmpty || chargeAtMinimum)
                     {
                         StopSession(session);
-                        _logger.LogInformation("Warning: Discharging session stopped because batteries are empty.");
+                        _logger.LogWarning($"Warning: Discharging session stopped. Min. charge reached or batteries are empty. {session}, batteries are empty: {batteriesAreEmpty}, charge at minimum: {chargeAtMinimum}");
                     }
                 }
             }
