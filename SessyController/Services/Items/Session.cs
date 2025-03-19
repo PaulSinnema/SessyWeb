@@ -12,7 +12,9 @@ namespace SessyController.Services.Items
         {
             Unknown,
             Charging,
-            Discharging
+            Discharging,
+            ZeroNetHome,
+            Disabled
         };
 
         private Modes _mode { get; set; }

@@ -42,19 +42,16 @@ namespace SessyController.Services
 
                 if(lastHistory != null)
                 {
-                    var consumed1 = history.ConsumedTariff1 - lastHistory.ConsumedTariff1;
-                    var consumed2 = history.ConsumedTariff2 - lastHistory.ConsumedTariff2;
-                    var produced1 = history.ProducedTariff1 - lastHistory.ProducedTariff1;
-                    var produced2 = history.ProducedTariff2 - lastHistory.ProducedTariff2;
+                    var gridPower = new GridPower(history, lastHistory);
 
-                    var netUsage = (produced1 + produced2) - (consumed1 + consumed2);
-                    var price = GetTaxedPrice(lastHistory);
+                    var netUsage = gridPower.TotalInversed;
+                    var price = GetTaxedPrice(lastHistory, gridPower);
                     var cost = (decimal)netUsage * price / 1000;
 
                     monthResult.FinancialResultsList.Add(new FinancialResult
                     {
-                        Consumed = consumed1 + consumed2,
-                        Produced = produced1 + produced2,
+                        Consumed = gridPower.TotalConsumed,
+                        Produced = gridPower.TotalProduced,
                         Price = price,
                         Time = lastHistory.Time,
                         Cost = cost
@@ -70,13 +67,15 @@ namespace SessyController.Services
         /// <summary>
         /// Returns the taxed price.
         /// </summary>
-        private decimal GetTaxedPrice(EnergyHistory history)
+        private decimal GetTaxedPrice(EnergyHistory history, GridPower gridPower)
         {
             Taxes? taxes = _taxesService.GetTaxesForDate(history.Time);
 
             if(taxes == null) throw new InvalidOperationException($"There is no valid tax record for date {history.Time}");
 
-            decimal price = (decimal)history.Price + (decimal)taxes.EnergyTax + (decimal)taxes.PurchaseCompensation;
+            decimal overheadCost = gridPower.IsConsumer ? (decimal)taxes.PurchaseCompensation : (decimal)taxes.ReturnDeliveryCompensation;
+
+            decimal price = (decimal)history.Price + (decimal)taxes.EnergyTax + overheadCost;
 
             return price * (1 + (decimal)taxes.ValueAddedTax / (decimal)100);
         }

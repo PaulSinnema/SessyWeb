@@ -27,6 +27,10 @@ namespace SessyController.Services
 
         private LoggingService<EnergyMonitorService> _logger { get; set; }
 
+        public delegate Task DataChangedDelegate();
+
+        public event DataChangedDelegate? DataChanged;
+
         public EnergyMonitorService(LoggingService<EnergyMonitorService> logger,
                                     WeatherService weatherService,
                                     TimeZoneService timeZoneService,
@@ -91,26 +95,27 @@ namespace SessyController.Services
             while (!_dayAheadMarketService.PricesInitialized)
                 await Task.Delay(TimeSpan.FromSeconds(1), cancelationToken);
 
-            if (_weatherService.Initialized)
+            foreach (P1Meter? p1Meter in _p1MeterContainer.P1Meters)
             {
-                foreach (P1Meter? p1Meter in _p1MeterContainer.P1Meters)
+                var now = _timeZoneService.Now;
+                var selectTime = now.DateHour();
+
+                if (GetEnergyHistory(selectTime) == null)
                 {
-                    var now = _timeZoneService.Now;
-                    var selectTime = now.DateHour();
+                    var p1Details = await _p1MeterContainer.GetDetails(p1Meter.Id!);
+                    var weatherData = _weatherService.GetWeatherData();
+                    var prices = _dayAheadMarketService.GetPrices();
 
-                    if (GetEnergyHistory(selectTime) == null)
+                    var weatherHourData = weatherData.UurVerwachting
+                        .FirstOrDefault(uv => uv.TimeStamp == selectTime);
+                    var hourlyInfo = prices
+                        .FirstOrDefault(hi => hi.Time.DateHour() == selectTime);
+
+                    if (weatherHourData != null)
                     {
-                        var p1Details = await _p1MeterContainer.GetDetails(p1Meter.Id!);
-                        var weatherData = _weatherService.GetWeatherData();
-                        var prices = _dayAheadMarketService.GetPrices();
+                        StoreEnergyHistory(p1Meter, p1Details!, hourlyInfo, selectTime, weatherHourData);
 
-                        var weatherHourData = weatherData.UurVerwachting
-                            .FirstOrDefault(uv => uv.TimeStamp == selectTime);
-                        var hourlyInfo = prices
-                            .FirstOrDefault(hi => hi.Time.DateHour() == selectTime);
-
-                        if(weatherHourData != null)
-                            StoreEnergyHistory(p1Meter, p1Details!, hourlyInfo, selectTime, weatherHourData);
+                        DataChanged?.Invoke();
                     }
                 }
             }

@@ -48,6 +48,11 @@
                 <RadzenNumeric @bind-Value="fr.PurchaseCompensation" Style="width:100%" />
             </EditTemplate>
         </RadzenDataGridColumn>
+        <RadzenDataGridColumn Property="@nameof(Taxes.ReturnDeliveryCompensation)" Title="Return delivery compensation">
+            <EditTemplate Context="fr">
+                <RadzenNumeric @bind-Value="fr.ReturnDeliveryCompensation" Style="width:100%" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
         <RadzenDataGridColumn Context="order" Filterable="false" Sortable="false" TextAlign="TextAlign.Right" Frozen="true" FrozenPosition="FrozenColumnPosition.Right">
             <Template Context="fr">
                 <RadzenButton Icon="add_circle"

@@ -49,8 +49,6 @@ namespace SessyData.Services
 
         public void Add(List<T> list, Func<T, DbSet<T>, T?> contains)
         {
-            EnsureUpdatable();
-
             _dbHelper.ExecuteTransaction(db =>
             {
                 foreach (var item in list)
@@ -83,7 +81,7 @@ namespace SessyData.Services
                     {
                         var itemToUpdate = await GetByKeyAsync(db, ((IUpdatable<T>)containedItem).Id);
 
-                        ((IUpdatable<T>)itemToUpdate!).Update(itemToUpdate);
+                        ((IUpdatable<T>)itemToUpdate!).Update(item);
 
                         db.Set<T>().Update(containedItem);
                     }
@@ -109,7 +107,7 @@ namespace SessyData.Services
                     {
                         var itemToUpdate = await GetByKeyAsync(db, ((IUpdatable<T>)containedItem).Id);
 
-                        ((IUpdatable<T>)itemToUpdate!).Update(itemToUpdate);
+                        ((IUpdatable<T>)itemToUpdate!).Update(item);
 
                         db.Set<T>().Update(containedItem);
                     }

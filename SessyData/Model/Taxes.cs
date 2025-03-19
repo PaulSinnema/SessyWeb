@@ -12,6 +12,7 @@ namespace SessyData.Model
         public double EnergyTax { get; set; }
         public double ValueAddedTax { get; set; }
         public double PurchaseCompensation { get; set; }
+        public double ReturnDeliveryCompensation { get; set; }
         public double TaxReduction { get; set; }
 
         public override string ToString()
@@ -24,6 +25,9 @@ namespace SessyData.Model
             Time = updateInfo.Time;
             EnergyTax = updateInfo.EnergyTax;
             ValueAddedTax = updateInfo.ValueAddedTax;
+            PurchaseCompensation = updateInfo.PurchaseCompensation;
+            ReturnDeliveryCompensation = updateInfo.ReturnDeliveryCompensation;
+            TaxReduction = updateInfo.TaxReduction;
         }
     }
 }

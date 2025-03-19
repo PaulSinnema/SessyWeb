@@ -75,6 +75,18 @@ namespace SessyController.Services.Items
             SmoothedPrice = 0.0;
         }
 
+        public Modes Mode
+        {
+            get
+            {
+                if (Charging) return Modes.Charging;
+                if (Discharging) return Modes.Discharging;
+                if (ZeroNetHome) return Modes.ZeroNetHome;
+                if (Disabled) return Modes.Disabled;
+                return Modes.Unknown;
+            }
+        }
+
         /// <summary>
         /// If true charging is requested.
         /// </summary>

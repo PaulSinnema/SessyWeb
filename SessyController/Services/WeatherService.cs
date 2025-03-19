@@ -1,21 +1,22 @@
 ﻿using Microsoft.Extensions.Options;
+using SessyCommon;
+using SessyCommon.Extensions;
 using SessyController.Configurations;
 using SessyData.Model;
 using SessyData.Services;
-using SessyCommon;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using SessyCommon.Extensions;
 
 namespace SessyController.Services
 {
     public class WeatherService : BackgroundService
     {
         private IHttpClientFactory _httpClientFactory { get; set; }
-        private  SolarDataService _solarDataService { get; set; }
-        private  LoggingService<SessyService> _logger { get; set; }
-        private  TimeZoneService _timeZoneService { get; set; }
-        private  WeatherExpectancyConfig _WeatherExpectancyConfig { get; set; }
+        private SolarDataService _solarDataService { get; set; }
+        private LoggingService<SessyService> _logger { get; set; }
+        private TimeZoneService _timeZoneService { get; set; }
+        private WeatherExpectancyConfig _WeatherExpectancyConfig { get; set; }
 
         private WeerData? WeatherData { get; set; }
 
@@ -146,7 +147,11 @@ namespace SessyController.Services
 
         internal int? GetTemperature(DateTime time)
         {
-            var data = WeatherData.UurVerwachting.Where(uv => uv.TimeStamp.Value.DateHour() == time.DateHour()).FirstOrDefault();
+            var data = WeatherData.UurVerwachting.Where(uv =>
+            {
+                var date = DateTime.ParseExact(uv.Uur, "dd-MM-yyyy HH:mm", CultureInfo.InvariantCulture);
+                return date == time.DateHour();
+            }).FirstOrDefault(); ;
 
             return data == null ? null : data.Temp;
         }

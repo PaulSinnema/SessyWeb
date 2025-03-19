@@ -48,7 +48,8 @@ namespace SessyWeb.Pages
                                                 EnergyTax = 0.10154,
                                                 ValueAddedTax = 21.0,
                                                 TaxReduction = 635.19,
-                                                PurchaseCompensation = 0.011
+                                                PurchaseCompensation = 0.01815, // Frank Energie
+                                                ReturnDeliveryCompensation = 0.012705 // Frank Energie
                                             }
                                         },
                                     (tax, set) => { return false; });

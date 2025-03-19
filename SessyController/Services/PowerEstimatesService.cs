@@ -55,7 +55,7 @@ namespace SessyController.Services
         public double GetPowerEstimate(DateTime date, double temperature, double tempTolerance = 2)
         {
             var tempFrom = temperature - tempTolerance;
-            var tempTo = tempTolerance + tempTolerance;
+            var tempTo = temperature + tempTolerance;
             var dayOfWeek = date.DayOfWeek;
 
             var histories = _energyHistoryService.GetList((set) =>
@@ -73,20 +73,16 @@ namespace SessyController.Services
                 var previous = _energyHistoryService.Get((set) =>
                 {
                     return set
-                        .Where(eh => eh.Time == history.Time)
+                        .Where(eh => eh.Time == history.Time.AddHours(-1))
                         .SingleOrDefault();
                 });
 
                 if(previous != null)
                 {
-                    var consumed1 = history.ConsumedTariff1 - previous.ConsumedTariff1;
-                    var consumed2 = history.ConsumedTariff2 - previous.ConsumedTariff2;
-                    var produced1 = history.ProducedTariff1 - previous.ProducedTariff1;
-                    var produced2 = history.ProducedTariff2 - previous.ProducedTariff2;
+                    var gridPower = new GridPower(history, previous);
 
-                    var power = 
+                    return gridPower.TotalInversed; 
                 }
-
             }
 
             return 0.0;

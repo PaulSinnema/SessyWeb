@@ -153,13 +153,24 @@ namespace SessyWeb.Pages
                     {
                         var session = sessions.GetSession(hourlyInfo);
 
-                        if (session != null && hourlyInfo.Charging)
+                        if (session != null)
                         {
-                            ChargeNeededInfos.Add(new ChargeNeededInfo
+                            if (hourlyInfo.Charging)
                             {
-                                Time = hourlyInfo.Time,
-                                ChargeNeeded = session.MaxChargeNeeded
-                            });
+                                ChargeNeededInfos.Add(new ChargeNeededInfo
+                                {
+                                    Time = hourlyInfo.Time,
+                                    ChargeNeeded = session.MaxChargeNeeded
+                                });
+                            }
+                            else if (hourlyInfo.Discharging)
+                            {
+                                ChargeNeededInfos.Add(new ChargeNeededInfo
+                                {
+                                    Time = hourlyInfo.Time,
+                                    ChargeNeeded = session.MinChargeNeeded
+                                });
+                            }
                         }
                         else
                         {

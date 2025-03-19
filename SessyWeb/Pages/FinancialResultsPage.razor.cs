@@ -16,6 +16,9 @@ namespace SessyWeb.Pages
         [Inject]
         private TimeZoneService? _timeZoneService { get; set; }
 
+        [Inject]
+        private EnergyMonitorService? _energyMonitorService { get; set; }
+
         private List<FinancialMonthResult>? FinancialMonthResultsList { get; set; }
 
         RadzenDataGrid<FinancialMonthResult>? financialMonthResultsGrid { get; set; }
@@ -37,9 +40,19 @@ namespace SessyWeb.Pages
         {
             if (args.FirstRender)
             {
+                _energyMonitorService!.DataChanged += EnergyMonitorServiceDataChanged;
                 args.Grid.Groups.Add(new GroupDescriptor() { Property = nameof(FinancialResult.YearMonth), Title = "Time" });
                 StateHasChanged();
             }
+        }
+
+        private async Task EnergyMonitorServiceDataChanged()
+        {
+            await InvokeAsync(() =>
+            {
+                financialMonthResultsGrid!.Reload();
+                StateHasChanged();
+            });
         }
 
         void LoadData(LoadDataArgs args)

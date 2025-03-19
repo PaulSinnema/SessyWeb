@@ -56,6 +56,7 @@ namespace SessyController.Services
             _settingsConfigSubscription = _settingsConfigMonitor.OnChange(settings =>
             {
                 _settingsConfig = settings;
+                _lastSessionCanceled = null;
             });
 
             _sessyBatteryConfigSubscription = _sessyBatteryConfigMonitor.OnChange((SessyBatteryConfig settings) =>
@@ -571,11 +572,11 @@ namespace SessyController.Services
 
             charge = await _batteryContainer.GetStateOfChargeInWatts();
 
-            hourlyInfos.ForEach(hi => hi.ChargeLeft = charge);
-
             var hourlyInfoList = hourlyInfos
                 .OrderBy(hp => hp.Time)
                 .ToList();
+
+            hourlyInfoList.ForEach(hi => hi.ChargeLeft = charge);
 
             List<HourlyInfo>? lastChargingSession = null;
 
@@ -594,41 +595,39 @@ namespace SessyController.Services
 
                 if (previous != null)
                 {
-                    switch ((hourlyInfo.Charging, hourlyInfo.Discharging, hourlyInfo.ZeroNetHome))
+                        switch (hourlyInfo.Mode)
                     {
-                        case (true, false, false): // Charging
+                        case Modes.Charging:
                             {
                                 var capacityNeeded = Math.Min(totalCapacity, session.MaxChargeNeeded);
                                 charge = Math.Min(charge + chargingCapacity, capacityNeeded);
                                 charge += hourlyInfo.SolarPowerInWatts;
-
                                 break;
                             }
 
-                        case (false, true, false): // Discharging
+                        case Modes.Discharging:
                             {
                                 charge = Math.Max(charge - dischargingCapacity, session.MinChargeNeeded);
                                 break;
                             }
 
-                        case (false, false, true): // Zero net home
+                        case Modes.ZeroNetHome:
                             {
                                 charge = hourNeed > charge ? 0.0 : charge - hourNeed;
                                 charge += hourlyInfo.SolarPowerInWatts;
                                 break;
                             }
 
-                        case (false, false, false): // Disabled
-                            {
-                                break;
-                            }
-
-                        default:
+                        case Modes.Disabled:
                             break;
+
+                    case Modes.Unknown:
+                    default:
+                            throw new InvalidOperationException($"Wrong mode {hourlyInfo.Mode}");
                     }
                 }
 
-                if (hourlyInfo.Time < now.Date.AddHours(now.Hour))
+                if (hourlyInfo.Time < now.DateHour().AddHours(-1))
                 {
                     hourlyInfo.ChargeLeft = 0.0;
                     hourlyInfo.ChargeLeftPercentage = 0.0;

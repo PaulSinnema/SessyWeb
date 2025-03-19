@@ -32,5 +32,10 @@ namespace SessyData.Model
             Price = updateInfo.Price;
             GlobalRadiation = updateInfo.GlobalRadiation;
         }
+
+        public override string ToString()
+        {
+            return $"Id: {Id}, Time: {Time}";
+        }
     }
 }
