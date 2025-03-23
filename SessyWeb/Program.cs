@@ -74,10 +74,9 @@ builder.Services.AddHttpClient();
 builder.Services.AddTransient(typeof(LoggingService<>));
 builder.Services.AddTransient<Battery>();
 
+builder.Services.AddScoped<ConfigurationService>();
 builder.Services.AddScoped<SessyService>();
-builder.Services.AddScoped<SolarEdgeService>();
 builder.Services.AddScoped<SolarService>();
-builder.Services.AddScoped<P1MeterService>();
 builder.Services.AddScoped<TcpClientProvider>();
 builder.Services.AddScoped<SessyStatusHistoryService>();
 builder.Services.AddScoped<ScreenSizeService>();
@@ -86,7 +85,10 @@ builder.Services.AddScoped<DbHelper>();
 builder.Services.AddScoped<PowerEstimatesService>();
 builder.Services.AddScoped<FinancialResultsService>();
 builder.Services.AddScoped<TaxesService>();
+builder.Services.AddScoped<SolarEdgeDataService>();
 
+builder.Services.AddSingleton<SolarEdgeService>();
+builder.Services.AddSingleton<P1MeterService>();
 builder.Services.AddSingleton<BatteryContainer>();
 builder.Services.AddSingleton<TimeZoneService>();
 builder.Services.AddSingleton<WeatherService>();
@@ -102,6 +104,8 @@ builder.Services.AddHostedService(provider => provider.GetRequiredService<Batter
 builder.Services.AddHostedService(provider => provider.GetRequiredService<WeatherService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<SessyMonitorService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<EnergyMonitorService>());
+builder.Services.AddHostedService(provider => provider.GetRequiredService<P1MeterService>());
+builder.Services.AddHostedService(provider => provider.GetRequiredService<SolarEdgeService>());
 
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();

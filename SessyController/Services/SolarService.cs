@@ -120,23 +120,28 @@ namespace SessyController.Services
                         {
                             currentHourlyInfo.SolarPower = 0.0;
 
-                            foreach (var endpoint in _powerSystemsConfig.Endpoints.Values)
+                            foreach (var config in _powerSystemsConfig.Endpoints.Values)
                             {
-                                var longitude = endpoint.Longitude;
-                                var latitude = endpoint.Latitude;
-
-                                double solarAltitude;
-                                double solarAzimuth;
-
-                                CalculateSolarPosition(solarData.Time!.Value.Hour, latitude, longitude, endpoint.TimeZoneOffset, out solarAltitude, out solarAzimuth);
-
-                                foreach (PhotoVoltaic solarPanel in endpoint.SolarPanels.Values)
+                                foreach (var id in config.Keys)
                                 {
-                                    double solarFactor = GetSolarFactor(solarAzimuth, solarAltitude, solarPanel.Orientation, solarPanel.Tilt);
+                                    var endpoint = config[id];
 
-                                    currentHourlyInfo.SolarPower += CalculateSolarPower(solarData.GlobalRadiation, solarFactor, solarPanel, solarAltitude);
+                                    var longitude = endpoint.Longitude;
+                                    var latitude = endpoint.Latitude;
 
-                                    currentHourlyInfo.SolarGlobalRadiation = solarData.GlobalRadiation;
+                                    double solarAltitude;
+                                    double solarAzimuth;
+
+                                    CalculateSolarPosition(solarData.Time!.Value.Hour, latitude, longitude, endpoint.TimeZoneOffset, out solarAltitude, out solarAzimuth);
+
+                                    foreach (PhotoVoltaic solarPanel in endpoint.SolarPanels.Values)
+                                    {
+                                        double solarFactor = GetSolarFactor(solarAzimuth, solarAltitude, solarPanel.Orientation, solarPanel.Tilt);
+
+                                        currentHourlyInfo.SolarPower += CalculateSolarPower(solarData.GlobalRadiation, solarFactor, solarPanel, solarAltitude);
+
+                                        currentHourlyInfo.SolarGlobalRadiation = solarData.GlobalRadiation;
+                                    }
                                 }
                             }
                         }

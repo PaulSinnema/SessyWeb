@@ -1,14 +1,21 @@
-﻿using System.Net.Http.Headers;
-using System.Text;
-using Microsoft.Extensions.Options;
+﻿using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
+using SessyCommon.Extensions;
 using SessyController.Configurations;
+using SessyController.Services;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Threading;
 
 /// <summary>
 /// API client for interacting with the P1 Meter.
 /// </summary>
-public class P1MeterService : IDisposable
+public class P1MeterService : BackgroundService, IDisposable
 {
+    private LoggingService<DayAheadMarketService> _logger { get; set; }
+
+    private TimeZoneService _timeZoneService { get; set; }
+
     private IHttpClientFactory _httpClientFactory { get; set; }
     private IOptionsMonitor<SessyP1Config> _p1ConfigMonitor { get; set; }
     private SessyP1Config _p1Configuration { get; set; }
@@ -19,13 +26,59 @@ public class P1MeterService : IDisposable
     /// Initializes a new instance of the <see cref="P1MeterService"/> class.
     /// </summary>
     /// <param name="httpClientFactory">The HTTP client factory for creating HTTP clients.</param>
-    public P1MeterService(IHttpClientFactory httpClientFactory, IOptionsMonitor<SessyP1Config> p1ConfigMonitor)
+    public P1MeterService(LoggingService<DayAheadMarketService> logger,
+                          TimeZoneService timeZoneService,
+                          IHttpClientFactory httpClientFactory,
+                          IOptionsMonitor<SessyP1Config> p1ConfigMonitor)
     {
+        _logger = logger;
+        _timeZoneService = timeZoneService;
         _httpClientFactory = httpClientFactory;
         _p1ConfigMonitor = p1ConfigMonitor;
         _p1Configuration = _p1ConfigMonitor.CurrentValue;
 
         _p1ConfigSubscription = _p1ConfigMonitor.OnChange((settings) => _p1Configuration = settings);
+    }
+    protected override async Task ExecuteAsync(CancellationToken cancelationToken)
+    {
+        _logger.LogInformation("P1Meterservice started.");
+
+        // Loop to fetch prices every 5 seconds
+        while (!cancelationToken.IsCancellationRequested)
+        {
+            try
+            {
+                await Process(cancelationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogException(ex, "An error occurred while processing P1 meter data.");
+            }
+
+            try
+            {
+                int delayTime = 5; // Check again in 5 seconds
+
+                await Task.Delay(TimeSpan.FromSeconds(delayTime), cancelationToken);
+            }
+            catch (TaskCanceledException)
+            {
+                // Ignore cancellation exception during delay
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Something went wrong during delay, keep processing {ex.ToDetailedString()}");
+            }
+        }
+
+        _logger.LogInformation("P1MeterService stopped.");
+    }
+
+    private async Task Process(CancellationToken cancelationToken)
+    {
+        var now = _timeZoneService.Now;
+
+
     }
 
     /// <summary>

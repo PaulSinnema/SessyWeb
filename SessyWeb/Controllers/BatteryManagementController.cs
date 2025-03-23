@@ -71,10 +71,10 @@ namespace SessyWeb.Controllers
         /// </summary>
         /// <returns>Scaled AC Power</returns>
         [HttpGet("SolarEdgeService:GetACPowerInWatts", Name = "{id}/GetACPowerInWatts")]
-        public async Task<IActionResult> GetACPowerInWatts()
+        public async Task<IActionResult> GetACPowerInWatts(string id)
         {
-            var powerOutput = await _solarEdgeService.GetACPower();
-            var scaleFactor = await _solarEdgeService.GetACPowerScaleFactor();
+            var powerOutput = await _solarEdgeService.GetACPower(id);
+            var scaleFactor = await _solarEdgeService.GetACPowerScaleFactor(id);
 
             return Ok(powerOutput * Math.Pow(10, scaleFactor));
         }
@@ -84,9 +84,9 @@ namespace SessyWeb.Controllers
         /// </summary>
         /// <returns>Unscaled AC Power</returns>
         [HttpGet("SolarEdgeService:GetACPower", Name = "{id}/GetACPower")]
-        public async Task<IActionResult> GetACPower()
+        public async Task<IActionResult> GetACPower(string id)
         {
-            ushort scaleFactor = await _solarEdgeService.GetACPower();
+            ushort scaleFactor = await _solarEdgeService.GetACPower(id);
 
             return Ok(scaleFactor);
         }
@@ -96,9 +96,9 @@ namespace SessyWeb.Controllers
         /// </summary>
         /// <returns>Scale factor</returns>
         [HttpGet("SolarEdgeService:GetACPowerScaleFactor", Name = "{id}/GetACPowerScaleFactor")]
-        public async Task<IActionResult> GetACPowerScaleFactor()
+        public async Task<IActionResult> GetACPowerScaleFactor(string id)
         {
-            short scaleFactor = await _solarEdgeService.GetACPowerScaleFactor();
+            short scaleFactor = await _solarEdgeService.GetACPowerScaleFactor(id);
 
             return Ok(scaleFactor);
         }
@@ -108,9 +108,9 @@ namespace SessyWeb.Controllers
         /// </summary>
         /// <returns>Scale factor</returns>
         [HttpPut("SolarEdgeService:EnableDynamicPower", Name = "{id}/EnableDynamicPower")]
-        public async Task<IActionResult> EnableDynamicPower()
+        public async Task<IActionResult> EnableDynamicPower(string id)
         {
-            await _solarEdgeService.EnableDynamicPower();
+            await _solarEdgeService.EnableDynamicPower(id);
 
             return new OkResult();
         }
@@ -119,9 +119,9 @@ namespace SessyWeb.Controllers
         /// Restore dynamic power limit  settings.
         /// </summary>
         [HttpPut("SolarEdgeService:RestoreDynamicPowerSettings", Name = "{id}/RestoreDynamicPowerSettings")]
-        public async Task<IActionResult> RestoreDynamicPowerSettings()
+        public async Task<IActionResult> RestoreDynamicPowerSettings(string id)
         {
-            await _solarEdgeService.RestoreDynamicPowerSettings();
+            await _solarEdgeService.RestoreDynamicPowerSettings(id);
 
             return new OkResult();
         }
@@ -130,9 +130,9 @@ namespace SessyWeb.Controllers
         /// Gets the ActiveReactivePreference
         /// </summary>
         [HttpGet("SolarEdgeService:GetActiveReactivePreference", Name = "{id}/GetActiveReactivePreference")]
-        public async Task<IActionResult> GetActiveReactivePreference()
+        public async Task<IActionResult> GetActiveReactivePreference(string id)
         {
-            ushort preference = await _solarEdgeService.GetActiveReactivePreference();
+            ushort preference = await _solarEdgeService.GetActiveReactivePreference(id);
 
             return Ok(preference);
         }
@@ -141,9 +141,9 @@ namespace SessyWeb.Controllers
         /// Gets the ActiveReactivePreference
         /// </summary>
         [HttpGet("SolarEdgeService:GetCosPhiQPreference", Name = "{id}/GetCosPhiQPreference")]
-        public async Task<IActionResult> GetCosPhiQPreference()
+        public async Task<IActionResult> GetCosPhiQPreference(string id)
         {
-            ushort preference = await _solarEdgeService.GetCosPhiQPreference();
+            ushort preference = await _solarEdgeService.GetCosPhiQPreference(id);
 
             return Ok(preference);
         }
@@ -152,9 +152,9 @@ namespace SessyWeb.Controllers
         /// Gets the Active power limit.
         /// </summary>
         [HttpGet("SolarEdgeService:GetActivePowerLimit", Name = "{id}/GetActivePowerLimit")]
-        public async Task<IActionResult> GetActivePowerLimit()
+        public async Task<IActionResult> GetActivePowerLimit(string id)
         {
-            float powerLimit = await _solarEdgeService.GetActivePowerLimit();
+            float powerLimit = await _solarEdgeService.GetActivePowerLimit(id);
 
             return Ok(powerLimit);
         }
@@ -163,9 +163,9 @@ namespace SessyWeb.Controllers
         /// Gets the reactive power limit.
         /// </summary>
         [HttpGet("SolarEdgeService:GetReactivePowerLimit", Name = "{id}/GetReactivePowerLimit")]
-        public async Task<IActionResult> GetReactivePowerLimit()
+        public async Task<IActionResult> GetReactivePowerLimit(string id)
         {
-            float powerLimit = await _solarEdgeService.GetReactivePowerLimit();
+            float powerLimit = await _solarEdgeService.GetReactivePowerLimit(id);
 
             return Ok(powerLimit);
         }
@@ -174,9 +174,9 @@ namespace SessyWeb.Controllers
         /// Gets the dynamic active power limit.
         /// </summary>
         [HttpGet("SolarEdgeService:GetDynamicActivePowerLimit", Name = "{id}/GetDynamicActivePowerLimit")]
-        public async Task<IActionResult> GetDynamicActivePowerLimit()
+        public async Task<IActionResult> GetDynamicActivePowerLimit(string id)
         {
-            float powerLimit = await _solarEdgeService.GetDynamicActivePowerLimit();
+            float powerLimit = await _solarEdgeService.GetDynamicActivePowerLimit(id);
 
             return Ok(powerLimit);
         }
@@ -185,9 +185,9 @@ namespace SessyWeb.Controllers
         /// Sets the dynamic active power limit.
         /// </summary>
         [HttpPut("SolarEdgeService:SetDynamicActivePowerLimit", Name = "{id}/SetDynamicActivePowerLimit")]
-        public async Task<IActionResult> SetDynamicActivePowerLimit(ushort power)
+        public async Task<IActionResult> SetDynamicActivePowerLimit(string id, ushort power)
         {
-            await _solarEdgeService.SetDynamicActivePowerLimit(power);
+            await _solarEdgeService.SetDynamicActivePowerLimit(id, power);
 
             return new OkResult();
         }
@@ -196,9 +196,9 @@ namespace SessyWeb.Controllers
         /// Sets the dynamic reactive power limit.
         /// </summary>
         [HttpPut("SolarEdgeService:SetDynamicReactivePowerLimit", Name = "{id}/SetDynamicReactivePowerLimit")]
-        public async Task<IActionResult> SetDynamicReactivePowerLimit(ushort power)
+        public async Task<IActionResult> SetDynamicReactivePowerLimit(string id, ushort power)
         {
-            await _solarEdgeService.SetDynamicReactivePowerLimit(power);
+            await _solarEdgeService.SetDynamicReactivePowerLimit(id, power);
 
             return new OkResult();
         }
@@ -207,9 +207,9 @@ namespace SessyWeb.Controllers
         /// Sets the active power limit.
         /// </summary>
         [HttpPut("SolarEdgeService:SetActivePowerLimit", Name = "{id}/SetActivePowerLimit")]
-        public async Task<IActionResult> SetActivePowerLimit(ushort power)
+        public async Task<IActionResult> SetActivePowerLimit(string id, ushort power)
         {
-            await _solarEdgeService.SetActivePowerLimit(power);
+            await _solarEdgeService.SetActivePowerLimit(id, power);
 
             return new OkResult();
         }
@@ -218,9 +218,9 @@ namespace SessyWeb.Controllers
         /// Retrieves the current operational status of the inverter.
         /// </summary>
         [HttpGet("SolarEdgeService:GetStatus", Name = "{id}/GetStatus")]
-        public async Task<IActionResult> GetStatus()
+        public async Task<IActionResult> GetStatus(string id)
         {
-            ushort registers = await _solarEdgeService.GetStatus();
+            ushort registers = await _solarEdgeService.GetStatus(id);
 
             return Ok(registers);
         }

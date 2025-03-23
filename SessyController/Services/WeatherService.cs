@@ -147,11 +147,16 @@ namespace SessyController.Services
 
         internal int? GetTemperature(DateTime time)
         {
-            var data = WeatherData.UurVerwachting.Where(uv =>
+            UurVerwachting? data = null;
+
+            if (WeatherData != null)
             {
-                var date = DateTime.ParseExact(uv.Uur, "dd-MM-yyyy HH:mm", CultureInfo.InvariantCulture);
-                return date == time.DateHour();
-            }).FirstOrDefault(); ;
+                data = WeatherData.UurVerwachting.Where(uv =>
+                {
+                    var date = DateTime.ParseExact(uv.Uur!, "dd-MM-yyyy HH:mm", CultureInfo.InvariantCulture);
+                    return date == time.DateHour();
+                }).FirstOrDefault();
+            }
 
             return data == null ? null : data.Temp;
         }

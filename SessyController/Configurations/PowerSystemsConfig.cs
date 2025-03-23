@@ -7,7 +7,7 @@ namespace SessyController.Configurations
     /// </summary>
     public class PowerSystemsConfig
     {
-        public Dictionary<string, Endpoint>? Endpoints { get; set; }
+        public Dictionary<string, Dictionary<string, Endpoint>>? Endpoints { get; set; }
 
     }
 }

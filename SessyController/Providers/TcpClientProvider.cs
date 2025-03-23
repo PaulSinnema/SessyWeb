@@ -15,27 +15,13 @@ namespace SessyController.Providers
             _solarEdgeConfig = solarEdgeConfig.Value;
         }
 
-        //public System.Net.Sockets.TcpClient GetTcpClient(string endpointName)
-        //{
-        //    if(!_solarEdgeConfig.Endpoints.TryGetValue(endpointName, out var config))
-        //    {
-        //        throw new InvalidOperationException($"No TcpClient configuration found for endpoint: {endpointName}");
-        //    }
-
-        //    if(config.IpAddress == null)
-        //    {
-        //        throw new InvalidOperationException($"No IP Address found for endpoint: {endpointName}");
-        //    }    
-
-        //    return new System.Net.Sockets.TcpClient(config.IpAddress, config.Port);
-        //}
-
-        public async Task<ModbusClient> GetModbusClient(string endpointName)
+        public async Task<ModbusClient> GetModbusClient(string endpointName, string id)
         {
-            if (!_solarEdgeConfig.Endpoints.TryGetValue(endpointName, out var config))
-            {
+            if (!_solarEdgeConfig.Endpoints.TryGetValue(endpointName, out var ids))
                 throw new InvalidOperationException($"No TcpClient configuration found for endpoint: {endpointName}");
-            }
+
+            if(!ids.TryGetValue(id, out var config))
+                throw new InvalidOperationException($"No TcpClient configuration fout for id {id}");
 
             if (config.IpAddress == null)
             {

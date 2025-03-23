@@ -31,6 +31,8 @@ namespace SessyData.Model
 
         public DbSet<Taxes> Taxes => Set<Taxes>();
 
+        public DbSet<SolarEdgeData> SolarEdgeData => Set<SolarEdgeData>();
+
         protected override void OnConfiguring(DbContextOptionsBuilder options)
             => options.UseSqlite(_connectionString);
     }
