@@ -24,5 +24,10 @@ namespace SessyData.Model
             Time = updateInfo.Time;
             Power = updateInfo.Power;
         }
+
+        public override string ToString()
+        {
+            return $"Id: {Id}, InverterId: {InverterId}, Time: {Time}, Power: {Power}";
+        }
     }
 }

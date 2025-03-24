@@ -35,14 +35,18 @@
         </RadzenStack>
     </RadzenHeader>
     <RadzenPanelMenu DisplayStyle="@DisplayStyle" Style="@MenuStyle">
-        <RadzenPanelMenuItem Text="Batteries"
-                             Click="@CollapseMenu"
-                             Path=""
-                             Icon="battery_charging_full" />
         <RadzenPanelMenuItem Text="Charging hours"
                              Path="charginghours"
                              Click="@CollapseMenu"
                              Icon="grouped_bar_chart" />
+        <RadzenPanelMenuItem Text="Solar power"
+                             Click="@CollapseMenu"
+                             Path="solarpower"
+                             Icon="solar_power" />
+        <RadzenPanelMenuItem Text="Batteries"
+                             Click="@CollapseMenu"
+                             Path="batteries"
+                             Icon="battery_charging_full" />
         <RadzenPanelMenuItem Text="Status history"
                              Path="sessystatushistory"
                              Click="@CollapseMenu"
