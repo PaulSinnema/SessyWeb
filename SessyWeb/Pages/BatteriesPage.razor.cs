@@ -8,19 +8,17 @@ namespace SessyWeb.Pages
 
         private CancellationTokenSource _cts = new();
 
-        protected async override void OnInitialized()
+        protected override void OnInitialized()
         {
             base.OnInitialized();
 
             // Start de timer als een aparte taak
-            await StartBatteryUpdateLoop();
+            Task.Run(async () => await StartBatteryUpdateLoop());
         }
 
         private async Task StartBatteryUpdateLoop()
         {
             using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
-
-            _cts.Cancel();
 
             try
             {
@@ -40,9 +38,6 @@ namespace SessyWeb.Pages
             }
             catch (OperationCanceledException)
             {
-                _cts.Cancel();
-                _cts.Dispose();
-
                 Console.WriteLine("Batteries page: Timer stopped");
             }
         }
@@ -53,6 +48,9 @@ namespace SessyWeb.Pages
         {
             if (!_isDisposed)
             {
+                _cts.Cancel();
+                _cts.Dispose();
+
                 _isDisposed = true;
 
                 base.Dispose();

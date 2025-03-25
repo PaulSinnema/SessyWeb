@@ -8,7 +8,7 @@ namespace SessyController.Services.Items
         private readonly SessyService _sessyService;
         private readonly LoggingService<Battery> _logger;
 
-        private SessyBatteryEndpoint? _endpoint {  get; set; }
+        private SessyBatteryEndpoint? _endpoint { get; set; }
         public string Id { get; private set; }
         private bool _initialized = false;
 
@@ -41,8 +41,26 @@ namespace SessyController.Services.Items
 
         public async Task<PowerStatus?> GetPowerStatus()
         {
+            var tries = 0;
+            Exception? exception = null;
+
             EnsureInitialized();
-            return await _sessyService.GetPowerStatusAsync(Id).ConfigureAwait(false);
+
+            do
+            {
+                try
+                {
+                    return await _sessyService.GetPowerStatusAsync(Id).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    exception = ex;
+                    tries++;
+                    _logger.LogWarning($"Could not get power status for battery {Id}. Retry {tries}");
+                }
+            } while (tries < 10);
+
+            throw new InvalidOperationException($"Could not get power status after 10 retries for battery {Id}", exception);
         }
 
         public async Task<ActivePowerStrategy?> GetActivePowerStrategy()
@@ -96,7 +114,7 @@ namespace SessyController.Services.Items
 
             if (lastPowerSetpoint != null)
             {
-                if(lastPowerSetpoint.Setpoint != powerSetpoint.Setpoint)
+                if (lastPowerSetpoint.Setpoint != powerSetpoint.Setpoint)
                     await _sessyService.SetPowerSetpointAsync(Id, powerSetpoint);
             }
             else
@@ -143,7 +161,7 @@ namespace SessyController.Services.Items
 
         public void Dispose()
         {
-            
+
         }
     }
 }

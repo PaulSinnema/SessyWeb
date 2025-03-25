@@ -12,11 +12,16 @@
 {
     <div style="width: 100%; overflow: auto;">
         <RadzenCard Style="padding: 3px 3px 5px 10px;">
-            <RadzenStack Orientation="Orientation.Horizontal" Gap="2" AlignItems="AlignItems.Start"> 
+            <RadzenStack Orientation="Orientation.Horizontal" Gap="2" AlignItems="AlignItems.Start">
                 <RadzenStack Orientation="Orientation.Vertical" Gap="2" AlignItems="AlignItems.Start" Style="width: 250px;">
                     <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Total expected solar power</RadzenText>
                     <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@TotalSolarPowerExpectedTodayVisual kWh for @_timeZoneService!.Now.Date.ToString("dd MMM yyyy")</b></RadzenText>
-                    <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@TotalSolarPowerExpectedTomorrowVisual kWh for @_timeZoneService!.Now.Date.AddDays(1).ToString("dd MMM yyyy")</b></RadzenText>
+                    @{
+                        if (TotalSolarPowerExpectedTomorrow > 0)
+                        {
+                            <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@TotalSolarPowerExpectedTomorrowVisual kWh for @_timeZoneService!.Now.Date.AddDays(1).ToString("dd MMM yyyy")</b></RadzenText>
+                        }
+                    }
                 </RadzenStack>
                 <RadzenStack Orientation="Orientation.Horizontal" Style="width: 100%;">
                     <RadzenCard>
@@ -34,8 +39,8 @@
                     <RadzenStack Orientation="Orientation.Vertical" AlignItems="AlignItems.End" Style="width: 100%;">
                         <RadzenCard>
                             @*<i class="fas fa-info" style="color: yellow; font-size: 24px;" @onclick="@ShowExplanation"></i>
- *@                            <RadzenButton @ref="ExplanationButton" 
-                                             Click="@(args=>ShowTooltipWithHtml(ExplanationButton!.Element, new TooltipOptions() { Style = "background-color: transparent;)", Duration = null }))">
+ *@                            <RadzenButton @ref="ExplanationButton"
+                                                                        Click="@(args => ShowTooltipWithHtml(ExplanationButton!.Element, new TooltipOptions() { Style = "background-color: transparent;)", Duration = null }))">
                                 <i class="fas fa-info" style="color: yellow; font-size: 24px;"></i>
                             </RadzenButton>
                         </RadzenCard>
@@ -106,7 +111,7 @@
                     <RadzenSeriesDataLabels Visible="false" />
                 </ChildContent>
             </RadzenLineSeries>
-            <RadzenCategoryAxis Padding="40" Formatter="@FormatAsDayHour" TickDistance="75" >
+            <RadzenCategoryAxis Padding="40" Formatter="@FormatAsDayHour" TickDistance="75">
                 <RadzenGridLines Visible="true" />
                 <RadzenAxisTitle Text="Time" />
             </RadzenCategoryAxis>
