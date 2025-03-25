@@ -123,6 +123,24 @@ namespace SessyController.Services
             }
         }
 
+        /// <summary>
+        /// Get the total power output for all configured solar arrays.
+        /// </summary>
+        public async Task<double> GetTotalACPowerInWatts()
+        {
+            var power = 0.0;
+
+            foreach (var powerSystemConfig in _powerSystemsConfig.Endpoints)
+            {
+                foreach (var config in powerSystemConfig.Value)
+                {
+                    power += await GetACPowerInWatts(config.Key);
+                }
+            }
+
+            return power;
+        }
+
         private void StoreData(Dictionary<string, Dictionary<DateTime, double>> collectedPowerData)
         {
             foreach (var collectionKeyValue in collectedPowerData)

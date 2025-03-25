@@ -9,13 +9,16 @@ namespace SessyController.Services.Items
     public class BatteryContainer
     {
         private SessyBatteryConfig _sessyBatteryConfig;
+        private SolarEdgeService _solarEdgeService;
 
         public List<Battery>? Batteries { get; set; }
 
         public BatteryContainer(IServiceScopeFactory serviceScopeFactory,
-                                IOptions<SessyBatteryConfig> sessyBatteryConfig)
+                                IOptions<SessyBatteryConfig> sessyBatteryConfig,
+                                SolarEdgeService solarEdgeService)
         {
             _sessyBatteryConfig = sessyBatteryConfig.Value;
+            _solarEdgeService = solarEdgeService;
 
             using var scope = serviceScopeFactory.CreateScope();
 
@@ -114,12 +117,24 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Start charging cycle.
         /// </summary>
-        public void StartCharging()
+        public async Task StartCharging(bool priceIsNegative)
         {
+            double solarOutputPerBattery = 0.0;
+
+            if (!priceIsNegative)
+            {
+                var solarPowerOutput = await _solarEdgeService.GetTotalACPowerInWatts();
+                solarOutputPerBattery = solarPowerOutput / Batteries.Count;
+            }
+
             Batteries.ForEach(async bat =>
             {
+                var maxChargingPower = bat.GetMaxCharge();
+
+                maxChargingPower = solarOutputPerBattery > maxChargingPower ? maxChargingPower : maxChargingPower - solarOutputPerBattery;
+
                 await bat.SetActivePowerStrategyToOpenAPI();
-                await bat.SetPowerSetpointAsync(GetSetpoint(bat, -(Convert.ToInt16(bat.GetMaxCharge()))));
+                await bat.SetPowerSetpointAsync(GetSetpoint(bat, -(Convert.ToInt16(maxChargingPower))));
             });
         }
 

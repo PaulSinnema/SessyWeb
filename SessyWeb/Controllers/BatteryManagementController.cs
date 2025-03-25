@@ -86,9 +86,9 @@ namespace SessyWeb.Controllers
         [HttpGet("SolarEdgeService:GetACPower", Name = "{id}/GetACPower")]
         public async Task<IActionResult> GetACPower(string id)
         {
-            ushort scaleFactor = await _solarEdgeService.GetACPower(id);
+            ushort powerOutput = await _solarEdgeService.GetACPower(id);
 
-            return Ok(scaleFactor);
+            return Ok(powerOutput);
         }
 
         /// <summary>
