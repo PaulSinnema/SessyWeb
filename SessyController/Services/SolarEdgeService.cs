@@ -189,7 +189,24 @@ namespace SessyController.Services
         /// </summary>
         private async Task<ModbusClient> GetModbusClient(string id)
         {
-            return await _tcpClientProvider.GetModbusClient("SolarEdge", id);
+            var tries = 0;
+            Exception? exception = null;
+
+            do
+            {
+                try
+                {
+                    return await _tcpClientProvider.GetModbusClient("SolarEdge", id);
+                }
+                catch (Exception ex)
+                {
+                    exception = ex;
+                    tries++;
+                    _logger.LogWarning($"Failed to get a Modbus client for 'SolarEdge' with id: {id}. Retrying {tries}");
+                }
+            } while (tries < 10);
+
+            throw new InvalidOperationException($"Could not get Modbus client for 'SolarEdge' with id: {id}", exception);
         }
 
         /// <summary>
