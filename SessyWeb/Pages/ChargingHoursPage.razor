@@ -38,9 +38,8 @@
                     </RadzenCard>
                     <RadzenStack Orientation="Orientation.Vertical" AlignItems="AlignItems.End" Style="width: 100%;">
                         <RadzenCard>
-                            @*<i class="fas fa-info" style="color: yellow; font-size: 24px;" @onclick="@ShowExplanation"></i>
- *@                            <RadzenButton @ref="ExplanationButton"
-                                                                        Click="@(args => ShowTooltipWithHtml(ExplanationButton!.Element, new TooltipOptions() { Style = "background-color: transparent;)", Duration = null }))">
+                            <RadzenButton @ref="ExplanationButton"
+                                          Click="@(args => ShowTooltipWithHtml(ExplanationButton!.Element, new TooltipOptions() { Style = "background-color: transparent;)", Duration = null }))">
                                 <i class="fas fa-info" style="color: yellow; font-size: 24px;"></i>
                             </RadzenButton>
                         </RadzenCard>
@@ -51,7 +50,7 @@
         <RadzenChart Style=@GraphStyle>
             <RadzenLegend Position="LegendPosition.Top" Visible="true" />
             <RadzenChartTooltipOptions Shared="false" Visible="true" />
-            <RadzenColumnSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Price" LineType="LineType.Dashed" ValueProperty="Price">
+            <RadzenColumnSeries Data="@HourlyInfos" CategoryProperty="Time" Title="BuyingPrice" LineType="LineType.Dashed" ValueProperty="BuyingPrice">
                 <TooltipTemplate Context="data">
                     <ChargingHoursTooltip HourlyInfo=@data />
                 </TooltipTemplate>

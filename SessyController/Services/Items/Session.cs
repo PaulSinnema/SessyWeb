@@ -59,7 +59,7 @@ namespace SessyController.Services.Items
         /// <summary>
         /// The average price of all hourly prices in the session.
         /// </summary>
-        public double AveragePrice => HourlyInfos.Count > 0 ? HourlyInfos.Average(hp => hp.Price) : 0.0;
+        public double AveragePrice => HourlyInfos.Count > 0 ? HourlyInfos.Average(hp => hp.BuyingPrice) : 0.0;
 
         /// <summary>
         /// First hourlyInfo object in the session.
@@ -140,7 +140,7 @@ namespace SessyController.Services.Items
         /// </summary>
         public bool IsCheaper(Session session)
         {
-            return HourlyInfos.Min(hi => hi.Price) < session.HourlyInfos.Min(hi => hi.Price);
+            return HourlyInfos.Min(hi => hi.BuyingPrice) < session.HourlyInfos.Min(hi => hi.BuyingPrice);
         }
 
         /// <summary>
@@ -171,7 +171,7 @@ namespace SessyController.Services.Items
             {
                 case Modes.Charging:
                     {
-                        var list = HourlyInfos.OrderBy(hi => hi.Price).ToList();
+                        var list = HourlyInfos.OrderBy(hi => hi.BuyingPrice).ToList();
 
                         while (++index < list.Count)
                         {
@@ -184,7 +184,7 @@ namespace SessyController.Services.Items
 
                 case Modes.Discharging:
                     {
-                        var list = HourlyInfos.OrderByDescending(hi => hi.Price).ToList();
+                        var list = HourlyInfos.OrderByDescending(hi => hi.BuyingPrice).ToList();
 
                         while (++index < list.Count)
                         {

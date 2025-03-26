@@ -5,10 +5,11 @@ namespace SessyController.Services.Items
 {
     public class HourlyInfo
     {
-        public HourlyInfo(DateTime time, double? price, SettingsConfig settingsConfig)
+        public HourlyInfo(DateTime time, double? buyPrice, double? sellPrice, SettingsConfig settingsConfig)
         {
             Time = time;
-            Price = price.HasValue ? price.Value : 0.0;
+            BuyingPrice = buyPrice.HasValue ? buyPrice.Value : 0.0;
+            SellingPrice = sellPrice.HasValue ? sellPrice.Value : 0.0;
 
             _settingsConfig = settingsConfig;
         }
@@ -18,7 +19,9 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Price from ENTSO-E
         /// </summary>
-        public double Price { get; set; }
+        public double BuyingPrice { get; set; }
+
+        public double SellingPrice { get; set; }
 
         public double SmoothedPrice { get; private set; }
 
@@ -146,7 +149,7 @@ namespace SessyController.Services.Items
 
                 var range = hourlyInfos.Skip(start).Take(end - start + 1);
 
-                double average = range.Count() > 0 ? range.Average(h => h.Price) : 0.0;
+                double average = range.Count() > 0 ? range.Average(h => h.BuyingPrice) : 0.0;
 
                 hourlyInfos[i].SmoothedPrice = average;
             }
@@ -230,7 +233,7 @@ namespace SessyController.Services.Items
         /// </summary>
         public override string ToString()
         {
-            return $"{Time}: Charging: {Charging}, Discharging: {Discharging}, Zero Net Home: {ZeroNetHome}, Price: {Price}, Charge left: {ChargeLeft}, Solar power {SolarPower}";
+            return $"{Time}: Charging: {Charging}, Discharging: {Discharging}, Zero Net Home: {ZeroNetHome}, Price: {BuyingPrice}, Charge left: {ChargeLeft}, Solar power {SolarPower}";
         }
     }
 }

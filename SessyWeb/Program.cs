@@ -84,7 +84,6 @@ builder.Services.AddScoped<EnergyHistoryService>();
 builder.Services.AddScoped<DbHelper>();
 builder.Services.AddScoped<PowerEstimatesService>();
 builder.Services.AddScoped<FinancialResultsService>();
-builder.Services.AddScoped<TaxesService>();
 builder.Services.AddScoped<SolarEdgeDataService>();
 
 builder.Services.AddSingleton<SolarEdgeService>();
@@ -98,6 +97,7 @@ builder.Services.AddSingleton<SessyMonitorService>();
 builder.Services.AddSingleton<EnergyMonitorService>();
 builder.Services.AddSingleton<SolarDataService>();
 builder.Services.AddSingleton<EPEXPricesDataService>();
+builder.Services.AddSingleton<TaxesService>();
 
 builder.Services.AddHostedService(provider => provider.GetRequiredService<DayAheadMarketService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<BatteriesService>());

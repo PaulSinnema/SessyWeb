@@ -728,15 +728,15 @@ namespace SessyController.Services
                 {
                     if (lastSession.Mode == Modes.Charging && session.Mode == Modes.Discharging)
                     {
-                        using var chargeEnumerator = lastSession.GetHourlyInfoList().OrderBy(hi => hi.Price).ToList().GetEnumerator();
-                        using var dischargeEnumerator = session.GetHourlyInfoList().OrderByDescending(hi => hi.Price).ToList().GetEnumerator();
+                        using var chargeEnumerator = lastSession.GetHourlyInfoList().OrderBy(hi => hi.BuyingPrice).ToList().GetEnumerator();
+                        using var dischargeEnumerator = session.GetHourlyInfoList().OrderByDescending(hi => hi.BuyingPrice).ToList().GetEnumerator();
 
                         var hasCharging = chargeEnumerator.MoveNext();
                         var hasDischarging = dischargeEnumerator.MoveNext();
 
                         while (hasCharging && hasDischarging)
                         {
-                            if (chargeEnumerator.Current.Price + _settingsConfig.CycleCost > dischargeEnumerator.Current.Price)
+                            if (chargeEnumerator.Current.BuyingPrice + _settingsConfig.CycleCost > dischargeEnumerator.Current.BuyingPrice)
                             {
                                 session.RemoveHourlyInfo(dischargeEnumerator.Current);
 
@@ -775,14 +775,14 @@ namespace SessyController.Services
                 {
                     case Modes.Charging:
                         {
-                            listToLimit = session.GetHourlyInfoList().OrderByDescending(hp => hp.Price).ToList();
+                            listToLimit = session.GetHourlyInfoList().OrderByDescending(hp => hp.BuyingPrice).ToList();
 
                             break;
                         }
 
                     case Modes.Discharging:
                         {
-                            listToLimit = session.GetHourlyInfoList().OrderBy(hp => hp.Price).ToList();
+                            listToLimit = session.GetHourlyInfoList().OrderBy(hp => hp.BuyingPrice).ToList();
                             break;
                         }
 
@@ -1016,13 +1016,13 @@ namespace SessyController.Services
                 // Check the first element
                 if (hourlyInfos.Count > 1)
                 {
-                    if (hourlyInfos[0].Price <= hourlyInfos[1].Price)
+                    if (hourlyInfos[0].BuyingPrice <= hourlyInfos[1].BuyingPrice)
                     {
                         if (!_sessions.InAnySession(hourlyInfos[0]))
                             _sessions.AddNewSession(Modes.Charging, hourlyInfos[0]);
                     }
 
-                    if (hourlyInfos[0].Price > hourlyInfos[1].Price)
+                    if (hourlyInfos[0].BuyingPrice > hourlyInfos[1].BuyingPrice)
                     {
                         if (!_sessions.InAnySession(hourlyInfos[0]))
                             _sessions.AddNewSession(Modes.Discharging, hourlyInfos[0]);
@@ -1032,13 +1032,13 @@ namespace SessyController.Services
                 // Check the elements in between.
                 for (var index = 1; index < hourlyInfos.Count - 2; index++)
                 {
-                    if (hourlyInfos[index].Price < hourlyInfos[index - 1].Price && hourlyInfos[index].Price <= hourlyInfos[index + 1].Price)
+                    if (hourlyInfos[index].BuyingPrice < hourlyInfos[index - 1].BuyingPrice && hourlyInfos[index].BuyingPrice <= hourlyInfos[index + 1].BuyingPrice)
                     {
                         if (!_sessions.InAnySession(hourlyInfos[index]))
                             _sessions.AddNewSession(Modes.Charging, hourlyInfos[index]);
                     }
 
-                    if (hourlyInfos[index].Price > hourlyInfos[index - 1].Price && hourlyInfos[index].Price >= hourlyInfos[index + 1].Price)
+                    if (hourlyInfos[index].BuyingPrice > hourlyInfos[index - 1].BuyingPrice && hourlyInfos[index].BuyingPrice >= hourlyInfos[index + 1].BuyingPrice)
                     {
                         if (!_sessions.InAnySession(hourlyInfos[index]))
                             _sessions.AddNewSession(Modes.Discharging, hourlyInfos[index]);
@@ -1050,13 +1050,13 @@ namespace SessyController.Services
                 {
                     var index = hourlyInfos.Count - 1;
 
-                    if (hourlyInfos[index].Price < hourlyInfos[index - 1].Price)
+                    if (hourlyInfos[index].BuyingPrice < hourlyInfos[index - 1].BuyingPrice)
                     {
                         if (!_sessions.InAnySession(hourlyInfos[index]))
                             _sessions.AddNewSession(Modes.Charging, hourlyInfos[index]);
                     }
 
-                    if (hourlyInfos[index].Price > hourlyInfos[index - 1].Price)
+                    if (hourlyInfos[index].BuyingPrice > hourlyInfos[index - 1].BuyingPrice)
                     {
                         if (!_sessions.InAnySession(hourlyInfos[index]))
                             _sessions.AddNewSession(Modes.Discharging, hourlyInfos[index]);

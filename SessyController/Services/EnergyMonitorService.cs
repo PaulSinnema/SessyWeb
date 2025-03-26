@@ -168,7 +168,7 @@ namespace SessyController.Services
                 TarrifIndicator = p1Details.TariffIndicator,
                 Temperature = hourExpectancy.Temp,
                 GlobalRadiation = hourExpectancy.GlobalRadiation,
-                Price = hourlyInfo != null ? hourlyInfo.Price : 0.0
+                Price = hourlyInfo != null ? hourlyInfo.BuyingPrice : 0.0
             });
 
             _energyHistoryService.AddRange(energyHistoryList);

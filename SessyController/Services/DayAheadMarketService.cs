@@ -21,8 +21,14 @@ namespace SessyController.Services
         private IServiceScopeFactory _serviceScopeFactory { get; set; }
         private EPEXPricesDataService _epexPricesDataService { get; set; }
         private IOptionsMonitor<SettingsConfig> _settingsConfigMonitor { get; set; }
+
+        private IServiceScope _scope;
+
+        private TaxesService _taxesService { get; set; }
+
         private SettingsConfig _settingsConfig { get; set; }
         private IDisposable? _settingsConfigMonitorSubscription { get; set; }
+        private Taxes? _taxes { get; set; }
 
         public bool PricesAvailable { get; internal set; } = false;
         public bool PricesInitialized { get; internal set; } = false;
@@ -32,6 +38,7 @@ namespace SessyController.Services
                                     BatteryContainer batteryContainer,
                                     EPEXPricesDataService epexPricesDataService,
                                     IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
+                                    TaxesService taxesService,
                                     IServiceScopeFactory serviceScopeFactory)
         {
             _timeZoneService = timeZoneService;
@@ -39,6 +46,12 @@ namespace SessyController.Services
             _serviceScopeFactory = serviceScopeFactory;
             _epexPricesDataService = epexPricesDataService;
             _settingsConfigMonitor = settingsConfigMonitor;
+
+            _scope = serviceScopeFactory.CreateScope();
+
+            _taxesService = taxesService;
+
+            _taxes = _taxesService.GetTaxesForDate(_timeZoneService.Now.Date);
 
             _settingsConfig = _settingsConfigMonitor.CurrentValue;
 
@@ -137,7 +150,7 @@ namespace SessyController.Services
                 if (data != null)
                 {
                     hourlyInfos = data.OrderBy(ep => ep.Time)
-                        .Select(ep => new HourlyInfo(ep.Time, ep.Price, _settingsConfig))
+                        .Select(ep => new HourlyInfo(ep.Time, GetBuyPrice(ep), GetBuyPrice(ep), _settingsConfig))
                         .ToList();
 
                     return hourlyInfos;
@@ -149,6 +162,21 @@ namespace SessyController.Services
             {
                 GetPricesSemaphore.Release();
             }
+        }
+
+        public double GetBuyPrice(EPEXPrices epexPrices)
+        {
+            return GetPrice(epexPrices, _taxes.PurchaseCompensation);
+        }
+
+        public double GetSellPrice(EPEXPrices epexPrices)
+        {
+            return GetPrice(epexPrices, _taxes.ReturnDeliveryCompensation);
+        }
+
+        private double GetPrice(EPEXPrices epexPrices, double compensation)
+        {
+            return ((epexPrices.Price!.Value + _taxes.EnergyTax + compensation) * (100 + _taxes.ValueAddedTax)) / 100;
         }
 
         /// <summary>

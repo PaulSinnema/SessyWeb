@@ -151,62 +151,71 @@ namespace SessyController.Services.Items
                 // .Where(hp => hp.Time.Date.AddHours(hp.Time.Hour) >= localTimeHour)
                 .OrderBy(hi => hi.Time))
             {
-                switch ((hourlyInfo.Charging, hourlyInfo.Discharging, hourlyInfo.ZeroNetHome))
+                switch (hourlyInfo.Mode)
                 {
-                    case (true, false, false): // Charging
-                        {
-                            var totalChargingCapacity = Math.Min(_totalChargingCapacity, _totalBatteryCapacity - (previousHour == null ? 0.0 : previousHour.ChargeLeft)) / 1000;
+                    case Modes.Charging:
+                        CalculateChargingProfits(lastChargingSession, previousHour, hourlyInfo);
+                        break;
 
-                            hourlyInfo.Selling = 0.00;
-                            hourlyInfo.Buying = totalChargingCapacity * hourlyInfo.Price;
+                    case Modes.Discharging:
+                        CalculateDischargingProfits(hourlyInfo);
+                        break;
 
-                            if (lastChargingSession.Count > 0)
-                            {
-                                var lastDateCharging = lastChargingSession.Max(hi => hi.Time);
+                    case Modes.ZeroNetHome:
+                        CalculateZeroNetHomeProfits(lastChargingSession, hourlyInfo);
+                        break;
 
-                                if ((hourlyInfo.Time - lastDateCharging).Hours > 1)
-                                {
-                                    lastChargingSession.Clear();
-                                }
-                            }
+                    case Modes.Disabled:
+                        CalculateDisabledProfits(hourlyInfo);
+                        break;
 
-                            lastChargingSession.Add(hourlyInfo);
-                            break;
-                        }
-
-                    case (false, true, false): // Discharging
-                        {
-                            var totalDischargingCapacity = Math.Min(_totalDischargingCapacity, hourlyInfo.ChargeLeft) / 1000;
-
-                            hourlyInfo.Selling = totalDischargingCapacity * hourlyInfo.Price;
-                            hourlyInfo.Buying = 0.00;
-                            break;
-                        }
-
-                    case (false, false, true): // Zero net home
-                        {
-                            var kWh = Math.Min(_homeNeeds / 24, hourlyInfo.ChargeLeft) / 1000;
-                            hourlyInfo.Selling = hourlyInfo.Price * kWh;
-                            hourlyInfo.Buying = lastChargingSession.Count > 0 ? lastChargingSession.Average(lcs => lcs.Price) * kWh : 0.0;
-                            break;
-                        }
-
-                    case (false, false, false): // Disabled
-                        {
-                            hourlyInfo.Selling = 0.0;
-                            hourlyInfo.Buying = 0.0;
-
-                            break;
-                        }
-
+                    case Modes.Unknown:
                     default:
-                        {
-                            throw new InvalidOperationException("Wrong combination of Booleans");
-                        }
+                        throw new InvalidOperationException($"Wrong mode {hourlyInfo.Mode}"); ;
                 }
-
                 previousHour = hourlyInfo;
             }
+        }
+
+        private void CalculateChargingProfits(List<HourlyInfo> lastChargingSession, HourlyInfo? previousHour, HourlyInfo hourlyInfo)
+        {
+            var totalChargingCapacity = Math.Min(_totalChargingCapacity, _totalBatteryCapacity - (previousHour == null ? 0.0 : previousHour.ChargeLeft)) / 1000;
+
+            hourlyInfo.Selling = 0.00;
+            hourlyInfo.Buying = totalChargingCapacity * hourlyInfo.BuyingPrice;
+
+            if (lastChargingSession.Count > 0)
+            {
+                var lastDateCharging = lastChargingSession.Max(hi => hi.Time);
+
+                if ((hourlyInfo.Time - lastDateCharging).Hours > 1)
+                {
+                    lastChargingSession.Clear();
+                }
+            }
+
+            lastChargingSession.Add(hourlyInfo);
+        }
+
+        private void CalculateDischargingProfits(HourlyInfo hourlyInfo)
+        {
+            var totalDischargingCapacity = Math.Min(_totalDischargingCapacity, hourlyInfo.ChargeLeft) / 1000;
+
+            hourlyInfo.Selling = totalDischargingCapacity * hourlyInfo.SellingPrice;
+            hourlyInfo.Buying = 0.00;
+        }
+
+        private void CalculateZeroNetHomeProfits(List<HourlyInfo> lastChargingSession, HourlyInfo hourlyInfo)
+        {
+            var kWh = Math.Min(_homeNeeds / 24, hourlyInfo.ChargeLeft) / 1000;
+            hourlyInfo.Selling = hourlyInfo.SellingPrice * kWh;
+            hourlyInfo.Buying = lastChargingSession.Count > 0 ? lastChargingSession.Average(lcs => lcs.BuyingPrice) * kWh : 0.0;
+        }
+
+        private static void CalculateDisabledProfits(HourlyInfo hourlyInfo)
+        {
+            hourlyInfo.Selling = 0.0;
+            hourlyInfo.Buying = 0.0;
         }
 
         /// <summary>
@@ -217,8 +226,8 @@ namespace SessyController.Services.Items
             if (lastChargingSession != null)
             {
                 var kWh = Math.Min(_homeNeeds / 24, hourlyInfo.ChargeLeft) / 1000;
-                var selling = hourlyInfo.Price * kWh;
-                var buying = lastChargingSession.Count > 0 ? lastChargingSession.Average(lcs => lcs.Price) * kWh : 0.0;
+                var selling = hourlyInfo.BuyingPrice * kWh;
+                var buying = lastChargingSession.Count > 0 ? lastChargingSession.Average(lcs => lcs.BuyingPrice) * kWh : 0.0;
 
                 return selling - buying;
             }
@@ -248,9 +257,9 @@ namespace SessyController.Services.Items
 
             foreach (var hourlyInfo in _hourlyInfos)
             {
-                if(hourlyInfo.Time >= first && hourlyInfo.Time <= last && currentCharge >= 0)
+                if (hourlyInfo.Time >= first && hourlyInfo.Time <= last && currentCharge >= 0)
                 {
-                    if(firstTime)
+                    if (firstTime)
                     {
                         currentCharge = hourlyInfo.ChargeLeft;
                         firstTime = false;
@@ -258,7 +267,7 @@ namespace SessyController.Services.Items
 
                     hours++;
 
-                    if(hourlyInfo.ZeroNetHome)
+                    if (hourlyInfo.ZeroNetHome)
                         currentCharge -= homeNeeds;
                 }
             }
@@ -281,7 +290,7 @@ namespace SessyController.Services.Items
             var next = index + 1;
 
             if (index >= 0)
-            { 
+            {
                 for (var i = 0; i < maxHours - 1; i++)
                 {
                     var averagePrice = GetAveragePriceInWindow(hourlyInfos, index, 20);
@@ -294,20 +303,20 @@ namespace SessyController.Services.Items
                                 {
                                     if (next < hourlyInfos.Count)
                                     {
-                                        if (hourlyInfos[next].Price < hourlyInfos[prev].Price)
+                                        if (hourlyInfos[next].BuyingPrice < hourlyInfos[prev].BuyingPrice)
                                         {
-                                            if (hourlyInfos[next].Price < averagePrice)
+                                            if (hourlyInfos[next].BuyingPrice < averagePrice)
                                                 AddHourlyInfo(session, hourlyInfos[next++]);
                                         }
                                         else
                                         {
-                                            if (hourlyInfos[prev].Price < averagePrice)
+                                            if (hourlyInfos[prev].BuyingPrice < averagePrice)
                                                 AddHourlyInfo(session, hourlyInfos[prev--]);
                                         }
                                     }
                                     else
                                     {
-                                        if (hourlyInfos[prev].Price < averagePrice)
+                                        if (hourlyInfos[prev].BuyingPrice < averagePrice)
                                             AddHourlyInfo(session, hourlyInfos[prev--]);
                                     }
                                 }
@@ -315,7 +324,7 @@ namespace SessyController.Services.Items
                                 {
                                     if (next < hourlyInfos.Count)
                                     {
-                                        if (hourlyInfos[next].Price < averagePrice)
+                                        if (hourlyInfos[next].BuyingPrice < averagePrice)
                                             AddHourlyInfo(session, hourlyInfos[next++]);
                                     }
                                 }
@@ -329,20 +338,20 @@ namespace SessyController.Services.Items
                                 {
                                     if (next < hourlyInfos.Count)
                                     {
-                                        if (hourlyInfos[next].Price > hourlyInfos[prev].Price)
+                                        if (hourlyInfos[next].BuyingPrice > hourlyInfos[prev].BuyingPrice)
                                         {
-                                            if (hourlyInfos[next].Price > averagePrice)
+                                            if (hourlyInfos[next].BuyingPrice > averagePrice)
                                                 AddHourlyInfo(session, hourlyInfos[next++]);
                                         }
                                         else
                                         {
-                                            if (hourlyInfos[prev].Price > averagePrice)
+                                            if (hourlyInfos[prev].BuyingPrice > averagePrice)
                                                 AddHourlyInfo(session, hourlyInfos[prev--]);
                                         }
                                     }
                                     else
                                     {
-                                        if (hourlyInfos[prev].Price > averagePrice)
+                                        if (hourlyInfos[prev].BuyingPrice > averagePrice)
                                             AddHourlyInfo(session, hourlyInfos[prev--]);
                                     }
                                 }
@@ -350,7 +359,7 @@ namespace SessyController.Services.Items
                                 {
                                     if (next < hourlyInfos.Count)
                                     {
-                                        if (hourlyInfos[next].Price > averagePrice)
+                                        if (hourlyInfos[next].BuyingPrice > averagePrice)
                                             AddHourlyInfo(session, hourlyInfos[next++]);
                                     }
                                 }
@@ -383,9 +392,9 @@ namespace SessyController.Services.Items
                 .GetRange(start, end - start);
 
             if (list.Count > 0)
-                return list.Average(hi => hi.Price);
+                return list.Average(hi => hi.BuyingPrice);
 
-            return hourlyInfos[index].Price;
+            return hourlyInfos[index].BuyingPrice;
         }
 
         /// <summary>
