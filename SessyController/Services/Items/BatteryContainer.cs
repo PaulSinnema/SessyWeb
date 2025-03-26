@@ -117,21 +117,11 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Start charging cycle.
         /// </summary>
-        public async Task StartCharging(bool priceIsNegative)
+        public void StartCharging()
         {
-            double solarOutputPerBattery = 0.0;
-
-            if (!priceIsNegative)
-            {
-                var solarPowerOutput = await _solarEdgeService.GetTotalACPowerInWatts();
-                solarOutputPerBattery = solarPowerOutput / Batteries.Count;
-            }
-
             Batteries.ForEach(async bat =>
             {
                 var maxChargingPower = bat.GetMaxCharge();
-
-                maxChargingPower = solarOutputPerBattery > maxChargingPower ? maxChargingPower : maxChargingPower - solarOutputPerBattery;
 
                 await bat.SetActivePowerStrategyToOpenAPI();
                 await bat.SetPowerSetpointAsync(GetSetpoint(bat, -(Convert.ToInt16(maxChargingPower))));

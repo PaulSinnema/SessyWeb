@@ -160,7 +160,7 @@ namespace SessyController.Services
                         {
                             _logger.LogWarning("No prices available from ENTSO-E, switching to manual charging");
 
-                            await HandleManualCharging();
+                            HandleManualCharging();
                         }
                         else
                         {
@@ -214,7 +214,7 @@ namespace SessyController.Services
 #if !DEBUG
 
                 if (currentHourlyInfo.Charging)
-                    await _batteryContainer.StartCharging(currentHourlyInfo.Price < 0);
+                    _batteryContainer.StartCharging();
                 else if (currentHourlyInfo.Discharging)
                     _batteryContainer.StartDisharging();
                 else if (currentHourlyInfo.ZeroNetHome)
@@ -225,7 +225,7 @@ namespace SessyController.Services
             }
         }
 
-        private async Task HandleManualCharging()
+        private void HandleManualCharging()
         {
 #if !DEBUG
             HourlyInfo? currentHourlyInfo = GetCurrentHourlyInfo();
@@ -233,7 +233,7 @@ namespace SessyController.Services
             var localTime = _timeZoneService.Now;
 
             if (_settingsConfig.ManualChargingHours.Contains(localTime.Hour))
-                await _batteryContainer.StartCharging(currentHourlyInfo.Price < 0);
+                _batteryContainer.StartCharging();
             else if (_settingsConfig.ManualDischargingHours.Contains(localTime.Hour))
                 _batteryContainer.StartDisharging();
             else if (_settingsConfig.ManualNetZeroHomeHours.Contains(localTime.Hour))
