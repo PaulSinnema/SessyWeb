@@ -61,6 +61,8 @@ namespace SessyController.Services
 
         protected override async Task ExecuteAsync(CancellationToken cancelationToken)
         {
+            _logger.LogWarning("Energy monitor service started ...");
+
             while (!cancelationToken.IsCancellationRequested)
             {
                 try
@@ -75,25 +77,23 @@ namespace SessyController.Services
                 try
                 {
                     var now = _timeZoneService.Now;
-                    var delayTime = 60 - now.Minute + 1; // 1 Minute extra to be sure.
+                    var delayTime = 60 - now.Minute;
 
                     await Task.Delay(TimeSpan.FromMinutes(delayTime), cancelationToken);
                 }
-                catch (TaskCanceledException)
+                catch (Exception ex)
                 {
-                    // Ignore cancellation exception during delay
+                    _logger.LogException(ex, "An error occurred during delay of thread.");
+                    // Ignore exception during delay
                 }
             }
+
+            _logger.LogWarning("Energy monitor service stopped");
         }
 
         private async Task Process(CancellationToken cancelationToken)
         {
-
-            while (!_weatherService.Initialized)
-                await Task.Delay(TimeSpan.FromSeconds(1), cancelationToken);
-
-            while (!_dayAheadMarketService.PricesInitialized)
-                await Task.Delay(TimeSpan.FromSeconds(1), cancelationToken);
+            await EnsureServicesAreInitialized(cancelationToken);
 
             foreach (P1Meter? p1Meter in _p1MeterContainer.P1Meters)
             {
@@ -119,6 +119,26 @@ namespace SessyController.Services
                     }
                 }
             }
+        }
+
+        private async Task EnsureServicesAreInitialized(CancellationToken cancelationToken)
+        {
+            var tries = 0;
+
+            while (!_weatherService.Initialized && tries++ < 10)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(1), cancelationToken);
+            }
+
+            tries = 0;
+
+            while (!_dayAheadMarketService.PricesInitialized && tries++ < 10)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(1), cancelationToken);
+            }
+
+            if (!(_dayAheadMarketService.PricesInitialized && _weatherService.Initialized))
+                throw new InvalidOperationException("Day ahead service or weather service not initialized");
         }
 
         private EnergyHistory? GetEnergyHistory(DateTime selectTime)

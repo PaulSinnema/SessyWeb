@@ -39,6 +39,8 @@ namespace SessyController.Services
 
         protected override async Task ExecuteAsync(CancellationToken cancelationToken)
         {
+            _logger.LogWarning("Weather service started ...");
+
             while (!cancelationToken.IsCancellationRequested)
             {
                 Initialized = false;
@@ -70,7 +72,7 @@ namespace SessyController.Services
                 await Task.Delay(TimeSpan.FromMinutes(30), cancelationToken);
             }
 
-            _logger.LogInformation("Weather service stopped.");
+            _logger.LogWarning("Weather service stopped.");
         }
 
         private void StoreWeatherData(WeerData? weatherData)

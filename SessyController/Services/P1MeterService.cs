@@ -5,7 +5,6 @@ using SessyController.Configurations;
 using SessyController.Services;
 using System.Net.Http.Headers;
 using System.Text;
-using System.Threading;
 
 /// <summary>
 /// API client for interacting with the P1 Meter.
@@ -41,7 +40,7 @@ public class P1MeterService : BackgroundService, IDisposable
     }
     protected override async Task ExecuteAsync(CancellationToken cancelationToken)
     {
-        _logger.LogInformation("P1Meterservice started.");
+        _logger.LogWarning("P1Meter service started ...");
 
         // Loop to fetch prices every 5 seconds
         while (!cancelationToken.IsCancellationRequested)
@@ -71,7 +70,7 @@ public class P1MeterService : BackgroundService, IDisposable
             }
         }
 
-        _logger.LogInformation("P1MeterService stopped.");
+        _logger.LogWarning("P1Meter service stopped.");
     }
 
     private async Task Process(CancellationToken cancelationToken)

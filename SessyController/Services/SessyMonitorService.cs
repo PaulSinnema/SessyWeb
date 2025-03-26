@@ -46,6 +46,8 @@ namespace SessyController.Services
 
         protected override async Task ExecuteAsync(CancellationToken cancelationToken)
         {
+            _logger.LogWarning("Sessy monitor service started ...");
+
             while (!cancelationToken.IsCancellationRequested)
             {
                 try
@@ -66,6 +68,8 @@ namespace SessyController.Services
                     // Ignore cancellation exception during delay
                 }
             }
+
+            _logger.LogWarning("Sessy monitor service started ...");
         }
 
         public async Task Process(CancellationToken cancellationToken)

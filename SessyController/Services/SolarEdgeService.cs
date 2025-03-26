@@ -66,7 +66,7 @@ namespace SessyController.Services
 
         protected override async Task ExecuteAsync(CancellationToken cancelationToken)
         {
-            _logger.LogInformation("SolarEdge service started.");
+            _logger.LogWarning("SolarEdge service started ...");
 
             // Loop to fetch prices every second
             while (!cancelationToken.IsCancellationRequested)
@@ -96,7 +96,7 @@ namespace SessyController.Services
                 }
             }
 
-            _logger.LogInformation("SolarEdge stopped.");
+            _logger.LogWarning("SolarEdge stopped.");
         }
 
         private Dictionary<string, Dictionary<DateTime, double>> CollectedPowerData { get; set; } = new();

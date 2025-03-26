@@ -95,7 +95,7 @@ namespace SessyController.Services
         /// </summary>
         protected override async Task ExecuteAsync(CancellationToken cancelationToken)
         {
-            _logger.LogInformation("EPEXHourlyInfosService started.");
+            _logger.LogWarning("Batteries service started ...");
 
             // Loop to fetch prices every hour
             while (!cancelationToken.IsCancellationRequested)

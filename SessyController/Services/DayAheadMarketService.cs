@@ -52,7 +52,7 @@ namespace SessyController.Services
         /// </summary>
         protected override async Task ExecuteAsync(CancellationToken cancelationToken)
         {
-            _logger.LogInformation("EPEXHourlyInfosService started.");
+            _logger.LogWarning("EPEX Hourly Infos Service started ...");
 
             // Loop to fetch prices every 24 hours
             while (!cancelationToken.IsCancellationRequested)
@@ -92,7 +92,7 @@ namespace SessyController.Services
                 }
             }
 
-            _logger.LogInformation("EPEXHourlyInfosService stopped.");
+            _logger.LogWarning("EPEX HourlyInfos Service stopped.");
         }
 
         /// <summary>
