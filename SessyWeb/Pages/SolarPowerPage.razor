@@ -1,21 +1,23 @@
 ﻿@page "/solarpower"
 @inherits PageBase
 
-<RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Center" AlignItems="AlignItems.Center" Gap="0.5rem" class="rz-p-12">
-    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.Center" AlignItems="AlignItems.Center" Gap="0.5rem" class="rz-p-12">
-        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.Center" AlignItems="AlignItems.Center" Gap="0.5rem" class="rz-p-12">
-            <RadzenLabel Text="Select Date" Component="RadzenDatePickerBindValue" />
-            <RadzenDatePicker @bind-Value=@DateChosen Change="@(date => DateChanged(date))" Name="RadzenDatePickerBindValue" ShowCalendarWeek />
+    <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Center" Gap="0.5rem" class="rz-p-12">
+<div style="width: 100%; overflow: auto;">
+        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Center" Gap="0.5rem" class="rz-p-12">
+            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Center" Gap="0.5rem" class="rz-p-12">
+                <RadzenLabel Text="Select Date" Component="RadzenDatePickerBindValue" />
+                <RadzenDatePicker @bind-Value=@DateChosen Change="@(date => DateChanged(date))" Name="RadzenDatePickerBindValue" ShowCalendarWeek />
+            </RadzenStack>
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.Center" Gap="0.5rem" class="rz-p-sm-12">
+                <RadzenLabel Text="Period" Component="DropDownBindValue" />
+                <RadzenDropDown @bind-Value=@PeriodChosen Data=@Periods Change="@(period => PeriodChanged(period))" Style="width: 100%; max-width: 400px;" Name="DropDownBindValue" />
+            </RadzenStack>
         </RadzenStack>
-        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.Center" Gap="0.5rem" class="rz-p-sm-12">
-            <RadzenLabel Text="Period" Component="DropDownBindValue" />
-            <RadzenDropDown @bind-Value=@PeriodChosen Data=@Periods Change="@(period => PeriodChanged(period))" Style="width: 100%; max-width: 400px;" Name="DropDownBindValue" />
+        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Center" Gap="0.5rem" class="rz-p-12">
+            <RadzenChart Style="@GraphStyle">
+                <RadzenLegend Position="LegendPosition.Top" Visible="true" />
+                <RadzenAreaSeries Data="@SolarEdgeData" Smooth="true" Title="Solar power" CategoryProperty="Time" LineType="LineType.Dotted" ValueProperty="Power" />
+            </RadzenChart>
         </RadzenStack>
+        </div>
     </RadzenStack>
-    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.Center" AlignItems="AlignItems.Center" Gap="0.5rem" class="rz-p-12">
-        <RadzenChart>
-            <RadzenLegend Position="LegendPosition.Top" Visible="true" />
-            <RadzenLineSeries Data="@SolarEdgeData" Smooth="true" CategoryProperty="Time" LineType="LineType.Dotted" ValueProperty="Power" />
-        </RadzenChart>
-    </RadzenStack>
-</RadzenStack>

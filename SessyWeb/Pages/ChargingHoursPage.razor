@@ -105,6 +105,8 @@
                 </ChildContent>
             </RadzenLineSeries>
             <RadzenLineSeries Data="@ChargeNeededInfos" Smooth="true" CategoryProperty="Time" Title="Charge needed" LineType="LineType.Dashed" ValueProperty="@nameof(ChargeNeededInfo.ChargeNeededVisual)">
+                <TooltipTemplate Context="data">
+                </TooltipTemplate>
                 <ChildContent>
                     <RadzenMarkers Visible="false" />
                     <RadzenSeriesDataLabels Visible="false" />

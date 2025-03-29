@@ -18,6 +18,8 @@ namespace SessyWeb.Pages
 
         public DateTime? DateChosen { get; set; }
 
+        private string GraphStyle { get; set; } = "min-width: 500px;";
+
         public enum PeriodsEnums
         {
             Day,
@@ -41,6 +43,21 @@ namespace SessyWeb.Pages
         public void PeriodChanged(object obj)
         {
             SelectionChanged();
+        }
+
+        protected override Task OnAfterRenderAsync(bool firstRender)
+        {
+            if (firstRender)
+            {
+                DateChosen = _timeZoneService!.Now.Date;
+                PeriodChosen = PeriodsEnums.Month;
+
+                SelectionChanged();
+
+                StateHasChanged();
+            }
+
+            return base.OnAfterRenderAsync(firstRender);
         }
 
         private void SelectionChanged()

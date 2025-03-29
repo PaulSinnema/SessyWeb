@@ -135,7 +135,7 @@ namespace SessyController.Services
         private Sessions? _sessions { get; set; } = null;
 
         /// <summary>
-        /// This routine is called periodicly as a background task.
+        /// This routine is called periodically as a background task.
         /// </summary>
         public async Task Process(CancellationToken cancellationToken)
         {
