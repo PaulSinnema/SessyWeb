@@ -158,7 +158,7 @@ namespace SessyController.Services
 
                         if (!(_dayAheadMarketService.PricesAvailable && currentHourlyInfo != null))
                         {
-                            _logger.LogWarning("No prices available from ENTSO-E, switching to manual charging");
+                            _logger.LogInformation("No prices available from ENTSO-E, switching to manual charging");
 
                             HandleManualCharging();
                         }
