@@ -229,9 +229,9 @@ namespace SessyController.Services
                 });
             }
 
-            _epexPricesDataService.Add(statusList, (item, set) =>
+            _epexPricesDataService.AddOrUpdate(statusList, (item, set) =>
             {
-                return set.Any(sd => sd.Time == item.Time); // Contains
+                return set.Where(sd => sd.Time == item.Time).Single(); // Contains
             });
         }
 
