@@ -194,12 +194,17 @@ namespace SessyController.Services
                 var ep = dynamicSchedule.EnergyPrices[dateIndex];
                 var date = Convert.ToDateTime(ep.Date);
 
-                for (int hourIndex = 0; hourIndex < ep.Price.Count; hourIndex++)
+                // BUG: Sometime the Sessy returns 2 lists for the same date. The
+                //      second list then contains all zero prices.
+                if (!ep.Price!.All(pr => pr == 0))
                 {
-                    var price = Convert.ToDouble(ep.Price[hourIndex]);
-                    var priceWattHour = price / 100000.0;
+                    for (int hourIndex = 0; hourIndex < ep.Price.Count; hourIndex++)
+                    {
+                        var price = Convert.ToDouble(ep.Price[hourIndex]);
+                        var priceWattHour = price / 100000.0;
 
-                    list.AddOrUpdate(date.AddHours(hourIndex), priceWattHour, (key, oldValue) => priceWattHour);
+                        list.AddOrUpdate(date.AddHours(hourIndex), priceWattHour, (key, oldValue) => priceWattHour);
+                    }
                 }
             }
 
