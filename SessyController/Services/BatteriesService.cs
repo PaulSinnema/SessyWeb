@@ -569,11 +569,13 @@ namespace SessyController.Services
                     case Modes.Charging:
                         charge += _batteryContainer.GetChargingCapacity();
                         charge += hourlyInfo.SolarPowerInWatts;
+                        charge = Math.Min(charge, hourlyInfo.ChargeNeeded);
                         break;
 
                     case Modes.Discharging:
                         charge -= _batteryContainer.GetDischargingCapacity();
                         charge += hourlyInfo.SolarPowerInWatts;
+                        charge = Math.Max(charge, hourlyInfo.ChargeNeeded);
                         break;
 
                     case Modes.ZeroNetHome:
@@ -886,6 +888,9 @@ namespace SessyController.Services
             }
         }
 
+        /// <summary>
+        /// The previous session is a charging session, handle it.
+        /// </summary>
         private void HandleChargingCalculation(Session previousSession, Session nextSession)
         {
             switch (nextSession.Mode)
@@ -903,6 +908,9 @@ namespace SessyController.Services
             }
         }
 
+        /// <summary>
+        /// The previous session is a discharging session. Handle it.
+        /// </summary>
         private void HandleDischargingCalculation(Session previousSession, Session nextSession)
         {
             switch (nextSession.Mode)
@@ -919,36 +927,29 @@ namespace SessyController.Services
             }
         }
 
+        /// <summary>
+        /// The previous session is a discharging session. The next is a charging session. Handle it.
+        /// </summary>
         private void HandleDischargingChargingCalculation(Session previousSession, Session nextSession)
         {
             List<HourlyInfo> infoObjectsBetween = GetInfoObjectsBetween(previousSession, nextSession);
-            var hourNeed = _settingsConfig.RequiredHomeEnergy / 24;
-            var totalNeed = hourNeed * infoObjectsBetween.Count();
+            var totalNeed = GetEstimatePowerNeeded(infoObjectsBetween);
 
             previousSession.SetChargeNeeded(totalNeed);
-            infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = hourNeed);
         }
 
-        private void HandleHoursBetweenSessions(Session previousSession, Session nextSession)
-        {
-            List<HourlyInfo> infoObjectsBetween = GetInfoObjectsBetween(previousSession, nextSession);
-            var hourNeed = _settingsConfig.RequiredHomeEnergy / 24;
-
-            infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = hourNeed);
-        }
-
+        /// <summary>
+        /// The previous session is a charging session. The next a discharging session. Handle it.
+        /// </summary>
         private void HandleChargingDischargingSessions(Session previousSession, Session nextSession)
         {
             List<HourlyInfo> infoObjectsBetween = GetInfoObjectsBetween(previousSession, nextSession);
-
             var estimateNeeded = GetEstimatePowerNeeded(infoObjectsBetween);
 
             var chargeCalculated = estimateNeeded + nextSession.GetChargeNeeded();
             var chargeNeeded = Math.Min(chargeCalculated, _batteryContainer.GetTotalCapacity());
 
             previousSession.SetChargeNeeded(chargeNeeded);
-
-            infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = chargeNeeded);
         }
 
         /// <summary>
@@ -970,7 +971,7 @@ namespace SessyController.Services
                 {
                     var count = infoObjectsBetween.Where(hi => hi.Mode == Modes.ZeroNetHome).Count();
 
-                    var chargeNeeded = (_settingsConfig.RequiredHomeEnergy / 24) * count;
+                    var chargeNeeded = GetEstimatePowerNeeded(infoObjectsBetween);
 
                     chargeNeeded += nextSession.GetChargeNeeded();
 
@@ -982,6 +983,18 @@ namespace SessyController.Services
                     previousSession.SetChargeNeeded(0.0);
                 }
             }
+        }
+
+        /// <summary>
+        /// Handle the hourly info objects between 2 sessions.
+        /// </summary>
+        private void HandleHoursBetweenSessions(Session previousSession, Session nextSession)
+        {
+            List<HourlyInfo> infoObjectsBetween = GetInfoObjectsBetween(previousSession, nextSession);
+            var count = infoObjectsBetween.Where(hi => hi.ZeroNetHome).Count();
+            var hourNeed = (_settingsConfig.RequiredHomeEnergy / 24) * count;
+
+            infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = hourNeed);
         }
 
         private double GetEstimatePowerNeeded(List<HourlyInfo> infoObjectsBetween)
