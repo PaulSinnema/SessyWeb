@@ -149,7 +149,7 @@ namespace SessyController.Services
                 if (data != null)
                 {
                     hourlyInfos = data.OrderBy(ep => ep.Time)
-                        .Select(ep => new HourlyInfo(ep.Time, GetBuyPrice(ep), GetBuyPrice(ep), _settingsConfig))
+                        .Select(ep => new HourlyInfo(ep.Time, GetBuyPrice(ep), GetBuyPrice(ep), _settingsConfig, _batteryContainer))
                         .ToList();
 
                     return hourlyInfos;
@@ -231,7 +231,7 @@ namespace SessyController.Services
 
             _epexPricesDataService.AddOrUpdate(statusList, (item, set) =>
             {
-                return set.Where(sd => sd.Time == item.Time).Single(); // Contains
+                return set.Where(sd => sd.Time == item.Time).SingleOrDefault(); // Contains
             });
         }
 

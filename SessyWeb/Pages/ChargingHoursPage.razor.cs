@@ -20,16 +20,7 @@ namespace SessyWeb.Pages
         [Inject]
         public ScreenSizeService? _screenSizeService { get; set; }
 
-        public struct ChargeNeededInfo
-        {
-            public DateTime Time { get; set; }
-            public double ChargeNeeded { get; set; }
-            public double ChargeNeededVisual => ChargeNeeded / 100000;
-        }
-
         public List<HourlyInfo>? HourlyInfos { get; set; } = new List<HourlyInfo>();
-
-        public List<ChargeNeededInfo>? ChargeNeededInfos { get; set; }
 
         public double TotalSolarPowerExpectedToday { get; private set; }
         public double TotalSolarPowerExpectedTomorrow { get; private set; }
@@ -135,55 +126,8 @@ namespace SessyWeb.Pages
             HourlyInfos = _batteriesService?.GetHourlyInfos()?
                 .Where(hi => hi.Time >= now.Date.AddHours(now.Hour - 1))
                 .ToList();
-
-            GetChargeNeededList();
         }
 
-        private void GetChargeNeededList()
-        {
-            ChargeNeededInfos = new();
-
-            if (HourlyInfos != null)
-            {
-                var sessions = _batteriesService!.GetSessions();
-
-                if (sessions != null)
-                {
-                    foreach (var hourlyInfo in HourlyInfos)
-                    {
-                        var session = sessions.GetSession(hourlyInfo);
-
-                        if (session != null)
-                        {
-                            if (hourlyInfo.Charging)
-                            {
-                                ChargeNeededInfos.Add(new ChargeNeededInfo
-                                {
-                                    Time = hourlyInfo.Time,
-                                    ChargeNeeded = session.MaxChargeNeeded
-                                });
-                            }
-                            else if (hourlyInfo.Discharging)
-                            {
-                                ChargeNeededInfos.Add(new ChargeNeededInfo
-                                {
-                                    Time = hourlyInfo.Time,
-                                    ChargeNeeded = session.MinChargeNeeded
-                                });
-                            }
-                        }
-                        else
-                        {
-                            ChargeNeededInfos.Add(new ChargeNeededInfo
-                            {
-                                Time = hourlyInfo.Time,
-                                ChargeNeeded = 0.0
-                            });
-                        }
-                    }
-                }
-            }
-        }
 
         private void ChangeChartStyle(int height)
         {

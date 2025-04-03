@@ -5,16 +5,24 @@ namespace SessyController.Services.Items
 {
     public class HourlyInfo
     {
-        public HourlyInfo(DateTime time, double? buyPrice, double? sellPrice, SettingsConfig settingsConfig)
+        public HourlyInfo(DateTime time, double? buyPrice, double? sellPrice, SettingsConfig settingsConfig, BatteryContainer batteryContainer)
         {
             Time = time;
             BuyingPrice = buyPrice.HasValue ? buyPrice.Value : 0.0;
             SellingPrice = sellPrice.HasValue ? sellPrice.Value : 0.0;
 
             _settingsConfig = settingsConfig;
+            _batteryContainer = batteryContainer;
+
+            TotalCapacity = _batteryContainer.GetTotalCapacity();
+
+            if (!(TotalCapacity > 0.0))
+                throw new InvalidOperationException("The total capacity should not be 0.0");
         }
 
         private SettingsConfig _settingsConfig { get; set; }
+
+        private BatteryContainer _batteryContainer { get; set; }
 
         /// <summary>
         /// Price from ENTSO-E
@@ -24,6 +32,10 @@ namespace SessyController.Services.Items
         public double SellingPrice { get; set; }
 
         public double SmoothedPrice { get; private set; }
+
+        public double ChargeNeeded { get; set; }
+
+        public double ChargeNeededVisual => ChargeNeeded / 100000;
 
         /// <summary>
         /// Timestamp from ENTSO-E
@@ -49,7 +61,9 @@ namespace SessyController.Services.Items
 
         public double ChargeLeft { get; set; }
 
-        public double ChargeLeftPercentage { get; set; }
+        private double TotalCapacity { get; set; }
+
+        public double ChargeLeftPercentage => ChargeLeft / (TotalCapacity / 100.0);
 
         public double ChargeLeftVisual => ChargeLeft / 100000;
 
@@ -72,7 +86,6 @@ namespace SessyController.Services.Items
             Buying = 0.0;
             Selling = 0.0;
             ChargeLeft = 0.0;
-            ChargeLeftPercentage = 0.0;
             SolarGlobalRadiation = 0.0;
             SolarPower = 0.0;
             SmoothedPrice = 0.0;
@@ -233,7 +246,7 @@ namespace SessyController.Services.Items
         /// </summary>
         public override string ToString()
         {
-            return $"{Time}: Charging: {Charging}, Discharging: {Discharging}, Zero Net Home: {ZeroNetHome}, Price: {BuyingPrice}, Charge left: {ChargeLeft}, Solar power {SolarPower}";
+            return $"{Time}: Charging: {Charging}, Discharging: {Discharging}, Zero Net Home: {ZeroNetHome}, Price: {BuyingPrice}, Charge left: {ChargeLeft}, Charge needed: {ChargeNeeded}, Solar power {SolarPower}";
         }
     }
 }

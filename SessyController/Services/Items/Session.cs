@@ -77,16 +77,6 @@ namespace SessyController.Services.Items
         public DateTime FirstDate => First?.Time ?? DateTime.MinValue;
 
         /// <summary>
-        /// The max this session needs to charge to.
-        /// </summary>
-        public double MaxChargeNeeded { get; set; }
-
-        /// <summary>
-        /// The min this session must leave in the batteries during discharge.
-        /// </summary>
-        public double MinChargeNeeded { get; set; }
-
-        /// <summary>
         /// The last date in the session
         /// </summary>
         public DateTime LastDate => Last?.Time ?? DateTime.MaxValue;
@@ -101,7 +91,26 @@ namespace SessyController.Services.Items
             Mode = mode;
             _batteryContainer = batteryContainer;
             _settingsConfig = settingsConfig;
-            MaxChargeNeeded = _batteryContainer.GetTotalCapacity();
+        }
+
+        /// <summary>
+        /// Returns the total charge needed for this session.
+        /// </summary>
+        /// <returns></returns>
+        public double GetChargeNeeded()
+        {
+            var hours = GetChargingHours();
+            var charge = _batteryContainer.GetChargingCapacity();
+
+            return Math.Min(_batteryContainer.GetTotalCapacity(), hours * charge);
+        }
+
+        /// <summary>
+        /// Sets the charge needed for each hourlyInfo object in this session.
+        /// </summary>
+        public void SetChargeNeeded(double charge)
+        {
+            HourlyInfos.ForEach(hi => hi.ChargeNeeded = charge);
         }
 
         public IReadOnlyCollection<HourlyInfo> GetHourlyInfoList() => HourlyInfos.AsReadOnly();
@@ -211,7 +220,7 @@ namespace SessyController.Services.Items
 
             if (!IsEmpty())
             {
-                var chargeNeeded = MaxChargeNeeded - HourlyInfos.Average(hi => hi.ChargeLeft);
+                var chargeNeeded = HourlyInfos.Average(hi => hi.ChargeNeeded) - HourlyInfos.Average(hi => hi.ChargeLeft);
 
                 if (chargeNeeded >= 0)
                     return (int)Math.Ceiling(chargeNeeded / _batteryContainer.GetChargingCapacity());
@@ -229,7 +238,7 @@ namespace SessyController.Services.Items
         {
             var empty = IsEmpty() ? "!!!" : string.Empty;
 
-            return $"{empty}Session: {Mode}, FirstDate: {FirstDate}, LastDate {LastDate}, Count: {HourlyInfos.Count}, MaxChargeNeeded: {MaxChargeNeeded}, MaxHours: {MaxHours}";
+            return $"{empty}Session: {Mode}, FirstDate: {FirstDate}, LastDate {LastDate}, Count: {HourlyInfos.Count}, MaxHours: {MaxHours}";
         }
 
         private bool _isDisposed = false;

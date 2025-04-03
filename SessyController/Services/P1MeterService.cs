@@ -179,13 +179,15 @@ public class P1MeterService : BackgroundService, IDisposable
 
     private bool isDisposed = false;
 
-    public void Dispose()
+    public override void Dispose()
     {
         if (!isDisposed)
         {
             _p1ConfigSubscription.Dispose();
             isDisposed = true;
         }
+
+        base.Dispose();
     }
 
     /// <summary>

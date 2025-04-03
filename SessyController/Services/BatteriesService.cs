@@ -2,6 +2,7 @@
 using SessyCommon.Extensions;
 using SessyController.Configurations;
 using SessyController.Services.Items;
+using System.ComponentModel;
 using static SessyController.Services.Items.Session;
 
 namespace SessyController.Services
@@ -323,19 +324,9 @@ namespace SessyController.Services
         /// </summary>
         private async Task<bool> IsMaxChargeNeededReached(HourlyInfo currentHourlyInfo)
         {
-            var session = _sessions.GetSession(currentHourlyInfo);
+            var currentChargeState = await _batteryContainer.GetStateOfChargeInWatts();
 
-            if (session != null && session.Mode == Modes.Charging && session.MaxChargeNeeded > 0.0)
-            {
-                var currentChargeState = await _batteryContainer.GetStateOfChargeInWatts();
-
-                if (currentChargeState >= session.MaxChargeNeeded)
-                {
-                    return true;
-                }
-            }
-
-            return false;
+            return (currentHourlyInfo.Charging && currentChargeState >= currentHourlyInfo.ChargeNeeded);
         }
 
         /// <summary>
@@ -344,19 +335,9 @@ namespace SessyController.Services
         /// </summary>
         private async Task<bool> IsMinChargeNeededReached(HourlyInfo currentHourlyInfo)
         {
-            var session = _sessions.GetSession(currentHourlyInfo);
+            var currentChargeState = await _batteryContainer.GetStateOfChargeInWatts();
 
-            if (session != null && session.Mode == Modes.Discharging && session.MinChargeNeeded > 0.0)
-            {
-                var currentChargeState = await _batteryContainer.GetStateOfChargeInWatts();
-
-                if (currentChargeState <= session.MinChargeNeeded)
-                {
-                    return true;
-                }
-            }
-
-            return false;
+            return (currentHourlyInfo.Discharging && currentChargeState <= currentHourlyInfo.ChargeNeeded);
         }
 
         /// <summary>
@@ -487,9 +468,9 @@ namespace SessyController.Services
             }
             foreach (var hourlyInfo in hourlyInfos)
             {
-                switch ((hourlyInfo.Charging, hourlyInfo.Discharging, hourlyInfo.ZeroNetHome))
+                switch (hourlyInfo.Mode)
                 {
-                    case (true, false, false): // Charging
+                    case Modes.Charging:
                         {
                             if (!_sessions.InAnySession(hourlyInfo))
                                 throw new InvalidOperationException($"Info not in a session {hourlyInfo}");
@@ -502,7 +483,7 @@ namespace SessyController.Services
                             break;
                         }
 
-                    case (false, true, false): // Discharging
+                    case Modes.Discharging:
                         {
                             if (!_sessions.InAnySession(hourlyInfo))
                                 throw new InvalidOperationException($"Info not in a session {hourlyInfo}");
@@ -515,8 +496,8 @@ namespace SessyController.Services
                             break;
                         }
 
-                    case (false, false, true): // Zero Net Home
-                    case (false, false, false): // Disabled
+                    case Modes.ZeroNetHome:
+                    case Modes.Disabled:
                         {
                             if (_sessions.InAnySession(hourlyInfo))
                                 throw new InvalidOperationException($"Zero net home or disabled hour in a (dis)charging session {hourlyInfo}");
@@ -553,7 +534,7 @@ namespace SessyController.Services
         {
             _sessions.CalculateProfits(_timeZoneService!);
 
-            CalculateMinMaxChargeNeeded();
+            CalculateChargeNeeded();
 
             await CalculateChargeLeft(hourlyInfos!);
         }
@@ -571,7 +552,6 @@ namespace SessyController.Services
             double dischargingCapacity = _sessyBatteryConfig.TotalDischargingCapacity;
             var now = _timeZoneService.Now;
             var localTimeHour = now.Date.AddHours(now.Hour);
-
             charge = await _batteryContainer.GetStateOfChargeInWatts();
 
             var hourlyInfoList = hourlyInfos
@@ -580,67 +560,39 @@ namespace SessyController.Services
 
             hourlyInfoList.ForEach(hi => hi.ChargeLeft = charge);
 
-            List<HourlyInfo>? lastChargingSession = null;
-
-            HourlyInfo? previous = null;
-
-            foreach (var hourlyInfo in hourlyInfoList)
+            foreach (var hourlyInfo in hourlyInfoList.Where(hi => hi.Time >= now.DateHour()))
             {
                 var session = _sessions.GetSession(hourlyInfo);
 
-                if (session != null && session.Mode == Modes.Charging)
+                switch (hourlyInfo.Mode)
                 {
-                    lastChargingSession = session.GetHourlyInfoList().ToList();
-                }
+                    case Modes.Charging:
+                        charge += _batteryContainer.GetChargingCapacity();
+                        charge += hourlyInfo.SolarPowerInWatts;
+                        break;
 
-                hourlyInfo.NetZeroHomeProfit = _sessions.CalculateNetZeroHomeProfit(lastChargingSession, hourlyInfo);
+                    case Modes.Discharging:
+                        charge -= _batteryContainer.GetDischargingCapacity();
+                        charge += hourlyInfo.SolarPowerInWatts;
+                        break;
 
-                if (previous != null)
-                {
-                        switch (hourlyInfo.Mode)
-                    {
-                        case Modes.Charging:
-                            {
-                                var capacityNeeded = Math.Min(totalCapacity, session.MaxChargeNeeded);
-                                charge = Math.Min(charge + chargingCapacity, capacityNeeded);
-                                charge += hourlyInfo.SolarPowerInWatts;
-                                break;
-                            }
+                    case Modes.ZeroNetHome:
+                        charge -= hourNeed;
+                        charge += hourlyInfo.SolarPowerInWatts;
+                        break;
 
-                        case Modes.Discharging:
-                            {
-                                charge = Math.Max(charge - dischargingCapacity, session.MinChargeNeeded);
-                                break;
-                            }
-
-                        case Modes.ZeroNetHome:
-                            {
-                                charge = hourNeed > charge ? 0.0 : charge - hourNeed;
-                                charge += hourlyInfo.SolarPowerInWatts;
-                                break;
-                            }
-
-                        case Modes.Disabled:
-                            break;
+                    case Modes.Disabled:
+                        break;
 
                     case Modes.Unknown:
                     default:
-                            throw new InvalidOperationException($"Wrong mode {hourlyInfo.Mode}");
-                    }
+                        throw new InvalidOperationException($"Invalid mode for hourlyInfo: {hourlyInfo}");
                 }
 
-                if (hourlyInfo.Time < now.DateHour().AddHours(-1))
-                {
-                    hourlyInfo.ChargeLeft = 0.0;
-                    hourlyInfo.ChargeLeftPercentage = 0.0;
-                }
-                else
-                {
-                    hourlyInfo.ChargeLeft = Math.Min(charge, totalCapacity);
-                    hourlyInfo.ChargeLeftPercentage = hourlyInfo.ChargeLeft / (totalCapacity / 100);
-                }
+                if (charge < 0) charge = 0.0;
+                if (charge > totalCapacity) charge = totalCapacity;
 
-                previous = hourlyInfo;
+                hourlyInfo.ChargeLeft = charge;
             }
         }
 
@@ -682,7 +634,7 @@ namespace SessyController.Services
 
                 changed6 = RemoveEmptySessions();
 
-                changed7 = await RemoveSessionIfMaxChargeIsReached();
+                // changed7 = await RemoveSessionIfMaxChargeIsReached();
             } while (changed1 || changed2 || changed3 || changed4 || changed5 || changed6 || changed7);
         }
 
@@ -902,88 +854,156 @@ namespace SessyController.Services
         /// This routine detects charge session that follow each other and determines how much
         /// charge is needed for the session.
         /// </summary>
-        private bool CalculateMinMaxChargeNeeded()
+        private void CalculateChargeNeeded()
         {
-            var changed = false;
             Session? previousSession = null;
             var totalCapacity = _batteryContainer.GetTotalCapacity();
-            double maxChargeNeeded = 0.0;
 
-            _sessions.SessionList.ToList().ForEach(hi => hi.MaxChargeNeeded = totalCapacity);
+            _sessions.SessionList.ToList().ForEach(se => se.SetChargeNeeded(totalCapacity));
 
-            foreach (var session in _sessions.SessionList.OrderBy(se => se.FirstDate))
+            foreach (var nextSession in _sessions.SessionList.OrderBy(se => se.FirstDate))
             {
                 if (previousSession != null)
                 {
-                    if (session.Mode == Modes.Charging &&
-                        previousSession.Mode == Modes.Charging)
+                    switch (previousSession.Mode)
                     {
-                        CalculateMaxChargeNeeded(ref changed, previousSession, totalCapacity, ref maxChargeNeeded, session);
+                        case Modes.Charging:
+                            HandleChargingCalculation(previousSession, nextSession);
+                            break;
+
+                        case Modes.Discharging:
+                            HandleDischargingCalculation(previousSession, nextSession);
+                            break;
+
+                        default:
+                            break;
                     }
 
-                    if (previousSession.Mode == Modes.Discharging)
-                    {
-                        List<HourlyInfo> infoObjectsBetween = GetInfoObjectsBetween(previousSession, session);
-
-                        var estimateNeeded = GetEstimatePowerNeeded(infoObjectsBetween);
-
-                        var count = infoObjectsBetween.Where(io => io.ZeroNetHome).Count();
-                        var solar = infoObjectsBetween.Sum(io => io.SolarPowerInWatts);
-
-                        previousSession.MinChargeNeeded = count * (_settingsConfig.RequiredHomeEnergy / 24);
-                    }
+                    HandleZeroNetHomeCalculation(previousSession, nextSession);
                 }
 
-                previousSession = session;
+                previousSession = nextSession;
             }
+        }
 
-            return changed;
+        private void HandleChargingCalculation(Session previousSession, Session nextSession)
+        {
+            switch (nextSession.Mode)
+            {
+                case Modes.Charging:
+                    HandleChargingChargingSessions(previousSession, nextSession);
+                    break;
+
+                case Modes.Discharging:
+                    HandleChargingDischargingSessions(previousSession, nextSession);
+                    break;
+
+                default:
+                    break;
+            }
+        }
+
+        private void HandleDischargingCalculation(Session previousSession, Session nextSession)
+        {
+            switch (nextSession.Mode)
+            {
+                case Modes.Charging:
+                    break;
+
+                case Modes.Discharging:
+                    break;
+
+                default:
+                    break;
+            }
+        }
+
+        private void HandleZeroNetHomeCalculation(Session previousSession, Session nextSession)
+        {
+            List<HourlyInfo> infoObjectsBetween = GetInfoObjectsBetween(previousSession, nextSession);
+            var hourNeed = _settingsConfig.RequiredHomeEnergy / 24;
+
+            infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = hourNeed);
+        }
+
+        private void HandleChargingDischargingSessions(Session previousSession, Session nextSession)
+        {
+            List<HourlyInfo> infoObjectsBetween = GetInfoObjectsBetween(previousSession, nextSession);
+
+            var estimateNeeded = GetEstimatePowerNeeded(infoObjectsBetween);
+
+            var solar = infoObjectsBetween.Sum(io => io.SolarPowerInWatts);
+
+            var chargeCalculated = estimateNeeded - solar + nextSession.GetChargeNeeded();
+            var chargeNeeded = Math.Min(chargeCalculated, _batteryContainer.GetTotalCapacity());
+
+            previousSession.SetChargeNeeded(chargeNeeded);
+
+            infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = chargeNeeded);
+        }
+
+        /// <summary>
+        /// Both sessions are charging sessions. Determine the charge needed for the previous session.
+        /// </summary>
+        private void HandleChargingChargingSessions(Session previousSession, Session nextSession)
+        {
+            var totalCapacity = _batteryContainer.GetTotalCapacity();
+            List<HourlyInfo> infoObjectsBetween = GetInfoObjectsBetween(previousSession, nextSession);
+
+            if (previousSession.IsCheaper(nextSession))
+            {
+                previousSession.SetChargeNeeded(totalCapacity);
+                infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = totalCapacity);
+            }
+            else
+            {
+                if (infoObjectsBetween.Any())
+                {
+                    var count = infoObjectsBetween.Where(hi => hi.Mode == Modes.ZeroNetHome).Count();
+
+                    var chargeNeeded = (_settingsConfig.RequiredHomeEnergy / 24) * count;
+
+                    infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = chargeNeeded);
+                    previousSession.SetChargeNeeded(chargeNeeded);
+                }
+                else
+                {
+                    previousSession.SetChargeNeeded(0.0);
+                }
+            }
         }
 
         private double GetEstimatePowerNeeded(List<HourlyInfo> infoObjectsBetween)
         {
             double power = 0.0;
 
-            foreach (var hourlyInfo in infoObjectsBetween.Where(hi => hi.ZeroNetHome))
+            foreach (var hourlyInfo in infoObjectsBetween)
             {
-                var temperature = _weatherService.GetTemperature(hourlyInfo.Time);
+                // TODO: The estimate is incorrect. It calculates the net power from the grid (Zero Net Home), not the needs of the home.
+                //var temperature = _weatherService.GetTemperature(hourlyInfo.Time);
 
-                if (temperature != null)
-                {
-                    power += _powerEstimatesService.GetPowerEstimate(hourlyInfo.Time, temperature.Value);
-                }
+                //if (temperature != null)
+                //{
+                //    power += _powerEstimatesService.GetPowerEstimate(hourlyInfo.Time, temperature.Value);
+                //}
+                //else
+                //{
+                // power += _settingsConfig.RequiredHomeEnergy / 24.0;
+                //}
+
+                power += _settingsConfig.RequiredHomeEnergy / 24.0;
             }
 
             return power;
         }
 
-        private void CalculateMaxChargeNeeded(ref bool changed, Session previousSession, double totalCapacity, ref double maxChargeNeeded, Session session)
-        {
-            if (previousSession.IsCheaper(session))
-            {
-                maxChargeNeeded = totalCapacity;
-            }
-            else
-            {
-                List<HourlyInfo> infoObjectsBetween = GetInfoObjectsBetween(previousSession, session);
-
-                if (infoObjectsBetween.Any())
-                {
-                    // TODO: Determine needs from historic data.
-                    maxChargeNeeded = (_settingsConfig.RequiredHomeEnergy / 24) * infoObjectsBetween.Count();
-                    maxChargeNeeded *= 1.3; // We take a little more to be sure that we have enough.
-
-                    previousSession.MaxChargeNeeded = maxChargeNeeded;
-
-                    changed = true;
-                }
-            }
-        }
-
+        /// <summary>
+        /// Gets the hourlyInfo objects between 2 sessions.
+        /// </summary>
         private static List<HourlyInfo> GetInfoObjectsBetween(Session previousSession, Session session)
         {
             return hourlyInfos!
-                .Where(hi => hi.Time < session.FirstDate && hi.Time > previousSession.LastDate && hi.ZeroNetHome)
+                .Where(hi => hi.Time < session.FirstDate && hi.Time > previousSession.LastDate)
                 .ToList();
         }
 
