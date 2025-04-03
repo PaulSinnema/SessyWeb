@@ -42,6 +42,8 @@ namespace SessyController.Services
         private TcpClientProvider _tcpClientProvider { get; set; }
         private ConfigurationService _configurationService { get; set; }
 
+        public double ActualSolarPowerInWatts { get; private set; }
+
         private TimeZoneService _timeZoneService;
         private SolarEdgeDataService _solarEdgeDataService;
 
@@ -108,7 +110,7 @@ namespace SessyController.Services
             {
                 foreach (var config in powerSystemConfig.Value)
                 {
-                    var power = await GetACPowerInWatts(config.Key);
+                    ActualSolarPowerInWatts = await GetACPowerInWatts(config.Key);
                     var date = _timeZoneService.Now;
 
                     if(!CollectedPowerData.ContainsKey(config.Key))
@@ -116,7 +118,7 @@ namespace SessyController.Services
                         CollectedPowerData.Add(config.Key, new Dictionary<DateTime, double>());
                     }
 
-                    CollectedPowerData[config.Key].Add(date, power);
+                    CollectedPowerData[config.Key].Add(date, ActualSolarPowerInWatts);
 
                     StoreData(CollectedPowerData);
                 }

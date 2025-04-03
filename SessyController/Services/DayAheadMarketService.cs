@@ -24,6 +24,7 @@ namespace SessyController.Services
         private IServiceScope _scope;
 
         private TaxesService _taxesService { get; set; }
+        private SolarEdgeService _solarEdgeService { get; set; }
 
         private SettingsConfig _settingsConfig { get; set; }
         private IDisposable? _settingsConfigMonitorSubscription { get; set; }
@@ -38,12 +39,14 @@ namespace SessyController.Services
                                     EPEXPricesDataService epexPricesDataService,
                                     IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
                                     TaxesService taxesService,
+                                    SolarEdgeService solarEdgeService,
                                     IServiceScopeFactory serviceScopeFactory)
         {
             _timeZoneService = timeZoneService;
             _batteryContainer = batteryContainer;
             _serviceScopeFactory = serviceScopeFactory;
             _epexPricesDataService = epexPricesDataService;
+            _solarEdgeService = solarEdgeService;
             _settingsConfigMonitor = settingsConfigMonitor;
 
             _scope = serviceScopeFactory.CreateScope();
@@ -149,7 +152,7 @@ namespace SessyController.Services
                 if (data != null)
                 {
                     hourlyInfos = data.OrderBy(ep => ep.Time)
-                        .Select(ep => new HourlyInfo(ep.Time, GetBuyPrice(ep), GetBuyPrice(ep), _settingsConfig, _batteryContainer))
+                        .Select(ep => new HourlyInfo(ep.Time, GetBuyPrice(ep), GetBuyPrice(ep), _settingsConfig, _batteryContainer, _solarEdgeService, _timeZoneService))
                         .ToList();
 
                     return hourlyInfos;

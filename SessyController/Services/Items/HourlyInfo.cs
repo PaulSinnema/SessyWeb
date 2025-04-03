@@ -1,11 +1,18 @@
-﻿using SessyController.Configurations;
+﻿using SessyCommon.Extensions;
+using SessyController.Configurations;
 using static SessyController.Services.Items.Session;
 
 namespace SessyController.Services.Items
 {
     public class HourlyInfo
     {
-        public HourlyInfo(DateTime time, double? buyPrice, double? sellPrice, SettingsConfig settingsConfig, BatteryContainer batteryContainer)
+        public HourlyInfo(DateTime time,
+                          double? buyPrice,
+                          double? sellPrice,
+                          SettingsConfig settingsConfig,
+                          BatteryContainer batteryContainer,
+                          SolarEdgeService solarEdgeService,
+                          TimeZoneService timeZoneService)
         {
             Time = time;
             BuyingPrice = buyPrice.HasValue ? buyPrice.Value : 0.0;
@@ -13,6 +20,8 @@ namespace SessyController.Services.Items
 
             _settingsConfig = settingsConfig;
             _batteryContainer = batteryContainer;
+            _solarEdgeService = solarEdgeService;
+            _timeZoneService = timeZoneService;
 
             TotalCapacity = _batteryContainer.GetTotalCapacity();
 
@@ -23,6 +32,10 @@ namespace SessyController.Services.Items
         private SettingsConfig _settingsConfig { get; set; }
 
         private BatteryContainer _batteryContainer { get; set; }
+
+        private SolarEdgeService _solarEdgeService { get; set; }
+
+        private TimeZoneService _timeZoneService { get; set; }
 
         /// <summary>
         /// Price from ENTSO-E
@@ -224,6 +237,19 @@ namespace SessyController.Services.Items
             }
         }
 
+        private bool SolarPowerIsActive
+        {
+            get
+            {
+                var now = _timeZoneService.Now;
+
+                if (Time == now.DateHour() && _solarEdgeService.ActualSolarPowerInWatts > 100.0)
+                    return true;
+
+                return false;
+            }
+        }
+
         /// <summary>
         /// If no (dis)charging is in progress Net Zero Home is requested.
         /// </summary>
@@ -232,7 +258,8 @@ namespace SessyController.Services.Items
             get => !(Charging || Discharging) &&
                 (
                     NetZeroHomeProfit >= _settingsConfig.NetZeroHomeMinProfit ||
-                    SolarPowerInWatts > 100.0
+                    SolarPowerInWatts > 100.0 ||
+                    SolarPowerIsActive
                 );
         }
 
