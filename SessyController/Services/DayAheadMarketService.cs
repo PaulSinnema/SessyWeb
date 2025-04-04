@@ -2,9 +2,12 @@
 using SessyCommon.Extensions;
 using SessyController.Configurations;
 using SessyController.Services.Items;
+using SessyData.Migrations;
 using SessyData.Model;
 using SessyData.Services;
 using System.Collections.Concurrent;
+using System.Net.Http;
+using System.Xml;
 
 namespace SessyController.Services
 {
@@ -13,6 +16,27 @@ namespace SessyController.Services
     /// </summary>
     public class DayAheadMarketService : BackgroundService, IDisposable
     {
+        private const string ApiUrl = "https://web-api.tp.entsoe.eu/api";
+        private const string FormatDate = "yyyyMMdd";
+        private const string FormatTime = "0000";
+
+        private const string TagNs = "urn:iec62325.351:tc57wg16:451-3:publicationdocument:7:3";
+        private const string TagIntervalStart = "ns:timeInterval/ns:start";
+        private const string TagPeriod = "ns:Period";
+        private const string TagPoint = "ns:Point";
+        private const string TagPosition = "ns:position";
+        private const string TagPriceAmount = "ns:price.amount";
+        private const string TagResolution = "ns:resolution";
+        private const string TagTimeSeries = "//ns:TimeSeries";
+
+        private const string ConfigInDomain = "ENTSO-E:InDomain"; // EIC-code
+        private const string ConfigResolutionFormat = "ENTSO-E:ResolutionFormat";
+        private const string ConfigSecurityTokenKey = "ENTSO-E:SecurityToken";
+
+        private static string? _securityToken;
+        private static string? _inDomain;
+        private static string? _resolutionFormat;
+
         private ConcurrentDictionary<DateTime, double>? _prices { get; set; }
         private static LoggingService<DayAheadMarketService>? _logger { get; set; }
         private TimeZoneService _timeZoneService { get; set; }
@@ -21,7 +45,8 @@ namespace SessyController.Services
         private EPEXPricesDataService _epexPricesDataService { get; set; }
         private IOptionsMonitor<SettingsConfig> _settingsConfigMonitor { get; set; }
 
-        private IServiceScope _scope;
+        private IHttpClientFactory _httpClientFactory { get; set; }
+        private IServiceScope _scope { get; set; }
 
         private TaxesService _taxesService { get; set; }
         private SolarEdgeService _solarEdgeService { get; set; }
@@ -34,20 +59,27 @@ namespace SessyController.Services
         public bool PricesInitialized { get; internal set; } = false;
 
         public DayAheadMarketService(LoggingService<DayAheadMarketService> logger,
+                                    IConfiguration configuration,
                                     TimeZoneService timeZoneService,
                                     BatteryContainer batteryContainer,
                                     EPEXPricesDataService epexPricesDataService,
                                     IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
                                     TaxesService taxesService,
                                     SolarEdgeService solarEdgeService,
+                                    IHttpClientFactory httpClientFactory,
                                     IServiceScopeFactory serviceScopeFactory)
         {
+            _securityToken = configuration[ConfigSecurityTokenKey];
+            _inDomain = configuration[ConfigInDomain];
+            _resolutionFormat = configuration[ConfigResolutionFormat];
+
             _timeZoneService = timeZoneService;
             _batteryContainer = batteryContainer;
             _serviceScopeFactory = serviceScopeFactory;
             _epexPricesDataService = epexPricesDataService;
             _solarEdgeService = solarEdgeService;
             _settingsConfigMonitor = settingsConfigMonitor;
+            _httpClientFactory = httpClientFactory;
 
             _scope = serviceScopeFactory.CreateScope();
 
@@ -115,10 +147,30 @@ namespace SessyController.Services
         /// </summary>
         public async Task Process(CancellationToken cancellationToken)
         {
-            var now = _timeZoneService.Now;
+            var now = _timeZoneService.Now.DateHour();
+            var lastDate = now;
 
             // Fetch day-ahead market prices
             _prices = await FetchDayAheadPricesAsync();
+
+            if (_prices != null && _prices.Count > 0)
+            {
+                lastDate = _prices.Max(pr => pr.Key);
+            }
+
+            if (_prices == null || (now.Hour >= 20 && (lastDate - now).Hours < 4))
+            {
+                var entsoePrices = await FetchDayAheadPricesAsync(now, 2, cancellationToken);
+                var entsoeLastDate = lastDate;
+
+                if (entsoePrices != null && entsoePrices.Count >= 24)
+                {
+                    entsoeLastDate = entsoePrices.Max(pr => pr.Key);
+                }
+
+                if (entsoeLastDate > lastDate)
+                    _prices = entsoePrices;
+            }
 
             PricesAvailable = _prices != null && _prices.Count > 0;
 
@@ -165,6 +217,114 @@ namespace SessyController.Services
                 GetPricesSemaphore.Release();
             }
         }
+
+        /// <summary>
+        /// Get the prices and timestamps from the XML response.
+        /// </summary>
+        private static ConcurrentDictionary<DateTime, double> GetPrizes(string responseBody)
+        {
+            var prices = new ConcurrentDictionary<DateTime, double>();
+
+            XmlDocument xmlDoc = new XmlDocument();
+            xmlDoc.LoadXml(responseBody);
+
+            XmlNamespaceManager nsmgr = new XmlNamespaceManager(xmlDoc.NameTable);
+            nsmgr.AddNamespace("ns", TagNs);
+
+            var timeSeriesNodes = xmlDoc.SelectNodes(TagTimeSeries, nsmgr);
+
+            if (timeSeriesNodes != null)
+            {
+                foreach (XmlNode timeSeries in timeSeriesNodes)
+                {
+                    if (TagTimeSeries != null)
+                    {
+                        XmlNode? period = timeSeries.SelectSingleNode(TagPeriod, nsmgr);
+
+                        if (period != null)
+                        {
+
+                            var startTime = DateTime.Parse(GetSingleNode(period, TagIntervalStart, nsmgr));
+                            var resolution = GetSingleNode(period, TagResolution, nsmgr);
+                            var interval = resolution == _resolutionFormat ? TimeSpan.FromHours(1) : TimeSpan.FromMinutes(15);
+                            var pointNodes = period.SelectNodes(TagPoint, nsmgr);
+
+                            if (pointNodes != null)
+                            {
+                                foreach (XmlNode point in pointNodes)
+                                {
+                                    int position = int.Parse(GetSingleNode(point, TagPosition, nsmgr));
+                                    double price = double.Parse(GetSingleNode(point, TagPriceAmount, nsmgr));
+                                    DateTime timestamp = startTime.Add(interval * (position));
+
+                                    double priceWattHour = price / 1000;
+
+                                    prices.AddOrUpdate(timestamp, priceWattHour, (key, oldValue) => priceWattHour);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            return prices;
+        }
+
+        /// <summary>
+        /// Get a single node from a node. Returns an empty string if node was notfound.
+        /// </summary>
+        private static string GetSingleNode(XmlNode? node, string key, XmlNamespaceManager nsmgr)
+        {
+            if (node != null)
+            {
+                var singleNode = node.SelectSingleNode(key, nsmgr);
+
+                if (singleNode != null)
+                {
+                    return singleNode.InnerText;
+                }
+            }
+
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// Get the day-ahead-prices from ENTSO-E Api.
+        /// </summary>
+        private async Task<ConcurrentDictionary<DateTime, double>> FetchDayAheadPricesAsync(DateTime date, int futureDays, CancellationToken cancellationToken)
+        {
+            date = date.AddDays(-1);
+            var pastDate = date.Date; // new DateTime(date.Year, date.Month, date.Day, 0, 0, 0);
+            string periodStartString = pastDate.ToString(FormatDate) + FormatTime;
+            var futureDate = date.AddDays(futureDays + 1);
+            string periodEndString = futureDate.ToString(FormatDate) + FormatTime;
+            string url = $"{ApiUrl}?documentType=A44&in_Domain={_inDomain}&out_Domain={_inDomain}&periodStart={periodStartString}&periodEnd={periodEndString}&securityToken={_securityToken}";
+
+            var client = _httpClientFactory?.CreateClient();
+
+            if (client != null)
+            {
+                HttpResponseMessage response = await client.GetAsync(url, cancellationToken);
+                response.EnsureSuccessStatusCode();
+                string responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+
+                var prices = GetPrizes(responseBody);
+
+                var endDate = prices.Keys.Max();
+
+                // Detect and fill gaps in the prices with average prices.
+                FillMissingPoints(prices, date.Date, endDate, TimeSpan.FromHours(1));
+
+                StorePrices(prices);
+
+                return prices;
+            }
+
+            _logger.LogError("Unable to create HttpClient");
+
+            return new ConcurrentDictionary<DateTime, double>();
+        }
+
 
         public double GetBuyPrice(EPEXPrices epexPrices)
         {
@@ -236,6 +396,46 @@ namespace SessyController.Services
             {
                 return set.Where(sd => sd.Time == item.Time).SingleOrDefault(); // Contains
             });
+        }
+
+        /// <summary>
+        /// Sometimes prices are missing. This routine fill the gaps with average prices.
+        /// </summary>
+        private static void FillMissingPoints(ConcurrentDictionary<DateTime, double> prices, DateTime periodStart, DateTime periodEnd, TimeSpan interval)
+        {
+            DateTime currentTime = periodStart;
+
+            while (currentTime <= periodEnd)
+            {
+                if (!prices.ContainsKey(currentTime))
+                {
+                    // Search for the previous and future prices.
+                    var previousPrice = GetPreviousPrice(prices, currentTime);
+
+                    _logger.LogInformation($"Price missing for {currentTime}");
+
+                    if (previousPrice.HasValue)
+                    {
+                        // Use previous prices in case the next price is missing
+                        // Corresponded with ENTSO-E about the missing points.
+                        // They are missing when it's the same price as the previous one.
+                        prices[currentTime] = previousPrice.Value;
+                    }
+                    else
+                    {
+                        // Price information is missing. Write to log.
+                        _logger.LogWarning($"No price information available for {currentTime}");
+                    }
+                }
+
+                currentTime = currentTime.Add(interval);
+            }
+        }
+
+        private static double? GetPreviousPrice(ConcurrentDictionary<DateTime, double> prices, DateTime timestamp)
+        {
+            var previousTimes = prices.Keys.Where(t => t < timestamp).OrderByDescending(t => t);
+            return previousTimes.Any() ? prices[previousTimes.First()] : (double?)null;
         }
 
         private bool _isDisposed = false;

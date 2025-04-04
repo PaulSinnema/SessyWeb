@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace SessyData.Migrations
 {
     /// <inheritdoc />
-    public partial class EPEXPrices : Migration
+    public partial class EPEXPricesMigration : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)

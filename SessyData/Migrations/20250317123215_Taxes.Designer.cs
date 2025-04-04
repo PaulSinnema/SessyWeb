@@ -12,7 +12,7 @@ namespace SessyData.Migrations
 {
     [DbContext(typeof(ModelContext))]
     [Migration("20250317123215_Taxes")]
-    partial class Taxes
+    partial class TaxesMigration
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

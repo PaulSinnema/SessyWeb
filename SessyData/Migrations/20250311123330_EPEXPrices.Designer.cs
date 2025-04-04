@@ -12,7 +12,7 @@ namespace SessyData.Migrations
 {
     [DbContext(typeof(ModelContext))]
     [Migration("20250311123330_EPEXPrices")]
-    partial class EPEXPrices
+    partial class EPEXPricesMigration
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

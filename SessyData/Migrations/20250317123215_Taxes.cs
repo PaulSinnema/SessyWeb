@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace SessyData.Migrations
 {
     /// <inheritdoc />
-    public partial class Taxes : Migration
+    public partial class TaxesMigration : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
