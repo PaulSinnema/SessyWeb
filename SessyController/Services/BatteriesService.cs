@@ -555,11 +555,11 @@ namespace SessyController.Services
 
         private async Task EvaluateChargingHoursAndProfitability()
         {
-            _sessions.CalculateProfits(_timeZoneService!);
-
             CalculateChargeNeeded();
 
             await CalculateChargeLeft(hourlyInfos!);
+            
+            _sessions.CalculateProfits(_timeZoneService!);
         }
 
         /// <summary>
@@ -861,7 +861,7 @@ namespace SessyController.Services
 
             foreach (var session in _sessions.SessionList)
             {
-                var maxHours = session.GetHours();
+                var maxHours = session.GetHoursForMode();
 
                 if (session.RemoveAllAfter(maxHours))
                 {

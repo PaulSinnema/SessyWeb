@@ -199,7 +199,7 @@ namespace SessyController.Services.Items
 
         private void CalculateDischargingProfits(HourlyInfo hourlyInfo)
         {
-            var totalDischargingCapacity = Math.Min(_totalDischargingCapacity, hourlyInfo.ChargeLeft) / 1000;
+            var totalDischargingCapacity = Math.Min(_totalDischargingCapacity, hourlyInfo.ChargeLeft - hourlyInfo.ChargeNeeded) / 1000;
 
             hourlyInfo.Selling = totalDischargingCapacity * hourlyInfo.SellingPrice;
             hourlyInfo.Buying = 0.00;

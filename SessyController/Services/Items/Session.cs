@@ -193,9 +193,9 @@ namespace SessyController.Services.Items
                     {
                         var list = HourlyInfos.OrderBy(hi => hi.BuyingPrice).ToList();
 
-                        while (++index < list.Count)
+                        while (index < list.Count)
                         {
-                            RemoveHourlyInfo(list[index]);
+                            RemoveHourlyInfo(list[index++]);
                             changed = true;
                         }
 
@@ -204,11 +204,11 @@ namespace SessyController.Services.Items
 
                 case Modes.Discharging:
                     {
-                        var list = HourlyInfos.OrderByDescending(hi => hi.BuyingPrice).ToList();
+                        var list = HourlyInfos.OrderByDescending(hi => hi.SellingPrice).ToList();
 
-                        while (++index < list.Count)
+                        while (index < list.Count)
                         {
-                            RemoveHourlyInfo(list[index]);
+                            RemoveHourlyInfo(list[index++]);
                             changed = true;
                         }
 
@@ -222,12 +222,35 @@ namespace SessyController.Services.Items
             return changed;
         }
 
+        public int GetHoursForMode()
+        {
+            var power = HourlyInfos.Sum(hi => Math.Max(0.0, hi.ChargeLeft - hi.ChargeNeeded));
+            var capacity = Mode == Modes.Charging ? _batteryContainer.GetChargingCapacity() : _batteryContainer.GetDischargingCapacity();
+
+            var hours = (int)Math.Ceiling(power / capacity);
+            return hours;
+        }
+
         /// <summary>
         /// Get the hours needed to charge the batteries to 100%.
         /// </summary>
         internal int GetHours()
         {
-            return HourlyInfos.Count;
+            switch (Mode)
+            {
+                case Modes.Charging:
+                    {
+                        return HourlyInfos.Count;
+                    }
+
+                case Modes.Discharging:
+                    {
+                        return HourlyInfos.Count;
+                    }
+
+                default:
+                    throw new InvalidOperationException($"Wrong mode {this}");
+            }
         }
 
         /// <summary>
