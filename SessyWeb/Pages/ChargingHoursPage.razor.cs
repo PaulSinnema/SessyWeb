@@ -132,7 +132,7 @@ namespace SessyWeb.Pages
         private void ChangeChartStyle(int height)
         {
             // 25 pixels per data row (3)
-            var width = HourlyInfos?.Count * 3 * 25;
+            var width = HourlyInfos?.Count * 3 * 25 + 200;
 
             GraphStyle = $"min-height: {height - 250}px; width: {width}px; visibility: initial;";
         }

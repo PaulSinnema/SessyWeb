@@ -99,10 +99,18 @@ namespace SessyController.Services.Items
         /// <returns></returns>
         public double GetChargeNeeded()
         {
-            var hours = GetChargingHours();
+            var hours = GetHours();
             var charge = _batteryContainer.GetChargingCapacity();
 
             return Math.Min(_batteryContainer.GetTotalCapacity(), hours * charge);
+        }
+
+        public double GetDischargeNeeded()
+        {
+            var hours = GetHours();
+            var charge = _batteryContainer.GetDischargingCapacity();
+
+            return hours * charge;
         }
 
         /// <summary>
@@ -113,7 +121,10 @@ namespace SessyController.Services.Items
             HourlyInfos.ForEach(hi => hi.ChargeNeeded = charge);
         }
 
-        public IReadOnlyCollection<HourlyInfo> GetHourlyInfoList() => HourlyInfos.AsReadOnly();
+        /// <summary>
+        /// Gets the hourlyInofos list sorted by Time as a readonly collection.
+        /// </summary>
+        public IReadOnlyCollection<HourlyInfo> GetHourlyInfoList() => HourlyInfos.OrderBy(hi => hi.Time).ToList().AsReadOnly();
 
         /// <summary>
         /// Add a hourly info object to the list if not already in the list.
@@ -214,17 +225,9 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Get the hours needed to charge the batteries to 100%.
         /// </summary>
-        internal int GetChargingHours()
+        internal int GetHours()
         {
-            if (!IsEmpty())
-            {
-                var chargeNeeded = _batteryContainer.GetTotalCapacity() - HourlyInfos.Average(hi => hi.ChargeLeft);
-
-                if (chargeNeeded >= 0)
-                    return (int)Math.Ceiling(chargeNeeded / _batteryContainer.GetChargingCapacity());
-            }
-
-            return 0;
+            return HourlyInfos.Count;
         }
 
         /// <summary>
