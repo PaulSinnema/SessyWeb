@@ -46,10 +46,6 @@ namespace SessyController.Services.Items
 
         public double SmoothedPrice { get; private set; }
 
-        public double ChargeNeeded { get; set; }
-
-        public double ChargeNeededVisual => ChargeNeeded / 100000;
-
         /// <summary>
         /// Timestamp from ENTSO-E
         /// </summary>
@@ -72,7 +68,45 @@ namespace SessyController.Services.Items
 
         public double Selling { get; set; }
 
-        public double ChargeLeft { get; set; }
+        private double _chargeLeft;
+        private bool _chargeLeftSet = false;
+
+        public double ChargeLeft 
+        {
+            get
+            {
+                if (!_chargeLeftSet)
+                    throw new InvalidOperationException("Cannot use charge left before it is set.");
+
+                return _chargeLeft;
+            }
+            set
+            {
+                _chargeLeft = value;
+                _chargeLeftSet = true;
+            }
+        }
+
+        private double _chargeNeeded;
+        private bool _chargeNeededSet = false;
+
+        public double ChargeNeeded
+        {
+            get
+            {
+                if (!_chargeNeededSet)
+                    throw new InvalidOperationException("Cannot use charge needed before it is set.");
+
+                return _chargeNeeded;
+            }
+            set
+            {
+                _chargeNeeded = value;
+                _chargeNeededSet = true;
+            }
+        }
+
+        public double ChargeNeededVisual => ChargeNeeded / 100000;
 
         private double TotalCapacity { get; set; }
 

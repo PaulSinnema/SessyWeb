@@ -143,14 +143,14 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// This routine is called periodicly as a background task.
+        /// This routine is called periodically as a background task.
         /// </summary>
         public async Task Process(CancellationToken cancellationToken)
         {
             var now = _timeZoneService.Now.DateHour();
             var lastDate = now;
 
-            // Fetch day-ahead market prices
+            // Fetch day-ahead market prices from Sessy
             _prices = await FetchDayAheadPricesAsync();
 
             if (_prices != null && _prices.Count > 0)
@@ -158,18 +158,27 @@ namespace SessyController.Services
                 lastDate = _prices.Max(pr => pr.Key);
             }
 
+            // It's 20:00 or later and still no prices on the Sessy.
             if (_prices == null || (now.Hour >= 20 && (lastDate - now).Hours < 4))
             {
+                _logger.LogWarning($"It's 20:00 or later, Sessy still has no prices. Falling back on ENTSO-E.");
+
+                // Fallback on ENTSO-E for fetching the day-ahead market prices.
                 var entsoePrices = await FetchDayAheadPricesAsync(now, 2, cancellationToken);
                 var entsoeLastDate = lastDate;
 
-                if (entsoePrices != null && entsoePrices.Count >= 24)
+                if (entsoePrices != null && entsoePrices.Count > 0)
                 {
                     entsoeLastDate = entsoePrices.Max(pr => pr.Key);
                 }
 
+                _logger.LogWarning($"Fallback on ENTSO-E Last date: {entsoeLastDate}, Sessy last date {lastDate}");
+
                 if (entsoeLastDate > lastDate)
+                {
+                    _logger.LogWarning($"ENTSO-E has more actual prices than Sessy, we take those prices.");
                     _prices = entsoePrices;
+                }
             }
 
             PricesAvailable = _prices != null && _prices.Count > 0;

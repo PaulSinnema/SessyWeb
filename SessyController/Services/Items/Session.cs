@@ -31,7 +31,7 @@ namespace SessyController.Services.Items
             {
                 _mode = value;
 
-                foreach (var hourlyPrice in HourlyInfos)
+                foreach (var hourlyPrice in SessionHourlyInfos)
                 {
                     hourlyPrice.SetModes(_mode);
                 }
@@ -43,13 +43,15 @@ namespace SessyController.Services.Items
         /// </summary>
         public bool Contains(HourlyInfo hourlyInfo)
         {
-            return HourlyInfos.Any(hi => hi.Time.DateHour() == hourlyInfo.Time.DateHour());
+            return SessionHourlyInfos.Any(hi => hi.Time.DateHour() == hourlyInfo.Time.DateHour());
         }
 
         /// <summary>
         /// All prices in the session
         /// </summary>
-        private List<HourlyInfo> HourlyInfos { get; set; }
+        private List<HourlyInfo> SessionHourlyInfos { get; set; }
+
+        private Sessions _sessions { get; set; }
 
         /// <summary>
         /// Max hours of (dis)charging
@@ -59,17 +61,17 @@ namespace SessyController.Services.Items
         /// <summary>
         /// The average price of all hourly prices in the session.
         /// </summary>
-        public double AveragePrice => HourlyInfos.Count > 0 ? HourlyInfos.Average(hp => hp.BuyingPrice) : 0.0;
+        public double AveragePrice => SessionHourlyInfos.Count > 0 ? SessionHourlyInfos.Average(hp => hp.BuyingPrice) : 0.0;
 
         /// <summary>
         /// First hourlyInfo object in the session.
         /// </summary>
-        public HourlyInfo? First => HourlyInfos.OrderBy(hi => hi.Time).FirstOrDefault();
+        public HourlyInfo? First => SessionHourlyInfos.OrderBy(hi => hi.Time).FirstOrDefault();
 
         /// <summary>
         /// Last hourlyinfo object in the session.
         /// </summary>
-        public HourlyInfo? Last => HourlyInfos.OrderByDescending(hi => hi.Time).FirstOrDefault();
+        public HourlyInfo? Last => SessionHourlyInfos.OrderByDescending(hi => hi.Time).FirstOrDefault();
 
         /// <summary>
         /// The first date in the session
@@ -81,12 +83,14 @@ namespace SessyController.Services.Items
         /// </summary>
         public DateTime LastDate => Last?.Time ?? DateTime.MaxValue;
 
-        public Session(Modes mode,
+        public Session(Sessions sessions,
+                       Modes mode,
                        int maxHours,
                        BatteryContainer batteryContainer,
                        SettingsConfig settingsConfig)
         {
-            HourlyInfos = new List<HourlyInfo>();
+            SessionHourlyInfos = new List<HourlyInfo>();
+            _sessions = sessions;
             MaxHours = maxHours;
             Mode = mode;
             _batteryContainer = batteryContainer;
@@ -99,6 +103,9 @@ namespace SessyController.Services.Items
         /// <returns></returns>
         public double GetChargeNeeded()
         {
+            if (Mode != Modes.Charging)
+                throw new InvalidOperationException($"Invalid mode {this}");
+
             var hours = GetHours();
             var charge = _batteryContainer.GetChargingCapacity();
 
@@ -107,6 +114,9 @@ namespace SessyController.Services.Items
 
         public double GetDischargeNeeded()
         {
+            if (Mode != Modes.Discharging)
+                throw new InvalidOperationException($"Invalid mode {this}");
+
             var hours = GetHours();
             var charge = _batteryContainer.GetDischargingCapacity();
 
@@ -118,13 +128,13 @@ namespace SessyController.Services.Items
         /// </summary>
         public void SetChargeNeeded(double charge)
         {
-            HourlyInfos.ForEach(hi => hi.ChargeNeeded = charge);
+            SessionHourlyInfos.ForEach(hi => hi.ChargeNeeded = charge);
         }
 
         /// <summary>
         /// Gets the hourlyInofos list sorted by Time as a readonly collection.
         /// </summary>
-        public IReadOnlyCollection<HourlyInfo> GetHourlyInfoList() => HourlyInfos.OrderBy(hi => hi.Time).ToList().AsReadOnly();
+        public IReadOnlyCollection<HourlyInfo> GetHourlyInfoList() => SessionHourlyInfos.OrderBy(hi => hi.Time).ToList().AsReadOnly();
 
         /// <summary>
         /// Add a hourly info object to the list if not already in the list.
@@ -135,7 +145,7 @@ namespace SessyController.Services.Items
             {
                 hourlyInfo.SetModes(_mode);
 
-                HourlyInfos.Add(hourlyInfo);
+                SessionHourlyInfos.Add(hourlyInfo);
             }
         }
 
@@ -145,7 +155,7 @@ namespace SessyController.Services.Items
             {
                 DisableChargingAndDischarging(hourlyInfo);
 
-                HourlyInfos.Remove(hourlyInfo);
+                SessionHourlyInfos.Remove(hourlyInfo);
             }
         }
 
@@ -160,7 +170,7 @@ namespace SessyController.Services.Items
         /// </summary>
         public bool IsCheaper(Session session)
         {
-            return HourlyInfos.Min(hi => hi.BuyingPrice) < session.HourlyInfos.Min(hi => hi.BuyingPrice);
+            return SessionHourlyInfos.Min(hi => hi.BuyingPrice) < session.SessionHourlyInfos.Min(hi => hi.BuyingPrice);
         }
 
         /// <summary>
@@ -173,13 +183,13 @@ namespace SessyController.Services.Items
         {
             if (setModes)
             {
-                foreach (var hourlyInfo in HourlyInfos)
+                foreach (var hourlyInfo in SessionHourlyInfos)
                 {
                     DisableChargingAndDischarging(hourlyInfo);
                 }
             }
 
-            HourlyInfos.Clear();
+            SessionHourlyInfos.Clear();
         }
 
         public bool RemoveAllAfter(int maxHours)
@@ -191,7 +201,7 @@ namespace SessyController.Services.Items
             {
                 case Modes.Charging:
                     {
-                        var list = HourlyInfos.OrderBy(hi => hi.BuyingPrice).ToList();
+                        var list = SessionHourlyInfos.OrderBy(hi => hi.BuyingPrice).ToList();
 
                         while (index < list.Count)
                         {
@@ -204,7 +214,7 @@ namespace SessyController.Services.Items
 
                 case Modes.Discharging:
                     {
-                        var list = HourlyInfos.OrderByDescending(hi => hi.SellingPrice).ToList();
+                        var list = SessionHourlyInfos.OrderByDescending(hi => hi.SellingPrice).ToList();
 
                         while (index < list.Count)
                         {
@@ -224,10 +234,50 @@ namespace SessyController.Services.Items
 
         public int GetHoursForMode()
         {
-            var power = HourlyInfos.Sum(hi => Math.Max(0.0, hi.ChargeLeft - hi.ChargeNeeded));
-            var capacity = Mode == Modes.Charging ? _batteryContainer.GetChargingCapacity() : _batteryContainer.GetDischargingCapacity();
+            int hours = 0;
+            var nextSession = _sessions.GetNextSession(this);
+            double power = 0.0;
 
-            var hours = (int)Math.Ceiling(power / capacity);
+            if (nextSession != null)
+            {
+                switch (nextSession.Mode)
+                {
+                    case Modes.Charging:
+                        power = _batteryContainer.GetTotalCapacity();
+                        break;
+
+                    case Modes.Discharging:
+                        var hourlyInfoObjectsBetween = _sessions.GetInfoObjectsBetween(this, nextSession);
+                        power = hourlyInfoObjectsBetween.Count * _settingsConfig.RequiredHomeEnergy / 24;
+                        break;
+
+                    default:
+                        throw new InvalidOperationException($"Wrong mode for session {nextSession}");
+                }
+            }
+            else
+            {
+                switch (Mode)
+                {
+                    case Modes.Charging:
+                        power = _batteryContainer.GetTotalCapacity();
+                        break;
+
+                    case Modes.Discharging:
+                        var hourlyInfoObjectsAfter = _sessions.GetInfoObjectsAfter(this);
+                        power = hourlyInfoObjectsAfter.Count * _settingsConfig.RequiredHomeEnergy / 24;
+                        power = _batteryContainer.GetTotalCapacity();
+                        break;
+
+                    default:
+                        throw new InvalidOperationException($"Wrong mode for session {nextSession}");
+                }
+                // No next session. Return full capacity
+            }
+
+            var capacity = Mode == Modes.Charging ? _batteryContainer.GetChargingCapacity() : _batteryContainer.GetDischargingCapacity();
+            hours = (int)Math.Ceiling(power / capacity);
+
             return hours;
         }
 
@@ -240,12 +290,12 @@ namespace SessyController.Services.Items
             {
                 case Modes.Charging:
                     {
-                        return HourlyInfos.Count;
+                        return SessionHourlyInfos.Count;
                     }
 
                 case Modes.Discharging:
                     {
-                        return HourlyInfos.Count;
+                        return SessionHourlyInfos.Count;
                     }
 
                 default:
@@ -256,13 +306,13 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Are there hourlyInfo items in the session?
         /// </summary>
-        public bool IsEmpty() => !HourlyInfos.Any();
+        public bool IsEmpty() => !SessionHourlyInfos.Any();
 
         public override string ToString()
         {
             var empty = IsEmpty() ? "!!!" : string.Empty;
 
-            return $"{empty}Session: {Mode}, FirstDate: {FirstDate}, LastDate {LastDate}, Count: {HourlyInfos.Count}, MaxHours: {MaxHours}";
+            return $"{empty}Session: {Mode}, FirstDate: {FirstDate}, LastDate {LastDate}, Count: {SessionHourlyInfos.Count}, MaxHours: {MaxHours}";
         }
 
         private bool _isDisposed = false;

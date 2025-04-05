@@ -102,6 +102,17 @@ namespace SessyController.Services.Items
         }
 
         /// <summary>
+        /// Returns the next session for the session.
+        /// </summary>
+        public Session? GetNextSession(Session session)
+        {
+            return SessionList
+                    .Where(se => se.FirstDate > session.LastDate)
+                    .OrderBy(se => se.FirstDate)
+                    .FirstOrDefault();
+        }
+
+        /// <summary>
         /// Adds a new session to the sessions hourly info list and initializes it.
         /// </summary>
         public void AddNewSession(Modes mode, HourlyInfo hourlyInfo)
@@ -112,7 +123,7 @@ namespace SessyController.Services.Items
                 {
                     case Modes.Charging:
                         {
-                            Session session = new Session(mode, _maxChargingHours, _batteryContainer, _settingsConfig);
+                            Session session = new Session(this, mode, _maxChargingHours, _batteryContainer, _settingsConfig);
                             _sessionList.Add(session);
                             session.AddHourlyInfo(hourlyInfo);
                             CompleteSession(session, _hourlyInfos, _maxChargingHours, _cycleCost);
@@ -121,7 +132,7 @@ namespace SessyController.Services.Items
 
                     case Modes.Discharging:
                         {
-                            Session session = new Session(mode, _maxDischargingHours, _batteryContainer, _settingsConfig);
+                            Session session = new Session(this, mode, _maxDischargingHours, _batteryContainer, _settingsConfig);
                             _sessionList.Add(session);
                             session.AddHourlyInfo(hourlyInfo);
                             CompleteSession(session, _hourlyInfos, _maxDischargingHours, _cycleCost);
@@ -374,6 +385,27 @@ namespace SessyController.Services.Items
             }
         }
 
+        public List<HourlyInfo> GetInfoObjectsBetween(Session previousSession, Session session)
+        {
+            return _hourlyInfos!
+                .Where(hi => hi.Time < session.FirstDate && hi.Time > previousSession.LastDate)
+                .ToList();
+        }
+
+        /// <summary>
+        /// Gets the hourlyInfo objects between 2 sessions.
+        /// </summary>
+        /// <summary>
+        /// Gets all hourlyInfo objects after the session.
+        /// </summary>
+        public List<HourlyInfo> GetInfoObjectsAfter(Session session)
+        {
+            return _hourlyInfos!
+                .Where(hi => hi.Time > session.LastDate)
+                .ToList();
+        }
+
+        
         /// <summary>
         /// Gets the average price for prices inside the window of the current hourly info.
         /// </summary>
@@ -441,6 +473,31 @@ namespace SessyController.Services.Items
                 _sessionList = null;
                 _isDisposed = true;
             }
+        }
+
+        internal bool RemoveMoreExpensiveChargingSessions()
+        {
+            var changed = false;
+            Session? previousSession = null;
+
+            foreach (var session in SessionList.OrderBy(se => se.FirstDate).ToList())
+            {
+                if(previousSession != null)
+                {
+                    if(previousSession.Mode == Modes.Charging && session.Mode == Modes.Charging)
+                    {
+                        if(session.IsCheaper(previousSession))
+                        {
+                            RemoveSession(previousSession);
+                            changed = true;
+                        }
+                    }
+                }
+
+                previousSession = session;
+            }
+
+            return changed;
         }
     }
 }

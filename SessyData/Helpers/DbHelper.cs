@@ -16,8 +16,12 @@ namespace SessyData.Helpers
             _scope = _serviceScopeFactory.CreateScope();
         }
 
+        private SemaphoreSlim dbHelperSemaphore = new SemaphoreSlim(1);
+
         public void ExecuteTransaction(Action<ModelContext> action)
         {
+            dbHelperSemaphore.Wait();
+
             try
             {
                 var dbContext = _scope.ServiceProvider.GetRequiredService<ModelContext>();
@@ -39,10 +43,16 @@ namespace SessyData.Helpers
             {
                 throw new InvalidOperationException($"Database operation error: {ex.ToDetailedString()}", ex);
             }
+            finally
+            {
+                dbHelperSemaphore.Release();
+            }
         }
 
         public T ExecuteQuery<T>(Func<ModelContext, T> queryFunc)
         {
+            dbHelperSemaphore.Wait();
+
             try
             {
                 var dbContext = _scope.ServiceProvider.GetRequiredService<ModelContext>();
@@ -52,6 +62,10 @@ namespace SessyData.Helpers
             catch (Exception ex)
             {
                 throw new InvalidOperationException($"Database query error: {ex.Message}", ex);
+            }
+            finally
+            {
+                dbHelperSemaphore.Release();
             }
         }
 

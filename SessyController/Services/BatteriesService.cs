@@ -444,7 +444,7 @@ namespace SessyController.Services
 
                 if (_sessions != null)
                 {
-                    await RemoveExtraChargingSessions();
+                    RemoveExtraChargingSessions();
 
                      CheckSessions();
                 }
@@ -555,17 +555,21 @@ namespace SessyController.Services
 
         private async Task EvaluateChargingHoursAndProfitability()
         {
-            CalculateChargeNeeded();
+            do
+            {
+                CalculateChargeNeeded();
 
-            await CalculateChargeLeft(hourlyInfos!);
-            
-            _sessions.CalculateProfits(_timeZoneService!);
+                await CalculateChargeLeft();
+
+                _sessions.CalculateProfits(_timeZoneService!);
+            }
+            while (_sessions.RemoveMoreExpensiveChargingSessions());
         }
 
         /// <summary>
         /// Calculate the estimated charge per hour starting from the current hour.
         /// </summary>
-        public async Task CalculateChargeLeft(List<HourlyInfo> hourlyInfos)
+        public async Task CalculateChargeLeft()
         {
             double charge = 0.0;
             double totalCapacity = _batteryContainer.GetTotalCapacity();
@@ -577,7 +581,7 @@ namespace SessyController.Services
             var localTimeHour = now.Date.AddHours(now.Hour);
             charge = await _batteryContainer.GetStateOfChargeInWatts();
 
-            var hourlyInfoList = hourlyInfos
+            var hourlyInfoList = hourlyInfos!
                 .OrderBy(hp => hp.Time)
                 .ToList();
 
@@ -626,15 +630,12 @@ namespace SessyController.Services
         /// - Charging sessions larger than the max charging hours
         /// - Discharging sessions that are not profitable.
         /// </summary>
-        private async Task RemoveExtraChargingSessions()
+        private void RemoveExtraChargingSessions()
         {
             bool changed1;
             bool changed2;
             bool changed3;
             bool changed4;
-            bool changed5;
-            bool changed6;
-            bool changed7;
 
             do
             {
@@ -642,24 +643,15 @@ namespace SessyController.Services
                 changed2 = false;
                 changed3 = false;
                 changed4 = false;
-                changed5 = false;
-                changed6 = false;
-                changed7 = false;
 
-                changed1 = RemoveMoreExpensiveChargingSessions();
+                changed1 = RemoveExtraHours();
 
                 changed2 = RemoveEmptySessions();
 
-                changed3 = RemoveExtraHours();
+                changed3 = CheckProfitability();
 
                 changed4 = RemoveEmptySessions();
-
-                changed5 = CheckProfitability();
-
-                changed6 = RemoveEmptySessions();
-
-                // changed7 = await RemoveSessionIfMaxChargeIsReached();
-            } while (changed1 || changed2 || changed3 || changed4 || changed5 || changed6 || changed7);
+            } while (changed1 || changed2 || changed1 || changed2 || changed3 || changed4);
         }
 
         /// <summary>
@@ -796,63 +788,6 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Merge succeeding sessions of the same type.
-        /// </summary>
-        private bool RemoveMoreExpensiveChargingSessions()
-        {
-            var changed = false;
-
-            Session? previousSession = null;
-
-            var list = _sessions.SessionList
-                        .Where(se => se.GetHourlyInfoList().Count > 0)
-                        .OrderBy(se => se.FirstDate)
-                        .ToList();
-
-            foreach (var session in list)
-            {
-                if (previousSession != null)
-                {
-                    if (previousSession.Mode == session.Mode)
-                    {
-                        var hoursBetween = (session.FirstDate - previousSession.LastDate).Hours - 1;
-
-                        if (session.Mode == Modes.Charging)
-                        {
-                            var maxZeroNetHomeHours = _sessions.GetMaxZeroNetHomeHours(previousSession, session);
-
-                            if (hoursBetween <= maxZeroNetHomeHours)
-                            {
-                                if (session.IsCheaper(previousSession))
-                                    _sessions.RemoveSession(previousSession);
-                                else
-                                    _sessions.RemoveSession(session);
-
-                                changed = true;
-                            }
-                        }
-                        else if (session.Mode == Modes.Discharging)
-                        {
-                            if (hoursBetween <= 3)
-                            {
-                                if (session.IsCheaper(previousSession))
-                                    _sessions.RemoveSession(session);
-                                else
-                                    _sessions.RemoveSession(previousSession);
-
-                                changed = true;
-                            }
-                        }
-                    }
-                }
-
-                previousSession = session;
-            }
-
-            return changed;
-        }
-
-        /// <summary>
         /// Shrink sessions if the hours needed to charge to 100% is less than calculated.
         /// </summary>
         private bool ShrinkSessions()
@@ -903,7 +838,7 @@ namespace SessyController.Services
                             throw new InvalidOperationException($"Wrong mode: {previousSession}");
                     }
 
-                    HandleHoursBetweenSessions(previousSession, nextSession);
+                    // HandleHoursBetweenSessions(previousSession, nextSession);
                 }
 
                 previousSession = nextSession;
@@ -932,14 +867,18 @@ namespace SessyController.Services
             }
         }
 
-        private void HandleLastChargingSession(Session previousSession)
+        private void HandleLastChargingSession(Session session)
         {
-            previousSession.SetChargeNeeded(_batteryContainer.GetTotalCapacity());
+            var totalCapacity = _batteryContainer.GetTotalCapacity();
+            var hourlyInfoObjectsAfter = _sessions.GetInfoObjectsAfter(session);
+
+            session.SetChargeNeeded(totalCapacity);
+            hourlyInfoObjectsAfter.ForEach(hi => hi.ChargeNeeded = totalCapacity);
         }
 
         private void HandleLastDischargingSession(Session previousSession)
         {
-            var hourlyInfosAfter = GetInfoObjectsAfter(previousSession);
+            var hourlyInfosAfter = _sessions.GetInfoObjectsAfter(previousSession);
             var needed = GetEstimatePowerNeeded(hourlyInfosAfter);
 
             previousSession.SetChargeNeeded(needed);
@@ -991,10 +930,11 @@ namespace SessyController.Services
         /// </summary>
         private void HandleDischargingChargingCalculation(Session previousSession, Session nextSession)
         {
-            List<HourlyInfo> infoObjectsBetween = GetInfoObjectsBetween(previousSession, nextSession);
+            List<HourlyInfo> infoObjectsBetween = _sessions.GetInfoObjectsBetween(previousSession, nextSession);
             var totalNeed = GetEstimatePowerNeeded(infoObjectsBetween);
 
             previousSession.SetChargeNeeded(totalNeed);
+            infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = totalNeed);
         }
 
         /// <summary>
@@ -1002,13 +942,14 @@ namespace SessyController.Services
         /// </summary>
         private void HandleChargingDischargingSessions(Session previousSession, Session nextSession)
         {
-            List<HourlyInfo> infoObjectsBetween = GetInfoObjectsBetween(previousSession, nextSession);
+            List<HourlyInfo> infoObjectsBetween = _sessions.GetInfoObjectsBetween(previousSession, nextSession);
             var estimateNeeded = GetEstimatePowerNeeded(infoObjectsBetween);
 
             var chargeCalculated = estimateNeeded + nextSession.GetDischargeNeeded();
             var chargeNeeded = Math.Min(chargeCalculated, _batteryContainer.GetTotalCapacity());
 
             previousSession.SetChargeNeeded(chargeNeeded);
+            infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = chargeNeeded);
         }
 
         /// <summary>
@@ -1017,7 +958,7 @@ namespace SessyController.Services
         private void HandleChargingChargingSessions(Session previousSession, Session nextSession)
         {
             var totalCapacity = _batteryContainer.GetTotalCapacity();
-            List<HourlyInfo> infoObjectsBetween = GetInfoObjectsBetween(previousSession, nextSession);
+            List<HourlyInfo> infoObjectsBetween = _sessions.GetInfoObjectsBetween(previousSession, nextSession);
 
             if (previousSession.IsCheaper(nextSession))
             {
@@ -1028,13 +969,9 @@ namespace SessyController.Services
             {
                 if (infoObjectsBetween.Any())
                 {
-                    var count = infoObjectsBetween.Where(hi => hi.Mode == Modes.ZeroNetHome).Count();
-
                     var chargeNeeded = GetEstimatePowerNeeded(infoObjectsBetween);
 
-                    chargeNeeded += nextSession.GetChargeNeeded();
-
-                    infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = chargeNeeded);
+                    infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = Math.Min(_batteryContainer.GetTotalCapacity(), chargeNeeded));
                     previousSession.SetChargeNeeded(chargeNeeded);
                 }
                 else
@@ -1049,7 +986,7 @@ namespace SessyController.Services
         /// </summary>
         private void HandleHoursBetweenSessions(Session previousSession, Session nextSession)
         {
-            List<HourlyInfo> infoObjectsBetween = GetInfoObjectsBetween(previousSession, nextSession);
+            List<HourlyInfo> infoObjectsBetween = _sessions.GetInfoObjectsBetween(previousSession, nextSession);
             var count = infoObjectsBetween.Where(hi => hi.ZeroNetHome).Count();
             var hourNeed = (_settingsConfig.RequiredHomeEnergy / 24) * count;
 
@@ -1060,7 +997,7 @@ namespace SessyController.Services
         {
             double power = 0.0;
 
-            foreach (var hourlyInfo in infoObjectsBetween)
+            foreach (var hourlyInfo in infoObjectsBetween.Where(hi => hi.SolarPowerInWatts <= 0.0).ToList())
             {
                 // TODO: The estimate is incorrect. It calculates the net power from the grid (Zero Net Home), not the needs of the home.
                 //var temperature = _weatherService.GetTemperature(hourlyInfo.Time);
@@ -1077,27 +1014,7 @@ namespace SessyController.Services
                 power += _settingsConfig.RequiredHomeEnergy / 24.0;
             }
 
-            return power;
-        }
-
-        /// <summary>
-        /// Gets the hourlyInfo objects between 2 sessions.
-        /// </summary>
-        private static List<HourlyInfo> GetInfoObjectsBetween(Session previousSession, Session session)
-        {
-            return hourlyInfos!
-                .Where(hi => hi.Time < session.FirstDate && hi.Time > previousSession.LastDate)
-                .ToList();
-        }
-
-        /// <summary>
-        /// Gets all hourlyInfo objects after the session.
-        /// </summary>
-        private static List<HourlyInfo> GetInfoObjectsAfter(Session session)
-        {
-            return hourlyInfos!
-                .Where(hi => hi.Time > session.LastDate)
-                .ToList();
+            return Math.Max(0.0, power);
         }
 
         /// <summary>
