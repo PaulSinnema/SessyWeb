@@ -147,7 +147,7 @@ namespace SessyController.Services
 
                 try
                 {
-                    await DetermineChargingHours();
+                    DetermineChargingHours();
 
                     if (_sessions != null)
                     {
@@ -395,13 +395,13 @@ namespace SessyController.Services
         /// <summary>
         /// Determine when to charge the batteries.
         /// </summary>
-        public async Task DetermineChargingHours()
+        public void DetermineChargingHours()
         {
             DateTime localTime = _timeZoneService.Now;
 
             if (FetchPricesFromENTSO_E(localTime))
             {
-                await GetChargingHours();
+                GetChargingHours();
             }
         }
 
@@ -429,7 +429,7 @@ namespace SessyController.Services
         /// <summary>
         /// In this routine it is determined when to charge the batteries.
         /// </summary>
-        private async Task GetChargingHours()
+        private void GetChargingHours()
         {
             try
             {

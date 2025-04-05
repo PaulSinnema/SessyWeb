@@ -47,7 +47,7 @@ public class P1MeterService : BackgroundService, IDisposable
         {
             try
             {
-                await Process(cancelationToken);
+                Process(cancelationToken);
             }
             catch (Exception ex)
             {
@@ -73,7 +73,7 @@ public class P1MeterService : BackgroundService, IDisposable
         _logger.LogWarning("P1Meter service stopped.");
     }
 
-    private async Task Process(CancellationToken cancelationToken)
+    private void Process(CancellationToken cancelationToken)
     {
         var now = _timeZoneService.Now;
 
