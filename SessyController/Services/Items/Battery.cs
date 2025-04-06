@@ -56,7 +56,7 @@ namespace SessyController.Services.Items
                 {
                     exception = ex;
                     tries++;
-                    _logger.LogWarning($"Could not get power status for battery {Id}. Retry {tries}");
+                    _logger.LogInformation($"Could not get power status for battery {Id}. Retry {tries}");
                 }
             } while (tries < 10);
 

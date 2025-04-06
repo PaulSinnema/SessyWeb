@@ -207,7 +207,7 @@ namespace SessyController.Services
                 {
                     exception = ex;
                     tries++;
-                    _logger.LogWarning($"Failed to get a Modbus client for 'SolarEdge' with id: {id}. Retrying {tries}");
+                    _logger.LogInformation($"Failed to get a Modbus client for 'SolarEdge' with id: {id}. Retrying {tries}");
                 }
             } while (tries < 10);
 
