@@ -88,6 +88,17 @@ namespace SessyController.Services.Items
         }
 
         /// <summary>
+        /// Gets the previous hourly info or return null if not found.
+        /// </summary>
+        public HourlyInfo? GetPreviousHourlyInfo(HourlyInfo currentHourlyInfo)
+        {
+            return _hourlyInfos
+                .Where(hi => hi.Time < currentHourlyInfo.Time)
+                .OrderByDescending(hi => hi.Time)
+                .FirstOrDefault();
+        }
+
+        /// <summary>
         /// Removes the hourly info object from the session and chnages its charging mode.
         /// </summary>
         public void RemoveFromSession(HourlyInfo hourlyInfo)

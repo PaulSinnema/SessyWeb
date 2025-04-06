@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Radzen;
 using Radzen.Blazor;
 using SessyCommon.Extensions;
@@ -107,7 +108,11 @@ builder.Services.AddHostedService(provider => provider.GetRequiredService<Energy
 builder.Services.AddHostedService(provider => provider.GetRequiredService<P1MeterService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<SolarEdgeService>());
 
-builder.Services.AddRazorPages();
+builder.Services.AddRazorPages(options =>
+{
+    options.Conventions.ConfigureFilter(new IgnoreAntiforgeryTokenAttribute());
+});
+
 builder.Services.AddServerSideBlazor();
 
 builder.Services.AddScoped<Radzen.DialogService>();
@@ -125,8 +130,6 @@ builder.Services.AddControllers();
 builder.Services.AddRadzenComponents();
 
 // Remove the antiforgery token.
-builder.Services.AddAntiforgery(options => options.SuppressXFrameOptionsHeader = true);
-
 builder.Services.AddRadzenCookieThemeService(options =>
 {
     options.Name = "SessyTheme"; // The name of the cookie

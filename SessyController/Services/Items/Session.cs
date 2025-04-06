@@ -244,7 +244,17 @@ namespace SessyController.Services.Items
             switch (Mode)
             {
                 case Modes.Charging:
-                    power = _batteryContainer.GetTotalCapacity();
+                    var previousHourlyInfo = _sessions.GetPreviousHourlyInfo(First!);
+
+                    if (previousHourlyInfo != null)
+                    {
+                        var chargeLeft = (previousHourlyInfo != null ? previousHourlyInfo.ChargeLeft : 0.0);
+                        power = _batteryContainer.GetTotalCapacity() - chargeLeft;
+                    }
+                    else
+                    {
+                        power = _batteryContainer.GetTotalCapacity();
+                    }
                     break;
 
                 case Modes.Discharging:
