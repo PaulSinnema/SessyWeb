@@ -21,7 +21,7 @@ namespace SessyController.Services
             if (!string.IsNullOrWhiteSpace(_settingsConfig?.Timezone))
                 _timeZone = TimeZoneInfo.FindSystemTimeZoneById(_settingsConfig.Timezone);
             else
-                throw new InvalidOperationException("Timezone is missing");
+                throw new InvalidOperationException("Time zone is missing in appsettings.json");
         }
 
         /// <summary>
@@ -29,6 +29,9 @@ namespace SessyController.Services
         /// </summary>
         public DateTime Now => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _timeZone);
 
+        /// <summary>
+        /// Gets the sunlight level for time zone, latitude and longitude.
+        /// </summary>
         public SunlightLevel GetSunlightLevel(double latitude, double longitude)
         {
             DateTimeZone zone = DateTimeZoneProviders.Tzdb[_settingsConfig.Timezone!];

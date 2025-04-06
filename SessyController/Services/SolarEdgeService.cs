@@ -6,7 +6,6 @@ using SessyController.Configurations;
 using SessyController.Providers;
 using SessyData.Model;
 using SessyData.Services;
-using System.Collections.Generic;
 using Types = Djohnnie.SolarEdge.ModBus.TCP.Types;
 
 namespace SessyController.Services
@@ -149,6 +148,9 @@ namespace SessyController.Services
             return power;
         }
 
+        /// <summary>
+        /// Store the collected data in the DB.
+        /// </summary>
         private void StoreData(Dictionary<string, Dictionary<DateTime, double>> collectedPowerData)
         {
             foreach (var collectionKeyValue in collectedPowerData)

@@ -232,47 +232,38 @@ namespace SessyController.Services.Items
             return changed;
         }
 
+        /// <summary>
+        /// Gets the (dis)charging hours for this session.
+        /// </summary>
         public int GetHoursForMode()
         {
             int hours = 0;
             var nextSession = _sessions.GetNextSession(this);
             double power = 0.0;
 
-            if (nextSession != null)
+            switch (Mode)
             {
-                switch (nextSession.Mode)
-                {
-                    case Modes.Charging:
-                        power = _batteryContainer.GetTotalCapacity();
-                        break;
+                case Modes.Charging:
+                    power = _batteryContainer.GetTotalCapacity();
+                    break;
 
-                    case Modes.Discharging:
+                case Modes.Discharging:
+                    if (nextSession != null)
+                    {
                         var hourlyInfoObjectsBetween = _sessions.GetInfoObjectsBetween(this, nextSession);
                         power = hourlyInfoObjectsBetween.Count * _settingsConfig.RequiredHomeEnergy / 24;
-                        break;
-
-                    default:
-                        throw new InvalidOperationException($"Wrong mode for session {nextSession}");
-                }
-            }
-            else
-            {
-                switch (Mode)
-                {
-                    case Modes.Charging:
-                        power = _batteryContainer.GetTotalCapacity();
-                        break;
-
-                    case Modes.Discharging:
+                    }
+                    else
+                    {
                         var hourlyInfoObjectsAfter = _sessions.GetInfoObjectsAfter(this);
-                        power = hourlyInfoObjectsAfter.Count * _settingsConfig.RequiredHomeEnergy / 24;
-                        power = _batteryContainer.GetTotalCapacity();
-                        break;
+                        var neededPower = hourlyInfoObjectsAfter.Count * _settingsConfig.RequiredHomeEnergy / 24;
+                        var totalCapacity = _batteryContainer.GetTotalCapacity();
+                        power = totalCapacity - neededPower;
+                    }
+                    break;
 
-                    default:
-                        throw new InvalidOperationException($"Wrong mode for session {nextSession}");
-                }
-                // No next session. Return full capacity
+                default:
+                    throw new InvalidOperationException($"Wrong mode for session {this}");
             }
 
             var capacity = Mode == Modes.Charging ? _batteryContainer.GetChargingCapacity() : _batteryContainer.GetDischargingCapacity();
