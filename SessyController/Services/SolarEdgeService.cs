@@ -110,17 +110,23 @@ namespace SessyController.Services
             {
                 foreach (var config in powerSystemConfig.Value)
                 {
-                    ActualSolarPowerInWatts = await GetACPowerInWatts(config.Key);
-                    var date = _timeZoneService.Now;
+                    var level = _timeZoneService.GetSunlightLevel(config.Value.Latitude, config.Value.Longitude);
 
-                    if(!CollectedPowerData.ContainsKey(config.Key))
+                    if (level == SolCalc.Data.SunlightLevel.Daylight)
                     {
-                        CollectedPowerData.Add(config.Key, new Dictionary<DateTime, double>());
+                        // The sun is visible (over the horizon).
+                        ActualSolarPowerInWatts = await GetACPowerInWatts(config.Key);
+                        var date = _timeZoneService.Now;
+
+                        if (!CollectedPowerData.ContainsKey(config.Key))
+                        {
+                            CollectedPowerData.Add(config.Key, new Dictionary<DateTime, double>());
+                        }
+
+                        CollectedPowerData[config.Key].Add(date, ActualSolarPowerInWatts);
+
+                        StoreData(CollectedPowerData);
                     }
-
-                    CollectedPowerData[config.Key].Add(date, ActualSolarPowerInWatts);
-
-                    StoreData(CollectedPowerData);
                 }
             }
         }
@@ -172,10 +178,7 @@ namespace SessyController.Services
                         }
                     };
 
-                    _solarEdgeDataService.Add(list, (item, set) =>
-                    {
-                        return false; // Should not contain this value
-                    });
+                    _solarEdgeDataService.Add(list);
 
                     foreach (var item in collection.ToList())
                     {

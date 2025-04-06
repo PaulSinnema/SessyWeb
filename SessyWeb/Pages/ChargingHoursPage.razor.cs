@@ -74,7 +74,7 @@ namespace SessyWeb.Pages
         {
             var height = await _screenSizeService!.GetScreenHeightAsync();
 
-            HandleResize(height);
+            HandleResize(height - 250);
         }
 
         private async Task HeartBeat()
@@ -132,9 +132,9 @@ namespace SessyWeb.Pages
         private void ChangeChartStyle(int height)
         {
             // 25 pixels per data row (3)
-            var width = HourlyInfos?.Count * 3 * 25 + 200;
+            var width = HourlyInfos?.Count * 3 * 25;
 
-            GraphStyle = $"min-height: {height - 250}px; width: {width}px; visibility: initial;";
+            GraphStyle = $"min-height: {height}px; width: {width}px; visibility: initial;";
         }
 
         public string FormatAsPrice(object value)

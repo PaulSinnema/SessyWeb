@@ -27,13 +27,13 @@ namespace SessyData.Services
             });
         }
 
-        public void Add(List<T> list, Func<T, DbSet<T>, bool> contains)
+        public void Add(List<T> list, Func<T, DbSet<T>, bool>? contains = null)
         {
             _dbHelper.ExecuteTransaction(db =>
             {
                 foreach (var item in list)
                 {
-                    if(!contains(item, db.Set<T>()))
+                    if(contains == null || !contains(item, db.Set<T>()))
                     {
                         db.Set<T>().Add(item);
                     }
@@ -66,16 +66,37 @@ namespace SessyData.Services
                 }
             });
         }
-
-        public void AddOrUpdate(List<T> list, Func<T, DbSet<T>, T?> contains)
+        
+        /// <summary>
+        /// Adds or updates an item in the set 'T'.
+        /// 'T' Must be of type IUpdatable<T> and you must provide the Update() code in class 'T'.
+        /// </summary>
+        /// <param name="list">List of IUpdatable<T> objects to Add or Update.</param>
+        /// <param name="contains">
+        /// If 'contains' is not null it will be called to fetch the unique item from the set. You must
+        /// provide the code to fetch the item.
+        /// if 'contains' is null the routine fetches the item for you using it's 'Id'.
+        /// </param>
+        public void AddOrUpdate(List<T> list, Func<T, DbSet<T>, T?>? contains = null)
         {
             EnsureUpdatable();
 
             _dbHelper.ExecuteTransaction(async db =>
             {
-                foreach (var item in list)
+                foreach (T item in list)
                 {
-                    var containedItem = contains(item, db.Set<T>());
+                    T? containedItem = null;
+
+                    if (contains != null)
+                    {
+                        containedItem = contains(item, db.Set<T>());
+                    }
+                    else
+                    {
+                        containedItem = db.Set<T>()
+                                            .Where(setItem => ((IUpdatable<T>)setItem).Id == ((IUpdatable<T>)item).Id)
+                                            .SingleOrDefault();
+                    }
 
                     if (containedItem != null)
                     {

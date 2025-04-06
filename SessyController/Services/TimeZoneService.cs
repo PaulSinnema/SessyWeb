@@ -1,5 +1,10 @@
 ﻿using Microsoft.Extensions.Options;
 using SessyController.Configurations;
+using SolCalc;
+using SolCalc.Data;
+using System;
+using NodaTime;
+using NodaTime.Extensions;
 
 namespace SessyController.Services
 {
@@ -23,5 +28,14 @@ namespace SessyController.Services
         /// Gets the local time using the timezone set in appsettings.json.
         /// </summary>
         public DateTime Now => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _timeZone);
+
+        public SunlightLevel GetSunlightLevel(double latitude, double longitude)
+        {
+            DateTimeZone zone = DateTimeZoneProviders.Tzdb[_settingsConfig.Timezone!];
+            ZonedDateTime now = SystemClock.Instance.InZone(zone).GetCurrentZonedDateTime();
+
+
+            return SunlightCalculator.GetSunlightAt(now, latitude, longitude);
+        }
     }
 }
