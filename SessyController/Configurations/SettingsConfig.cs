@@ -3,6 +3,10 @@
     public class SettingsConfig
     {
         /// <summary>
+        /// If set to true will use manual hours rather than automated hours.
+        /// </summary>
+        public bool ManualOverride { get; set; }
+        /// <summary>
         /// List of hours to charge when manual is set to true.
         /// </summary>
         public List<int>? ManualChargingHours { get; set; }

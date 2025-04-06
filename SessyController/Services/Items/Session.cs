@@ -258,18 +258,21 @@ namespace SessyController.Services.Items
                     break;
 
                 case Modes.Discharging:
+                    var neededPower = 0.0;
+                    var totalCapacity = _batteryContainer.GetTotalCapacity();
+
                     if (nextSession != null)
                     {
                         var hourlyInfoObjectsBetween = _sessions.GetInfoObjectsBetween(this, nextSession);
-                        power = hourlyInfoObjectsBetween.Count * _settingsConfig.RequiredHomeEnergy / 24;
+                        neededPower = hourlyInfoObjectsBetween.Count * _settingsConfig.RequiredHomeEnergy / 24;
                     }
                     else
                     {
                         var hourlyInfoObjectsAfter = _sessions.GetInfoObjectsAfter(this);
-                        var neededPower = hourlyInfoObjectsAfter.Count * _settingsConfig.RequiredHomeEnergy / 24;
-                        var totalCapacity = _batteryContainer.GetTotalCapacity();
-                        power = totalCapacity - neededPower;
+                        neededPower = hourlyInfoObjectsAfter.Count * _settingsConfig.RequiredHomeEnergy / 24;
                     }
+
+                    power = totalCapacity - neededPower;
                     break;
 
                 default:

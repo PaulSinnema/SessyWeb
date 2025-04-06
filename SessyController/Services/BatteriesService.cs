@@ -157,15 +157,15 @@ namespace SessyController.Services
 
                         HourlyInfo? currentHourlyInfo = GetCurrentHourlyInfo();
 
-                        if (!(_dayAheadMarketService.PricesAvailable && currentHourlyInfo != null))
+                        if ((_dayAheadMarketService.PricesAvailable && currentHourlyInfo != null) && _settingsConfig.ManualOverride == false)
+                        {
+                            await HandleAutomaticCharging(_sessions);
+                        }
+                        else
                         {
                             _logger.LogInformation("No prices available from ENTSO-E, switching to manual charging");
 
                             HandleManualCharging();
-                        }
-                        else
-                        {
-                            await HandleAutomaticCharging(_sessions);
                         }
                     }
                 }
@@ -704,7 +704,7 @@ namespace SessyController.Services
 
                         while (hasCharging && hasDischarging)
                         {
-                            if (chargeEnumerator.Current.BuyingPrice + _settingsConfig.CycleCost > dischargeEnumerator.Current.BuyingPrice)
+                            if (chargeEnumerator.Current.BuyingPrice + _settingsConfig.CycleCost > dischargeEnumerator.Current.SellingPrice)
                             {
                                 session.RemoveHourlyInfo(dischargeEnumerator.Current);
 
