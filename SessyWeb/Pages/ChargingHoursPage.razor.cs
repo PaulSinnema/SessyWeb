@@ -128,6 +128,7 @@ namespace SessyWeb.Pages
                 .ToList();
         }
 
+        public bool IsManualOverride => _batteriesService!.IsManualOverride;
 
         private void ChangeChartStyle(int height)
         {

@@ -38,6 +38,8 @@ namespace SessyController.Services
 
         private static List<HourlyInfo>? hourlyInfos { get; set; } = new List<HourlyInfo>();
 
+        public bool IsManualOverride => _settingsConfig.ManualOverride;
+
         public BatteriesService(LoggingService<BatteriesService> logger,
                                 IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
                                 IOptionsMonitor<SessyBatteryConfig> sessyBatteryConfigMonitor,

@@ -24,6 +24,12 @@
                     }
                 </RadzenStack>
                 <RadzenStack Orientation="Orientation.Horizontal" Style="width: 100%;">
+                    @if (IsManualOverride)
+                    {
+                        <RadzenCard>
+                            <i class="fas fa-hand hand" style="color: indianred; font-size: 24px;"></i>
+                        </RadzenCard>
+                    }
                     <RadzenCard>
                         <div style="height: 20px; width: 20px; display: flex; align-items: center; justify-content: center;">
                             @if (IsBeating)
