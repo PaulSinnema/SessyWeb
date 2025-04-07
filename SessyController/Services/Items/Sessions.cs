@@ -134,7 +134,7 @@ namespace SessyController.Services.Items
                 {
                     case Modes.Charging:
                         {
-                            Session session = new Session(this, mode, _maxChargingHours, _batteryContainer, _settingsConfig);
+                            Session session = new Session(this, _timeZoneService!, mode, _maxChargingHours, _batteryContainer, _settingsConfig);
                             _sessionList.Add(session);
                             session.AddHourlyInfo(hourlyInfo);
                             CompleteSession(session, _hourlyInfos, _maxChargingHours, _cycleCost);
@@ -143,7 +143,7 @@ namespace SessyController.Services.Items
 
                     case Modes.Discharging:
                         {
-                            Session session = new Session(this, mode, _maxDischargingHours, _batteryContainer, _settingsConfig);
+                            Session session = new Session(this, _timeZoneService!, mode, _maxDischargingHours, _batteryContainer, _settingsConfig);
                             _sessionList.Add(session);
                             session.AddHourlyInfo(hourlyInfo);
                             CompleteSession(session, _hourlyInfos, _maxDischargingHours, _cycleCost);

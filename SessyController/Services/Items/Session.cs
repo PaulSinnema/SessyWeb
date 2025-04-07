@@ -53,6 +53,8 @@ namespace SessyController.Services.Items
 
         private Sessions _sessions { get; set; }
 
+        private TimeZoneService _timeZoneService { get; set; }
+
         /// <summary>
         /// Max hours of (dis)charging
         /// </summary>
@@ -84,6 +86,7 @@ namespace SessyController.Services.Items
         public DateTime LastDateHour => Last?.Time ?? DateTime.MaxValue;
 
         public Session(Sessions sessions,
+                       TimeZoneService timeZoneService,
                        Modes mode,
                        int maxHours,
                        BatteryContainer batteryContainer,
@@ -91,6 +94,7 @@ namespace SessyController.Services.Items
         {
             SessionHourlyInfos = new List<HourlyInfo>();
             _sessions = sessions;
+            _timeZoneService = timeZoneService;
             MaxHours = maxHours;
             Mode = mode;
             _batteryContainer = batteryContainer;
@@ -197,11 +201,15 @@ namespace SessyController.Services.Items
             int index = maxHours;
             bool changed = false;
 
+            // Once the session has started don't remove anything before now.
+            var now = _timeZoneService.Now.DateHour();
+            var hourlyInfos = SessionHourlyInfos.Where(hi => hi.Time > now).ToList();
+
             switch (Mode)
             {
                 case Modes.Charging:
                     {
-                        var list = SessionHourlyInfos.OrderBy(hi => hi.BuyingPrice).ToList();
+                        var list = hourlyInfos.OrderBy(hi => hi.BuyingPrice).ToList();
 
                         while (index < list.Count)
                         {
@@ -214,7 +222,7 @@ namespace SessyController.Services.Items
 
                 case Modes.Discharging:
                     {
-                        var list = SessionHourlyInfos.OrderByDescending(hi => hi.SellingPrice).ToList();
+                        var list = hourlyInfos.OrderByDescending(hi => hi.SellingPrice).ToList();
 
                         while (index < list.Count)
                         {
