@@ -118,8 +118,8 @@ namespace SessyController.Services.Items
         public Session? GetNextSession(Session session)
         {
             return SessionList
-                    .Where(se => se.FirstDate > session.LastDate)
-                    .OrderBy(se => se.FirstDate)
+                    .Where(se => se.FirstDateHour > session.LastDateHour)
+                    .OrderBy(se => se.FirstDateHour)
                     .FirstOrDefault();
         }
 
@@ -272,8 +272,8 @@ namespace SessyController.Services.Items
             var homeNeeds = _settingsConfig.RequiredHomeEnergy / 24.0;
             double currentCharge = 1.0;
 
-            var first = previousSession.LastDate.AddHours(1);
-            var last = session.FirstDate.AddHours(-1);
+            var first = previousSession.LastDateHour.AddHours(1);
+            var last = session.FirstDateHour.AddHours(-1);
             var hours = 0;
             var firstTime = true;
 
@@ -396,10 +396,10 @@ namespace SessyController.Services.Items
             }
         }
 
-        public List<HourlyInfo> GetInfoObjectsBetween(Session previousSession, Session session)
+        public List<HourlyInfo> GetInfoObjectsBetween(Session previousSession, Session nextSession)
         {
             return _hourlyInfos!
-                .Where(hi => hi.Time < session.FirstDate && hi.Time > previousSession.LastDate)
+                .Where(hi => hi.Time < nextSession.FirstDateHour && hi.Time > previousSession.LastDateHour)
                 .ToList();
         }
 
@@ -412,7 +412,7 @@ namespace SessyController.Services.Items
         public List<HourlyInfo> GetInfoObjectsAfter(Session session)
         {
             return _hourlyInfos!
-                .Where(hi => hi.Time > session.LastDate)
+                .Where(hi => hi.Time > session.LastDateHour)
                 .ToList();
         }
 
@@ -491,7 +491,7 @@ namespace SessyController.Services.Items
             var changed = false;
             Session? previousSession = null;
 
-            foreach (var session in SessionList.OrderBy(se => se.FirstDate).ToList())
+            foreach (var session in SessionList.OrderBy(se => se.FirstDateHour).ToList())
             {
                 if(previousSession != null)
                 {

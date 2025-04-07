@@ -258,8 +258,8 @@ namespace SessyController.Services
         {
             public SessionInfo(Session? session)
             {
-                FirstDate = session.FirstDate;
-                LastDate = session.LastDate;
+                FirstDate = session.FirstDateHour;
+                LastDate = session.LastDateHour;
             }
 
             public DateTime FirstDate { get; private set; }
@@ -298,12 +298,11 @@ namespace SessyController.Services
                 if (currentHourlyInfo.Charging)
                 {
                     bool batteriesAreFull = await AreAllBatteriesFull();
-                    bool chargeIsEnough = await IsMaxChargeNeededReached(currentHourlyInfo);
 
-                    if (batteriesAreFull || chargeIsEnough)
+                    if (batteriesAreFull)
                     {
                         StopSession(session);
-                        _logger.LogWarning($"Warning: Charging session stopped because batteries are full (enough). {session}, batteries are full: {batteriesAreFull}, charge at maximum: {chargeIsEnough}");
+                        _logger.LogWarning($"Warning: Charging session stopped because batteries are full (enough). {session}, batteries are full: {batteriesAreFull}");
                     }
                 }
                 else if (currentHourlyInfo.Discharging)
@@ -318,17 +317,6 @@ namespace SessyController.Services
                     }
                 }
             }
-        }
-
-        /// <summary>
-        /// Check whether the current hourly info is in a charging session and return
-        /// true if so and the calculated max charge needed is reached.
-        /// </summary>
-        private async Task<bool> IsMaxChargeNeededReached(HourlyInfo currentHourlyInfo)
-        {
-            var currentChargeState = await _batteryContainer.GetStateOfChargeInWatts();
-
-            return (currentHourlyInfo.Charging && currentChargeState >= currentHourlyInfo.ChargeNeeded);
         }
 
         /// <summary>
@@ -657,33 +645,6 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Remove the current session if the charge is reached.
-        /// </summary>
-        private async Task<bool> RemoveSessionIfMaxChargeIsReached()
-        {
-            var changed = false;
-            var now = _timeZoneService.Now;
-
-            var currentHourlyInfo = hourlyInfos!.FirstOrDefault(hi => hi.Time.DateHour() == now.DateHour());
-
-            if (currentHourlyInfo != null)
-            {
-                if (await IsMaxChargeNeededReached(currentHourlyInfo))
-                {
-                    Session? session = _sessions.GetSession(currentHourlyInfo);
-
-                    if (session == null) throw new InvalidOperationException($"Session not found for {currentHourlyInfo}");
-
-                    _sessions.RemoveSession(session);
-
-                    changed = true;
-                }
-            }
-
-            return changed;
-        }
-
-        /// <summary>
         /// Check if discharging sessions are profitable.
         /// </summary>
         private bool CheckProfitability()
@@ -692,7 +653,7 @@ namespace SessyController.Services
 
             Session? lastSession = null;
 
-            foreach (var session in _sessions.SessionList.OrderBy(se => se.FirstDate))
+            foreach (var session in _sessions.SessionList.OrderBy(se => se.FirstDateHour))
             {
                 if (lastSession != null)
                 {
@@ -822,7 +783,7 @@ namespace SessyController.Services
 
             _sessions.SessionList.ToList().ForEach(se => se.SetChargeNeeded(totalCapacity));
 
-            foreach (var nextSession in _sessions.SessionList.OrderBy(se => se.FirstDate))
+            foreach (var nextSession in _sessions.SessionList.OrderBy(se => se.FirstDateHour))
             {
                 if (previousSession != null)
                 {

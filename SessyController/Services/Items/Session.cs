@@ -76,12 +76,12 @@ namespace SessyController.Services.Items
         /// <summary>
         /// The first date in the session
         /// </summary>
-        public DateTime FirstDate => First?.Time ?? DateTime.MinValue;
+        public DateTime FirstDateHour => First?.Time ?? DateTime.MinValue;
 
         /// <summary>
         /// The last date in the session
         /// </summary>
-        public DateTime LastDate => Last?.Time ?? DateTime.MaxValue;
+        public DateTime LastDateHour => Last?.Time ?? DateTime.MaxValue;
 
         public Session(Sessions sessions,
                        Modes mode,
@@ -316,7 +316,7 @@ namespace SessyController.Services.Items
         {
             var empty = IsEmpty() ? "!!!" : string.Empty;
 
-            return $"{empty}Session: {Mode}, FirstDate: {FirstDate}, LastDate {LastDate}, Count: {SessionHourlyInfos.Count}, MaxHours: {MaxHours}";
+            return $"{empty}Session: {Mode}, FirstDate: {FirstDateHour}, LastDate {LastDateHour}, Count: {SessionHourlyInfos.Count}, MaxHours: {MaxHours}";
         }
 
         private bool _isDisposed = false;
