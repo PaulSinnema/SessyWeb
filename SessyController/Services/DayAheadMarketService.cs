@@ -2,11 +2,9 @@
 using SessyCommon.Extensions;
 using SessyController.Configurations;
 using SessyController.Services.Items;
-using SessyData.Migrations;
 using SessyData.Model;
 using SessyData.Services;
 using System.Collections.Concurrent;
-using System.Net.Http;
 using System.Xml;
 
 namespace SessyController.Services
@@ -159,7 +157,7 @@ namespace SessyController.Services
             }
 
             // It's 20:00 or later and still no prices on the Sessy.
-            if (_prices == null || (now.Hour >= 20 && (lastDate - now).Hours < 4))
+            if (_prices == null || (now.Hour >= 20 && (lastDate - now).Hours < 0))
             {
                 _logger.LogWarning($"It's 20:00 or later, Sessy still has no prices. Falling back on ENTSO-E.");
 
@@ -178,6 +176,10 @@ namespace SessyController.Services
                 {
                     _logger.LogWarning($"ENTSO-E has more actual prices than Sessy, we take those prices.");
                     _prices = entsoePrices;
+                }
+                else
+                {
+                    _logger.LogWarning($"ENTSO-E prices are not more actual than Sessy, keep Sessy prices");
                 }
             }
 
@@ -433,7 +435,7 @@ namespace SessyController.Services
                     else
                     {
                         // Price information is missing. Write to log.
-                        _logger.LogWarning($"No price information available for {currentTime}");
+                        _logger.LogInformation($"No price information available for {currentTime}");
                     }
                 }
 
