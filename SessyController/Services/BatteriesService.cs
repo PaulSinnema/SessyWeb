@@ -159,6 +159,7 @@ namespace SessyController.Services
 
                         HourlyInfo? currentHourlyInfo = GetCurrentHourlyInfo();
 
+                        
                         if ((_dayAheadMarketService.PricesAvailable && currentHourlyInfo != null) && _settingsConfig.ManualOverride == false)
                         {
                             await HandleAutomaticCharging(_sessions);
@@ -626,6 +627,8 @@ namespace SessyController.Services
             bool changed2;
             bool changed3;
             bool changed4;
+            bool changed5;
+            bool changed6;
 
             do
             {
@@ -633,6 +636,8 @@ namespace SessyController.Services
                 changed2 = false;
                 changed3 = false;
                 changed4 = false;
+                changed5 = false;
+                changed6 = false;
 
                 changed1 = RemoveExtraHours();
 
@@ -641,7 +646,41 @@ namespace SessyController.Services
                 changed3 = CheckProfitability();
 
                 changed4 = RemoveEmptySessions();
+
+                changed5 = RemoveDoubleDischargingSessions();
+
+                changed6 = RemoveEmptySessions();
             } while (changed1 || changed2 || changed1 || changed2 || changed3 || changed4);
+        }
+
+        private bool RemoveDoubleDischargingSessions()
+        {
+            bool changed = false;
+            Session? previousSession = null;
+
+            foreach (var session in _sessions.SessionList.OrderBy(se => se.FirstDateHour).ToList())
+            {
+                if(previousSession != null)
+                {
+                    if(previousSession.Mode == Modes.Discharging && session.Mode == Modes.Discharging)
+                    {
+                        if(previousSession.IsCheaper(session))
+                        {
+                            _sessions.RemoveSession(previousSession);
+                            changed = true;
+                        }
+                        else
+                        {
+                            _sessions.RemoveSession(session);
+                            changed = true;
+                        }
+                    }
+                }
+
+                previousSession = session;
+            }
+
+            return changed;
         }
 
         /// <summary>
@@ -713,7 +752,7 @@ namespace SessyController.Services
 
                     case Modes.Discharging:
                         {
-                            listToLimit = session.GetHourlyInfoList().OrderBy(hp => hp.BuyingPrice).ToList();
+                            listToLimit = session.GetHourlyInfoList().OrderBy(hp => hp.SellingPrice).ToList();
                             break;
                         }
 
@@ -881,11 +920,24 @@ namespace SessyController.Services
                     break;
 
                 case Modes.Discharging:
+                    HandleDischargingDischarging(previousSession, nextSession);
                     break;
 
                 default:
                     throw new InvalidOperationException($"Wrong mode: {previousSession}");
             }
+        }
+
+        private void HandleDischargingDischarging(Session previousSession, Session nextSession)
+        {
+            List<HourlyInfo> infoObjectsBetween = _sessions.GetInfoObjectsBetween(previousSession, nextSession);
+            var estimateNeeded = GetEstimatePowerNeeded(infoObjectsBetween);
+
+            var chargeCalculated = estimateNeeded + nextSession.GetDischargeNeeded();
+            var chargeNeeded = Math.Min(chargeCalculated, _batteryContainer.GetTotalCapacity());
+
+            previousSession.SetChargeNeeded(chargeNeeded);
+            infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = chargeNeeded);
         }
 
         /// <summary>

@@ -37,15 +37,23 @@ namespace SessyWeb.Services
             return await _module.InvokeAsync<int>("getScreenHeight");
         }
 
+        private bool _IsDisposed = false;
+
         public async ValueTask DisposeAsync()
         {
             try
             {
-                if (_module != null)
+                if (!_IsDisposed)
                 {
-                    await _module.DisposeAsync();
+                    if (_module != null)
+                    {
+                        await _module.DisposeAsync();
+                    }
+
+                    _dotNetRef?.Dispose();
+
+                    _IsDisposed = true;
                 }
-                _dotNetRef?.Dispose();
             }
             catch (Exception)
             {
