@@ -585,21 +585,36 @@ namespace SessyController.Services
                 switch (hourlyInfo.Mode)
                 {
                     case Modes.Charging:
-                        charge += _batteryContainer.GetChargingCapacity();
-                        charge += hourlyInfo.SolarPowerInWatts;
-                        charge = Math.Min(charge, hourlyInfo.ChargeNeeded);
-                        break;
+                        {
+                            if (charge < hourlyInfo.ChargeNeeded)
+                            {
+                                var toCharge = hourlyInfo.ChargeNeeded - charge;
+
+                                charge += Math.Min(toCharge, chargingCapacity);
+                            }
+
+                            break;
+                        }
 
                     case Modes.Discharging:
-                        charge -= _batteryContainer.GetDischargingCapacity();
-                        charge += hourlyInfo.SolarPowerInWatts;
-                        charge = Math.Max(charge, hourlyInfo.ChargeNeeded);
-                        break;
+                        {
+                            if (charge > hourlyInfo.ChargeNeeded)
+                            {
+                                var toDischarge = charge - hourlyInfo.ChargeNeeded;
+
+                                charge -= Math.Min(toDischarge, dischargingCapacity);
+                            }
+
+                            break;
+                        }
 
                     case Modes.ZeroNetHome:
-                        charge -= hourNeed;
-                        charge += hourlyInfo.SolarPowerInWatts;
-                        break;
+                        {
+                            charge -= hourNeed;
+                            charge += hourlyInfo.SolarPowerInWatts;
+
+                            break;
+                        }
 
                     case Modes.Disabled:
                         break;
@@ -957,11 +972,13 @@ namespace SessyController.Services
         /// </summary>
         private void HandleChargingDischargingSessions(Session previousSession, Session nextSession)
         {
-            List<HourlyInfo> infoObjectsBetween = _sessions.GetInfoObjectsBetween(previousSession, nextSession);
-            var estimateNeeded = GetEstimatePowerNeeded(infoObjectsBetween);
+            var chargeNeeded = _batteryContainer.GetTotalCapacity();
 
-            var chargeCalculated = estimateNeeded + nextSession.GetDischargeNeeded();
-            var chargeNeeded = Math.Min(chargeCalculated, _batteryContainer.GetTotalCapacity());
+            List<HourlyInfo> infoObjectsBetween = _sessions.GetInfoObjectsBetween(previousSession, nextSession);
+            //var estimateNeeded = GetEstimatePowerNeeded(infoObjectsBetween);
+
+            //var chargeCalculated = estimateNeeded + nextSession.GetDischargeNeeded();
+            //var chargeNeeded = Math.Min(chargeCalculated, _batteryContainer.GetTotalCapacity());
 
             previousSession.SetChargeNeeded(chargeNeeded);
             infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = chargeNeeded);
@@ -1011,6 +1028,7 @@ namespace SessyController.Services
         private double GetEstimatePowerNeeded(List<HourlyInfo> infoObjectsBetween)
         {
             double power = 0.0;
+            var requiredEnergyPerHour = _settingsConfig.RequiredHomeEnergy / 24.0;
 
             foreach (var hourlyInfo in infoObjectsBetween.Where(hi => hi.SolarPowerInWatts <= 0.0).ToList())
             {
@@ -1026,7 +1044,7 @@ namespace SessyController.Services
                 // power += _settingsConfig.RequiredHomeEnergy / 24.0;
                 //}
 
-                power += _settingsConfig.RequiredHomeEnergy / 24.0;
+                power += requiredEnergyPerHour;
             }
 
             return Math.Max(0.0, power);

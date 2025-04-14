@@ -198,7 +198,6 @@ namespace SessyController.Services.Items
 
         public bool RemoveAllAfter(int maxHours)
         {
-            int index = maxHours;
             bool changed = false;
 
             // Once the session has started don't remove anything before now.
@@ -209,32 +208,39 @@ namespace SessyController.Services.Items
             {
                 case Modes.Charging:
                     {
-                        var list = hourlyInfos.OrderBy(hi => hi.BuyingPrice).ToList();
+                        var list = hourlyInfos.OrderByDescending(hi => hi.BuyingPrice).ToList();
 
-                        while (index < list.Count)
-                        {
-                            RemoveHourlyInfo(list[index++]);
-                            changed = true;
-                        }
+                        changed = RemoveTheHours(maxHours, list);
 
                         break;
                     }
 
                 case Modes.Discharging:
                     {
-                        var list = hourlyInfos.OrderByDescending(hi => hi.SellingPrice).ToList();
+                        var list = hourlyInfos.OrderBy(hi => hi.SellingPrice).ToList();
 
-                        while (index < list.Count)
-                        {
-                            RemoveHourlyInfo(list[index++]);
-                            changed = true;
-                        }
+                        changed = RemoveTheHours(maxHours, list);
 
                         break;
                     }
 
                 default:
                     throw new InvalidOperationException($"Invalid mode {Mode}");
+            }
+
+            return changed;
+        }
+
+        private bool RemoveTheHours(int maxHours, List<HourlyInfo> list)
+        {
+            bool changed = false;
+
+            var count = list.Count - maxHours;
+
+            for (int index = 0; index < count; index++)
+            {
+                RemoveHourlyInfo(list[index]);
+                changed = true;
             }
 
             return changed;
@@ -248,47 +254,47 @@ namespace SessyController.Services.Items
             int hours = 0;
             var nextSession = _sessions.GetNextSession(this);
             double power = 0.0;
+            var capacity = Mode == Modes.Charging ? _batteryContainer.GetChargingCapacity() : _batteryContainer.GetDischargingCapacity();
 
             switch (Mode)
             {
                 case Modes.Charging:
-                    var previousHourlyInfo = _sessions.GetPreviousHourlyInfo(First!);
+                    {
+                        var previousHourlyInfo = _sessions.GetPreviousHourlyInfo(First!);
 
-                    if (previousHourlyInfo != null)
-                    {
-                        var chargeLeft = (previousHourlyInfo != null ? previousHourlyInfo.ChargeLeft : 0.0);
-                        power = _batteryContainer.GetTotalCapacity() - chargeLeft;
+                        if (previousHourlyInfo != null)
+                        {
+                            power = _batteryContainer.GetTotalCapacity() - previousHourlyInfo.ChargeLeft;
+                        }
+                        else
+                        {
+                            power = _batteryContainer.GetTotalCapacity();
+                        }
+
+                        hours = (int)Math.Ceiling(power / capacity);
+
+                        break;
                     }
-                    else
-                    {
-                        power = _batteryContainer.GetTotalCapacity();
-                    }
-                    break;
 
                 case Modes.Discharging:
-                    var neededPower = 0.0;
-                    var totalCapacity = _batteryContainer.GetTotalCapacity();
-
-                    if (nextSession != null)
                     {
-                        var hourlyInfoObjectsBetween = _sessions.GetInfoObjectsBetween(this, nextSession);
-                        neededPower = hourlyInfoObjectsBetween.Count * _settingsConfig.RequiredHomeEnergy / 24;
-                    }
-                    else
-                    {
-                        var hourlyInfoObjectsAfter = _sessions.GetInfoObjectsAfter(this);
-                        neededPower = hourlyInfoObjectsAfter.Count * _settingsConfig.RequiredHomeEnergy / 24;
-                    }
+                        var previousHourlyInfo = _sessions.GetPreviousHourlyInfo(First!);
 
-                    power = totalCapacity - neededPower;
-                    break;
+                        if(previousHourlyInfo != null)
+                        {
+                            power = previousHourlyInfo.ChargeLeft - First.ChargeNeeded;
+                        }
+
+
+                        hours = (int)Math.Ceiling(power / capacity);
+
+                        break;
+                    }
 
                 default:
                     throw new InvalidOperationException($"Wrong mode for session {this}");
             }
 
-            var capacity = Mode == Modes.Charging ? _batteryContainer.GetChargingCapacity() : _batteryContainer.GetDischargingCapacity();
-            hours = (int)Math.Ceiling(power / capacity);
 
             return hours;
         }
