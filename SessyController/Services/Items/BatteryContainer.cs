@@ -161,5 +161,13 @@ namespace SessyController.Services.Items
         {
             return new PowerSetpoint { Setpoint = setpoint };
         }
+
+        internal async Task<double> GetBatterPercentage()
+        {
+            var watts = await GetStateOfChargeInWatts();
+            var totalCapacity = GetTotalCapacity();
+
+            return watts / totalCapacity;
+        }
     }
 }

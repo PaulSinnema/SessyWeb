@@ -25,8 +25,19 @@ namespace SessyWeb.Pages
         public double TotalSolarPowerExpectedToday { get; private set; }
         public double TotalSolarPowerExpectedTomorrow { get; private set; }
 
-        public string TotalSolarPowerExpectedTodayVisual => TotalSolarPowerExpectedToday.ToString("0.###");
-        public string TotalSolarPowerExpectedTomorrowVisual => TotalSolarPowerExpectedTomorrow.ToString("0.###");
+        public string TotalSolarPowerExpectedTodayVisual => TotalSolarPowerExpectedToday.ToString("0.#");
+        public string TotalSolarPowerExpectedTomorrowVisual => TotalSolarPowerExpectedTomorrow.ToString("0.#");
+
+        public decimal TotalRevenueToday { get; set; }
+        public decimal TotalRevenueYesterday { get; set; }
+
+        public string TotalRevenueExpectedTodayVisual => TotalRevenueToday.ToString("0.##");
+        public string TotalRevenueExpectedYesterdayVisual => TotalRevenueYesterday.ToString("0.##");
+
+        public double BatteryPercentage { get; set; }
+        public string BatteryPercentageVisual => BatteryPercentage.ToString("###.#%");
+
+        public string? BatteryMode { get; set; }
 
         private CancellationTokenSource _cts = new();
 
@@ -63,6 +74,8 @@ namespace SessyWeb.Pages
                 {
                     await HandleScreenHeight();
 
+                    await BatteriesServiceDataChanged();
+
                     StateHasChanged();
                 });
             }
@@ -74,7 +87,7 @@ namespace SessyWeb.Pages
         {
             var height = await _screenSizeService!.GetScreenHeightAsync();
 
-            HandleResize(height - 250);
+            HandleResize(height - 255);
         }
 
         private async Task HeartBeat()
@@ -105,6 +118,15 @@ namespace SessyWeb.Pages
                 TotalSolarPowerExpectedToday = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(now);
                 TotalSolarPowerExpectedTomorrow = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(now.AddDays(1));
 
+                var sessions = _batteriesService!.GetSessions();
+
+                TotalRevenueYesterday = sessions.TotalCost(now.AddDays(-1));
+                TotalRevenueToday = sessions.TotalCost(now);
+
+                BatteryPercentage = await _batteriesService.getBatteryPercentage();
+
+                BatteryMode = _batteriesService.GetBatteryMode();
+
                 GetOnlyCurrentHourlyInfos();
 
                 StateHasChanged();
@@ -133,7 +155,7 @@ namespace SessyWeb.Pages
         private void ChangeChartStyle(int height)
         {
             // 25 pixels per data row (3)
-            var width = HourlyInfos?.Count * 3 * 30;
+            var width = HourlyInfos?.Count * 3 * 25;
 
             GraphStyle = $"min-height: {height}px; width: {width}px; visibility: initial;";
         }

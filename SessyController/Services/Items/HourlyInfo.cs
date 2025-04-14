@@ -144,7 +144,7 @@ namespace SessyController.Services.Items
             {
                 if (Charging) return Modes.Charging;
                 if (Discharging) return Modes.Discharging;
-                if (ZeroNetHome) return Modes.ZeroNetHome;
+                if (NetZeroHomeWithSolar) return Modes.ZeroNetHome;
                 if (Disabled) return Modes.Disabled;
                 return Modes.Unknown;
             }
@@ -253,7 +253,7 @@ namespace SessyController.Services.Items
                     return -0.2;
                 else if (Discharging)
                     return 0.2;
-                else if (ZeroNetHome)
+                else if (NetZeroHomeWithSolar)
                     return 0.03;
 
                 return 0.0;
@@ -266,7 +266,7 @@ namespace SessyController.Services.Items
             {
                 return Charging ? "Charging" :
                           Discharging ? "Discharging" :
-                          ZeroNetHome ? "Net zero home" :
+                          NetZeroHomeWithSolar ? "Net zero home" :
                           Disabled ? "Disabled" : "Wrong state";
             }
         }
@@ -284,12 +284,17 @@ namespace SessyController.Services.Items
             }
         }
 
+        public bool NetZeroHomeWithoutSolar
+        {
+            get => NetZeroHomeWithSolar && SolarPowerInWatts <= 100.0;
+        }
+
         /// <summary>
         /// If no (dis)charging is in progress Net Zero Home is requested.
         /// </summary>
-        public bool ZeroNetHome
+        public bool NetZeroHomeWithSolar
         {
-            get => !(Charging || Discharging) &&
+            get => (!(Charging || Discharging)) &&
                 (
                     NetZeroHomeProfit >= _settingsConfig.NetZeroHomeMinProfit ||
                     SolarPowerInWatts > 100.0 ||
@@ -300,7 +305,7 @@ namespace SessyController.Services.Items
         /// <summary>
         /// If no (dis)charging or Zero net home is in progress Sessy's are requested to disable.
         /// </summary>
-        public bool Disabled => !(Charging || Discharging || ZeroNetHome);
+        public bool Disabled => !(Charging || Discharging || NetZeroHomeWithSolar);
 
         /// <summary>
         /// For better debugging
@@ -320,7 +325,7 @@ namespace SessyController.Services.Items
                 // Do nothing
             }
 
-            return $"{Time}: Charging: {Charging}, Discharging: {Discharging}, Zero Net Home: {ZeroNetHome}, Price: {BuyingPrice}, Charge left: {chargeLeft}, Charge needed: {chargeNeeded}, Solar power {SolarPower}";
+            return $"{Time}: Charging: {Charging}, Discharging: {Discharging}, Zero Net Home: {NetZeroHomeWithSolar}, Price: {BuyingPrice}, Charge left: {chargeLeft}, Charge needed: {chargeNeeded}, Solar power {SolarPower}";
         }
     }
 }

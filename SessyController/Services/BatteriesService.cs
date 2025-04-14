@@ -34,6 +34,8 @@ namespace SessyController.Services
         private PowerEstimatesService _powerEstimatesService { get; set; }
         private WeatherService _weatherService { get; set; }
 
+        private FinancialResultsService _financialResultsService { get; set; }
+
         private LoggingService<BatteriesService> _logger { get; set; }
 
         private static List<HourlyInfo>? hourlyInfos { get; set; } = new List<HourlyInfo>();
@@ -84,6 +86,7 @@ namespace SessyController.Services
             _timeZoneService = _scope.ServiceProvider.GetRequiredService<TimeZoneService>();
             _powerEstimatesService = _scope.ServiceProvider.GetRequiredService<PowerEstimatesService>();
             _weatherService = _scope.ServiceProvider.GetRequiredService<WeatherService>();
+            _financialResultsService = _scope.ServiceProvider.GetRequiredService<FinancialResultsService>();
         }
 
         public override Task StopAsync(CancellationToken cancellationToken)
@@ -203,9 +206,9 @@ namespace SessyController.Services
             }
         }
 
-        public Sessions? GetSessions()
+        public Sessions GetSessions()
         {
-            return _sessions;
+            return _sessions!;
         }
 
         private async Task HandleAutomaticCharging(Sessions sessions)
@@ -221,7 +224,7 @@ namespace SessyController.Services
                     _batteryContainer.StartCharging();
                 else if (currentHourlyInfo.Discharging)
                     _batteryContainer.StartDisharging();
-                else if (currentHourlyInfo.ZeroNetHome)
+                else if (currentHourlyInfo.NetZeroHomeWithSolar)
                     _batteryContainer.StartNetZeroHome();
                 else
                     _batteryContainer.StopAll();        
@@ -1019,7 +1022,7 @@ namespace SessyController.Services
         private void HandleHoursBetweenSessions(Session previousSession, Session nextSession)
         {
             List<HourlyInfo> infoObjectsBetween = _sessions.GetInfoObjectsBetween(previousSession, nextSession);
-            var count = infoObjectsBetween.Where(hi => hi.ZeroNetHome).Count();
+            var count = infoObjectsBetween.Where(hi => hi.NetZeroHomeWithSolar).Count();
             var hourNeed = (_settingsConfig.RequiredHomeEnergy / 24) * count;
 
             infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = hourNeed);
@@ -1030,7 +1033,9 @@ namespace SessyController.Services
             double power = 0.0;
             var requiredEnergyPerHour = _settingsConfig.RequiredHomeEnergy / 24.0;
 
-            foreach (var hourlyInfo in infoObjectsBetween.Where(hi => hi.SolarPowerInWatts <= 0.0).ToList())
+            foreach (var hourlyInfo in infoObjectsBetween
+                .Where(hi => hi.NetZeroHomeWithoutSolar)
+                .ToList())
             {
                 // TODO: The estimate is incorrect. It calculates the net power from the grid (Zero Net Home), not the needs of the home.
                 //var temperature = _weatherService.GetTemperature(hourlyInfo.Time);
@@ -1074,6 +1079,7 @@ namespace SessyController.Services
                                          _settingsConfig,
                                          _batteryContainer,
                                          _timeZoneService,
+                                         _financialResultsService,
                                          loggerFactory);
 
                 // Check the first element
@@ -1139,6 +1145,18 @@ namespace SessyController.Services
 
                 _isDisposed = true;
             }
+        }
+
+        public async Task<double> getBatteryPercentage()
+        {
+            return await _batteryContainer.GetBatterPercentage();
+        }
+
+        public string GetBatteryMode()
+        {
+            var hourlyInfo = GetCurrentHourlyInfo();
+
+            return hourlyInfo.Mode.ToString();
         }
     }
 

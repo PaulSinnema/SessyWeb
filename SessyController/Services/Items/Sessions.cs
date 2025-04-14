@@ -1,4 +1,5 @@
 ﻿using SessyController.Configurations;
+using SessyData.Services;
 using System.Collections.ObjectModel;
 using static SessyController.Services.Items.Session;
 
@@ -13,6 +14,9 @@ namespace SessyController.Services.Items
         private ILogger<Sessions> _logger { get; set; }
         private SettingsConfig _settingsConfig { get; set; }
         private BatteryContainer _batteryContainer { get; set; }
+
+        private FinancialResultsService _financialResultsService { get; set; }
+
         private TimeZoneService? _timeZoneService { get; set; }
 
         private List<Session>? _sessionList { get; set; }
@@ -26,10 +30,12 @@ namespace SessyController.Services.Items
                         SettingsConfig settingsConfig,
                         BatteryContainer batteryContainer,
                         TimeZoneService? timeZoneService,
+                        FinancialResultsService financialResultsService,
                         ILoggerFactory loggerFactory)
         {
             _settingsConfig = settingsConfig;
             _batteryContainer = batteryContainer;
+            _financialResultsService = financialResultsService;
             _timeZoneService = timeZoneService;
 
             _sessionList = new List<Session>();
@@ -45,6 +51,23 @@ namespace SessyController.Services.Items
         }
 
         public ReadOnlyCollection<Session> SessionList => _sessionList.AsReadOnly();
+
+        public double TotalRevenue(DateTime date)
+        {
+            return _hourlyInfos
+                    .Where(hi => hi.Time.Date == date.Date)
+                    .Sum(hi => hi.Profit);
+        }
+
+        public decimal TotalCost(DateTime date)
+        {
+            var list = _financialResultsService.GetFinancialMonthResults(date.Date, date.Date.AddHours(23));
+
+            if(list.Count == 1)
+                return list[0].FinancialResultsList!.Sum(fr => fr.Cost);
+
+            return 0;
+        }
 
         /// <summary>
         /// Removes a session from the sessions session list and changes the modes
@@ -184,7 +207,7 @@ namespace SessyController.Services.Items
                         break;
 
                     case Modes.ZeroNetHome:
-                        CalculateZeroNetHomeProfits(lastChargingSession, hourlyInfo);
+                        CalculateZeroNetHomeProfits(lastChargingSession, hourlyInfo, true);
                         break;
 
                     case Modes.Disabled:
@@ -195,6 +218,9 @@ namespace SessyController.Services.Items
                     default:
                         throw new InvalidOperationException($"Wrong mode {hourlyInfo.Mode}"); ;
                 }
+
+                CalculateZeroNetHomeProfits(lastChargingSession, hourlyInfo, false);
+
                 previousHour = hourlyInfo;
             }
         }
@@ -227,34 +253,27 @@ namespace SessyController.Services.Items
             hourlyInfo.Buying = 0.00;
         }
 
-        private void CalculateZeroNetHomeProfits(List<HourlyInfo> lastChargingSession, HourlyInfo hourlyInfo)
+        /// <summary>
+        /// Calculate the profit if NetZeroHome were enabled for this hour.
+        /// </summary>
+        private void CalculateZeroNetHomeProfits(List<HourlyInfo> lastChargingSession, HourlyInfo hourlyInfo, bool save)
         {
             var kWh = Math.Min(_homeNeeds / 24, hourlyInfo.ChargeLeft) / 1000;
-            hourlyInfo.Selling = hourlyInfo.SellingPrice * kWh;
-            hourlyInfo.Buying = lastChargingSession.Count > 0 ? lastChargingSession.Average(lcs => lcs.BuyingPrice) * kWh : 0.0;
+            var selling = hourlyInfo.SellingPrice * kWh;
+            var buying = lastChargingSession.Count > 0 ? lastChargingSession.Average(lcs => lcs.BuyingPrice) * kWh : 0.0;
+            hourlyInfo.NetZeroHomeProfit = selling - buying;
+
+            if (save)
+            {
+                hourlyInfo.Selling = selling;
+                hourlyInfo.Buying = buying;
+            }
         }
 
         private static void CalculateDisabledProfits(HourlyInfo hourlyInfo)
         {
             hourlyInfo.Selling = 0.0;
             hourlyInfo.Buying = 0.0;
-        }
-
-        /// <summary>
-        /// Calculate the profit if NetZeroHome were enabled for this hour.
-        /// </summary>
-        public double CalculateNetZeroHomeProfit(List<HourlyInfo>? lastChargingSession, HourlyInfo hourlyInfo)
-        {
-            if (lastChargingSession != null)
-            {
-                var kWh = Math.Min(_homeNeeds / 24, hourlyInfo.ChargeLeft) / 1000;
-                var selling = hourlyInfo.BuyingPrice * kWh;
-                var buying = lastChargingSession.Count > 0 ? lastChargingSession.Average(lcs => lcs.BuyingPrice) * kWh : 0.0;
-
-                return selling - buying;
-            }
-
-            return 0.0;
         }
 
         /// <summary>
@@ -289,7 +308,7 @@ namespace SessyController.Services.Items
 
                     hours++;
 
-                    if (hourlyInfo.ZeroNetHome)
+                    if (hourlyInfo.NetZeroHomeWithSolar)
                         currentCharge -= homeNeeds;
                 }
             }
@@ -416,7 +435,7 @@ namespace SessyController.Services.Items
                 .ToList();
         }
 
-        
+
         /// <summary>
         /// Gets the average price for prices inside the window of the current hourly info.
         /// </summary>
@@ -493,11 +512,11 @@ namespace SessyController.Services.Items
 
             foreach (var session in SessionList.OrderBy(se => se.FirstDateHour).ToList())
             {
-                if(previousSession != null)
+                if (previousSession != null)
                 {
-                    if(previousSession.Mode == Modes.Charging && session.Mode == Modes.Charging)
+                    if (previousSession.Mode == Modes.Charging && session.Mode == Modes.Charging)
                     {
-                        if(session.IsCheaper(previousSession))
+                        if (session.IsCheaper(previousSession))
                         {
                             RemoveSession(previousSession);
                             changed = true;
