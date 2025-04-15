@@ -8,6 +8,9 @@ namespace SessyWeb.Pages
         [Inject]
         public BatteryContainer? batteryContainer { get; set; }
 
+        [CascadingParameter]
+        public bool IsMobile { get; set; }
+
         public bool IsComponentActive { get; internal set; } = false;
 
         protected override void OnInitialized()

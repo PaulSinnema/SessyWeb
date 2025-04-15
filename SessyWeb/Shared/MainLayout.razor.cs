@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Radzen;
+using System.Data;
 
 namespace SessyWeb.Shared
 {
@@ -13,6 +14,8 @@ namespace SessyWeb.Shared
         private const string MenuStyleIconAndText = "width: 100%; min-width: 200px;";
 
         public string? MenuStyle { get; set; }
+
+        public bool IsMobile = false;
 
         protected override void OnInitialized()
         {

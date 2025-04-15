@@ -83,6 +83,7 @@ namespace SessyWeb.Pages
             await base.OnAfterRenderAsync(firstRender);
         }
 
+
         private async Task HandleScreenHeight()
         {
             var height = await _screenSizeService!.GetScreenHeightAsync();
