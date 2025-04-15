@@ -53,10 +53,55 @@ namespace SessyWeb.Pages
             try
             {
                 await InvokeAsync(async () => await HandleScreenHeight());
+
+                _ = UpdateLoop();
             }
             catch (Exception)
             {
                 // Keep it silent.
+            }
+        }
+
+        /// <summary>
+        /// List with battery statusses.
+        /// </summary>
+        public List<BatteryWithStatus>? BatteryWithStatusList { get; set; }
+
+        /// <summary>
+        /// Class that holds the battery status.
+        /// </summary>
+        public class BatteryWithStatus
+        {
+            public Battery Battery { get; set; } = default!;
+            public bool IsInError { get; set; }
+        }
+
+        /// <summary>
+        /// Get the statusses of the batteries in a loop.
+        /// </summary>
+        private async Task UpdateLoop()
+        {
+            while (true)
+            {
+                var newStatuses = new List<BatteryWithStatus>();
+
+                foreach (var battery in batteryContainer!.Batteries!)
+                {
+                    var systemState = await battery.GetPowerStatus();
+                    var isInError = systemState.Sessy!.SystemState == Sessy.SystemStates.SYSTEM_STATE_ERROR;
+
+                    newStatuses.Add(new BatteryWithStatus
+                    {
+                        Battery = battery,
+                        IsInError = isInError
+                    });
+                }
+
+                BatteryWithStatusList = newStatuses;
+
+                await InvokeAsync(StateHasChanged);
+
+                await Task.Delay(5000);
             }
         }
 
@@ -83,7 +128,9 @@ namespace SessyWeb.Pages
             await base.OnAfterRenderAsync(firstRender);
         }
 
-
+        /// <summary>
+        /// Handle the height of the screen.
+        /// </summary>
         private async Task HandleScreenHeight()
         {
             var height = await _screenSizeService!.GetScreenHeightAsync();
@@ -91,6 +138,9 @@ namespace SessyWeb.Pages
             HandleResize(height - 255);
         }
 
+        /// <summary>
+        /// The heartbeat is called.
+        /// </summary>
         private async Task HeartBeat()
         {
             await InvokeAsync(async () =>
@@ -108,6 +158,9 @@ namespace SessyWeb.Pages
 
         private bool IsBeating = false;
 
+        /// <summary>
+        /// The data changed event is fired. Refresh the data.
+        /// </summary>
         private async Task BatteriesServiceDataChanged()
         {
             await InvokeAsync(async () =>
@@ -134,6 +187,9 @@ namespace SessyWeb.Pages
             });
         }
 
+        /// <summary>
+        /// The window is resized. Hanle it.
+        /// </summary>
         private async void HandleResize(int height)
         {
             await InvokeAsync(() =>
@@ -142,6 +198,9 @@ namespace SessyWeb.Pages
             });
         }
 
+        /// <summary>
+        /// Retrieve all the hourlyInfo objects but only the current and future ones.
+        /// </summary>
         private void GetOnlyCurrentHourlyInfos()
         {
             var now = _timeZoneService!.Now;
@@ -153,6 +212,9 @@ namespace SessyWeb.Pages
 
         public bool IsManualOverride => _batteriesService!.IsManualOverride;
 
+        /// <summary>
+        /// Change the width of the chart depending on the number of hourlyInfo objects.
+        /// </summary>
         private void ChangeChartStyle(int height)
         {
             // 25 pixels per data row (3)
@@ -161,6 +223,9 @@ namespace SessyWeb.Pages
             GraphStyle = $"min-height: {height}px; width: {width}px; visibility: initial;";
         }
 
+        /// <summary>
+        /// Format the prices displayed in the X-axis.
+        /// </summary>
         public string FormatAsPrice(object value)
         {
             if (value is double)
@@ -173,6 +238,9 @@ namespace SessyWeb.Pages
             return "";
         }
 
+        /// <summary>
+        /// Format the time displayed in the Y-axis.
+        /// </summary>
         public string FormatAsDayHour(object value)
         {
             if (value is DateTime)
@@ -185,16 +253,16 @@ namespace SessyWeb.Pages
             return "";
         }
 
-        public void ShowExplanation()
-        {
-
-        }
+        private bool _isDisposed = false;
 
         public override void Dispose()
         {
-            _screenSizeService!.OnScreenHeightChanged -= HandleResize;
-            _batteriesService!.DataChanged -= BatteriesServiceDataChanged;
-            _batteriesService!.OnHeartBeat -= HeartBeat;
+            if (!_isDisposed)
+            {
+                _screenSizeService!.OnScreenHeightChanged -= HandleResize;
+                _batteriesService!.DataChanged -= BatteriesServiceDataChanged;
+                _batteriesService!.OnHeartBeat -= HeartBeat;
+            }
 
             base.Dispose();
         }
