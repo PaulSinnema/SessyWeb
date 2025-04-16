@@ -1156,7 +1156,21 @@ namespace SessyController.Services
         {
             var hourlyInfo = GetCurrentHourlyInfo();
 
-            return hourlyInfo.Mode.ToString();
+            switch (hourlyInfo.Mode)
+            {
+                case Modes.Unknown:
+                    return "?";
+                case Modes.Charging:
+                    return "Charging";
+                case Modes.Discharging:
+                    return "Discharging";
+                case Modes.ZeroNetHome:
+                    return "Zero net home";
+                case Modes.Disabled:
+                    return "Disabled";
+                default:
+                    return "?";
+            }
         }
     }
 

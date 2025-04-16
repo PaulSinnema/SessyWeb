@@ -31,11 +31,11 @@ namespace SessyWeb.Pages
         public decimal TotalRevenueToday { get; set; }
         public decimal TotalRevenueYesterday { get; set; }
 
-        public string TotalRevenueExpectedTodayVisual => TotalRevenueToday.ToString("0.##");
-        public string TotalRevenueExpectedYesterdayVisual => TotalRevenueYesterday.ToString("0.##");
+        public string TotalRevenueExpectedTodayVisual => TotalRevenueToday.ToString("0.00");
+        public string TotalRevenueExpectedYesterdayVisual => TotalRevenueYesterday.ToString("0.00");
 
         public double BatteryPercentage { get; set; }
-        public string BatteryPercentageVisual => BatteryPercentage.ToString("###.#%");
+        public string BatteryPercentageVisual => BatteryPercentage.ToString("##0.0%");
 
         public string? BatteryMode { get; set; }
 
