@@ -27,7 +27,11 @@ namespace SessyController.Services
         /// <summary>
         /// Gets the local time using the timezone set in appsettings.json.
         /// </summary>
+#if DEBUG
         public DateTime Now => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _timeZone);
+#else
+        public DateTime Now => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _timeZone);
+#endif
 
         /// <summary>
         /// Gets the sunlight level for time zone, latitude and longitude.

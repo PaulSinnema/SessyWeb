@@ -69,6 +69,14 @@ namespace SessyController.Services.Items
             return 0;
         }
 
+        public HourlyInfo? GetCurrentHourlyInfo()
+        {
+            var localTime = _timeZoneService.Now;
+
+            return _hourlyInfos?
+                .FirstOrDefault(hp => hp.Time.Date == localTime.Date && hp.Time.Hour == localTime.Hour);
+        }
+
         /// <summary>
         /// Removes a session from the sessions session list and changes the modes
         /// of all hourly info objects it contained.

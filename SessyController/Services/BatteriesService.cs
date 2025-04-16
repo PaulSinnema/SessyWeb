@@ -160,7 +160,7 @@ namespace SessyController.Services
 
                         await EvaluateSessions();
 
-                        HourlyInfo? currentHourlyInfo = GetCurrentHourlyInfo();
+                        HourlyInfo? currentHourlyInfo = _sessions.GetCurrentHourlyInfo();
 
                         
                         if ((_dayAheadMarketService.PricesAvailable && currentHourlyInfo != null) && _settingsConfig.ManualOverride == false)
@@ -213,17 +213,20 @@ namespace SessyController.Services
 
         private async Task HandleAutomaticCharging(Sessions sessions)
         {
-            HourlyInfo? currentHourlyInfo = GetCurrentHourlyInfo();
+            HourlyInfo? currentHourlyInfo = _sessions.GetCurrentHourlyInfo();
 
             if (currentHourlyInfo != null)
             {
                 await CancelSessionIfStateRequiresIt(sessions, currentHourlyInfo);
-#if !DEBUG
 
+                var currentSession = sessions.GetSession(currentHourlyInfo);
+                var chargingPower = currentSession.ChargingPowerInWatts;
+
+#if !DEBUG
                 if (currentHourlyInfo.Charging)
-                    _batteryContainer.StartCharging();
+                    _batteryContainer.StartCharging(chargingPower);
                 else if (currentHourlyInfo.Discharging)
-                    _batteryContainer.StartDisharging();
+                    _batteryContainer.StartDisharging(chargingPower);
                 else if (currentHourlyInfo.NetZeroHomeWithSolar)
                     _batteryContainer.StartNetZeroHome();
                 else
@@ -235,27 +238,20 @@ namespace SessyController.Services
         private void HandleManualCharging()
         {
 #if !DEBUG
-            HourlyInfo? currentHourlyInfo = GetCurrentHourlyInfo();
+            HourlyInfo? currentHourlyInfo = _sessions.GetCurrentHourlyInfo();
+            var chargingPower = currentHourlyInfo.Mode == Modes.Charging ? _batteryContainer.GetChargingCapacity() : _batteryContainer.GetDischargingCapacity();
 
             var localTime = _timeZoneService.Now;
 
             if (_settingsConfig.ManualChargingHours.Contains(localTime.Hour))
-                _batteryContainer.StartCharging();
+                _batteryContainer.StartCharging(chargingPower);
             else if (_settingsConfig.ManualDischargingHours.Contains(localTime.Hour))
-                _batteryContainer.StartDisharging();
+                _batteryContainer.StartDisharging(chargingPower);
             else if (_settingsConfig.ManualNetZeroHomeHours.Contains(localTime.Hour))
                 _batteryContainer.StartNetZeroHome();
             else
                 _batteryContainer.StopAll();
 #endif
-        }
-
-        private HourlyInfo? GetCurrentHourlyInfo()
-        {
-            var localTime = _timeZoneService.Now;
-
-            return hourlyInfos?
-                .FirstOrDefault(hp => hp.Time.Date == localTime.Date && hp.Time.Hour == localTime.Hour);
         }
 
         private class SessionInfo
@@ -1154,7 +1150,7 @@ namespace SessyController.Services
 
         public string GetBatteryMode()
         {
-            var hourlyInfo = GetCurrentHourlyInfo();
+            var hourlyInfo = _sessions.GetCurrentHourlyInfo();
 
             switch (hourlyInfo.Mode)
             {
@@ -1173,5 +1169,4 @@ namespace SessyController.Services
             }
         }
     }
-
 }

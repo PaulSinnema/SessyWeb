@@ -88,7 +88,7 @@ namespace SessyWeb.Pages
                 foreach (var battery in batteryContainer!.Batteries!)
                 {
                     var systemState = await battery.GetPowerStatus();
-                    var isInError = systemState.Sessy!.SystemState == Sessy.SystemStates.SYSTEM_STATE_ERROR;
+                    var isInError = systemState!.Sessy!.SystemState == Sessy.SystemStates.SYSTEM_STATE_ERROR;
 
                     newStatuses.Add(new BatteryWithStatus
                     {
