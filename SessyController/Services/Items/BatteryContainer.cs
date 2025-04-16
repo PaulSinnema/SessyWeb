@@ -121,20 +121,28 @@ namespace SessyController.Services.Items
         {
             Batteries.ForEach(async bat =>
             {
+                var maxChargingPower = bat.GetMaxCharge();
+                var totalCapacity = GetChargingCapacity();
+                var powerToUse = (maxChargingPower / totalCapacity) * chargingPower;
+
                 await bat.SetActivePowerStrategyToOpenAPI();
-                await bat.SetPowerSetpointAsync(GetSetpoint(bat, -(Convert.ToInt16(chargingPower))));
+                await bat.SetPowerSetpointAsync(GetSetpoint(bat, -(Convert.ToInt16(powerToUse))));
             });
         }
 
         /// <summary>
         /// Start discharging cycle.
         /// </summary>
-        public void StartDisharging(double chargingPower)
+        public void StartDisharging(double dischargingPower)
         {
             Batteries.ForEach(async bat =>
             {
+                var maxDischargingPower = bat.GetMaxDischarge();
+                var totalCapacity = GetDischargingCapacity();
+                var powerToUse = (maxDischargingPower / totalCapacity) * dischargingPower;
+
                 await bat.SetActivePowerStrategyToOpenAPI();
-                await bat.SetPowerSetpointAsync(GetSetpoint(bat, Convert.ToInt16(chargingPower)));
+                await bat.SetPowerSetpointAsync(GetSetpoint(bat, Convert.ToInt16(powerToUse)));
             });
         }
 

@@ -220,17 +220,28 @@ namespace SessyController.Services
                 await CancelSessionIfStateRequiresIt(sessions, currentHourlyInfo);
 
                 var currentSession = sessions.GetSession(currentHourlyInfo);
-                var chargingPower = currentSession.ChargingPowerInWatts;
 
 #if !DEBUG
                 if (currentHourlyInfo.Charging)
+                {
+                    var chargingPower = currentSession.ChargingPowerInWatts;
+
                     _batteryContainer.StartCharging(chargingPower);
+                }
                 else if (currentHourlyInfo.Discharging)
+                {
+                    var chargingPower = currentSession.ChargingPowerInWatts;
+
                     _batteryContainer.StartDisharging(chargingPower);
+                }
                 else if (currentHourlyInfo.NetZeroHomeWithSolar)
+                {
                     _batteryContainer.StartNetZeroHome();
+                }
                 else
-                    _batteryContainer.StopAll();        
+                {
+                    _batteryContainer.StopAll();
+                }
 #endif
             }
         }

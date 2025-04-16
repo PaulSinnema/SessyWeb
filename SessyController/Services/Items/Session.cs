@@ -63,7 +63,9 @@ namespace SessyController.Services.Items
                                 toCharge -= watts;
 
                                 if (hourlyInfo.Time == currentHourlyInfo.Time)
+                                {
                                     return Math.Max(watts, 0.0);
+                                }
                             }
 
                             throw new InvalidOperationException($"Could not find current hourly info {currentHourlyInfo}");
@@ -289,7 +291,7 @@ namespace SessyController.Services.Items
         {
             bool changed = false;
 
-            var count = list.Count - maxHours;
+            var count = Math.Max(list.Count - maxHours, 0);
 
             for (int index = 0; index < count; index++)
             {
