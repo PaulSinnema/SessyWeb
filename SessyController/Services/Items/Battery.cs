@@ -1,4 +1,5 @@
-﻿using SessyController.Configurations;
+﻿using SessyCommon.Extensions;
+using SessyController.Configurations;
 using static SessyController.Services.ActivePowerStrategy;
 
 namespace SessyController.Services.Items
@@ -65,8 +66,28 @@ namespace SessyController.Services.Items
 
         public async Task<ActivePowerStrategy?> GetActivePowerStrategy()
         {
+            var tries = 0;
+            Exception? exception = null;
+
             EnsureInitialized();
-            return await _sessyService.GetActivePowerStrategyAsync(Id);
+
+            do
+            {
+                try
+                {
+                    return await _sessyService.GetActivePowerStrategyAsync(Id);
+                }
+                catch (Exception ex)
+                {
+                    exception = ex;
+                    tries++;
+                    _logger.LogInformation($"Could not get active power strategy for battery {Id}. Retry {tries}");
+                }
+
+            }
+            while (tries < 10);
+
+            throw new InvalidOperationException($"Could not get active power strategy after 10 retries for battery {Id}", exception);
         }
 
         public async Task SetActivePowerStrategy(ActivePowerStrategy strategy)
