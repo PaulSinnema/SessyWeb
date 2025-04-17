@@ -298,7 +298,15 @@ namespace SessyController.Services.Items
 
                 for (int index = 0; index < count; index++)
                 {
-                    RemoveHourlyInfo(list[index]);
+                    try
+                    {
+                        RemoveHourlyInfo(list[index]);
+                    }
+                    catch (Exception)
+                    {
+                        throw new InvalidOperationException($"Index {index}, count {count}, list.Count {list.Count}, maxHours {maxHours}");
+                    }
+
                     changed = true;
                 }
             }
@@ -325,6 +333,7 @@ namespace SessyController.Services.Items
                         if (previousHourlyInfo != null)
                         {
                             power = _batteryContainer.GetTotalCapacity() - previousHourlyInfo.ChargeLeft;
+                            power = power < 0 ? 0 : power;
                         }
                         else
                         {
@@ -343,6 +352,7 @@ namespace SessyController.Services.Items
                         if (previousHourlyInfo != null)
                         {
                             power = previousHourlyInfo.ChargeLeft - First.ChargeNeeded;
+                            power = power < 0 ? 0 : power;
                         }
 
 
