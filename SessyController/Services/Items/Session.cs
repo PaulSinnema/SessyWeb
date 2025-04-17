@@ -290,13 +290,17 @@ namespace SessyController.Services.Items
         private bool RemoveTheHours(int maxHours, List<HourlyInfo> list)
         {
             bool changed = false;
+            int count = 0;
 
-            var count = Math.Max(list.Count - maxHours, 0);
-
-            for (int index = 0; index < count; index++)
+            if (maxHours <= list.Count)
             {
-                RemoveHourlyInfo(list[index]);
-                changed = true;
+                count = list.Count - maxHours;
+
+                for (int index = 0; index < count; index++)
+                {
+                    RemoveHourlyInfo(list[index]);
+                    changed = true;
+                }
             }
 
             return changed;
