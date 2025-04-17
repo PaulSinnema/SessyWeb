@@ -165,25 +165,28 @@ namespace SessyWeb.Pages
         {
             await InvokeAsync(async () =>
             {
-                var now = _timeZoneService!.Now;
-
-                await HandleScreenHeight();
-
-                TotalSolarPowerExpectedToday = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(now);
-                TotalSolarPowerExpectedTomorrow = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(now.AddDays(1));
-
                 var sessions = _batteriesService!.GetSessions();
 
-                TotalRevenueYesterday = sessions.TotalCost(now.AddDays(-1));
-                TotalRevenueToday = sessions.TotalCost(now);
+                if (sessions != null)
+                {
+                    var now = _timeZoneService!.Now;
 
-                BatteryPercentage = await _batteriesService.getBatteryPercentage();
+                    await HandleScreenHeight();
 
-                BatteryMode = _batteriesService.GetBatteryMode();
+                    TotalSolarPowerExpectedToday = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(now);
+                    TotalSolarPowerExpectedTomorrow = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(now.AddDays(1));
 
-                GetOnlyCurrentHourlyInfos();
+                    TotalRevenueYesterday = sessions.TotalCost(now.AddDays(-1));
+                    TotalRevenueToday = sessions.TotalCost(now);
 
-                StateHasChanged();
+                    BatteryPercentage = await _batteriesService.getBatteryPercentage();
+
+                    BatteryMode = _batteriesService.GetBatteryMode();
+
+                    GetOnlyCurrentHourlyInfos();
+
+                    StateHasChanged();
+                }
             });
         }
 
