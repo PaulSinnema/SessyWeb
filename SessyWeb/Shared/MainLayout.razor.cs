@@ -57,5 +57,11 @@ namespace SessyWeb.Shared
             DisplayStyle = MenuItemDisplayStyle.IconAndText;
             MenuStyle = MenuStyleIconAndText;
         }
+
+        public void OnChange(bool isMobile)
+        {
+            IsMobile = isMobile;
+            StateHasChanged();
+        }
     }
 }

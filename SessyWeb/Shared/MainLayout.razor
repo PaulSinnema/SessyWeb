@@ -9,7 +9,7 @@
 <RadzenTheme Theme="@NewTheme" />
 
 <CascadingValue Value="IsMobile">
-    <RadzenMediaQuery Query="(max-width: 800px)" Change="@(value => IsMobile = value)" />
+    <RadzenMediaQuery Query="(max-width: 768px)" Change="@OnChange" />
 
     <RadzenLayout>
         <RadzenHeader>
