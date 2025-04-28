@@ -588,7 +588,7 @@ namespace SessyController.Services
 
             hourlyInfoList.ForEach(hi => hi.ChargeLeft = charge);
 
-            foreach (var hourlyInfo in hourlyInfoList.Where(hi => hi.Time >= now.DateHour()))
+            foreach (var hourlyInfo in hourlyInfoList.Where(hi => hi.Time >= now.DateFloorQuarter()))
             {
                 var session = _sessions.GetSession(hourlyInfo);
 

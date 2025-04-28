@@ -1,4 +1,5 @@
 ﻿using SessyCommon.Extensions;
+using static SessyCommon.Extensions.DateTimeExtension;
 
 namespace SessyUnitTests
 {
@@ -58,6 +59,85 @@ namespace SessyUnitTests
             // Assert
             Assert.Equal(expectedDt, actual);
             Assert.Equal(inputDt.Kind, actual.Kind);
+        }
+
+        [Fact]
+        public void Detects_SixtyMinute_Resolution()
+        {
+            var series = new[]
+            {
+                new DateTime(2025, 4, 28, 10, 0, 0),
+                new DateTime(2025, 4, 28, 11, 0, 0),
+                new DateTime(2025, 4, 28, 12, 0, 0)
+            };
+
+            Assert.Equal(TimeResolution.SixtyMinutes, series.GetTimeResolution());
+        }
+
+        [Fact]
+        public void Detects_FifteenMinute_Resolution()
+        {
+            var series = new[]
+            {
+                new DateTime(2025, 4, 28, 10,  0, 0),
+                new DateTime(2025, 4, 28, 10, 15, 0),
+                new DateTime(2025, 4, 28, 10, 30, 0),
+                new DateTime(2025, 4, 28, 10, 45, 0),
+                new DateTime(2025, 4, 28, 11,  0, 0)
+            };
+
+            Assert.Equal(TimeResolution.FifteenMinutes, series.GetTimeResolution());
+        }
+
+        [Fact]
+        public void Mixed_Intervals_Return_Unknown()
+        {
+            var series = new[]
+            {
+                new DateTime(2025, 4, 28, 10, 0, 0),
+                new DateTime(2025, 4, 28, 10, 15, 0),
+                new DateTime(2025, 4, 28, 11, 15, 0)   // 60 min + 15 min ⇒ gemengd
+            };
+
+            Assert.Equal(TimeResolution.Unknown, series.GetTimeResolution());
+        }
+
+        [Fact]
+        public void Duplicate_TimePoints_Return_Unknown()
+        {
+            var series = new[]
+            {
+                new DateTime(2025, 4, 28, 10, 0, 0),
+                new DateTime(2025, 4, 28, 10, 0, 0),   // delta = 0
+                new DateTime(2025, 4, 28, 10, 15, 0)
+            };
+
+            Assert.Equal(TimeResolution.Unknown, series.GetTimeResolution());
+        }
+
+        [Fact]
+        public void Single_Element_Returns_Unknown()
+        {
+            var series = new[]
+            {
+                new DateTime(2025, 4, 28, 10, 0, 0)
+            };
+
+            Assert.Equal(TimeResolution.Unknown, series.GetTimeResolution());
+        }
+
+        [Fact]
+        public void Unsorted_Input_Still_Works()
+        {
+            var series = new[]
+            {
+                new DateTime(2025, 4, 28, 10, 30, 0),
+                new DateTime(2025, 4, 28, 10,  0, 0),
+                new DateTime(2025, 4, 28, 10, 45, 0),
+                new DateTime(2025, 4, 28, 10, 15, 0)
+            };
+
+            Assert.Equal(TimeResolution.FifteenMinutes, series.GetTimeResolution());
         }
     }
 }

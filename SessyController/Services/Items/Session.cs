@@ -99,7 +99,7 @@ namespace SessyController.Services.Items
         /// </summary>
         public bool Contains(HourlyInfo hourlyInfo)
         {
-            return SessionHourlyInfos.Any(hi => hi.Time.DateHour() == hourlyInfo.Time.DateHour());
+            return SessionHourlyInfos.Any(hi => hi.Time.DateFloorQuarter() == hourlyInfo.Time.DateFloorQuarter());
         }
 
         /// <summary>
@@ -257,7 +257,7 @@ namespace SessyController.Services.Items
             bool changed = false;
 
             // Once the session has started don't remove anything before now.
-            var now = _timeZoneService.Now.DateHour();
+            var now = _timeZoneService.Now.DateFloorQuarter();
             var hourlyInfos = SessionHourlyInfos.Where(hi => hi.Time > now).ToList();
 
             switch (Mode)

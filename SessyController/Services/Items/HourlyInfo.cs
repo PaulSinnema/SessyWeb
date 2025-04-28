@@ -277,7 +277,7 @@ namespace SessyController.Services.Items
             {
                 var now = _timeZoneService.Now;
 
-                if (Time == now.DateHour() && _solarEdgeService.ActualSolarPowerInWatts > 100.0)
+                if (Time == now.DateFloorQuarter() && _solarEdgeService.ActualSolarPowerInWatts > 100.0)
                     return true;
 
                 return false;

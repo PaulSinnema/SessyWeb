@@ -98,7 +98,7 @@ namespace SessyWeb.Pages
         {
             if (financialResultsGrid == null) throw new InvalidOperationException($"{nameof(financialResultsGrid)} can not be null here, did you forget a @ref?");
 
-            var chosen = DateChosen!.Value.DateHour();
+            var chosen = DateChosen!.Value.DateFloorQuarter();
             DateTime start;
             DateTime end;
 
