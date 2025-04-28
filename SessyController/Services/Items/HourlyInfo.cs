@@ -120,7 +120,7 @@ namespace SessyController.Services.Items
 
         public double SolarPowerInWatts => SolarPower * 1000;
 
-        public double SolarPowerVisual => SolarPower / 10 / _settingsConfig.SolarCorrection;
+        public double SolarPowerVisual => SolarPower / 2.5 / _settingsConfig.SolarCorrection;
 
         private bool _charging = false;
 
@@ -134,7 +134,6 @@ namespace SessyController.Services.Items
             Selling = 0.0;
             ChargeLeft = 0.0;
             SolarGlobalRadiation = 0.0;
-            SolarPower = 0.0;
             SmoothedPrice = 0.0;
         }
 

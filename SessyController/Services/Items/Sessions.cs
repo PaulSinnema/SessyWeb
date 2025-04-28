@@ -46,7 +46,7 @@ namespace SessyController.Services.Items
             _maxChargingHours = (int)Math.Ceiling(_totalBatteryCapacity / _totalChargingCapacity);
             _maxDischargingHours = (int)Math.Ceiling(_totalBatteryCapacity / _totalDischargingCapacity);
             _cycleCost = settingsConfig.CycleCost;
-            _homeNeeds = settingsConfig.RequiredHomeEnergy;
+            _homeNeeds = settingsConfig.RequiredHomeEnergy / 4; // Per quarter hour
             _logger = loggerFactory.CreateLogger<Sessions>();
         }
 
@@ -296,7 +296,7 @@ namespace SessyController.Services.Items
 
         public double GetMaxZeroNetHomeHours(Session previousSession, Session session)
         {
-            var homeNeeds = _settingsConfig.RequiredHomeEnergy / 24.0;
+            var homeNeeds = _settingsConfig.RequiredHomeEnergy / 92.0; // Per quarter hour
             double currentCharge = 1.0;
 
             var first = previousSession.LastDateHour.AddHours(1);

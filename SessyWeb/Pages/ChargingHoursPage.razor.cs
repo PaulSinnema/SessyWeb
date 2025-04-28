@@ -221,7 +221,7 @@ namespace SessyWeb.Pages
         private void ChangeChartStyle(int height)
         {
             // 25 pixels per data row (3)
-            var width = HourlyInfos?.Count * 3 * 25;
+            var width = HourlyInfos?.Count * 3 * 15;
 
             GraphStyle = $"min-height: {height}px; width: {width}px; visibility: initial;";
         }
@@ -235,7 +235,7 @@ namespace SessyWeb.Pages
             {
                 var price = (double)value;
 
-                return $"{price:n5}";
+                return $"{price:n2}";
             }
 
             return "";
@@ -250,7 +250,7 @@ namespace SessyWeb.Pages
             {
                 var dateTime = (DateTime)value;
 
-                return $"{dateTime.Day}/{dateTime.Month} {dateTime.Hour}u";
+                return $"{dateTime.Day}/{dateTime.Month} {dateTime.Hour}:{dateTime.Minute:00}";
             }
 
             return "";

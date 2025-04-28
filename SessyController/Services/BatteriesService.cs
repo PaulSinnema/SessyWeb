@@ -574,7 +574,7 @@ namespace SessyController.Services
         {
             double charge = 0.0;
             double totalCapacity = _batteryContainer.GetTotalCapacity();
-            double dayNeed = _settingsConfig.RequiredHomeEnergy;
+            double dayNeed = _settingsConfig.RequiredHomeEnergy / 4; // Per quarter hour
             double hourNeed = dayNeed / 24;
             double chargingCapacity = _sessyBatteryConfig.TotalChargingCapacity;
             double dischargingCapacity = _sessyBatteryConfig.TotalDischargingCapacity;
@@ -1023,22 +1023,10 @@ namespace SessyController.Services
             }
         }
 
-        /// <summary>
-        /// Handle the hourly info objects between 2 sessions.
-        /// </summary>
-        private void HandleHoursBetweenSessions(Session previousSession, Session nextSession)
-        {
-            List<HourlyInfo> infoObjectsBetween = _sessions.GetInfoObjectsBetween(previousSession, nextSession);
-            var count = infoObjectsBetween.Where(hi => hi.NetZeroHomeWithSolar).Count();
-            var hourNeed = (_settingsConfig.RequiredHomeEnergy / 24) * count;
-
-            infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = hourNeed);
-        }
-
         private double GetEstimatePowerNeeded(List<HourlyInfo> infoObjectsBetween)
         {
             double power = 0.0;
-            var requiredEnergyPerHour = _settingsConfig.RequiredHomeEnergy / 24.0;
+            var requiredEnergyPerHour = _settingsConfig.RequiredHomeEnergy / 92.0; // Per quarter hour
 
             foreach (var hourlyInfo in infoObjectsBetween
                 .Where(hi => hi.NetZeroHomeWithoutSolar)
@@ -1078,7 +1066,6 @@ namespace SessyController.Services
                 double dischargingPower = _batteryContainer.GetDischargingCapacity();
                 int maxChargingHours = (int)Math.Ceiling(totalBatteryCapacity / chargingPower);
                 int maxDischargingHours = (int)Math.Ceiling(totalBatteryCapacity / dischargingPower);
-                var homeNeeds = _settingsConfig.RequiredHomeEnergy;
 
                 var loggerFactory = _scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
 

@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Options;
+using SessyCommon.Extensions;
 using SessyController.Configurations;
 using SessyController.Services.Items;
 using SessyData.Model;
@@ -77,7 +78,7 @@ namespace SessyController.Services
             {
                 var solarPower = 0.0;
                 var start = forDate.Date;
-                var end = forDate.Date.AddHours(23);
+                var end = forDate.Date.AddHours(23).AddMinutes(45);
 
                 var list = hourlyInfos
                     .Where(hi => hi.Time >= start && hi.Time <= end)
@@ -138,15 +139,30 @@ namespace SessyController.Services
                                     {
                                         double solarFactor = GetSolarFactor(solarAzimuth, solarAltitude, solarPanel.Orientation, solarPanel.Tilt);
 
-                                        currentHourlyInfo.SolarPower += CalculateSolarPower(solarData.GlobalRadiation, solarFactor, solarPanel, solarAltitude);
+                                        currentHourlyInfo.SolarPower += CalculateSolarPower(solarData.GlobalRadiation, solarFactor, solarPanel, solarAltitude) / 4; // per quarter hour
 
                                         currentHourlyInfo.SolarGlobalRadiation = solarData.GlobalRadiation;
                                     }
                                 }
                             }
+
+                            AddToHourlyInfosFor15MinuteResolution(hourlyInfos, currentHourlyInfo, 15);
+                            AddToHourlyInfosFor15MinuteResolution(hourlyInfos, currentHourlyInfo, 30);
+                            AddToHourlyInfosFor15MinuteResolution(hourlyInfos, currentHourlyInfo, 45);
                         }
                     }
                 }
+            }
+        }
+
+        private void AddToHourlyInfosFor15MinuteResolution(List<HourlyInfo> hourlyInfos, HourlyInfo? lastHourlyInfo, int v)
+        {
+            if(lastHourlyInfo != null)
+            {
+                var date = lastHourlyInfo.Time.AddMinutes(v);
+                var hourlyInfo = hourlyInfos.Where(hi => hi.Time == date).FirstOrDefault();
+                hourlyInfo.SolarGlobalRadiation = lastHourlyInfo.SolarGlobalRadiation;
+                hourlyInfo.SolarPower = lastHourlyInfo.SolarPower;
             }
         }
 

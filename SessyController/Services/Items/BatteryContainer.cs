@@ -92,7 +92,7 @@ namespace SessyController.Services.Items
         /// </summary>
         public double GetChargingCapacity()
         {
-            return Batteries!.Sum(bat => bat.GetMaxCharge());
+            return Batteries!.Sum(bat => bat.GetMaxCharge()) / 4.0; // Per quarter hour
         }
 
         /// <summary>
@@ -100,7 +100,7 @@ namespace SessyController.Services.Items
         /// </summary>
         public double GetDischargingCapacity()
         {
-            return Batteries!.Sum(bat => bat.GetMaxDischarge());
+            return Batteries!.Sum(bat => bat.GetMaxDischarge()) / 4.0; // Per quarter hour
         }
 
         /// <summary>
