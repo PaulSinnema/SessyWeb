@@ -45,6 +45,7 @@ namespace SessyController.Services.Items
         public double SellingPrice { get; set; }
 
         public double SmoothedPrice { get; private set; }
+        public double SmoothedSolarPower { get; set; }
 
         /// <summary>
         /// Timestamp from ENTSO-E
@@ -120,7 +121,7 @@ namespace SessyController.Services.Items
 
         public double SolarPowerInWatts => SolarPower * 1000;
 
-        public double SolarPowerVisual => SolarPower / 2.5 / _settingsConfig.SolarCorrection;
+        public double SolarPowerVisual => SmoothedSolarPower / 2.5 / _settingsConfig.SolarCorrection;
 
         private bool _charging = false;
 

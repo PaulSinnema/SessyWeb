@@ -162,7 +162,6 @@ namespace SessyController.Services
 
                         HourlyInfo? currentHourlyInfo = _sessions.GetCurrentHourlyInfo();
 
-                        
                         if ((_dayAheadMarketService.PricesAvailable && currentHourlyInfo != null) && _settingsConfig.ManualOverride == false)
                         {
                             await HandleAutomaticCharging(_sessions);

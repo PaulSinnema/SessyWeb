@@ -102,6 +102,30 @@ namespace SessyController.Services
 
         public void GetExpectedSolarPower(List<HourlyInfo> hourlyInfos)
         {
+            GetEstimatesForSolarPower(hourlyInfos);
+
+            AddSmoothedSolarPower(hourlyInfos, 8);
+        }
+
+        private void AddSmoothedSolarPower(List<HourlyInfo> hourlyInfos, int windowSize = 6)
+        {
+            if (hourlyInfos == null || hourlyInfos.Count == 0) return;
+
+            for (int i = 0; i < hourlyInfos.Count; i++)
+            {
+                int start = Math.Max(0, i - windowSize / 2);
+                int end = Math.Min(hourlyInfos.Count - 1, i + windowSize / 2);
+
+                var range = hourlyInfos.Skip(start).Take(end - start + 1);
+
+                double average = range.Count() > 0 ? range.Average(h => h.SolarPower) : 0.0;
+
+                hourlyInfos[i].SmoothedSolarPower = average;
+            }
+        }
+
+        private void GetEstimatesForSolarPower(List<HourlyInfo> hourlyInfos)
+        {
             if (_weatherService.Initialized && _dayAheadMarketService.PricesAvailable)
             {
                 var startDate = hourlyInfos.Min(hi => hi.Time);
