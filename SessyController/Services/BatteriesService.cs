@@ -250,7 +250,7 @@ namespace SessyController.Services
         {
 #if !DEBUG
             HourlyInfo? currentHourlyInfo = _sessions.GetCurrentHourlyInfo();
-            var chargingPower = currentHourlyInfo.Mode == Modes.Charging ? _batteryContainer.GetChargingCapacity() : _batteryContainer.GetDischargingCapacity();
+            var chargingPower = currentHourlyInfo.Mode == Modes.Charging ? _batteryContainer.GetChargingCapacityPerQuarter() : _batteryContainer.GetDischargingCapacityPerQuarter();
 
             var localTime = _timeZoneService.Now;
 
