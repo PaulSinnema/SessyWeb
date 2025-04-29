@@ -16,6 +16,8 @@ namespace SessyController.Services
 
         private WeatherService _weatherService { get; set; }
 
+        private DayAheadMarketService _dayAheadMarketService { get; set; }
+
         private SolarDataService _solarDataService { get; set; }
 
         private SettingsConfig _settingsConfig { get; set; }
@@ -46,6 +48,7 @@ namespace SessyController.Services
                             LoggingService<SolarEdgeService> logger,
                             IOptions<PowerSystemsConfig> powerSystemsConfig,
                             WeatherService weatherService,
+                            DayAheadMarketService dayAheadMarketService,
                             SolarDataService solarDataService,
                             IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
                             IServiceScopeFactory serviceScopeFactory)
@@ -55,6 +58,7 @@ namespace SessyController.Services
             _logger = logger;
             _powerSystemsConfig = powerSystemsConfig.Value;
             _weatherService = weatherService;
+            _dayAheadMarketService = dayAheadMarketService;
             _solarDataService = solarDataService;
             _settingsConfigMonitor = settingsConfigMonitor;
             _serviceScopeFactory = serviceScopeFactory;
@@ -98,7 +102,7 @@ namespace SessyController.Services
 
         public void GetExpectedSolarPower(List<HourlyInfo> hourlyInfos)
         {
-            if (_weatherService.Initialized)
+            if (_weatherService.Initialized && _dayAheadMarketService.PricesAvailable)
             {
                 var startDate = hourlyInfos.Min(hi => hi.Time);
                 var endDate = hourlyInfos.Max(hi => hi.Time);
@@ -161,8 +165,12 @@ namespace SessyController.Services
             {
                 var date = lastHourlyInfo.Time.AddMinutes(v);
                 var hourlyInfo = hourlyInfos.Where(hi => hi.Time == date).FirstOrDefault();
-                hourlyInfo.SolarGlobalRadiation = lastHourlyInfo.SolarGlobalRadiation;
-                hourlyInfo.SolarPower = lastHourlyInfo.SolarPower;
+
+                if (hourlyInfo != null)
+                {
+                    hourlyInfo.SolarGlobalRadiation = lastHourlyInfo.SolarGlobalRadiation;
+                    hourlyInfo.SolarPower = lastHourlyInfo.SolarPower;
+                }
             }
         }
 

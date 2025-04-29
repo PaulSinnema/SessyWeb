@@ -100,7 +100,9 @@ namespace SessyController.Services
         {
             _logger.LogWarning("EPEX Hourly Infos Service started ...");
 
-            // Loop to fetch prices every 24 hours
+            // TemporaryRemoveAllNoneWholeHours();
+            
+            // Loop to fetch prices every day
             while (!cancelationToken.IsCancellationRequested)
             {
                 try
@@ -139,6 +141,22 @@ namespace SessyController.Services
             }
 
             _logger.LogWarning("EPEX HourlyInfos Service stopped.");
+        }
+
+
+        private void TemporaryRemoveAllNoneWholeHours()
+        {
+            var list = _epexPricesDataService.GetList((set) =>
+            {
+                return set.ToList();
+            });
+
+            list = list.Where(pr => pr.Time.DateHour() != pr.Time).ToList();
+
+            _epexPricesDataService.Remove(list, (item, set) =>
+            {
+                return set.Where(pr => pr.Id == item.Id).FirstOrDefault();
+            });
         }
 
         /// <summary>
