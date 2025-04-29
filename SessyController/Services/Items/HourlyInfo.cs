@@ -312,20 +312,7 @@ namespace SessyController.Services.Items
         /// </summary>
         public override string ToString()
         {
-            double chargeLeft = 0.0;
-            double chargeNeeded = 0.0;
-
-            try
-            {
-                chargeLeft = ChargeLeft;
-                chargeNeeded = ChargeNeeded;
-            }
-            catch
-            {
-                // Do nothing
-            }
-
-            return $"{Time}: Charging: {Charging}, Discharging: {Discharging}, Zero Net Home: {NetZeroHomeWithSolar}, Price: {BuyingPrice}, Charge left: {chargeLeft}, Charge needed: {chargeNeeded}, Solar power {SolarPower}";
+            return $"{Time}: Charging: {Charging}, Discharging: {Discharging}, Zero Net Home: {NetZeroHomeWithSolar}, Price: {BuyingPrice}, Charge left: {_chargeLeft}, Charge needed: {_chargeNeeded}, Solar power {SolarPower}";
         }
     }
 }
