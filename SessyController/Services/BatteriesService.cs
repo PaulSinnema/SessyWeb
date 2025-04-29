@@ -250,7 +250,7 @@ namespace SessyController.Services
         {
 #if !DEBUG
             HourlyInfo? currentHourlyInfo = _sessions.GetCurrentHourlyInfo();
-            var chargingPower = currentHourlyInfo.Mode == Modes.Charging ? _batteryContainer.GetChargingCapacity() : _batteryContainer.GetDischargingCapacity();
+            var chargingPower = currentHourlyInfo.Mode == Modes.Charging ? _batteryContainer.GetChargingCapacityPerQuarter() : _batteryContainer.GetDischargingCapacityPerQuarter();
 
             var localTime = _timeZoneService.Now;
 
@@ -269,8 +269,8 @@ namespace SessyController.Services
         {
             public SessionInfo(Session? session)
             {
-                FirstDate = session.FirstDateHour;
-                LastDate = session.LastDateHour;
+                FirstDate = session.FirstDateTime;
+                LastDate = session.LastDateTime;
             }
 
             public DateTime FirstDate { get; private set; }
@@ -416,7 +416,7 @@ namespace SessyController.Services
                 .OrderBy(hp => hp.Time)
                 .ToList();
 
-            HourlyInfo.AddSmoothedPrices(hourlyInfos, 3);
+            HourlyInfo.AddSmoothedPrices(hourlyInfos, 6);
 
             return hourlyInfos != null && hourlyInfos.Count > 0;
         }
@@ -574,10 +574,10 @@ namespace SessyController.Services
         {
             double charge = 0.0;
             double totalCapacity = _batteryContainer.GetTotalCapacity();
-            double dayNeed = _settingsConfig.RequiredHomeEnergy;
+            double dayNeed = _settingsConfig.RequiredHomeEnergy / 4.0; // Per quarter hour
             double hourNeed = dayNeed / 24;
-            double chargingCapacity = _sessyBatteryConfig.TotalChargingCapacity;
-            double dischargingCapacity = _sessyBatteryConfig.TotalDischargingCapacity;
+            double chargingCapacity = _sessyBatteryConfig.TotalChargingCapacity / 4.0; // Per quarter hour
+            double dischargingCapacity = _sessyBatteryConfig.TotalDischargingCapacity / 4.0; // Per quarter hour
             var now = _timeZoneService.Now;
             var localTimeHour = now.Date.AddHours(now.Hour);
             charge = await _batteryContainer.GetStateOfChargeInWatts();
@@ -588,7 +588,7 @@ namespace SessyController.Services
 
             hourlyInfoList.ForEach(hi => hi.ChargeLeft = charge);
 
-            foreach (var hourlyInfo in hourlyInfoList.Where(hi => hi.Time >= now.DateHour()))
+            foreach (var hourlyInfo in hourlyInfoList.Where(hi => hi.Time >= now.DateFloorQuarter()))
             {
                 var session = _sessions.GetSession(hourlyInfo);
 
@@ -664,7 +664,7 @@ namespace SessyController.Services
                 changed5 = false;
                 changed6 = false;
 
-                changed1 = RemoveExtraHours();
+                changed1 = RemoveExtraQuarters();
 
                 changed2 = RemoveEmptySessions();
 
@@ -683,13 +683,13 @@ namespace SessyController.Services
             bool changed = false;
             Session? previousSession = null;
 
-            foreach (var session in _sessions.SessionList.OrderBy(se => se.FirstDateHour).ToList())
+            foreach (var session in _sessions.SessionList.OrderBy(se => se.FirstDateTime).ToList())
             {
                 if(previousSession != null)
                 {
                     if(previousSession.Mode == Modes.Discharging && session.Mode == Modes.Discharging)
                     {
-                        if(previousSession.IsCheaper(session))
+                        if(previousSession.IsMoreProfitable(session))
                         {
                             _sessions.RemoveSession(previousSession);
                             changed = true;
@@ -717,7 +717,7 @@ namespace SessyController.Services
 
             Session? lastSession = null;
 
-            foreach (var session in _sessions.SessionList.OrderBy(se => se.FirstDateHour))
+            foreach (var session in _sessions.SessionList.OrderBy(se => se.FirstDateTime))
             {
                 if (lastSession != null)
                 {
@@ -756,9 +756,9 @@ namespace SessyController.Services
 
 
         /// <summary>
-        /// Remove hours outside the max hours.
+        /// Remove quarters outside the max quarters.
         /// </summary>
-        private bool RemoveExtraHours()
+        private bool RemoveExtraQuarters()
         {
             var changed = false;
 
@@ -770,14 +770,21 @@ namespace SessyController.Services
                 {
                     case Modes.Charging:
                         {
-                            listToLimit = session.GetHourlyInfoList().OrderByDescending(hp => hp.BuyingPrice).ToList();
+                            listToLimit = session.GetHourlyInfoList()
+                                .OrderByDescending(hp => hp.BuyingPrice)
+                                .ThenBy(hp => hp.Time)
+                                .ToList();
 
                             break;
                         }
 
                     case Modes.Discharging:
                         {
-                            listToLimit = session.GetHourlyInfoList().OrderBy(hp => hp.SellingPrice).ToList();
+                            listToLimit = session.GetHourlyInfoList()
+                                .OrderBy(hp => hp.SellingPrice)
+                                .ThenBy(hp => hp.Time)
+                                .ToList();
+
                             break;
                         }
 
@@ -785,7 +792,7 @@ namespace SessyController.Services
                         throw new InvalidOperationException($"Unknown mode {session.Mode}");
                 }
 
-                for (int i = session.MaxHours; i < listToLimit.Count; i++)
+                for (int i = session.MaxQuarters; i < listToLimit.Count; i++)
                 {
                     session.RemoveHourlyInfo(listToLimit[i]);
                     changed = true;
@@ -823,7 +830,7 @@ namespace SessyController.Services
 
             foreach (var session in _sessions.SessionList)
             {
-                var maxHours = session.GetHoursForMode();
+                var maxHours = session.GetHoursForMode() * 4; // Per quarter hour
 
                 if (session.RemoveAllAfter(maxHours))
                 {
@@ -847,7 +854,7 @@ namespace SessyController.Services
 
             _sessions.SessionList.ToList().ForEach(se => se.SetChargeNeeded(totalCapacity));
 
-            foreach (var nextSession in _sessions.SessionList.OrderBy(se => se.FirstDateHour))
+            foreach (var nextSession in _sessions.SessionList.OrderBy(se => se.FirstDateTime))
             {
                 if (previousSession != null)
                 {
@@ -1002,7 +1009,7 @@ namespace SessyController.Services
             var totalCapacity = _batteryContainer.GetTotalCapacity();
             List<HourlyInfo> infoObjectsBetween = _sessions.GetInfoObjectsBetween(previousSession, nextSession);
 
-            if (previousSession.IsCheaper(nextSession))
+            if (previousSession.IsMoreProfitable(nextSession))
             {
                 previousSession.SetChargeNeeded(totalCapacity);
                 infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = totalCapacity);
@@ -1023,26 +1030,16 @@ namespace SessyController.Services
             }
         }
 
-        /// <summary>
-        /// Handle the hourly info objects between 2 sessions.
-        /// </summary>
-        private void HandleHoursBetweenSessions(Session previousSession, Session nextSession)
-        {
-            List<HourlyInfo> infoObjectsBetween = _sessions.GetInfoObjectsBetween(previousSession, nextSession);
-            var count = infoObjectsBetween.Where(hi => hi.NetZeroHomeWithSolar).Count();
-            var hourNeed = (_settingsConfig.RequiredHomeEnergy / 24) * count;
-
-            infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = hourNeed);
-        }
-
         private double GetEstimatePowerNeeded(List<HourlyInfo> infoObjectsBetween)
         {
             double power = 0.0;
-            var requiredEnergyPerHour = _settingsConfig.RequiredHomeEnergy / 24.0;
+            var requiredEnergyPerHour = _settingsConfig.RequiredHomeEnergy / 96.0; // Per quarter hour
 
-            foreach (var hourlyInfo in infoObjectsBetween
+            var list = infoObjectsBetween
                 .Where(hi => hi.NetZeroHomeWithoutSolar)
-                .ToList())
+                .ToList();
+
+            foreach (var hourlyInfo in list)
             {
                 // TODO: The estimate is incorrect. It calculates the net power from the grid (Zero Net Home), not the needs of the home.
                 //var temperature = _weatherService.GetTemperature(hourlyInfo.Time);
@@ -1074,11 +1071,10 @@ namespace SessyController.Services
             if (hourlyInfos != null && hourlyInfos.Count > 0)
             {
                 double totalBatteryCapacity = _batteryContainer.GetTotalCapacity();
-                double chargingPower = _batteryContainer.GetChargingCapacity();
-                double dischargingPower = _batteryContainer.GetDischargingCapacity();
+                double chargingPower = _batteryContainer.GetChargingCapacityPerQuarter();
+                double dischargingPower = _batteryContainer.GetDischargingCapacityPerQuarter();
                 int maxChargingHours = (int)Math.Ceiling(totalBatteryCapacity / chargingPower);
                 int maxDischargingHours = (int)Math.Ceiling(totalBatteryCapacity / dischargingPower);
-                var homeNeeds = _settingsConfig.RequiredHomeEnergy;
 
                 var loggerFactory = _scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
 
@@ -1089,35 +1085,37 @@ namespace SessyController.Services
                                          _financialResultsService,
                                          loggerFactory);
 
+                var list = hourlyInfos.OrderBy(hi => hi.Time).ToList();
+
                 // Check the first element
-                if (hourlyInfos.Count > 1)
+                if (list.Count > 1)
                 {
-                    if (hourlyInfos[0].BuyingPrice <= hourlyInfos[1].BuyingPrice)
+                    if (list[0].SmoothedPrice < list[1].SmoothedPrice)
                     {
-                        if (!_sessions.InAnySession(hourlyInfos[0]))
-                            _sessions.AddNewSession(Modes.Charging, hourlyInfos[0]);
+                        if (!_sessions.InAnySession(list[0]))
+                            _sessions.AddNewSession(Modes.Charging, list[0]);
                     }
 
-                    if (hourlyInfos[0].BuyingPrice > hourlyInfos[1].BuyingPrice)
+                    if (list[0].SmoothedPrice > list[1].SmoothedPrice)
                     {
-                        if (!_sessions.InAnySession(hourlyInfos[0]))
-                            _sessions.AddNewSession(Modes.Discharging, hourlyInfos[0]);
+                        if (!_sessions.InAnySession(list[0]))
+                            _sessions.AddNewSession(Modes.Discharging, list[0]);
                     }
                 }
 
                 // Check the elements in between.
-                for (var index = 1; index < hourlyInfos.Count - 2; index++)
+                for (var index = 1; index < list.Count - 2; index++)
                 {
-                    if (hourlyInfos[index].BuyingPrice < hourlyInfos[index - 1].BuyingPrice && hourlyInfos[index].BuyingPrice <= hourlyInfos[index + 1].BuyingPrice)
+                    if (list[index].SmoothedPrice < list[index - 1].SmoothedPrice && list[index].SmoothedPrice < list[index + 1].SmoothedPrice)
                     {
-                        if (!_sessions.InAnySession(hourlyInfos[index]))
-                            _sessions.AddNewSession(Modes.Charging, hourlyInfos[index]);
+                        if (!_sessions.InAnySession(list[index]))
+                            _sessions.AddNewSession(Modes.Charging, list[index]);
                     }
 
-                    if (hourlyInfos[index].BuyingPrice > hourlyInfos[index - 1].BuyingPrice && hourlyInfos[index].BuyingPrice >= hourlyInfos[index + 1].BuyingPrice)
+                    if (list[index].SmoothedPrice > list[index - 1].SmoothedPrice && list[index].SmoothedPrice > list[index + 1].SmoothedPrice)
                     {
-                        if (!_sessions.InAnySession(hourlyInfos[index]))
-                            _sessions.AddNewSession(Modes.Discharging, hourlyInfos[index]);
+                        if (!_sessions.InAnySession(list[index]))
+                            _sessions.AddNewSession(Modes.Discharging, list[index]);
                     }
                 }
 

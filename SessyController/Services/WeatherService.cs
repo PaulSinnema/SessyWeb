@@ -156,7 +156,7 @@ namespace SessyController.Services
                 data = WeatherData.UurVerwachting.Where(uv =>
                 {
                     var date = DateTime.ParseExact(uv.Uur!, "dd-MM-yyyy HH:mm", CultureInfo.InvariantCulture);
-                    return date == time.DateHour();
+                    return date == time.DateFloorQuarter();
                 }).FirstOrDefault();
             }
 

@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Options;
+using SessyCommon.Extensions;
 using SessyController.Configurations;
 using SessyController.Services.Items;
 using SessyData.Model;
@@ -14,6 +15,8 @@ namespace SessyController.Services
         private LoggingService<SolarEdgeService> _logger { get; set; }
 
         private WeatherService _weatherService { get; set; }
+
+        private DayAheadMarketService _dayAheadMarketService { get; set; }
 
         private SolarDataService _solarDataService { get; set; }
 
@@ -45,6 +48,7 @@ namespace SessyController.Services
                             LoggingService<SolarEdgeService> logger,
                             IOptions<PowerSystemsConfig> powerSystemsConfig,
                             WeatherService weatherService,
+                            DayAheadMarketService dayAheadMarketService,
                             SolarDataService solarDataService,
                             IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
                             IServiceScopeFactory serviceScopeFactory)
@@ -54,6 +58,7 @@ namespace SessyController.Services
             _logger = logger;
             _powerSystemsConfig = powerSystemsConfig.Value;
             _weatherService = weatherService;
+            _dayAheadMarketService = dayAheadMarketService;
             _solarDataService = solarDataService;
             _settingsConfigMonitor = settingsConfigMonitor;
             _serviceScopeFactory = serviceScopeFactory;
@@ -77,7 +82,7 @@ namespace SessyController.Services
             {
                 var solarPower = 0.0;
                 var start = forDate.Date;
-                var end = forDate.Date.AddHours(23);
+                var end = forDate.Date.AddHours(23).AddMinutes(45);
 
                 var list = hourlyInfos
                     .Where(hi => hi.Time >= start && hi.Time <= end)
@@ -97,7 +102,7 @@ namespace SessyController.Services
 
         public void GetExpectedSolarPower(List<HourlyInfo> hourlyInfos)
         {
-            if (_weatherService.Initialized)
+            if (_weatherService.Initialized && _dayAheadMarketService.PricesAvailable)
             {
                 var startDate = hourlyInfos.Min(hi => hi.Time);
                 var endDate = hourlyInfos.Max(hi => hi.Time);
@@ -138,14 +143,33 @@ namespace SessyController.Services
                                     {
                                         double solarFactor = GetSolarFactor(solarAzimuth, solarAltitude, solarPanel.Orientation, solarPanel.Tilt);
 
-                                        currentHourlyInfo.SolarPower += CalculateSolarPower(solarData.GlobalRadiation, solarFactor, solarPanel, solarAltitude);
+                                        currentHourlyInfo.SolarPower += CalculateSolarPower(solarData.GlobalRadiation, solarFactor, solarPanel, solarAltitude) / 4; // per quarter hour
 
                                         currentHourlyInfo.SolarGlobalRadiation = solarData.GlobalRadiation;
                                     }
                                 }
                             }
+
+                            AddToHourlyInfosFor15MinuteResolution(hourlyInfos, currentHourlyInfo, 15);
+                            AddToHourlyInfosFor15MinuteResolution(hourlyInfos, currentHourlyInfo, 30);
+                            AddToHourlyInfosFor15MinuteResolution(hourlyInfos, currentHourlyInfo, 45);
                         }
                     }
+                }
+            }
+        }
+
+        private void AddToHourlyInfosFor15MinuteResolution(List<HourlyInfo> hourlyInfos, HourlyInfo? lastHourlyInfo, int v)
+        {
+            if(lastHourlyInfo != null)
+            {
+                var date = lastHourlyInfo.Time.AddMinutes(v);
+                var hourlyInfo = hourlyInfos.Where(hi => hi.Time == date).FirstOrDefault();
+
+                if (hourlyInfo != null)
+                {
+                    hourlyInfo.SolarGlobalRadiation = lastHourlyInfo.SolarGlobalRadiation;
+                    hourlyInfo.SolarPower = lastHourlyInfo.SolarPower;
                 }
             }
         }

@@ -55,7 +55,7 @@ namespace SessyController.Services.Items
                     case Modes.Charging:
                         {
                             var toCharge = chargeNeeded; 
-                            var capacity = _batteryContainer.GetChargingCapacity();
+                            var capacity = _batteryContainer.GetChargingCapacityPerQuarter();
 
                             foreach (var hourlyInfo in SessionHourlyInfos.OrderBy(hi => hi.BuyingPrice))
                             {
@@ -74,7 +74,7 @@ namespace SessyController.Services.Items
                     case Modes.Discharging:
                         {
                             var toDischarge = totalCapacity - chargeNeeded;
-                            var capacity = _batteryContainer.GetDischargingCapacity();
+                            var capacity = _batteryContainer.GetDischargingCapacityPerQuarter();
 
                             foreach (var hourlyInfo in SessionHourlyInfos.OrderByDescending(hi => hi.SellingPrice))
                             {
@@ -99,7 +99,7 @@ namespace SessyController.Services.Items
         /// </summary>
         public bool Contains(HourlyInfo hourlyInfo)
         {
-            return SessionHourlyInfos.Any(hi => hi.Time.DateHour() == hourlyInfo.Time.DateHour());
+            return SessionHourlyInfos.Any(hi => hi.Time.DateFloorQuarter() == hourlyInfo.Time.DateFloorQuarter());
         }
 
         /// <summary>
@@ -114,7 +114,7 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Max hours of (dis)charging
         /// </summary>
-        public int MaxHours { get; set; }
+        public int MaxQuarters { get; set; }
 
         /// <summary>
         /// The average price of all hourly prices in the session.
@@ -134,24 +134,24 @@ namespace SessyController.Services.Items
         /// <summary>
         /// The first date in the session
         /// </summary>
-        public DateTime FirstDateHour => First?.Time ?? DateTime.MinValue;
+        public DateTime FirstDateTime => First?.Time ?? DateTime.MinValue;
 
         /// <summary>
         /// The last date in the session
         /// </summary>
-        public DateTime LastDateHour => Last?.Time ?? DateTime.MaxValue;
+        public DateTime LastDateTime => Last?.Time ?? DateTime.MaxValue;
 
         public Session(Sessions sessions,
                        TimeZoneService timeZoneService,
                        Modes mode,
-                       int maxHours,
+                       int maxQuarters,
                        BatteryContainer batteryContainer,
                        SettingsConfig settingsConfig)
         {
             SessionHourlyInfos = new List<HourlyInfo>();
             _sessions = sessions;
             _timeZoneService = timeZoneService;
-            MaxHours = maxHours;
+            MaxQuarters = maxQuarters;
             Mode = mode;
             _batteryContainer = batteryContainer;
             _settingsConfig = settingsConfig;
@@ -167,7 +167,7 @@ namespace SessyController.Services.Items
                 throw new InvalidOperationException($"Invalid mode {this}");
 
             var hours = GetHours();
-            var charge = _batteryContainer.GetChargingCapacity();
+            var charge = _batteryContainer.GetChargingCapacityPerQuarter();
 
             return Math.Min(_batteryContainer.GetTotalCapacity(), hours * charge);
         }
@@ -178,7 +178,7 @@ namespace SessyController.Services.Items
                 throw new InvalidOperationException($"Invalid mode {this}");
 
             var hours = GetHours();
-            var charge = _batteryContainer.GetDischargingCapacity();
+            var charge = _batteryContainer.GetDischargingCapacityPerQuarter();
 
             return hours * charge;
         }
@@ -226,11 +226,24 @@ namespace SessyController.Services.Items
         }
 
         /// <summary>
-        /// Returns true is the average price of this session is cheaper than the session submitted.
+        /// Returns if this session on average is more profitable.
         /// </summary>
-        public bool IsCheaper(Session session)
+        public bool IsMoreProfitable(Session session)
         {
-            return SessionHourlyInfos.Min(hi => hi.BuyingPrice) < session.SessionHourlyInfos.Min(hi => hi.BuyingPrice);
+            if (session.Mode != Mode)
+                throw new InvalidOperationException($"Modes should be the same of both sessions {Mode} != {session.Mode}");
+
+            switch (Mode)
+            {
+                case Modes.Charging:
+                    return SessionHourlyInfos.Average(hi => hi.BuyingPrice) < session.SessionHourlyInfos.Average(hi => hi.BuyingPrice);
+
+                case Modes.Discharging:
+                    return SessionHourlyInfos.Average(hi => hi.SellingPrice) > session.SessionHourlyInfos.Average(hi => hi.SellingPrice);
+
+                default:
+                    throw new InvalidOperationException($"Wrong mode: {Mode}");
+            }
         }
 
         /// <summary>
@@ -257,14 +270,17 @@ namespace SessyController.Services.Items
             bool changed = false;
 
             // Once the session has started don't remove anything before now.
-            var now = _timeZoneService.Now.DateHour();
+            var now = _timeZoneService.Now.DateFloorQuarter();
             var hourlyInfos = SessionHourlyInfos.Where(hi => hi.Time > now).ToList();
 
             switch (Mode)
             {
                 case Modes.Charging:
                     {
-                        var list = hourlyInfos.OrderByDescending(hi => hi.BuyingPrice).ToList();
+                        var list = hourlyInfos
+                            .OrderByDescending(hi => hi.BuyingPrice)
+                            .ThenBy(hi => hi.Time)
+                            .ToList();
 
                         changed = RemoveTheHours(maxHours, list);
 
@@ -273,7 +289,10 @@ namespace SessyController.Services.Items
 
                 case Modes.Discharging:
                     {
-                        var list = hourlyInfos.OrderBy(hi => hi.SellingPrice).ToList();
+                        var list = hourlyInfos
+                            .OrderBy(hi => hi.SellingPrice)
+                            .ThenBy(hi => hi.Time)
+                            .ToList();
 
                         changed = RemoveTheHours(maxHours, list);
 
@@ -322,7 +341,7 @@ namespace SessyController.Services.Items
             int hours = 0;
             var nextSession = _sessions.GetNextSession(this);
             double power = 0.0;
-            var capacity = Mode == Modes.Charging ? _batteryContainer.GetChargingCapacity() : _batteryContainer.GetDischargingCapacity();
+            var capacity = Mode == Modes.Charging ? _batteryContainer.GetChargingCapacityPerQuarter() : _batteryContainer.GetDischargingCapacityPerQuarter();
 
             switch (Mode)
             {
@@ -354,7 +373,6 @@ namespace SessyController.Services.Items
                             power = previousHourlyInfo.ChargeLeft - First.ChargeNeeded;
                             power = power < 0 ? 0 : power;
                         }
-
 
                         hours = (int)Math.Ceiling(power / capacity);
 
@@ -400,7 +418,7 @@ namespace SessyController.Services.Items
         {
             var empty = IsEmpty() ? "!!!" : string.Empty;
 
-            return $"{empty}Session: {Mode}, FirstDate: {FirstDateHour}, LastDate {LastDateHour}, Count: {SessionHourlyInfos.Count}, MaxHours: {MaxHours}";
+            return $"{empty}Session: {Mode}, FirstDate: {FirstDateTime}, LastDate {LastDateTime}, Count: {SessionHourlyInfos.Count}, MaxHours: {MaxQuarters}";
         }
 
         private bool _isDisposed = false;

@@ -5,6 +5,7 @@ using SessyController.Services.Items;
 using SessyData.Model;
 using SessyData.Services;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Xml;
 
 namespace SessyController.Services
@@ -99,7 +100,9 @@ namespace SessyController.Services
         {
             _logger.LogWarning("EPEX Hourly Infos Service started ...");
 
-            // Loop to fetch prices every 24 hours
+            // TemporaryRemoveAllNoneWholeHours();
+            
+            // Loop to fetch prices every day
             while (!cancelationToken.IsCancellationRequested)
             {
                 try
@@ -140,12 +143,90 @@ namespace SessyController.Services
             _logger.LogWarning("EPEX HourlyInfos Service stopped.");
         }
 
+
+        private void TemporaryRemoveAllNoneWholeHours()
+        {
+            var list = _epexPricesDataService.GetList((set) =>
+            {
+                return set.ToList();
+            });
+
+            list = list.Where(pr => pr.Time.DateHour() != pr.Time).ToList();
+
+            _epexPricesDataService.Remove(list, (item, set) =>
+            {
+                return set.Where(pr => pr.Id == item.Id).FirstOrDefault();
+            });
+        }
+
         /// <summary>
         /// This routine is called periodically as a background task.
         /// </summary>
         public async Task Process(CancellationToken cancellationToken)
         {
-            var now = _timeZoneService.Now.DateHour();
+            await FetchPricesFromSources(cancellationToken);
+
+            if (PricesAvailable)
+            {
+                TransformPricesResolution();
+
+                StorePrices();
+            }
+
+            PricesInitialized = true;
+        }
+
+        /// <summary>
+        /// Transform prices to 15 minutes resolution if needed.
+        /// On 11 June 2025 the resolution for The Netherlands will change to 15 minutes. Until
+        /// that time the 60 minutes resolution is transformed to 15 minutes.
+        /// </summary>
+        /// <exception cref="InvalidOperationException"></exception>
+        private void TransformPricesResolution()
+        {
+            if (PricesAvailable)
+            {
+                var dates = _prices!.Select(pr => pr.Key);
+
+                var resolution = dates.GetTimeResolution();
+
+                switch (resolution)
+                {
+                    case DateTimeExtension.TimeResolution.FifteenMinutes:
+                        return; // Do nothing, already correct resolution
+
+                    case DateTimeExtension.TimeResolution.SixtyMinutes:
+                        TransformPricesTo15MinuteResolution();
+                        break;
+
+                    case DateTimeExtension.TimeResolution.Unknown:
+                    default:
+                        throw new InvalidOperationException($"Wrong resolution: {resolution}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Add missing 15 minutes resolution entries.
+        /// </summary>
+        private void TransformPricesTo15MinuteResolution()
+        {
+            foreach (var price in _prices!.ToList())
+            {
+                _prices!.AddOrUpdate(price.Key.AddMinutes(15), price.Value, Update);
+                _prices!.AddOrUpdate(price.Key.AddMinutes(30), price.Value, Update);
+                _prices!.AddOrUpdate(price.Key.AddMinutes(45), price.Value, Update);
+            }
+        }
+
+        private double Update(DateTime time, double value)
+        {
+            throw new InvalidOperationException($"Value already exists time: {time}, value : {value}");
+        }
+
+        private async Task FetchPricesFromSources(CancellationToken cancellationToken)
+        {
+            var now = _timeZoneService.Now.DateFloorQuarter();
             var lastDate = now;
 
             // Fetch day-ahead market prices from Sessy
@@ -184,8 +265,6 @@ namespace SessyController.Services
             }
 
             PricesAvailable = _prices != null && _prices.Count > 0;
-
-            PricesInitialized = true;
         }
 
         private SemaphoreSlim GetPricesSemaphore = new SemaphoreSlim(1);
@@ -203,7 +282,7 @@ namespace SessyController.Services
 
                 var now = _timeZoneService.Now;
                 var start = now.AddDays(-1).Date;
-                var end = now.AddDays(1).Date.AddHours(23);
+                var end = now.AddDays(1).Date.AddHours(23).AddMinutes(45);
 
                 var data = _epexPricesDataService.GetList((set) =>
                 {
@@ -215,7 +294,7 @@ namespace SessyController.Services
                 if (data != null)
                 {
                     hourlyInfos = data.OrderBy(ep => ep.Time)
-                        .Select(ep => new HourlyInfo(ep.Time, GetBuyPrice(ep), GetBuyPrice(ep), _settingsConfig, _batteryContainer, _solarEdgeService, _timeZoneService))
+                        .Select(ep => new HourlyInfo(ep.Time, GetBuyPrice(ep), GetSellPrice(ep), _settingsConfig, _batteryContainer, _solarEdgeService, _timeZoneService))
                         .ToList();
 
                     return hourlyInfos;
@@ -326,8 +405,6 @@ namespace SessyController.Services
                 // Detect and fill gaps in the prices with average prices.
                 FillMissingPoints(prices, date.Date, endDate, TimeSpan.FromHours(1));
 
-                StorePrices(prices);
-
                 return prices;
             }
 
@@ -382,19 +459,17 @@ namespace SessyController.Services
                 }
             }
 
-            StorePrices(list);
-
             return list;
         }
 
         /// <summary>
         /// Store the prices in the database if not present.
         /// </summary>
-        private void StorePrices(ConcurrentDictionary<DateTime, double> prices)
+        private void StorePrices()
         {
             var statusList = new List<EPEXPrices>();
 
-            foreach (var keyValuePair in prices)
+            foreach (var keyValuePair in _prices)
             {
                 statusList.Add(new EPEXPrices
                 {

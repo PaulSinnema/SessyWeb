@@ -94,8 +94,8 @@ namespace SessyController.Services.Items
         {
             get
             {
-                if (!_chargeNeededSet)
-                    throw new InvalidOperationException($"Cannot use charge needed before it is set. {this}");
+                //if (!_chargeNeededSet)
+                //    throw new InvalidOperationException($"Cannot use charge needed before it is set. {this}");
 
                 return _chargeNeeded;
             }
@@ -106,13 +106,13 @@ namespace SessyController.Services.Items
             }
         }
 
-        public double ChargeNeededVisual => ChargeNeeded / 100000;
+        public double ChargeNeededVisual => _chargeNeeded / 100000;
 
         private double TotalCapacity { get; set; }
 
-        public double ChargeLeftPercentage => ChargeLeft / (TotalCapacity / 100.0);
+        public double ChargeLeftPercentage => _chargeLeft / (TotalCapacity / 100.0);
 
-        public double ChargeLeftVisual => ChargeLeft / 100000;
+        public double ChargeLeftVisual => _chargeLeft / 100000;
 
         public double SolarGlobalRadiation { get; set; }
 
@@ -120,7 +120,7 @@ namespace SessyController.Services.Items
 
         public double SolarPowerInWatts => SolarPower * 1000;
 
-        public double SolarPowerVisual => SolarPower / 10 / _settingsConfig.SolarCorrection;
+        public double SolarPowerVisual => SolarPower / 2.5 / _settingsConfig.SolarCorrection;
 
         private bool _charging = false;
 
@@ -134,7 +134,6 @@ namespace SessyController.Services.Items
             Selling = 0.0;
             ChargeLeft = 0.0;
             SolarGlobalRadiation = 0.0;
-            SolarPower = 0.0;
             SmoothedPrice = 0.0;
         }
 
@@ -198,7 +197,7 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Adds a gesmoothed price to each HourlyInfo object in the list.
         /// </summary>
-        public static void AddSmoothedPrices(List<HourlyInfo> hourlyInfos, int windowSize = 3)
+        public static void AddSmoothedPrices(List<HourlyInfo> hourlyInfos, int windowSize = 4)
         {
             if (hourlyInfos == null || hourlyInfos.Count == 0) return;
 
@@ -277,7 +276,7 @@ namespace SessyController.Services.Items
             {
                 var now = _timeZoneService.Now;
 
-                if (Time == now.DateHour() && _solarEdgeService.ActualSolarPowerInWatts > 100.0)
+                if (Time == now.DateFloorQuarter() && _solarEdgeService.ActualSolarPowerInWatts > 100.0)
                     return true;
 
                 return false;

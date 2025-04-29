@@ -98,7 +98,7 @@ namespace SessyController.Services
             foreach (P1Meter? p1Meter in _p1MeterContainer.P1Meters)
             {
                 var now = _timeZoneService.Now;
-                var selectTime = now.DateHour();
+                var selectTime = now.DateFloorQuarter();
 
                 if (GetEnergyHistory(selectTime) == null)
                 {
@@ -109,7 +109,7 @@ namespace SessyController.Services
                     var weatherHourData = weatherData.UurVerwachting
                         .FirstOrDefault(uv => uv.TimeStamp == selectTime);
                     var hourlyInfo = prices
-                        .FirstOrDefault(hi => hi.Time.DateHour() == selectTime);
+                        .FirstOrDefault(hi => hi.Time.DateFloorQuarter() == selectTime);
 
                     if (weatherHourData != null)
                     {

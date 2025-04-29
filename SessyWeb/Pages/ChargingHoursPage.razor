@@ -99,7 +99,7 @@
         <RadzenChart Style=@GraphStyle>
             <RadzenLegend Position="@(IsMobile? LegendPosition.Right: LegendPosition.Top)" Visible="true" />
             <RadzenChartTooltipOptions Shared="false" Visible="true" />
-            <RadzenColumnSeries Data="@HourlyInfos" CategoryProperty="Time" Title="BuyingPrice" LineType="LineType.Dashed" ValueProperty="BuyingPrice">
+            <RadzenColumnSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Price" LineType="LineType.Dashed" ValueProperty="BuyingPrice">
                 <TooltipTemplate Context="data">
                     <ChargingHoursTooltip HourlyInfo=@data />
                 </TooltipTemplate>

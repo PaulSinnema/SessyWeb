@@ -159,15 +159,15 @@ namespace SessyController.Services
                 var collection = collectionKeyValue.Value;
 
                 var hours = collection
-                    .Select(c => c.Key.DateHour())
+                    .Select(c => c.Key.DateFloorQuarter())
                     .Distinct()
                     .OrderBy(date => date);
 
                 if(hours.Count() > 1) // A new hour has started.
                 {
                     var date = hours.First();
-                    var count = collection.Where(c => c.Key.DateHour() == date).Count();
-                    var total = collection.Where(c => c.Key.DateHour() == date).Sum(c => c.Value);
+                    var count = collection.Where(c => c.Key.DateFloorQuarter() == date).Count();
+                    var total = collection.Where(c => c.Key.DateFloorQuarter() == date).Sum(c => c.Value);
                     var power = total / count;
 
                     List<SolarEdgeData> list = new List<SolarEdgeData>
@@ -184,7 +184,7 @@ namespace SessyController.Services
 
                     foreach (var item in collection.ToList())
                     {
-                        if(item.Key.DateHour() == date)
+                        if(item.Key.DateFloorQuarter() == date)
                             collection.Remove(item.Key);
                     }
                 }
