@@ -88,17 +88,17 @@ namespace SessyController.Services.Items
         }
 
         /// <summary>
-        /// Get the total charging capacity for all batteries.
+        /// Get the total charging capacity for all batteries per quarter hour.
         /// </summary>
-        public double GetChargingCapacity()
+        public double GetChargingCapacityPerQuarter()
         {
             return Batteries!.Sum(bat => bat.GetMaxCharge()) / 4.0; // Per quarter hour
         }
 
         /// <summary>
-        /// Get the total discharging capacity for all batteries.
+        /// Get the total discharging capacity for all batteries per quarter hour.
         /// </summary>
-        public double GetDischargingCapacity()
+        public double GetDischargingCapacityPerQuarter()
         {
             return Batteries!.Sum(bat => bat.GetMaxDischarge()) / 4.0; // Per quarter hour
         }
@@ -122,7 +122,7 @@ namespace SessyController.Services.Items
             Batteries.ForEach(async bat =>
             {
                 var maxChargingPower = bat.GetMaxCharge();
-                var totalCapacity = GetChargingCapacity();
+                var totalCapacity = GetChargingCapacityPerQuarter();
                 var powerToUse = (maxChargingPower / totalCapacity) * chargingPower;
 
                 await bat.SetActivePowerStrategyToOpenAPI();
@@ -138,7 +138,7 @@ namespace SessyController.Services.Items
             Batteries.ForEach(async bat =>
             {
                 var maxDischargingPower = bat.GetMaxDischarge();
-                var totalCapacity = GetDischargingCapacity();
+                var totalCapacity = GetDischargingCapacityPerQuarter();
                 var powerToUse = (maxDischargingPower / totalCapacity) * dischargingPower;
 
                 await bat.SetActivePowerStrategyToOpenAPI();

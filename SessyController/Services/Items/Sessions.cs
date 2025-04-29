@@ -7,8 +7,8 @@ namespace SessyController.Services.Items
 {
     public class Sessions : IDisposable
     {
-        private double _totalChargingCapacity { get; set; }
-        private double _totalDischargingCapacity { get; set; }
+        private double _totalChargingCapacityPerQuarter { get; set; }
+        private double _totalDischargingCapacityPerQuarter { get; set; }
         private double _homeNeeds { get; set; }
         private double _totalBatteryCapacity { get; set; }
         private ILogger<Sessions> _logger { get; set; }
@@ -20,8 +20,8 @@ namespace SessyController.Services.Items
         private TimeZoneService? _timeZoneService { get; set; }
 
         private List<Session>? _sessionList { get; set; }
-        private int _maxChargingHours { get; set; }
-        private int _maxDischargingHours { get; set; }
+        private int _maxChargingQuarters { get; set; }
+        private int _maxDischargingQuarters { get; set; }
         private double _cycleCost { get; set; }
 
         private List<HourlyInfo> _hourlyInfos { get; set; }
@@ -40,11 +40,11 @@ namespace SessyController.Services.Items
 
             _sessionList = new List<Session>();
             _hourlyInfos = hourlyInfos;
-            _totalChargingCapacity = batteryContainer.GetChargingCapacity();
-            _totalDischargingCapacity = batteryContainer.GetDischargingCapacity();
+            _totalChargingCapacityPerQuarter = batteryContainer.GetChargingCapacityPerQuarter();
+            _totalDischargingCapacityPerQuarter = batteryContainer.GetDischargingCapacityPerQuarter();
             _totalBatteryCapacity = batteryContainer.GetTotalCapacity();
-            _maxChargingHours = (int)Math.Ceiling(_totalBatteryCapacity / _totalChargingCapacity);
-            _maxDischargingHours = (int)Math.Ceiling(_totalBatteryCapacity / _totalDischargingCapacity);
+            _maxChargingQuarters = (int)Math.Ceiling(_totalBatteryCapacity / _totalChargingCapacityPerQuarter);
+            _maxDischargingQuarters = (int)Math.Ceiling(_totalBatteryCapacity / _totalDischargingCapacityPerQuarter);
             _cycleCost = settingsConfig.CycleCost;
             _homeNeeds = settingsConfig.RequiredHomeEnergy / 4; // Per quarter hour
             _logger = loggerFactory.CreateLogger<Sessions>();
@@ -149,8 +149,8 @@ namespace SessyController.Services.Items
         public Session? GetNextSession(Session session)
         {
             return SessionList
-                    .Where(se => se.FirstDateHour > session.LastDateHour)
-                    .OrderBy(se => se.FirstDateHour)
+                    .Where(se => se.FirstDateTime > session.LastDateTime)
+                    .OrderBy(se => se.FirstDateTime)
                     .FirstOrDefault();
         }
 
@@ -165,19 +165,19 @@ namespace SessyController.Services.Items
                 {
                     case Modes.Charging:
                         {
-                            Session session = new Session(this, _timeZoneService!, mode, _maxChargingHours, _batteryContainer, _settingsConfig);
+                            Session session = new Session(this, _timeZoneService!, mode, _maxChargingQuarters, _batteryContainer, _settingsConfig);
                             _sessionList.Add(session);
                             session.AddHourlyInfo(hourlyInfo);
-                            CompleteSession(session, _hourlyInfos, _maxChargingHours, _cycleCost);
+                            CompleteSession(session, _hourlyInfos, _maxChargingQuarters, _cycleCost);
                             break;
                         }
 
                     case Modes.Discharging:
                         {
-                            Session session = new Session(this, _timeZoneService!, mode, _maxDischargingHours, _batteryContainer, _settingsConfig);
+                            Session session = new Session(this, _timeZoneService!, mode, _maxDischargingQuarters, _batteryContainer, _settingsConfig);
                             _sessionList.Add(session);
                             session.AddHourlyInfo(hourlyInfo);
-                            CompleteSession(session, _hourlyInfos, _maxDischargingHours, _cycleCost);
+                            CompleteSession(session, _hourlyInfos, _maxDischargingQuarters, _cycleCost);
                             break;
                         }
 
@@ -235,7 +235,7 @@ namespace SessyController.Services.Items
 
         private void CalculateChargingProfits(List<HourlyInfo> lastChargingSession, HourlyInfo? previousHour, HourlyInfo hourlyInfo)
         {
-            var totalChargingCapacity = Math.Min(_totalChargingCapacity, _totalBatteryCapacity - (previousHour == null ? 0.0 : previousHour.ChargeLeft)) / 1000;
+            var totalChargingCapacity = Math.Min(_totalChargingCapacityPerQuarter, _totalBatteryCapacity - (previousHour == null ? 0.0 : previousHour.ChargeLeft)) / 1000;
 
             hourlyInfo.Selling = 0.00;
             hourlyInfo.Buying = totalChargingCapacity * hourlyInfo.BuyingPrice;
@@ -255,7 +255,7 @@ namespace SessyController.Services.Items
 
         private void CalculateDischargingProfits(HourlyInfo hourlyInfo)
         {
-            var totalDischargingCapacity = Math.Min(_totalDischargingCapacity, hourlyInfo.ChargeLeft - hourlyInfo.ChargeNeeded) / 1000;
+            var totalDischargingCapacity = Math.Min(_totalDischargingCapacityPerQuarter, hourlyInfo.ChargeLeft - hourlyInfo.ChargeNeeded) / 1000;
 
             hourlyInfo.Selling = totalDischargingCapacity * hourlyInfo.SellingPrice;
             hourlyInfo.Buying = 0.00;
@@ -299,8 +299,8 @@ namespace SessyController.Services.Items
             var homeNeeds = _settingsConfig.RequiredHomeEnergy / 92.0; // Per quarter hour
             double currentCharge = 1.0;
 
-            var first = previousSession.LastDateHour.AddHours(1);
-            var last = session.FirstDateHour.AddHours(-1);
+            var first = previousSession.LastDateTime.AddHours(1);
+            var last = session.FirstDateTime.AddHours(-1);
             var hours = 0;
             var firstTime = true;
 
@@ -327,20 +327,20 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Adds neighboring hours to the Session
         /// </summary>
-        public void CompleteSession(Session session, List<HourlyInfo> hourlyInfos, int maxHours, double cycleCost)
+        public void CompleteSession(Session session, List<HourlyInfo> hourlyInfos, int maxQuarters, double cycleCost)
         {
             if (session.GetHourlyInfoList().Count != 1)
                 throw new InvalidOperationException($"Session has zero or more than 1 hourly price.");
 
             var now = _timeZoneService.Now;
-            var selectDateHour = now.Date.AddHours(now.Hour).AddHours(-1);
+            var selectDateHour = now.Date.AddHours(now.Hour).AddMinutes(-15);
             var index = hourlyInfos.IndexOf(session.GetHourlyInfoList().First());
             var prev = index - 1;
             var next = index + 1;
 
             if (index >= 0)
             {
-                for (var i = 0; i < maxHours - 1; i++)
+                for (var i = 0; i < maxQuarters - 1; i++)
                 {
                     var averagePrice = GetAveragePriceInWindow(hourlyInfos, index, 20);
 
@@ -352,20 +352,20 @@ namespace SessyController.Services.Items
                                 {
                                     if (next < hourlyInfos.Count)
                                     {
-                                        if (hourlyInfos[next].BuyingPrice < hourlyInfos[prev].BuyingPrice)
+                                        if (hourlyInfos[next].SmoothedPrice < hourlyInfos[prev].SmoothedPrice)
                                         {
-                                            if (hourlyInfos[next].BuyingPrice < averagePrice)
+                                            if (hourlyInfos[next].SmoothedPrice < averagePrice)
                                                 AddHourlyInfo(session, hourlyInfos[next++]);
                                         }
                                         else
                                         {
-                                            if (hourlyInfos[prev].BuyingPrice < averagePrice)
+                                            if (hourlyInfos[prev].SmoothedPrice < averagePrice)
                                                 AddHourlyInfo(session, hourlyInfos[prev--]);
                                         }
                                     }
                                     else
                                     {
-                                        if (hourlyInfos[prev].BuyingPrice < averagePrice)
+                                        if (hourlyInfos[prev].SmoothedPrice < averagePrice)
                                             AddHourlyInfo(session, hourlyInfos[prev--]);
                                     }
                                 }
@@ -373,7 +373,7 @@ namespace SessyController.Services.Items
                                 {
                                     if (next < hourlyInfos.Count)
                                     {
-                                        if (hourlyInfos[next].BuyingPrice < averagePrice)
+                                        if (hourlyInfos[next].SmoothedPrice < averagePrice)
                                             AddHourlyInfo(session, hourlyInfos[next++]);
                                     }
                                 }
@@ -387,20 +387,20 @@ namespace SessyController.Services.Items
                                 {
                                     if (next < hourlyInfos.Count)
                                     {
-                                        if (hourlyInfos[next].BuyingPrice > hourlyInfos[prev].BuyingPrice)
+                                        if (hourlyInfos[next].SmoothedPrice > hourlyInfos[prev].SmoothedPrice)
                                         {
-                                            if (hourlyInfos[next].BuyingPrice > averagePrice)
+                                            if (hourlyInfos[next].SmoothedPrice > averagePrice)
                                                 AddHourlyInfo(session, hourlyInfos[next++]);
                                         }
                                         else
                                         {
-                                            if (hourlyInfos[prev].BuyingPrice > averagePrice)
+                                            if (hourlyInfos[prev].SmoothedPrice > averagePrice)
                                                 AddHourlyInfo(session, hourlyInfos[prev--]);
                                         }
                                     }
                                     else
                                     {
-                                        if (hourlyInfos[prev].BuyingPrice > averagePrice)
+                                        if (hourlyInfos[prev].SmoothedPrice > averagePrice)
                                             AddHourlyInfo(session, hourlyInfos[prev--]);
                                     }
                                 }
@@ -408,7 +408,7 @@ namespace SessyController.Services.Items
                                 {
                                     if (next < hourlyInfos.Count)
                                     {
-                                        if (hourlyInfos[next].BuyingPrice > averagePrice)
+                                        if (hourlyInfos[next].SmoothedPrice > averagePrice)
                                             AddHourlyInfo(session, hourlyInfos[next++]);
                                     }
                                 }
@@ -426,7 +426,7 @@ namespace SessyController.Services.Items
         public List<HourlyInfo> GetInfoObjectsBetween(Session previousSession, Session nextSession)
         {
             return _hourlyInfos!
-                .Where(hi => hi.Time < nextSession.FirstDateHour && hi.Time > previousSession.LastDateHour)
+                .Where(hi => hi.Time < nextSession.FirstDateTime && hi.Time > previousSession.LastDateTime)
                 .ToList();
         }
 
@@ -439,7 +439,7 @@ namespace SessyController.Services.Items
         public List<HourlyInfo> GetInfoObjectsAfter(Session session)
         {
             return _hourlyInfos!
-                .Where(hi => hi.Time > session.LastDateHour)
+                .Where(hi => hi.Time > session.LastDateTime)
                 .ToList();
         }
 
@@ -498,7 +498,7 @@ namespace SessyController.Services.Items
 
         public override string ToString()
         {
-            return $"Sessions: Count: {SessionList.Count}, Max charging hours: {_maxChargingHours}, Max discharging hours: {_maxDischargingHours}";
+            return $"Sessions: Count: {SessionList.Count}, Max charging hours: {_maxChargingQuarters}, Max discharging hours: {_maxDischargingQuarters}";
         }
 
         private bool _isDisposed = false;
@@ -518,13 +518,13 @@ namespace SessyController.Services.Items
             var changed = false;
             Session? previousSession = null;
 
-            foreach (var session in SessionList.OrderBy(se => se.FirstDateHour).ToList())
+            foreach (var session in SessionList.OrderBy(se => se.FirstDateTime).ToList())
             {
                 if (previousSession != null)
                 {
                     if (previousSession.Mode == Modes.Charging && session.Mode == Modes.Charging)
                     {
-                        if (session.IsCheaper(previousSession))
+                        if (session.IsMoreProfitable(previousSession))
                         {
                             RemoveSession(previousSession);
                             changed = true;

@@ -94,8 +94,8 @@ namespace SessyController.Services.Items
         {
             get
             {
-                if (!_chargeNeededSet)
-                    throw new InvalidOperationException($"Cannot use charge needed before it is set. {this}");
+                //if (!_chargeNeededSet)
+                //    throw new InvalidOperationException($"Cannot use charge needed before it is set. {this}");
 
                 return _chargeNeeded;
             }
@@ -106,13 +106,13 @@ namespace SessyController.Services.Items
             }
         }
 
-        public double ChargeNeededVisual => ChargeNeeded / 100000;
+        public double ChargeNeededVisual => _chargeNeeded / 100000;
 
         private double TotalCapacity { get; set; }
 
-        public double ChargeLeftPercentage => ChargeLeft / (TotalCapacity / 100.0);
+        public double ChargeLeftPercentage => _chargeLeft / (TotalCapacity / 100.0);
 
-        public double ChargeLeftVisual => ChargeLeft / 100000;
+        public double ChargeLeftVisual => _chargeLeft / 100000;
 
         public double SolarGlobalRadiation { get; set; }
 
@@ -197,7 +197,7 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Adds a gesmoothed price to each HourlyInfo object in the list.
         /// </summary>
-        public static void AddSmoothedPrices(List<HourlyInfo> hourlyInfos, int windowSize = 3)
+        public static void AddSmoothedPrices(List<HourlyInfo> hourlyInfos, int windowSize = 4)
         {
             if (hourlyInfos == null || hourlyInfos.Count == 0) return;
 
@@ -311,20 +311,7 @@ namespace SessyController.Services.Items
         /// </summary>
         public override string ToString()
         {
-            double chargeLeft = 0.0;
-            double chargeNeeded = 0.0;
-
-            try
-            {
-                chargeLeft = ChargeLeft;
-                chargeNeeded = ChargeNeeded;
-            }
-            catch
-            {
-                // Do nothing
-            }
-
-            return $"{Time}: Charging: {Charging}, Discharging: {Discharging}, Zero Net Home: {NetZeroHomeWithSolar}, Price: {BuyingPrice}, Charge left: {chargeLeft}, Charge needed: {chargeNeeded}, Solar power {SolarPower}";
+            return $"{Time}: Charging: {Charging}, Discharging: {Discharging}, Zero Net Home: {NetZeroHomeWithSolar}, Price: {BuyingPrice}, Charge left: {_chargeLeft}, Charge needed: {_chargeNeeded}, Solar power {SolarPower}";
         }
     }
 }
