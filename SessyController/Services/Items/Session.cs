@@ -265,7 +265,7 @@ namespace SessyController.Services.Items
             SessionHourlyInfos.Clear();
         }
 
-        public bool RemoveAllAfter(int maxHours)
+        public bool RemoveAllAfter(int maxQuarters)
         {
             bool changed = false;
 
@@ -282,7 +282,7 @@ namespace SessyController.Services.Items
                             .ThenBy(hi => hi.Time)
                             .ToList();
 
-                        changed = RemoveTheHours(maxHours, list);
+                        changed = RemoveTheHours(maxQuarters, list);
 
                         break;
                     }
@@ -294,7 +294,7 @@ namespace SessyController.Services.Items
                             .ThenBy(hi => hi.Time)
                             .ToList();
 
-                        changed = RemoveTheHours(maxHours, list);
+                        changed = RemoveTheHours(maxQuarters, list);
 
                         break;
                     }
@@ -338,7 +338,7 @@ namespace SessyController.Services.Items
         /// </summary>
         public int GetHoursForMode()
         {
-            int hours = 0;
+            int quarters = 0;
             var nextSession = _sessions.GetNextSession(this);
             double power = 0.0;
             var capacity = Mode == Modes.Charging ? _batteryContainer.GetChargingCapacityPerQuarter() : _batteryContainer.GetDischargingCapacityPerQuarter();
@@ -359,7 +359,7 @@ namespace SessyController.Services.Items
                             power = _batteryContainer.GetTotalCapacity();
                         }
 
-                        hours = (int)Math.Ceiling(power / capacity);
+                        quarters = (int)Math.Ceiling(power / capacity);
 
                         break;
                     }
@@ -374,7 +374,7 @@ namespace SessyController.Services.Items
                             power = power < 0 ? 0 : power;
                         }
 
-                        hours = (int)Math.Ceiling(power / capacity);
+                        quarters = (int)Math.Ceiling(power / capacity);
 
                         break;
                     }
@@ -384,7 +384,7 @@ namespace SessyController.Services.Items
             }
 
 
-            return hours;
+            return quarters;
         }
 
         /// <summary>

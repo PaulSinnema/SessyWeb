@@ -837,9 +837,9 @@ namespace SessyController.Services
 
             foreach (var session in _sessions.SessionList)
             {
-                var maxHours = session.GetHoursForMode() * 4; // Per quarter hour
+                var maxQuarters = session.GetHoursForMode(); // Per quarter hour
 
-                if (session.RemoveAllAfter(maxHours))
+                if (session.RemoveAllAfter(maxQuarters))
                 {
                     changed = true;
                 }
