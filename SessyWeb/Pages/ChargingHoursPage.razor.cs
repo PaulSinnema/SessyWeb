@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Components;
 using Radzen;
 using Radzen.Blazor;
+using SessyCommon.Extensions;
 using SessyController.Services;
 using SessyController.Services.Items;
 using SessyWeb.Services;
@@ -135,7 +136,7 @@ namespace SessyWeb.Pages
         {
             var height = await _screenSizeService!.GetScreenHeightAsync();
 
-            HandleResize(height - 255);
+            HandleResize(height - 275);
         }
 
         /// <summary>
@@ -209,7 +210,7 @@ namespace SessyWeb.Pages
             var now = _timeZoneService!.Now;
 
             HourlyInfos = _batteriesService?.GetHourlyInfos()?
-                .Where(hi => hi.Time >= now.Date.AddHours(now.Hour - 1))
+                .Where(hi => hi.Time >= now.DateFloorQuarter())
                 .ToList();
         }
 
