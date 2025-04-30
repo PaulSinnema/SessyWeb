@@ -15,8 +15,11 @@ using SessyWeb.Services;
 
 AppDomain.CurrentDomain.UnhandledException += (sender, eventArgs) =>
 {
+    var senderType = sender.GetType();
     var ex = (Exception)eventArgs.ExceptionObject;
+
     Console.WriteLine($"🚨 Critical unhandled exception occurred: {ex.ToDetailedString()}");
+    Console.WriteLine($"Sender is: {senderType.FullName} IsTerminating: {eventArgs.IsTerminating}");
 };
 
 var builder = WebApplication.CreateBuilder(args);

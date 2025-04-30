@@ -162,15 +162,18 @@ namespace SessyController.Services
 
                         HourlyInfo? currentHourlyInfo = _sessions.GetCurrentHourlyInfo();
 
-                        if ((_dayAheadMarketService.PricesAvailable && currentHourlyInfo != null) && _settingsConfig.ManualOverride == false)
+                        if (currentHourlyInfo != null)
                         {
-                            await HandleAutomaticCharging(_sessions);
-                        }
-                        else
-                        {
-                            _logger.LogInformation("No prices available from ENTSO-E, switching to manual charging");
+                            if ((_dayAheadMarketService.PricesAvailable) && _settingsConfig.ManualOverride == false)
+                            {
+                                await HandleAutomaticCharging(_sessions, currentHourlyInfo);
+                            }
+                            else
+                            {
+                                _logger.LogInformation("No prices available from ENTSO-E, switching to manual charging");
 
-                            HandleManualCharging();
+                                HandleManualCharging(currentHourlyInfo);
+                            }
                         }
                     }
                 }
@@ -210,45 +213,50 @@ namespace SessyController.Services
             return _sessions!;
         }
 
-        private async Task HandleAutomaticCharging(Sessions sessions)
+        private async Task HandleAutomaticCharging(Sessions sessions, HourlyInfo currentHourlyInfo)
         {
-            HourlyInfo? currentHourlyInfo = _sessions.GetCurrentHourlyInfo();
+            await CancelSessionIfStateRequiresIt(sessions, currentHourlyInfo);
 
-            if (currentHourlyInfo != null)
-            {
-                await CancelSessionIfStateRequiresIt(sessions, currentHourlyInfo);
-
-                var currentSession = sessions.GetSession(currentHourlyInfo);
+            var currentSession = sessions.GetSession(currentHourlyInfo);
 
 #if !DEBUG
-                if (currentHourlyInfo.Charging)
-                {
-                    var chargingPower = currentSession.ChargingPowerInWatts;
+            switch (currentHourlyInfo.Mode)
+            {
+                case Modes.Charging:
+                    {
+                        var chargingPower = currentSession.ChargingPowerInWatts;
+                        _batteryContainer.StartCharging(chargingPower);
+                        break;
+                    }
 
-                    _batteryContainer.StartCharging(chargingPower);
-                }
-                else if (currentHourlyInfo.Discharging)
-                {
-                    var chargingPower = currentSession.ChargingPowerInWatts;
+                case Modes.Discharging:
+                    {
+                        var chargingPower = currentSession.ChargingPowerInWatts;
+                        _batteryContainer.StartDisharging(chargingPower);
+                        break;
+                    }
 
-                    _batteryContainer.StartDisharging(chargingPower);
-                }
-                else if (currentHourlyInfo.NetZeroHomeWithSolar)
-                {
-                    _batteryContainer.StartNetZeroHome();
-                }
-                else
-                {
-                    _batteryContainer.StopAll();
-                }
-#endif
+                case Modes.ZeroNetHome:
+                    {
+                        _batteryContainer.StartNetZeroHome();
+                        break;
+                    }
+
+                case Modes.Disabled:
+                case Modes.Unknown:
+                default:
+                    {
+                        _batteryContainer.StopAll();
+                        break;
+                    }
+
             }
+#endif
         }
 
-        private void HandleManualCharging()
+        private void HandleManualCharging(HourlyInfo currentHourlyInfo)
         {
 #if !DEBUG
-            HourlyInfo? currentHourlyInfo = _sessions.GetCurrentHourlyInfo();
             var chargingPower = currentHourlyInfo.Mode == Modes.Charging ? _batteryContainer.GetChargingCapacityPerQuarter() : _batteryContainer.GetDischargingCapacityPerQuarter();
 
             var localTime = _timeZoneService.Now;
@@ -446,7 +454,7 @@ namespace SessyController.Services
                 {
                     RemoveExtraChargingSessions();
 
-                     CheckSessions();
+                    CheckSessions();
                 }
             }
             catch (Exception ex)
@@ -524,7 +532,7 @@ namespace SessyController.Services
                     case Modes.ZeroNetHome:
                     case Modes.Disabled:
                     default:
-                        if(_sessions.InAnySession(hourlyInfo))
+                        if (_sessions.InAnySession(hourlyInfo))
                         {
                             throw new InvalidOperationException($"Hourlyinfo should not be in any session {hourlyInfo}");
                         }
@@ -684,11 +692,11 @@ namespace SessyController.Services
 
             foreach (var session in _sessions.SessionList.OrderBy(se => se.FirstDateTime).ToList())
             {
-                if(previousSession != null)
+                if (previousSession != null)
                 {
-                    if(previousSession.Mode == Modes.Discharging && session.Mode == Modes.Discharging)
+                    if (previousSession.Mode == Modes.Discharging && session.Mode == Modes.Discharging)
                     {
-                        if(previousSession.IsMoreProfitable(session))
+                        if (previousSession.IsMoreProfitable(session))
                         {
                             _sessions.RemoveSession(previousSession);
                             changed = true;
@@ -877,7 +885,7 @@ namespace SessyController.Services
                 previousSession = nextSession;
             }
 
-            if(previousSession != null)
+            if (previousSession != null)
             {
                 HandleLastSession(previousSession);
             }

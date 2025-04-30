@@ -1,4 +1,5 @@
-﻿using SessyController.Configurations;
+﻿using SessyCommon.Extensions;
+using SessyController.Configurations;
 using SessyData.Services;
 using System.Collections.ObjectModel;
 using static SessyController.Services.Items.Session;
@@ -71,10 +72,10 @@ namespace SessyController.Services.Items
 
         public HourlyInfo? GetCurrentHourlyInfo()
         {
-            var localTime = _timeZoneService.Now;
+            var localTime = _timeZoneService.Now.DateFloorQuarter();
 
             return _hourlyInfos?
-                .FirstOrDefault(hp => hp.Time.Date == localTime.Date && hp.Time.Hour == localTime.Hour);
+                .FirstOrDefault(hp => hp.Time == localTime);
         }
 
         /// <summary>

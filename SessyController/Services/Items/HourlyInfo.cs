@@ -95,8 +95,8 @@ namespace SessyController.Services.Items
         {
             get
             {
-                //if (!_chargeNeededSet)
-                //    throw new InvalidOperationException($"Cannot use charge needed before it is set. {this}");
+                if (!_chargeNeededSet)
+                    throw new InvalidOperationException($"Cannot use charge needed before it is set. {this}");
 
                 return _chargeNeeded;
             }
