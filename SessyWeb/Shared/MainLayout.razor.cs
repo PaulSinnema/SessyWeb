@@ -1,11 +1,16 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Mvc;
 using Radzen;
+using SessyWeb.Services;
 using System.Data;
 
 namespace SessyWeb.Shared
 {
     public partial class MainLayout
     {
+        [Inject]
+        public ScreenSizeService? _screenSizeService { get; set; }
+
         public static string NewTheme { get; set; } = "Dark";
 
         public MenuItemDisplayStyle DisplayStyle { get; set; } = MenuItemDisplayStyle.Icon;
@@ -15,13 +20,22 @@ namespace SessyWeb.Shared
 
         public string? MenuStyle { get; set; }
 
-        public bool IsMobile = false;
+        public bool IsMobile { get; set; } = false;
 
         protected override void OnInitialized()
         {
             MenuStyle = MenuStyleIcon;
 
+            _screenSizeService.OnScreenSizeChanged += _screenSizeService_OnScreenSizeChanged;
+
             base.OnInitialized();
+        }
+
+        private void _screenSizeService_OnScreenSizeChanged(int height, int width)
+        {
+            IsMobile = width < 768;
+
+            StateHasChanged();
         }
 
         void ChangeTheme(string theme)
@@ -46,6 +60,7 @@ namespace SessyWeb.Shared
         {
             MenuIcon();
         }
+
         private void MenuIcon()
         {
             DisplayStyle = MenuItemDisplayStyle.Icon;
@@ -56,12 +71,6 @@ namespace SessyWeb.Shared
         {
             DisplayStyle = MenuItemDisplayStyle.IconAndText;
             MenuStyle = MenuStyleIconAndText;
-        }
-
-        public void OnChange(bool isMobile)
-        {
-            IsMobile = isMobile;
-            StateHasChanged();
         }
     }
 }

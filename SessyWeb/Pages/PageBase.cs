@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Components;
 using SessyController.Services.Items;
+using SessyWeb.Services;
 
 namespace SessyWeb.Pages
 {
@@ -7,6 +8,8 @@ namespace SessyWeb.Pages
     {
         [Inject]
         public BatteryContainer? batteryContainer { get; set; }
+        [Inject]
+        public ScreenSizeService? _screenSizeService { get; set; }
 
         [CascadingParameter]
         public bool IsMobile { get; set; }

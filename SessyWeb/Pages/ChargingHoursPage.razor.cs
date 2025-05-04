@@ -18,8 +18,6 @@ namespace SessyWeb.Pages
         public SolarService? _solarService { get; set; }
         [Inject]
         public TimeZoneService? _timeZoneService { get; set; }
-        [Inject]
-        public ScreenSizeService? _screenSizeService { get; set; }
 
         public List<HourlyInfo>? HourlyInfos { get; set; } = new List<HourlyInfo>();
 
@@ -110,7 +108,7 @@ namespace SessyWeb.Pages
         {
             if (firstRender)
             {
-                _screenSizeService!.OnScreenHeightChanged += HandleResize;
+                _screenSizeService!.OnScreenSizeChanged += HandleResize;
                 _batteriesService!.DataChanged += BatteriesServiceDataChanged;
                 _batteriesService!.OnHeartBeat += HeartBeat;
 
@@ -135,8 +133,9 @@ namespace SessyWeb.Pages
         private async Task HandleScreenHeight()
         {
             var height = await _screenSizeService!.GetScreenHeightAsync();
+            var width = await _screenSizeService.GetScreenWidthAsync();
 
-            HandleResize(height - 275);
+            HandleResize(height - 300, width);
         }
 
         /// <summary>
@@ -194,7 +193,7 @@ namespace SessyWeb.Pages
         /// <summary>
         /// The window is resized. Hanle it.
         /// </summary>
-        private async void HandleResize(int height)
+        private async void HandleResize(int height, int width)
         {
             await InvokeAsync(() =>
             {
@@ -263,7 +262,7 @@ namespace SessyWeb.Pages
         {
             if (!_isDisposed)
             {
-                _screenSizeService!.OnScreenHeightChanged -= HandleResize;
+                _screenSizeService!.OnScreenSizeChanged -= HandleResize;
                 _batteriesService!.DataChanged -= BatteriesServiceDataChanged;
                 _batteriesService!.OnHeartBeat -= HeartBeat;
             }

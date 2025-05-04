@@ -9,8 +9,6 @@
 <RadzenTheme Theme="@NewTheme" />
 
 <CascadingValue Value="IsMobile">
-    <RadzenMediaQuery Query="(max-width: 768px)" Change="@OnChange" />
-
     <RadzenLayout>
         <RadzenHeader>
             <RadzenStack Orientation="@(IsMobile? Orientation.Vertical: Orientation.Horizontal)" 

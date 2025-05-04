@@ -8,33 +8,49 @@ namespace SessyWeb.Services
         private IJSObjectReference? _module;
         private DotNetObjectReference<ScreenSizeService>? _dotNetRef;
 
-        public event Action<int>? OnScreenHeightChanged;
+        public event Action<int, int>? OnScreenSizeChanged;
 
         public ScreenSizeService(IJSRuntime jsRuntime)
         {
             _jsRuntime = jsRuntime;
         }
 
+        private async Task EnsureScreensizeJsLoaded()
+        {
+            _module = await _jsRuntime.InvokeAsync<IJSObjectReference>("import", "./screensize.js");
+        }
+
         public async Task InitializeAsync()
         {
             _dotNetRef = DotNetObjectReference.Create(this);
-            _module = await _jsRuntime.InvokeAsync<IJSObjectReference>("import", "./screensize.js");
-            await _module.InvokeVoidAsync("initialize", _dotNetRef);
+            await EnsureScreensizeJsLoaded();
+            await _module!.InvokeVoidAsync("initialize", _dotNetRef);
         }
 
         [JSInvokable]
-        public void UpdateScreenHeight(int height)
+        public void UpdateScreenSize(int height, int width)
         {
-            OnScreenHeightChanged?.Invoke(height);
+            OnScreenSizeChanged?.Invoke(height, width);
         }
 
         public async ValueTask<int> GetScreenHeightAsync()
         {
             if (_module == null)
             {
-                _module = await _jsRuntime.InvokeAsync<IJSObjectReference>("import", "./screensize.js");
+                await EnsureScreensizeJsLoaded();
             }
-            return await _module.InvokeAsync<int>("getScreenHeight");
+
+            return await _module!.InvokeAsync<int>("getScreenHeight");
+        }
+
+        public async ValueTask<int> GetScreenWidthAsync()
+        {
+            if (_module == null)
+            {
+                await EnsureScreensizeJsLoaded();
+            }
+
+            return await _module!.InvokeAsync<int>("getScreenWidth");
         }
 
         private bool _IsDisposed = false;
