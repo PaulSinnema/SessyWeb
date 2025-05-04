@@ -682,7 +682,7 @@ namespace SessyController.Services
                 changed5 = RemoveDoubleDischargingSessions();
 
                 changed6 = RemoveEmptySessions();
-            } while (changed1 || changed2 || changed1 || changed2 || changed3 || changed4);
+            } while (changed1 || changed2 || changed3 || changed4 || changed5 || changed6);
         }
 
         private bool RemoveDoubleDischargingSessions()
@@ -1097,13 +1097,13 @@ namespace SessyController.Services
                 // Check the first element
                 if (list.Count > 1)
                 {
-                    if (list[0].SmoothedPrice < list[1].SmoothedPrice)
+                    if (list[0].SmoothedPrice <= list[1].SmoothedPrice)
                     {
                         if (!_sessions.InAnySession(list[0]))
                             _sessions.AddNewSession(Modes.Charging, list[0]);
                     }
 
-                    if (list[0].SmoothedPrice > list[1].SmoothedPrice)
+                    if (list[0].SmoothedPrice >= list[1].SmoothedPrice)
                     {
                         if (!_sessions.InAnySession(list[0]))
                             _sessions.AddNewSession(Modes.Discharging, list[0]);
@@ -1113,13 +1113,13 @@ namespace SessyController.Services
                 // Check the elements in between.
                 for (var index = 1; index < list.Count - 2; index++)
                 {
-                    if (list[index].SmoothedPrice < list[index - 1].SmoothedPrice && list[index].SmoothedPrice < list[index + 1].SmoothedPrice)
+                    if (list[index].SmoothedPrice < list[index - 1].SmoothedPrice && list[index].SmoothedPrice <= list[index + 1].SmoothedPrice)
                     {
                         if (!_sessions.InAnySession(list[index]))
                             _sessions.AddNewSession(Modes.Charging, list[index]);
                     }
 
-                    if (list[index].SmoothedPrice > list[index - 1].SmoothedPrice && list[index].SmoothedPrice > list[index + 1].SmoothedPrice)
+                    if (list[index].SmoothedPrice > list[index - 1].SmoothedPrice && list[index].SmoothedPrice >= list[index + 1].SmoothedPrice)
                     {
                         if (!_sessions.InAnySession(list[index]))
                             _sessions.AddNewSession(Modes.Discharging, list[index]);
