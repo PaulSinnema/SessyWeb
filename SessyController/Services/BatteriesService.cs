@@ -581,8 +581,7 @@ namespace SessyController.Services
         {
             double charge = 0.0;
             double totalCapacity = _batteryContainer.GetTotalCapacity();
-            double dayNeed = _settingsConfig.RequiredHomeEnergy / 4.0; // Per quarter hour
-            double hourNeed = dayNeed / 24;
+            double quarterNeed = _settingsConfig.RequiredHomeEnergy / 96; // Per quarter hour
             double chargingCapacity = _sessyBatteryConfig.TotalChargingCapacity / 4.0; // Per quarter hour
             double dischargingCapacity = _sessyBatteryConfig.TotalDischargingCapacity / 4.0; // Per quarter hour
             var now = _timeZoneService.Now;
@@ -627,7 +626,7 @@ namespace SessyController.Services
 
                     case Modes.ZeroNetHome:
                         {
-                            charge -= hourNeed;
+                            charge -= quarterNeed;
                             charge += hourlyInfo.SolarPowerInWatts;
 
                             break;
@@ -1040,13 +1039,11 @@ namespace SessyController.Services
         private double GetEstimatePowerNeeded(List<HourlyInfo> infoObjectsBetween)
         {
             double power = 0.0;
-            var requiredEnergyPerHour = _settingsConfig.RequiredHomeEnergy / 96.0; // Per quarter hour
+            var requiredEnergyPerQuarter = _settingsConfig.RequiredHomeEnergy / 96.0; // Per quarter hour
+            var maxChargingCapacityPerQuarter = _batteryContainer.GetChargingCapacityPerQuarter();
+            var totalCapacity = _batteryContainer.GetTotalCapacity();
 
-            var list = infoObjectsBetween
-                .Where(hi => hi.NetZeroHomeWithoutSolar)
-                .ToList();
-
-            foreach (var hourlyInfo in list)
+            foreach (var hourlyInfo in infoObjectsBetween)
             {
                 // TODO: The estimate is incorrect. It calculates the net power from the grid (Zero Net Home), not the needs of the home.
                 //var temperature = _weatherService.GetTemperature(hourlyInfo.Time);
@@ -1060,10 +1057,15 @@ namespace SessyController.Services
                 // power += _settingsConfig.RequiredHomeEnergy / 24.0;
                 //}
 
-                power += requiredEnergyPerHour;
+                if (hourlyInfo.NetZeroHomeWithoutSolar)
+                    power += requiredEnergyPerQuarter;
+                else
+                    power += maxChargingCapacityPerQuarter;
             }
 
-            return Math.Max(0.0, power);
+            power = Math.Max(0.0, power);
+
+            return Math.Min(totalCapacity, power);
         }
 
         /// <summary>
