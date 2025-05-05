@@ -26,9 +26,22 @@ namespace SessyWeb.Shared
         {
             MenuStyle = MenuStyleIcon;
 
-            _screenSizeService.OnScreenSizeChanged += _screenSizeService_OnScreenSizeChanged;
-
             base.OnInitialized();
+        }
+
+        protected override async Task OnAfterRenderAsync(bool firstRender)
+        {
+            if (firstRender)
+            {
+                _screenSizeService!.OnScreenSizeChanged += _screenSizeService_OnScreenSizeChanged;
+
+                var height = await _screenSizeService.GetScreenHeightAsync();
+                var width = await _screenSizeService.GetScreenWidthAsync();
+
+                _screenSizeService_OnScreenSizeChanged(height, width);
+            }
+
+            await base.OnAfterRenderAsync(firstRender);
         }
 
         private void _screenSizeService_OnScreenSizeChanged(int height, int width)

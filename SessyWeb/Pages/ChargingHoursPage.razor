@@ -12,7 +12,7 @@
 @if (HourlyInfos != null && HourlyInfos.Count() != 0)
 {
     <RadzenCard Style="padding: 3px 3px 5px 10px;">
-        <RadzenStack Orientation="@(IsMobile? Orientation.Vertical: Orientation.Horizontal)" Gap="2" AlignItems="AlignItems.Start">
+        <RadzenStack Orientation="Orientation.Horizontal" Gap="2" AlignItems="AlignItems.Start">
             @if (!IsMobile)
             {
                 <RadzenStack Orientation="Orientation.Vertical" Gap="2" AlignItems="AlignItems.Start" Style="width: 200px;">
