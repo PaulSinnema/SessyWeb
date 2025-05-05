@@ -11,7 +11,7 @@
 <CascadingValue Value="IsMobile">
     <RadzenLayout>
         <RadzenHeader>
-            <RadzenStack Orientation="@(IsMobile? Orientation.Vertical: Orientation.Horizontal)" 
+            <RadzenStack Orientation="@(IsMobile? Orientation.Vertical: Orientation.Horizontal)"
             AlignItems="@(IsMobile? AlignItems.Normal: AlignItems.Center)"
             Gap="0">
 
@@ -28,13 +28,13 @@
                     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center">
                         <RadzenLabel Text="Theme:" Style="margin-right: 10px;" />
                         <RadzenDropDown Style="width: 200px;"
-                                        Name="ThemeDropDown"
-                                        TValue="string"
-                                        Value="@ThemeService.Theme"
-                                        ValueChanged="@ChangeTheme"
-                                        Data="@Themes.Free"
-                                        TextProperty=@nameof(Theme.Text)
-                                        ValueProperty=@nameof(Theme.Value) />
+                        Name="ThemeDropDown"
+                        TValue="string"
+                        Value="@ThemeService.Theme"
+                        ValueChanged="@ChangeTheme"
+                        Data="@Themes.Free"
+                        TextProperty=@nameof(Theme.Text)
+                        ValueProperty=@nameof(Theme.Value) />
                     </RadzenStack>
                 </RadzenPanel>
 
@@ -47,6 +47,7 @@
 
             </RadzenStack>
         </RadzenHeader>
+
         <RadzenPanelMenu DisplayStyle="@DisplayStyle" Style="@MenuStyle">
             <RadzenPanelMenuItem Text="Charging hours"
                                  Path="charginghours"
@@ -83,6 +84,7 @@
 
         </RadzenPanelMenu>
         <RadzenBody>
+            @* <RadzenText>Width: @screenWidth height: @screenHeight</RadzenText> *@
             <div class="rz-p-4">
                 @Body
             </div>

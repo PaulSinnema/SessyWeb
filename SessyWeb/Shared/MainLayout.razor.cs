@@ -18,6 +18,9 @@ namespace SessyWeb.Shared
         private const string MenuStyleIcon = "width: 100%; min-width: 50px;";
         private const string MenuStyleIconAndText = "width: 100%; min-width: 200px;";
 
+        private int screenWidth { get; set; }
+        private int screenHeight { get; set; }
+
         public string? MenuStyle { get; set; }
 
         public bool IsMobile { get; set; } = false;
@@ -35,18 +38,22 @@ namespace SessyWeb.Shared
             {
                 _screenSizeService!.OnScreenSizeChanged += _screenSizeService_OnScreenSizeChanged;
 
-                var height = await _screenSizeService.GetScreenHeightAsync();
-                var width = await _screenSizeService.GetScreenWidthAsync();
+                screenHeight = await _screenSizeService.GetScreenHeightAsync();
+                screenWidth = await _screenSizeService.GetScreenWidthAsync();
 
-                _screenSizeService_OnScreenSizeChanged(height, width);
+                _screenSizeService_OnScreenSizeChanged(screenHeight, screenWidth);
             }
+
 
             await base.OnAfterRenderAsync(firstRender);
         }
 
         private void _screenSizeService_OnScreenSizeChanged(int height, int width)
         {
-            IsMobile = width < 768;
+            screenWidth = width;
+            screenHeight = height;
+
+            IsMobile = width <= 700;
 
             StateHasChanged();
         }
