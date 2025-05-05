@@ -1059,13 +1059,11 @@ namespace SessyController.Services
 
                 if (hourlyInfo.NetZeroHomeWithoutSolar)
                     power += requiredEnergyPerQuarter;
-                else
-                    power += maxChargingCapacityPerQuarter;
             }
 
-            power = Math.Max(0.0, power);
+            power = Math.Max(0.0, power); // Prevent negative power
 
-            return Math.Min(totalCapacity, power);
+            return Math.Min(totalCapacity, power); // Limit to total capacity
         }
 
         /// <summary>
