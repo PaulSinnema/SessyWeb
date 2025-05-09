@@ -83,6 +83,7 @@ namespace SessyController.Services
                 switch (status)
                 {
                     case SystemStates.SYSTEM_STATE_WAITING_FOR_SAFE_SITUATION:
+                    case SystemStates.SYSTEM_STATE_WAITING_IN_SAFE_SITUATION:
                     case SystemStates.SYSTEM_STATE_ERROR:
                         StoreStatus(battery, powerStatus);
                         break;

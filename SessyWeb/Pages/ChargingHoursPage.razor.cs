@@ -92,7 +92,6 @@ namespace SessyWeb.Pages
                         case SystemStates.SYSTEM_STATE_STANDBY:
                             break;
                         case SystemStates.SYSTEM_STATE_WAITING_FOR_SAFE_SITUATION:
-                            break;
                         case SystemStates.SYSTEM_STATE_WAITING_IN_SAFE_SITUATION:
                             color = "orange";
                             break;
