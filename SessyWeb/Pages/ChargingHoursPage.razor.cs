@@ -5,6 +5,7 @@ using SessyCommon.Extensions;
 using SessyController.Services;
 using SessyController.Services.Items;
 using SessyWeb.Services;
+using static SessyController.Services.Sessy;
 
 namespace SessyWeb.Pages
 {
@@ -72,7 +73,59 @@ namespace SessyWeb.Pages
         public class BatteryWithStatus
         {
             public Battery Battery { get; set; } = default!;
-            public bool IsInError { get; set; }
+            public string StatusColor => GetStatusColor();
+
+            public PowerStatus? PowerStatus { get; set; }
+
+            public string GetStatusColor()
+            {
+                var color = "green";
+
+                if (PowerStatus != null)
+                {
+                    switch (PowerStatus!.Sessy!.SystemState)
+                    {
+                        case SystemStates.SYSTEM_STATE_INIT:
+                            break;
+                        case SystemStates.SYSTEM_STATE_WAIT_FOR_PERIPHERALS:
+                            break;
+                        case SystemStates.SYSTEM_STATE_STANDBY:
+                            break;
+                        case SystemStates.SYSTEM_STATE_WAITING_FOR_SAFE_SITUATION:
+                            break;
+                        case SystemStates.SYSTEM_STATE_WAITING_IN_SAFE_SITUATION:
+                            color = "orange";
+                            break;
+                        case SystemStates.SYSTEM_STATE_RUNNING_SAFE:
+                            break;
+                        case SystemStates.SYSTEM_STATE_OVERRIDE_OVERFREQUENCY:
+                            break;
+                        case SystemStates.SYSTEM_STATE_OVERRIDE_UNDERFREQUENCY:
+                            break;
+                        case SystemStates.SYSTEM_STATE_DISCONNECT:
+                            break;
+                        case SystemStates.SYSTEM_STATE_RECONNECT:
+                            break;
+                        case SystemStates.SYSTEM_STATE_ERROR:
+                            color = "red";
+                            break;
+                        case SystemStates.SYSTEM_STATE_BATTERY_FULL:
+                            break;
+                        case SystemStates.SYSTEM_STATE_BATTERY_EMPTY:
+                            break;
+                        case SystemStates.SYSTEM_STATE_OVERRIDE_BATTERY_UNDERVOLTAGE:
+                            break;
+                        default:
+                            break;
+                    }
+                }
+                else
+                {
+                    color = "purple";
+                }
+
+                    return color;
+            }
         }
 
         /// <summary>
@@ -87,12 +140,12 @@ namespace SessyWeb.Pages
                 foreach (var battery in batteryContainer!.Batteries!)
                 {
                     var systemState = await battery.GetPowerStatus();
-                    var isInError = systemState!.Sessy!.SystemState == Sessy.SystemStates.SYSTEM_STATE_ERROR;
+                    var powerStatus = await battery.GetPowerStatus();
 
                     newStatuses.Add(new BatteryWithStatus
                     {
                         Battery = battery,
-                        IsInError = isInError
+                        PowerStatus = powerStatus
                     });
                 }
 

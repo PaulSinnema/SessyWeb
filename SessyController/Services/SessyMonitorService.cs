@@ -78,13 +78,17 @@ namespace SessyController.Services
             {
                 var powerStatus = await battery.GetPowerStatus();
 
-                var status = powerStatus.Sessy.SystemStateString;
+                var status = powerStatus.Sessy.SystemState;
 
-                var errorState = SystemStates.SYSTEM_STATE_ERROR.ToString().ToLower();
-
-                if (status.ToLower() == errorState)
+                switch (status)
                 {
-                    StoreStatus(battery, powerStatus);
+                    case SystemStates.SYSTEM_STATE_WAITING_FOR_SAFE_SITUATION:
+                    case SystemStates.SYSTEM_STATE_ERROR:
+                        StoreStatus(battery, powerStatus);
+                        break;
+
+                    default:
+                        break;
                 }
             }
         }
