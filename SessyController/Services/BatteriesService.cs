@@ -10,7 +10,7 @@ namespace SessyController.Services
     /// <summary>
     /// This service maintains all batteries in the system.
     /// </summary>
-    public partial class BatteriesService : SessyBackgroundService
+    public partial class BatteriesService : BackgroundHeartbeatService
     {
         private IServiceScope _scope { get; set; }
         private SessyService? _sessyService { get; set; }
@@ -108,7 +108,7 @@ namespace SessyController.Services
             {
                 try
                 {
-                    GC.Collect(); // TODO: Move it's own background service.
+                    GC.Collect();
 
                     await HeartBeatAsync();
 
@@ -133,7 +133,7 @@ namespace SessyController.Services
                 }
             }
 
-            _logger.LogInformation("BatteriesService stopped.");
+            _logger.LogWarning("BatteriesService stopped.");
         }
 
         private SemaphoreSlim HourlyInfoSemaphore = new SemaphoreSlim(1);
@@ -1039,26 +1039,26 @@ namespace SessyController.Services
         private double GetEstimatePowerNeeded(List<HourlyInfo> infoObjectsBetween)
         {
             double power = 0.0;
-            var requiredEnergyPerQuarter = _settingsConfig.RequiredHomeEnergy / 96.0; // Per quarter hour
-            var maxChargingCapacityPerQuarter = _batteryContainer.GetChargingCapacityPerQuarter();
             var totalCapacity = _batteryContainer.GetTotalCapacity();
 
             foreach (var hourlyInfo in infoObjectsBetween)
             {
-                // TODO: The estimate is incorrect. It calculates the net power from the grid (Zero Net Home), not the needs of the home.
-                //var temperature = _weatherService.GetTemperature(hourlyInfo.Time);
-
-                //if (temperature != null)
-                //{
-                //    power += _powerEstimatesService.GetPowerEstimate(hourlyInfo.Time, temperature.Value);
-                //}
-                //else
-                //{
-                // power += _settingsConfig.RequiredHomeEnergy / 24.0;
-                //}
-
                 if (hourlyInfo.NetZeroHomeWithoutSolar)
-                    power += requiredEnergyPerQuarter;
+                {
+                    // TODO: The estimate is incorrect. It calculates the net power from the grid (Zero Net Home), not the needs of the home.
+                    //var temperature = _weatherService.GetTemperature(hourlyInfo.Time);
+
+                    //if (temperature != null)
+                    //{
+                    //    power += _powerEstimatesService.GetPowerEstimate(hourlyInfo.Time, temperature.Value);
+                    //}
+                    //else
+                    //{
+                    var requiredEnergyPerQuarter = _settingsConfig.RequiredHomeEnergy / 96.0; // Per quarter hour
+
+                        power += requiredEnergyPerQuarter;
+                    //}
+                }
             }
 
             power = Math.Max(0.0, power); // Prevent negative power

@@ -1,7 +1,7 @@
 ﻿
 namespace SessyController.Services
 {
-    public abstract class SessyBackgroundService : BackgroundService
+    public abstract class  BackgroundHeartbeatService : BackgroundService
     {
         public delegate Task BackgroundHeartBeatDelegate();
 
@@ -12,7 +12,7 @@ namespace SessyController.Services
         public async Task HeartBeatAsync()
         {
             if(OnHeartBeat != null)
-                await OnHeartBeat.Invoke();
+                await OnHeartBeat?.Invoke();
         }
     }
 }

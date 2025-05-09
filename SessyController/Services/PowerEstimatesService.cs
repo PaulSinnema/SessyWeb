@@ -52,12 +52,13 @@ namespace SessyController.Services
         /// <summary>
         /// Gets the power consumed on a period in the week from history.
         /// </summary>
-        public double GetPowerEstimate(DateTime date, double temperature, double tempTolerance = 2)
+        public double GetPowerEstimate(DateTime date, double temperature, double tempTolerance = 0)
         {
             var tempFrom = temperature - tempTolerance;
             var tempTo = temperature + tempTolerance;
             var dayOfWeek = date.DayOfWeek;
 
+            // Find power for temperature and day of week.
             var histories = _energyHistoryService.GetList((set) =>
             {
                 return set
@@ -67,6 +68,19 @@ namespace SessyController.Services
                     .OrderByDescending(eh => eh.Time)
                     .ToList();
             });
+
+            if(histories.Count == 0)
+            {
+                // Find power for temperature.
+                histories = _energyHistoryService.GetList((set) =>
+                {
+                    return set
+                        .Where(eh => eh.Temperature >= tempFrom &&
+                                     eh.Temperature <= tempTo)
+                        .OrderByDescending(eh => eh.Time)
+                        .ToList();
+                });
+            }
 
             foreach (var history in histories)
             {

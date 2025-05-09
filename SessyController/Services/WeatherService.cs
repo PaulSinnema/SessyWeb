@@ -150,13 +150,14 @@ namespace SessyController.Services
         internal int? GetTemperature(DateTime time)
         {
             UurVerwachting? data = null;
+            time = time.DateHour();
 
             if (WeatherData != null)
             {
                 data = WeatherData.UurVerwachting.Where(uv =>
                 {
-                    var date = DateTime.ParseExact(uv.Uur!, "dd-MM-yyyy HH:mm", CultureInfo.InvariantCulture);
-                    return date == time.DateFloorQuarter();
+                    var date = DateTime.ParseExact(uv.Uur!, "dd-MM-yyyy HH:mm", CultureInfo.InvariantCulture).DateHour();
+                    return date == time;
                 }).FirstOrDefault();
             }
 
@@ -335,6 +336,11 @@ namespace SessyController.Services
 
             [JsonPropertyName("gr")]
             public int GlobalRadiation { get; set; }
+
+            public override string ToString()
+            {
+                return $"{Uur}: Temp: {Temp}";
+            }
         }
 
         public class ApiInfo
