@@ -998,13 +998,11 @@ namespace SessyController.Services
             var chargeNeeded = _batteryContainer.GetTotalCapacity();
 
             List<HourlyInfo> infoObjectsBetween = _sessions.GetInfoObjectsBetween(previousSession, nextSession);
-            //var estimateNeeded = GetEstimatePowerNeeded(infoObjectsBetween);
 
-            //var chargeCalculated = estimateNeeded + nextSession.GetDischargeNeeded();
-            //var chargeNeeded = Math.Min(chargeCalculated, _batteryContainer.GetTotalCapacity());
+            var solarPower = infoObjectsBetween.Where(oi => oi.NetZeroHomeWithSolar).Sum(io => io.SolarPowerInWatts);
 
-            previousSession.SetChargeNeeded(chargeNeeded);
-            infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = chargeNeeded);
+            previousSession.SetChargeNeeded(chargeNeeded - solarPower);
+            infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = chargeNeeded - solarPower);
         }
 
         /// <summary>
