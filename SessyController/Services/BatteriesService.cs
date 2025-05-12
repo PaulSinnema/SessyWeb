@@ -679,8 +679,6 @@ namespace SessyController.Services
                 changed2 = false;
                 changed3 = false;
                 changed4 = false;
-                changed5 = false;
-                changed6 = false;
 
                 changed1 = RemoveExtraQuarters();
 
@@ -690,13 +688,10 @@ namespace SessyController.Services
 
                 changed4 = RemoveEmptySessions();
 
-                changed5 = RemoveDoubleDischargingSessions();
-
-                changed6 = RemoveEmptySessions();
-            } while (changed1 || changed2 || changed3 || changed4 || changed5 || changed6);
+            } while (changed1 || changed2 || changed3 || changed4);
         }
 
-        private bool RemoveDoubleDischargingSessions()
+        private bool RemoveDoubleDischargingSessions() // TODO: Remove 
         {
             bool changed = false;
             Session? previousSession = null;
@@ -890,7 +885,7 @@ namespace SessyController.Services
                             throw new InvalidOperationException($"Wrong mode: {previousSession}");
                     }
 
-                    // HandleHoursBetweenSessions(previousSession, nextSession);
+                    HandleHoursBetweenSessions(previousSession, nextSession);
                 }
 
                 previousSession = nextSession;
@@ -900,6 +895,11 @@ namespace SessyController.Services
             {
                 HandleLastSession(previousSession);
             }
+        }
+
+        private void HandleHoursBetweenSessions(Session previousSession, Session nextSession)
+        {
+            var hourlyInfosBetween = _sessions.GetInfoObjectsBetween(previousSession, nextSession);
         }
 
         private void HandleLastSession(Session previousSession)
@@ -983,8 +983,7 @@ namespace SessyController.Services
             List<HourlyInfo> infoObjectsBetween = _sessions.GetInfoObjectsBetween(previousSession, nextSession);
             var estimateNeeded = GetEstimatePowerNeeded(infoObjectsBetween);
 
-            var chargeCalculated = estimateNeeded + nextSession.GetDischargeNeeded();
-            var chargeNeeded = Math.Min(chargeCalculated, _batteryContainer.GetTotalCapacity());
+            var chargeNeeded = Math.Min(estimateNeeded, _batteryContainer.GetTotalCapacity());
 
             previousSession.SetChargeNeeded(chargeNeeded);
             infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = chargeNeeded);
@@ -1052,6 +1051,7 @@ namespace SessyController.Services
         {
             double power = 0.0;
             var totalCapacity = _batteryContainer.GetTotalCapacity();
+            var requiredEnergyPerQuarter = _settingsConfig.RequiredHomeEnergy / 96.0; // Per quarter hour
 
             foreach (var hourlyInfo in infoObjectsBetween)
             {
@@ -1066,8 +1066,6 @@ namespace SessyController.Services
                     //}
                     //else
                     //{
-                    var requiredEnergyPerQuarter = _settingsConfig.RequiredHomeEnergy / 96.0; // Per quarter hour
-
                     power += requiredEnergyPerQuarter;
                     //}
                 }

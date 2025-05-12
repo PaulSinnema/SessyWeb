@@ -10,7 +10,6 @@ namespace SessyController.Services.Items
     {
         private double _totalChargingCapacityPerQuarter { get; set; }
         private double _totalDischargingCapacityPerQuarter { get; set; }
-        private double _homeNeeds { get; set; }
         private double _totalBatteryCapacity { get; set; }
         private ILogger<Sessions> _logger { get; set; }
         private SettingsConfig _settingsConfig { get; set; }
@@ -47,7 +46,6 @@ namespace SessyController.Services.Items
             _maxChargingQuarters = (int)Math.Ceiling(_totalBatteryCapacity / _totalChargingCapacityPerQuarter);
             _maxDischargingQuarters = (int)Math.Ceiling(_totalBatteryCapacity / _totalDischargingCapacityPerQuarter);
             _cycleCost = settingsConfig.CycleCost;
-            _homeNeeds = settingsConfig.RequiredHomeEnergy / 4; // Per quarter hour
             _logger = loggerFactory.CreateLogger<Sessions>();
         }
 
@@ -91,7 +89,10 @@ namespace SessyController.Services.Items
                     hourlyItem.DisableDischarging();
                 }
 
-                _sessionList.Remove(session);
+                if(!_sessionList.Remove(session))
+                {
+                    throw new InvalidOperationException($"Could not remove session {session}");
+                }
             }
         }
 
@@ -267,7 +268,7 @@ namespace SessyController.Services.Items
         /// </summary>
         private void CalculateZeroNetHomeProfits(List<HourlyInfo> lastChargingSession, HourlyInfo hourlyInfo, bool save)
         {
-            var kWh = Math.Min(_homeNeeds / 24, hourlyInfo.ChargeLeft) / 1000;
+            var kWh = (Math.Min(_settingsConfig.RequiredHomeEnergy / 96, hourlyInfo.ChargeLeft) / 1000); // Per quarter hour.
             var selling = hourlyInfo.SellingPrice * kWh;
             var buying = lastChargingSession.Count > 0 ? lastChargingSession.Average(lcs => lcs.BuyingPrice) * kWh : 0.0;
             hourlyInfo.NetZeroHomeProfit = selling - buying;

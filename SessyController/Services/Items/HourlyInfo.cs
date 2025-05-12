@@ -72,7 +72,7 @@ namespace SessyController.Services.Items
         private double _chargeLeft;
         private bool _chargeLeftSet = false;
 
-        public double ChargeLeft 
+        public double ChargeLeft
         {
             get
             {
@@ -286,7 +286,14 @@ namespace SessyController.Services.Items
 
         public bool NetZeroHomeWithoutSolar
         {
-            get => NetZeroHomeWithSolar && SolarPowerInWatts <= 100.0;
+            get
+            {
+                if (Mode == Modes.ZeroNetHome)
+                    if(SolarPowerInWatts <= 100.0)
+                        return true;
+
+                return false;
+            }
         }
 
         /// <summary>

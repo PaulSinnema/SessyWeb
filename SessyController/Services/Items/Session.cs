@@ -179,17 +179,6 @@ namespace SessyController.Services.Items
             return Math.Min(_batteryContainer.GetTotalCapacity(), hours * charge);
         }
 
-        public double GetDischargeNeeded()
-        {
-            if (Mode != Modes.Discharging)
-                throw new InvalidOperationException($"Invalid mode {this}");
-
-            var hours = GetHours();
-            var charge = _batteryContainer.GetDischargingCapacityPerQuarter();
-
-            return hours * charge;
-        }
-
         /// <summary>
         /// Sets the charge needed for each hourlyInfo object in this session.
         /// </summary>
