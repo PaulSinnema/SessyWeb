@@ -316,8 +316,9 @@ namespace SessyController.Services
                 if (currentHourlyInfo.Charging)
                 {
                     bool batteriesAreFull = await AreAllBatteriesFull();
+                    bool chargeAtMaximum = await IsMaxChargeNeededReached(currentHourlyInfo);
 
-                    if (batteriesAreFull)
+                    if (batteriesAreFull || chargeAtMaximum)
                     {
                         StopSession(session);
                         _logger.LogWarning($"Warning: Charging session stopped because batteries are full (enough). {session}, batteries are full: {batteriesAreFull}");
@@ -346,6 +347,17 @@ namespace SessyController.Services
             var currentChargeState = await _batteryContainer.GetStateOfChargeInWatts();
 
             return (currentHourlyInfo.Discharging && currentChargeState <= currentHourlyInfo.ChargeNeeded);
+        }
+
+        /// <summary>
+        /// Check whether the current hourly info is in a charging session and return
+        /// true if so and the calculated max charge needed is reached.
+        /// </summary>
+        private async Task<bool> IsMaxChargeNeededReached(HourlyInfo currentHourlyInfo)
+        {
+            var currentChargeState = await _batteryContainer.GetStateOfChargeInWatts();
+
+            return (currentHourlyInfo.Charging && currentChargeState >= currentHourlyInfo.ChargeNeeded);
         }
 
         /// <summary>
