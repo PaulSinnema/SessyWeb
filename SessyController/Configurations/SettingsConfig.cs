@@ -1,4 +1,6 @@
-﻿namespace SessyController.Configurations
+﻿using SessyController.Services;
+
+namespace SessyController.Configurations
 {
     public class SettingsConfig
     {
@@ -38,7 +40,17 @@
         /// <summary>
         /// How much is needed for the home (this will have to be estimated later).
         /// </summary>
-        public double RequiredHomeEnergy { get; set; }
+        public List<double>? RequiredHomeEnergy { get; set; }
+
+        public double EnergyNeedsPerMonth
+        {
+            get
+            {
+                var timeZoneService = ServiceLocator.ServiceProvider!.GetRequiredService<TimeZoneService>();
+                var month = timeZoneService.Now.Month - 1;
+                return RequiredHomeEnergy[month];
+            }
+        }
 
         public bool SolarSystemShutsDownDuringNegativePrices { get; set; }
 

@@ -161,6 +161,8 @@ builder.Services.AddSingleton<RadzenTheme>(provider =>
 
 var app = builder.Build();
 
+ServiceLocator.ServiceProvider = app.Services;
+
 Console.WriteLine("Migrating database (if needed)");
 
 using (var scope = app.Services.CreateScope())

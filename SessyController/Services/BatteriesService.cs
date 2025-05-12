@@ -593,7 +593,7 @@ namespace SessyController.Services
         {
             double charge = 0.0;
             double totalCapacity = _batteryContainer.GetTotalCapacity();
-            double quarterNeed = _settingsConfig.RequiredHomeEnergy / 96; // Per quarter hour
+            double quarterNeed = _settingsConfig.EnergyNeedsPerMonth / 96; // Per quarter hour
             double chargingCapacity = _sessyBatteryConfig.TotalChargingCapacity / 4.0; // Per quarter hour
             double dischargingCapacity = _sessyBatteryConfig.TotalDischargingCapacity / 4.0; // Per quarter hour
             var now = _timeZoneService.Now;
@@ -1051,7 +1051,7 @@ namespace SessyController.Services
         {
             double power = 0.0;
             var totalCapacity = _batteryContainer.GetTotalCapacity();
-            var requiredEnergyPerQuarter = _settingsConfig.RequiredHomeEnergy / 96.0; // Per quarter hour
+            var requiredEnergyPerQuarter = _settingsConfig.EnergyNeedsPerMonth / 96.0; // Per quarter hour
 
             foreach (var hourlyInfo in infoObjectsBetween)
             {

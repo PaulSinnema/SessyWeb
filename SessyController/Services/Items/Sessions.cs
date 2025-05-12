@@ -268,7 +268,7 @@ namespace SessyController.Services.Items
         /// </summary>
         private void CalculateZeroNetHomeProfits(List<HourlyInfo> lastChargingSession, HourlyInfo hourlyInfo, bool save)
         {
-            var kWh = (Math.Min(_settingsConfig.RequiredHomeEnergy / 96, hourlyInfo.ChargeLeft) / 1000); // Per quarter hour.
+            var kWh = (Math.Min(_settingsConfig.EnergyNeedsPerMonth / 96, hourlyInfo.ChargeLeft) / 1000); // Per quarter hour.
             var selling = hourlyInfo.SellingPrice * kWh;
             var buying = lastChargingSession.Count > 0 ? lastChargingSession.Average(lcs => lcs.BuyingPrice) * kWh : 0.0;
             hourlyInfo.NetZeroHomeProfit = selling - buying;
@@ -298,7 +298,7 @@ namespace SessyController.Services.Items
 
         public double GetMaxZeroNetHomeHours(Session previousSession, Session session)
         {
-            var homeNeeds = _settingsConfig.RequiredHomeEnergy / 92.0; // Per quarter hour
+            var homeNeeds = _settingsConfig.EnergyNeedsPerMonth / 92.0; // Per quarter hour
             double currentCharge = 1.0;
 
             var first = previousSession.LastDateTime.AddHours(1);

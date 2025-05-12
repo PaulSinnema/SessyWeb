@@ -1,10 +1,9 @@
 ﻿using Microsoft.Extensions.Options;
+using NodaTime;
+using NodaTime.Extensions;
 using SessyController.Configurations;
 using SolCalc;
 using SolCalc.Data;
-using System;
-using NodaTime;
-using NodaTime.Extensions;
 
 namespace SessyController.Services
 {
