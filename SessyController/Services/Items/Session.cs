@@ -137,6 +137,13 @@ namespace SessyController.Services.Items
         public DateTime FirstDateTime => First?.Time ?? DateTime.MinValue;
 
         /// <summary>
+        /// Returns true if any of the prices is negative.
+        /// </summary>
+        public bool PricesAnyNegative => SessionHourlyInfos.Any(hi => hi.BuyingPrice < 0.0);
+
+        public bool PricesAllPositive => SessionHourlyInfos.All(hi => hi.BuyingPrice >= 0.0);
+
+        /// <summary>
         /// The last date in the session
         /// </summary>
         public DateTime LastDateTime => Last?.Time ?? DateTime.MaxValue;

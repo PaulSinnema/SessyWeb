@@ -141,53 +141,58 @@ namespace SessyController.Services
 
                 if (data != null)
                 {
-                    foreach (SolarData? solarData in data)
+
+                    foreach (SolarData solarData in data)
                     {
                         var currentHourlyInfo = hourlyInfos.Where(hi => hi.Time == solarData.Time).FirstOrDefault();
 
                         if (currentHourlyInfo != null)
                         {
+                            currentHourlyInfo.SolarGlobalRadiation = solarData.GlobalRadiation;
+
                             currentHourlyInfo.SolarPower = 0.0;
 
                             foreach (var config in _powerSystemsConfig.Endpoints.Values)
                             {
                                 foreach (var id in config.Keys)
                                 {
-                                    var endpoint = config[id];
-
-                                    var longitude = endpoint.Longitude;
-                                    var latitude = endpoint.Latitude;
-
-                                    double solarAltitude;
-                                    double solarAzimuth;
-
-                                    CalculateSolarPosition(solarData.Time!.Value.Hour, latitude, longitude, endpoint.TimeZoneOffset, out solarAltitude, out solarAzimuth);
-
-                                    foreach (PhotoVoltaic solarPanel in endpoint.SolarPanels.Values)
+                                    if (!_settingsConfig.SolarSystemShutsDownDuringNegativePrices ||
+                                        (_settingsConfig.SolarSystemShutsDownDuringNegativePrices && currentHourlyInfo.PriceIsPositive))
                                     {
-                                        double solarFactor = GetSolarFactor(solarAzimuth, solarAltitude, solarPanel.Orientation, solarPanel.Tilt);
+                                        var endpoint = config[id];
 
-                                        currentHourlyInfo.SolarPower += CalculateSolarPower(solarData.GlobalRadiation, solarFactor, solarPanel, solarAltitude) / 4; // per quarter hour
+                                        var longitude = endpoint.Longitude;
+                                        var latitude = endpoint.Latitude;
 
-                                        currentHourlyInfo.SolarGlobalRadiation = solarData.GlobalRadiation;
+                                        double solarAltitude;
+                                        double solarAzimuth;
+
+                                        CalculateSolarPosition(solarData.Time!.Value.Hour, latitude, longitude, endpoint.TimeZoneOffset, out solarAltitude, out solarAzimuth);
+
+                                        foreach (PhotoVoltaic solarPanel in endpoint.SolarPanels.Values)
+                                        {
+                                            double solarFactor = GetSolarFactor(solarAzimuth, solarAltitude, solarPanel.Orientation, solarPanel.Tilt);
+
+                                            currentHourlyInfo.SolarPower += CalculateSolarPower(solarData.GlobalRadiation, solarFactor, solarPanel, solarAltitude);
+                                        }
                                     }
                                 }
                             }
 
-                            AddToHourlyInfosFor15MinuteResolution(hourlyInfos, currentHourlyInfo, 15);
-                            AddToHourlyInfosFor15MinuteResolution(hourlyInfos, currentHourlyInfo, 30);
-                            AddToHourlyInfosFor15MinuteResolution(hourlyInfos, currentHourlyInfo, 45);
+                            AddSolarPowerToHourlyInfosFor15MinuteResolution(hourlyInfos, currentHourlyInfo, 15);
+                            AddSolarPowerToHourlyInfosFor15MinuteResolution(hourlyInfos, currentHourlyInfo, 30);
+                            AddSolarPowerToHourlyInfosFor15MinuteResolution(hourlyInfos, currentHourlyInfo, 45);
                         }
                     }
                 }
             }
         }
 
-        private void AddToHourlyInfosFor15MinuteResolution(List<HourlyInfo> hourlyInfos, HourlyInfo? lastHourlyInfo, int v)
+        private void AddSolarPowerToHourlyInfosFor15MinuteResolution(List<HourlyInfo> hourlyInfos, HourlyInfo? lastHourlyInfo, int v)
         {
-            if(lastHourlyInfo != null)
+            if (lastHourlyInfo != null)
             {
-                var date = lastHourlyInfo.Time.AddMinutes(v);
+                var date = lastHourlyInfo.Time.DateHour().AddMinutes(v);
                 var hourlyInfo = hourlyInfos.Where(hi => hi.Time == date).FirstOrDefault();
 
                 if (hourlyInfo != null)
@@ -204,9 +209,9 @@ namespace SessyController.Services
 
             double altitudeFactor = (solarAltitude > 10) ? 1.0 : Math.Max(0, solarAltitude / 10.0);
 
-            double powerkWatt = globalRadiation * ( totalPeakPower / 1000) * solarFactor * altitudeFactor / 1000;
+            double powerkWatt = globalRadiation * (totalPeakPower / 1000) * solarFactor * altitudeFactor / 1000;
 
-            return powerkWatt; // kWh
+            return powerkWatt / 4; // kW per quarter hour
         }
 
         private void CalculateSolarPosition(int hour, double latitude, double longitude, int timezoneOffset, out double altitude, out double azimuth)

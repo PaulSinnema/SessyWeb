@@ -308,6 +308,16 @@ namespace SessyController.Services.Items
         public bool Disabled => !(Charging || Discharging || NetZeroHomeWithSolar);
 
         /// <summary>
+        /// The price of energy is negative.
+        /// </summary>
+        public bool PriceIsNegative => BuyingPrice < 0.0;
+
+        /// <summary>
+        /// The price of energy is positive.
+        /// </summary>
+        public bool PriceIsPositive => BuyingPrice >= 0.0;
+
+        /// <summary>
         /// For better debugging
         /// </summary>
         public override string ToString()

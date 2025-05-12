@@ -1001,8 +1001,10 @@ namespace SessyController.Services
 
             var solarPower = infoObjectsBetween.Where(oi => oi.NetZeroHomeWithSolar).Sum(io => io.SolarPowerInWatts);
 
-            previousSession.SetChargeNeeded(chargeNeeded - solarPower);
-            infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = chargeNeeded - solarPower);
+            chargeNeeded -= solarPower;
+
+            previousSession.SetChargeNeeded(chargeNeeded);
+            infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = chargeNeeded);
         }
 
         /// <summary>
@@ -1054,7 +1056,7 @@ namespace SessyController.Services
                     //{
                     var requiredEnergyPerQuarter = _settingsConfig.RequiredHomeEnergy / 96.0; // Per quarter hour
 
-                        power += requiredEnergyPerQuarter;
+                    power += requiredEnergyPerQuarter;
                     //}
                 }
             }
