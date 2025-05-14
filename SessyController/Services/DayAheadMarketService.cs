@@ -482,7 +482,7 @@ namespace SessyController.Services
             _epexPricesDataService.Add(statusList, (item, set) =>
             {
                 return set.Where(sd => sd.Time == item.Time).SingleOrDefault(); // Contains
-            });
+            }, false); // Don't check for duplicates.
         }
 
         /// <summary>

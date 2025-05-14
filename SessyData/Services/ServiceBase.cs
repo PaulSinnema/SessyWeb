@@ -47,7 +47,7 @@ namespace SessyData.Services
                 throw new InvalidCastException($"For StoreOrUpdate the type {typeof(T).Name} must implement IUpdatable<{typeof(T).Name}>");
         }
 
-        public void Add(List<T> list, Func<T, DbSet<T>, T?> contains)
+        public void Add(List<T> list, Func<T, DbSet<T>, T?> contains, bool checkDuplicate = true)
         {
             _dbHelper.ExecuteTransaction(db =>
             {
@@ -57,7 +57,8 @@ namespace SessyData.Services
 
                     if (containedItem != null)
                     {
-                        throw new InvalidOperationException($"Item to add is duplicate {item}");
+                        if(checkDuplicate)
+                            throw new InvalidOperationException($"Item to add is duplicate {item}");
                     }
                     else
                     {
