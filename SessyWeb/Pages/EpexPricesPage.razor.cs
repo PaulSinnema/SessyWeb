@@ -79,6 +79,10 @@ namespace SessyWeb.Pages
 
         async Task SaveRow(EPEXPrices EPEXPrices)
         {
+            List<EPEXPrices> list = new List<EPEXPrices> { EPEXPrices };
+
+            _epexPricesDataService!.AddOrUpdate(list, (item, set) => set.Where(eh => eh.Id == EPEXPrices.Id).FirstOrDefault());
+
             await epexPricesGrid!.UpdateRow(EPEXPrices);
         }
 

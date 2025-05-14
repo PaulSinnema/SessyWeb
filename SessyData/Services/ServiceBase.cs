@@ -178,6 +178,14 @@ namespace SessyData.Services
             return await db.Set<T>().FindAsync(key);
         }
 
+        public bool Exists(Func<DbSet<T>, T?> func)
+        {
+            return _dbHelper.ExecuteQuery((ModelContext db) =>
+            {
+                return func(db.Set<T>()) != null;
+            });
+        }
+
         public T? Get(Func<DbSet<T>, T?> func)
         {
             return _dbHelper.ExecuteQuery((ModelContext db) =>

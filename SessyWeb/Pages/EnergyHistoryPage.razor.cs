@@ -83,6 +83,10 @@ namespace SessyWeb.Pages
 
         async Task SaveRow(EnergyHistory energyHistory)
         {
+            List<EnergyHistory> list = new List<EnergyHistory> { energyHistory };
+
+            _energyHistoryService!.AddOrUpdate(list, (item, set) => set.Where(eh => eh.Id == energyHistory.Id).FirstOrDefault());
+
             await energyGrid!.UpdateRow(energyHistory);
         }
 
