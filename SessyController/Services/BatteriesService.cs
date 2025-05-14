@@ -1006,8 +1006,7 @@ namespace SessyController.Services
         /// </summary>
         private void HandleChargingDischargingSessions(Session previousSession, Session nextSession)
         {
-            var totalCapacity = _batteryContainer.GetTotalCapacity();
-            var chargeNeeded = totalCapacity;
+            var chargeNeeded = _batteryContainer.GetTotalCapacity(); ;
             double quarterNeed = _settingsConfig.EnergyNeedsPerMonth / 96; // Per quarter hour
 
             List<HourlyInfo> infoObjectsBetween = _sessions.GetInfoObjectsBetween(previousSession, nextSession);
@@ -1017,11 +1016,23 @@ namespace SessyController.Services
             chargeNeeded -= solarPower;
             chargeNeeded += infoObjectsBetween.Count * quarterNeed;
 
-            chargeNeeded = Math.Max(0.0, chargeNeeded); // Prevent negative power
-            chargeNeeded = Math.Min(chargeNeeded, totalCapacity); // Prevent need to be bigger than capacity.
+            chargeNeeded = EnsureBoundaries(chargeNeeded);
 
             previousSession.SetChargeNeeded(chargeNeeded);
             infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = chargeNeeded);
+        }
+
+        /// <summary>
+        /// Ensure the power is positive and less or equal to the total capacity.
+        /// </summary>
+        private double EnsureBoundaries(double charge)
+        {
+            var totalCapacity = _batteryContainer.GetTotalCapacity();
+
+            charge = Math.Max(0.0, charge); // Prevent negative power
+            charge = Math.Min(charge, totalCapacity); // Prevent charge to be bigger than capacity.
+
+            return charge;
         }
 
         /// <summary>
@@ -1077,9 +1088,7 @@ namespace SessyController.Services
                 }
             }
 
-            power = Math.Max(0.0, power); // Prevent negative power
-
-            return Math.Min(totalCapacity, power); // Limit to total capacity
+            return EnsureBoundaries(power);
         }
 
         /// <summary>
