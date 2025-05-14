@@ -14,10 +14,12 @@ namespace SessyData.Services
         {
             return Get((set) =>
             {
-                return set
+                var result = set
                     .Where(tx => tx.Time <= time)
-                    .OrderByDescending(tx => tx.Time)
+                    .OrderBy(tx => tx.Time)
                     .FirstOrDefault();
+
+                return result;
             });
         }
     }

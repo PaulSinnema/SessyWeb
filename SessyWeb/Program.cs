@@ -191,17 +191,19 @@ app.UseExceptionHandler(errorApp =>
     });
 });
 
-//if (app.Environment.IsDevelopment())
-//{
-    Console.WriteLine("Development environment");
+Console.WriteLine("Swagger available");
 
-    app.UseSwagger();
-    app.UseSwaggerUI();
-//}
-//else
-//{
-//    Console.WriteLine("Production environment");
-//}
+app.UseSwagger();
+app.UseSwaggerUI();
+
+if (app.Environment.IsDevelopment())
+{
+    Console.WriteLine("Development environment");
+}
+else
+{
+    Console.WriteLine("Production environment");
+}
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
