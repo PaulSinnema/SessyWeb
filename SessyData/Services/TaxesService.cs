@@ -16,7 +16,7 @@ namespace SessyData.Services
             {
                 var result = set
                     .Where(tx => tx.Time <= time)
-                    .OrderBy(tx => tx.Time)
+                    .OrderByDescending(tx => tx.Time)
                     .FirstOrDefault();
 
                 return result;
