@@ -478,7 +478,8 @@ namespace SessyController.Services
                 });
             }
 
-            _epexPricesDataService.AddOrUpdate(statusList, (item, set) =>
+            // Items already in the DB are not updated!
+            _epexPricesDataService.Add(statusList, (item, set) =>
             {
                 return set.Where(sd => sd.Time == item.Time).SingleOrDefault(); // Contains
             });
