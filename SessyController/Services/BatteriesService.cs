@@ -1006,13 +1006,19 @@ namespace SessyController.Services
         /// </summary>
         private void HandleChargingDischargingSessions(Session previousSession, Session nextSession)
         {
-            var chargeNeeded = _batteryContainer.GetTotalCapacity();
+            var totalCapacity = _batteryContainer.GetTotalCapacity();
+            var chargeNeeded = totalCapacity;
+            double quarterNeed = _settingsConfig.EnergyNeedsPerMonth / 96; // Per quarter hour
 
             List<HourlyInfo> infoObjectsBetween = _sessions.GetInfoObjectsBetween(previousSession, nextSession);
 
             var solarPower = infoObjectsBetween.Where(oi => oi.NetZeroHomeWithSolar).Sum(io => io.SolarPowerInWatts);
 
             chargeNeeded -= solarPower;
+            chargeNeeded += infoObjectsBetween.Count * quarterNeed;
+
+            chargeNeeded = Math.Max(0.0, chargeNeeded); // Prevent negative power
+            chargeNeeded = Math.Min(chargeNeeded, totalCapacity); // Prevent need to be bigger than capacity.
 
             previousSession.SetChargeNeeded(chargeNeeded);
             infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = chargeNeeded);
