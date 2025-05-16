@@ -186,18 +186,17 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Checks whether we can take control over the batteries. In 'SESSY CONNECT' mode a energy 
-        /// provider (like Frank Energie) is taking control. We should do nothing.
+        /// Checks whether we can take control over the batteries.
         /// </summary>
         private async Task<bool> WeCanControlTheBatteries()
         {
             foreach (var battery in _batteryContainer.Batteries)
             {
-                var currentPowerStrategy = await battery.GetActivePowerStrategy();
+                var currentPowerStrategy = await battery.GetPowerStatus();
 
-                if (currentPowerStrategy.PowerStrategy == PowerStrategies.POWER_STRATEGY_SESSY_CONNECT)
+                if (currentPowerStrategy.Sessy.StrategyOverridden)
                 {
-                    // Provider is controlling the batteries.
+                    // Supplier is controlling the batteries.
                     return false;
                 }
             }

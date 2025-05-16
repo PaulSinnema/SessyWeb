@@ -318,6 +318,9 @@ namespace SessyController.Services
         /// </summary>
         [JsonProperty("inverter_current_ma")]
         public int InverterCurrentMa { get; set; }
+
+        [JsonProperty("strategy_overridden")]
+        public bool StrategyOverridden { get; set; }
     }
 
     /// <summary>
