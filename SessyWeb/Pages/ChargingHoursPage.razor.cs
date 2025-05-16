@@ -267,6 +267,8 @@ namespace SessyWeb.Pages
 
         public bool IsManualOverride => _batteriesService!.IsManualOverride;
 
+        public bool WeAreInControl => _batteriesService!.WeAreInControl;
+
         /// <summary>
         /// Change the width of the chart depending on the number of hourlyInfo objects.
         /// </summary>

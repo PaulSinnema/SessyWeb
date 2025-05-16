@@ -362,13 +362,13 @@ namespace SessyController.Services
         [JsonProperty("strategy")]
         public string? Strategy { get; set; }
 
+        public PowerStrategies PowerStrategy => (PowerStrategies)Enum.Parse(typeof(PowerStrategies), Strategy!);
+
         public string StrategyVisual
         {
             get
             {
-                var strategy = (PowerStrategies)Enum.Parse(typeof(PowerStrategies), Strategy!);
-
-                switch (strategy)
+                switch (PowerStrategy)
                 {
                     case PowerStrategies.POWER_STRATEGY_NOM:
                         return "Zero Net Home";

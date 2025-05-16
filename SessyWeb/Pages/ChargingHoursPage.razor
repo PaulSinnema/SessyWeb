@@ -28,7 +28,7 @@
                     <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@TotalSolarPowerExpectedTodayVisual kWh</b></RadzenText>
                     @if (TotalSolarPowerExpectedTomorrow > 0)
                     {
-                        <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@TotalSolarPowerExpectedTomorrowVisual kWh</b></RadzenText>
+                                <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@TotalSolarPowerExpectedTomorrowVisual kWh</b></RadzenText>
                     }
                 </RadzenStack>
 
@@ -62,13 +62,6 @@
             <RadzenStack Orientation="Orientation.Horizontal" Style="width: 100%;">
                 <RadzenStack Orientation="Orientation.Vertical" Gap="2" AlignItems="AlignItems.Start" Style="width: 150px;">
                     <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Heartbeat</RadzenText>
-                    @if (IsManualOverride)
-                    {
-                        <RadzenCard>
-                            <i class="fas fa-hand hand" style="color: indianred; font-size: 24px;"></i>
-                        </RadzenCard>
-                    }
-                    <RadzenCard>
                         <div style="height: 20px; width: 20px; display: flex; align-items: center; justify-content: center;">
                             @if (IsBeating)
                             {
@@ -79,7 +72,25 @@
                                 <i class="fas fa-heart" style="color: transparent; font-size: 24px;"></i>
                             }
                         </div>
-                    </RadzenCard>
+                </RadzenStack>
+
+                <RadzenStack Orientation="Orientation.Vertical" Gap="2" AlignItems="AlignItems.Start" Style="width: 150px;">
+                    <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Control</RadzenText>
+
+                    @if (IsManualOverride)
+                    {
+                            <i class="fas fa-hand hand" style="color: indianred; font-size: 24px;" title="Manual mode"></i>
+                    }
+
+                    @if (WeAreInControl)
+                    {
+                            <RadzenImage Path="images/SessyWeb.png" Style="width: 40px;" title="SessyWeb in control" />
+                    }
+                    else
+                    {
+                            <i class="fas fa-industry" style="color: green; font-size: 24px;" title="Provider has control"></i>
+                    }
+
                 </RadzenStack>
 
                 @if (!IsMobile)
@@ -87,7 +98,7 @@
                     <RadzenStack Orientation="Orientation.Vertical" AlignItems="AlignItems.End" Style="width: 100%;">
                         <RadzenCard>
                             <RadzenButton @ref="ExplanationButton"
-                                          Click="@(args => ShowTooltipWithHtml(ExplanationButton!.Element, new TooltipOptions() { Position = TooltipPosition.Left, Style = "background-color: transparent;", Duration = null }))">
+                                            Click="@(args => ShowTooltipWithHtml(ExplanationButton!.Element, new TooltipOptions() { Position = TooltipPosition.Left, Style = "background-color: transparent;", Duration = null }))">
                                 <i class="fas fa-info" style="color: yellow; font-size: 24px;"></i>
                             </RadzenButton>
                         </RadzenCard>
@@ -178,9 +189,9 @@
 }
 else
 {
-    <div>
-        No prices yet, just a moment .....
-    </div>
+            <div>
+                No prices yet, just a moment .....
+            </div>
 }
 
 
@@ -189,7 +200,7 @@ else
 
     void ShowTooltipWithHtml(ElementReference elementReference, TooltipOptions? options = null) => tooltipService!.Open(elementReference, ds =>
 @<div style="background-color: transparent;">
-        <RadzenImage Path="/Images/ChartExplanation.jpg" Style="padding: 5px;" />
+                <RadzenImage Path="/Images/ChartExplanation.jpg" Style="padding: 5px;" />
 
     </div>, options);
 }

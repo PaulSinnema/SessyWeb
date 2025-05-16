@@ -3,6 +3,7 @@ using SessyCommon.Extensions;
 using SessyController.Configurations;
 using SessyController.Services.Items;
 using System.ComponentModel;
+using static SessyController.Services.ActivePowerStrategy;
 using static SessyController.Services.Items.Session;
 
 namespace SessyController.Services
@@ -41,6 +42,8 @@ namespace SessyController.Services
         private static List<HourlyInfo>? hourlyInfos { get; set; } = new List<HourlyInfo>();
 
         public bool IsManualOverride => _settingsConfig.ManualOverride;
+
+        public bool WeAreInControl { get; private set; } = true;
 
         public BatteriesService(LoggingService<BatteriesService> logger,
                                 IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
@@ -160,20 +163,11 @@ namespace SessyController.Services
 
                         await EvaluateSessions();
 
-                        HourlyInfo? currentHourlyInfo = _sessions.GetCurrentHourlyInfo();
+                        WeAreInControl = await WeCanControlTheBatteries();
 
-                        if (currentHourlyInfo != null)
+                        if (WeAreInControl)
                         {
-                            if ((_dayAheadMarketService.PricesAvailable) && _settingsConfig.ManualOverride == false)
-                            {
-                                await HandleAutomaticCharging(_sessions, currentHourlyInfo);
-                            }
-                            else
-                            {
-                                _logger.LogInformation("No prices available from ENTSO-E, switching to manual charging");
-
-                                HandleManualCharging(currentHourlyInfo);
-                            }
+                            await HandleChargingAndDischarging();
                         }
                     }
                 }
@@ -192,7 +186,50 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Returns the fetche and analyzed hourly prices.
+        /// Checks whether we can take control over the batteries. In 'SESSY CONNECT' mode a energy 
+        /// provider (like Frank Energie) is taking control. We should do nothing.
+        /// </summary>
+        private async Task<bool> WeCanControlTheBatteries()
+        {
+            foreach (var battery in _batteryContainer.Batteries)
+            {
+                var currentPowerStrategy = await battery.GetActivePowerStrategy();
+
+                if (currentPowerStrategy.PowerStrategy == PowerStrategies.POWER_STRATEGY_SESSY_CONNECT)
+                {
+                    // Provider is controlling the batteries.
+                    return false;
+                }
+            }
+
+            // We are in control
+            return true;
+        }
+
+        /// <summary>
+        /// Handle (dis)charging manual or automatic.
+        /// </summary>
+        private async Task HandleChargingAndDischarging()
+        {
+            HourlyInfo? currentHourlyInfo = _sessions.GetCurrentHourlyInfo();
+
+            if (currentHourlyInfo != null)
+            {
+                if ((_dayAheadMarketService.PricesAvailable) && _settingsConfig.ManualOverride == false)
+                {
+                    await HandleAutomaticCharging(_sessions, currentHourlyInfo);
+                }
+                else
+                {
+                    _logger.LogInformation("No prices available from ENTSO-E, switching to manual charging");
+
+                    HandleManualCharging(currentHourlyInfo);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Returns the fetched prices and analyzes them.
         /// </summary>
         public List<HourlyInfo>? GetHourlyInfos()
         {
@@ -670,8 +707,6 @@ namespace SessyController.Services
             bool changed2;
             bool changed3;
             bool changed4;
-            bool changed5;
-            bool changed6;
 
             do
             {
