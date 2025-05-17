@@ -190,6 +190,8 @@ namespace SessyController.Services
         /// </summary>
         private async Task<bool> WeCanControlTheBatteries()
         {
+            return true; // TODO: The interface to Frank Energie is a mess. Remove this when it gets better.
+
             foreach (var battery in _batteryContainer.Batteries)
             {
                 var currentPowerStrategy = await battery.GetPowerStatus();
@@ -197,7 +199,7 @@ namespace SessyController.Services
                 if (currentPowerStrategy.Sessy.StrategyOverridden)
                 {
                     // Supplier is controlling the batteries.
-                    return false;
+                    return false; 
                 }
             }
 

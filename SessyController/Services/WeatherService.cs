@@ -218,7 +218,7 @@ namespace SessyController.Services
             public int ZichtMeters { get; set; }
 
             [JsonPropertyName("gr")]
-            public int GlobalRadiation { get; set; }
+            public double GlobalRadiation { get; set; }
 
             [JsonPropertyName("verw")]
             public string Verwachting { get; set; } = string.Empty;
