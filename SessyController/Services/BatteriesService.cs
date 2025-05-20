@@ -163,7 +163,7 @@ namespace SessyController.Services
 
                         await EvaluateSessions();
 
-                        WeAreInControl = await WeCanControlTheBatteries();
+                        WeAreInControl = !await SupplierIsControllingTheBatteries();
 
                         if (WeAreInControl)
                         {
@@ -186,12 +186,12 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Checks whether we can take control over the batteries.
+        /// Checks whether the supplier has control over the batteries.
+        /// The StrategyOverridden boolean is true when the supplier is taking control
+        /// and false when the supplier doesn't need control anymore.
         /// </summary>
-        private async Task<bool> WeCanControlTheBatteries()
+        private async Task<bool> SupplierIsControllingTheBatteries()
         {
-            return true; // TODO: The interface to Frank Energie is a mess. Remove this when it gets better.
-
             foreach (var battery in _batteryContainer.Batteries)
             {
                 var currentPowerStrategy = await battery.GetPowerStatus();
@@ -199,12 +199,12 @@ namespace SessyController.Services
                 if (currentPowerStrategy.Sessy.StrategyOverridden)
                 {
                     // Supplier is controlling the batteries.
-                    return false; 
+                    return true; 
                 }
             }
 
             // We are in control
-            return true;
+            return false;
         }
 
         /// <summary>
