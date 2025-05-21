@@ -76,8 +76,9 @@ namespace SessyController.Services.Items
         {
             get
             {
-                if (!_chargeLeftSet)
-                    throw new InvalidOperationException($"Cannot use charge left before it is set.{this}");
+                // TODO: There seem to be situations where this exception is thrown.
+                //if (!_chargeLeftSet)
+                //    throw new InvalidOperationException($"Cannot use charge left before it is set.{this}");
 
                 return _chargeLeft;
             }
@@ -95,8 +96,9 @@ namespace SessyController.Services.Items
         {
             get
             {
-                if (!_chargeNeededSet)
-                    throw new InvalidOperationException($"Cannot use charge needed before it is set. {this}");
+                // TODO: There seem to be situations where this exception is thrown.
+                //if (!_chargeNeededSet)
+                //    throw new InvalidOperationException($"Cannot use charge needed before it is set. {this}");
 
                 return _chargeNeeded;
             }

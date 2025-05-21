@@ -197,7 +197,7 @@ namespace SessyController.Services
             public double WindSnelheidMs { get; set; }
 
             [JsonPropertyName("windbft")]
-            public int WindkrachtBft { get; set; }
+            public double WindkrachtBft { get; set; }
 
             [JsonPropertyName("windknp")]
             public double WindSnelheidKnopen { get; set; }
@@ -209,13 +209,13 @@ namespace SessyController.Services
             public double Luchtdruk { get; set; }
 
             [JsonPropertyName("ldmmhg")]
-            public int LuchtdrukMmhg { get; set; }
+            public double LuchtdrukMmhg { get; set; }
 
             [JsonPropertyName("dauwp")]
             public double Dauwpunt { get; set; }
 
             [JsonPropertyName("zicht")]
-            public int ZichtMeters { get; set; }
+            public double ZichtMeters { get; set; }
 
             [JsonPropertyName("gr")]
             public double GlobalRadiation { get; set; }

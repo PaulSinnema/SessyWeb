@@ -60,7 +60,7 @@ namespace SessyController.Services.Items
 
         public decimal TotalCost(DateTime date)
         {
-            var list = _financialResultsService.GetFinancialMonthResults(date.Date, date.Date.AddHours(23));
+            var list = _financialResultsService.GetFinancialMonthResults(date.Date, date.Date.AddHours(24));
 
             if(list.Count == 1)
                 return list[0].FinancialResultsList!.Sum(fr => fr.Cost);
