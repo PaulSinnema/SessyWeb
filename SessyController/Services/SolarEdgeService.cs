@@ -271,8 +271,9 @@ namespace SessyController.Services
             {
                 using var client = await GetModbusClient(id);
 
-                await client.WriteSingleRegister(SunspecConsts.AdvancedPwrControlEn, (UInt32)1);
-                await client.WriteSingleRegister(SunspecConsts.ReactivePwrConfig, (UInt32)4);
+                await client.WriteMultipleRegisters(SunspecConsts.AdvancedPwrControlEn, 1u);  // UInt32
+                await client.WriteMultipleRegisters(SunspecConsts.ReactivePwrConfig, 4u);  // UInt32
+                await client.WriteSingleRegister(SunspecConsts.EnableDynamicPowerControl, 1);
 
                 await CommitValues(client);
 
@@ -405,7 +406,7 @@ namespace SessyController.Services
 
             using var client = await GetModbusClient(id);
 
-            await client.WriteSingleRegister(reactivePowerLimit, power);
+            await client.WriteMultipleRegisters(reactivePowerLimit, power);
         }
 
         public async Task SetDynamicActivePowerLimit(string id, float power)
@@ -414,7 +415,7 @@ namespace SessyController.Services
 
             using var client = await GetModbusClient(id);
 
-            await client.WriteSingleRegister(dynamicActivePowerLimit, power);
+            await client.WriteMultipleRegisters(dynamicActivePowerLimit, power);
         }
 
         public async Task SetDynamicReactivePowerLimit(string id, float power)
@@ -423,7 +424,7 @@ namespace SessyController.Services
 
             using var client = await GetModbusClient(id);
 
-            await client.WriteSingleRegister(dynamicReactivePowerLimit, power);
+            await client.WriteMultipleRegisters(dynamicReactivePowerLimit, power);
         }
     }
 }
