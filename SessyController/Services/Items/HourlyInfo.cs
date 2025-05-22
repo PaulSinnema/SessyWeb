@@ -322,9 +322,14 @@ namespace SessyController.Services.Items
         public bool PriceIsNegative => BuyingPrice < 0.0;
 
         /// <summary>
-        /// The price of energy is positive.
+        /// The buying price of energy is positive.
         /// </summary>
-        public bool PriceIsPositive => BuyingPrice >= 0.0;
+        public bool BuyingPriceIsPositive => BuyingPrice >= 0.0;
+
+        /// <summary>
+        /// The selling price of energy is positive.
+        /// </summary>
+        public bool SellingPriceIsPositive => SellingPrice >= 0.0;
 
         /// <summary>
         /// For better debugging

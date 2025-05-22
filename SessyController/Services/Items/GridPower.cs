@@ -25,7 +25,7 @@ namespace SessyController.Services.Items
             _history1 = currentHistory;
             _history2 = previousHistory;
 
-            if ((currentHistory.Time - previousHistory.Time).Hours <= 0)
+            if (currentHistory.Time == previousHistory.Time)
                 throw new InvalidOperationException($"Dates be in descending order and not be the same. currentHistory {currentHistory} <= previousHistory {previousHistory}");
 
             _cons1 = currentHistory.ConsumedTariff1 - previousHistory.ConsumedTariff1;

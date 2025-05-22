@@ -61,6 +61,34 @@ namespace SessyUnitTests
             Assert.Equal(inputDt.Kind, actual.Kind);
         }
 
+        [Theory]
+        // On boundary
+        [InlineData("2025-04-28T10:00:00", "2025-04-28T10:00:00")]
+        // Any value before 10:15 should ceil to 10:15
+        [InlineData("2025-04-28T10:07:29", "2025-04-28T10:15:00")]
+        [InlineData("2025-04-28T10:07:30", "2025-04-28T10:15:00")]
+        // Between 15 and 30 → 15
+        [InlineData("2025-04-28T10:22:00", "2025-04-28T10:30:00")]
+        // Between 30 and 45 → 30
+        [InlineData("2025-04-28T10:37:31", "2025-04-28T10:45:00")]
+        // Final minute of the hour → 45
+        [InlineData("2025-04-28T10:59:00", "2025-04-28T11:00:00")]
+        // Crossing midnight remains same date but floors to previous quarter
+        [InlineData("2025-04-28T23:59:00", "2025-04-29T00:00:00")]
+        public void CeilingToQuarterHour_ReturnsExpected(string input, string expected)
+        {
+            // Arrange
+            var inputDt = DateTime.Parse(input, null, System.Globalization.DateTimeStyles.RoundtripKind);
+            var expectedDt = DateTime.Parse(expected, null, System.Globalization.DateTimeStyles.RoundtripKind);
+
+            // Act
+            var actual = inputDt.DateCeilingQuarter();
+
+            // Assert
+            Assert.Equal(expectedDt, actual);
+            Assert.Equal(inputDt.Kind, actual.Kind);
+        }
+
         [Fact]
         public void Detects_SixtyMinute_Resolution()
         {

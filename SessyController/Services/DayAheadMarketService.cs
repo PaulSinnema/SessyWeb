@@ -294,7 +294,7 @@ namespace SessyController.Services
                 if (data != null)
                 {
                     hourlyInfos = data.OrderBy(ep => ep.Time)
-                        .Select(ep => new HourlyInfo(ep.Time, GetBuyPrice(ep), GetSellPrice(ep), _settingsConfig, _batteryContainer, _solarEdgeService, _timeZoneService))
+                        .Select(ep => new HourlyInfo(ep.Time, GetBuyingPrice(ep), GetSellingPrice(ep), _settingsConfig, _batteryContainer, _solarEdgeService, _timeZoneService))
                         .ToList();
 
                     return hourlyInfos;
@@ -413,17 +413,25 @@ namespace SessyController.Services
             return new ConcurrentDictionary<DateTime, double>();
         }
 
-
-        public double GetBuyPrice(EPEXPrices epexPrices)
+        /// <summary>
+        /// Get tye buying price for energy.
+        /// </summary>
+        public double GetBuyingPrice(EPEXPrices epexPrices)
         {
             return GetPrice(epexPrices, _taxes.PurchaseCompensation);
         }
 
-        public double GetSellPrice(EPEXPrices epexPrices)
+        /// <summary>
+        /// Get the selling price for energy.
+        /// </summary>
+        public double GetSellingPrice(EPEXPrices epexPrices)
         {
             return GetPrice(epexPrices, _taxes.ReturnDeliveryCompensation);
         }
 
+        /// <summary>
+        /// Calculate the price including compensation, energy tax and value added tax.
+        /// </summary>
         private double GetPrice(EPEXPrices epexPrices, double compensation)
         {
             return ((epexPrices.Price!.Value + _taxes.EnergyTax + compensation) * (100 + _taxes.ValueAddedTax)) / 100;

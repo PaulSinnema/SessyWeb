@@ -105,7 +105,7 @@ namespace SessyWeb.Pages
             switch (PeriodChosen)
             {
                 case PeriodsEnums.Day:
-                    start = chosen;
+                    start = chosen.Date;
                     end = chosen.AddDays(1);
                     break;
 

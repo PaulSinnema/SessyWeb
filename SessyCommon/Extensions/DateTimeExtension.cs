@@ -2,6 +2,8 @@
 {
     public static class DateTimeExtension
     {
+        private static readonly long QuarterHourTicks = TimeSpan.FromMinutes(15).Ticks;
+
         /// <summary>
         /// Returns the date and time without the minutes and seconds.
         /// </summary>
@@ -12,24 +14,28 @@
 
         public static DateTime DateNearestQuarter(this DateTime time)
         {
-            const long ticksPerQuarter = TimeSpan.TicksPerMinute * 15; // 15 minutes in ticks
-            long remainder = time.Ticks % ticksPerQuarter;
+            long remainder = time.Ticks % QuarterHourTicks;
 
             if (remainder == 0)
                 return time; // already on a boundary
 
-            long half = ticksPerQuarter / 2;
-            long adjustment = remainder < half ? -remainder : (ticksPerQuarter - remainder);
+            long half = QuarterHourTicks / 2;
+            long adjustment = remainder < half ? -remainder : (QuarterHourTicks - remainder);
 
             return new DateTime(time.Ticks + adjustment, time.Kind);
         }
-
-        private static readonly long QuarterHourTicks = TimeSpan.FromMinutes(15).Ticks;
 
         public static DateTime DateFloorQuarter(this DateTime value)
         {
             long ticksFloored = value.Ticks - (value.Ticks % QuarterHourTicks);
             return new DateTime(ticksFloored, value.Kind);
+        }
+
+        public static DateTime DateCeilingQuarter(this DateTime value)
+        {
+            var ticksToNextQuarter = (QuarterHourTicks - (value.Ticks % QuarterHourTicks));
+            long ticksCeiling = value.Ticks + (ticksToNextQuarter == QuarterHourTicks ? 0 : ticksToNextQuarter);
+            return new DateTime(ticksCeiling, value.Kind);
         }
 
         /// <summary>

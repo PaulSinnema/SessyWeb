@@ -124,6 +124,13 @@ namespace SessyController.Services
             }
         }
 
+        /// <summary>
+        /// Calculate the solar power using:
+        /// - The solar panel information from the settings.
+        ///     - Solar panels
+        ///     - Position (longitude, latitude)
+        /// - Negative prices assessment
+        /// </summary>
         private void GetEstimatesForSolarPower(List<HourlyInfo> hourlyInfos)
         {
             if (_weatherService.Initialized && _dayAheadMarketService.PricesAvailable)
@@ -152,12 +159,11 @@ namespace SessyController.Services
 
                             currentHourlyInfo.SolarPower = 0.0;
 
-                            foreach (var config in _powerSystemsConfig.Endpoints.Values)
+                            if (SolarSystemRunning(currentHourlyInfo))
                             {
-                                foreach (var id in config.Keys)
+                                foreach (var config in _powerSystemsConfig.Endpoints.Values)
                                 {
-                                    if (!_settingsConfig.SolarSystemShutsDownDuringNegativePrices ||
-                                        (_settingsConfig.SolarSystemShutsDownDuringNegativePrices && currentHourlyInfo.PriceIsPositive))
+                                    foreach (var id in config.Keys)
                                     {
                                         var endpoint = config[id];
 
@@ -188,6 +194,24 @@ namespace SessyController.Services
             }
         }
 
+        /// <summary>
+        /// Returns true if the inverter does not shut down due to negative prices.
+        /// </summary>
+        private bool SolarSystemRunning(HourlyInfo currentHourlyInfo)
+        {
+            if (!_settingsConfig.SolarSystemShutsDownDuringNegativePrices)
+                return true;
+
+            if (currentHourlyInfo.SellingPriceIsPositive)
+                return true;
+
+            return false;
+        }
+
+        /// <summary>
+        /// Currently ENTSO-E does not have the 15 minutes resolution active (from 11 juni 2025). So we need
+        /// to add fake data for the missing quarters.
+        /// </summary>
         private void AddSolarPowerToHourlyInfosFor15MinuteResolution(List<HourlyInfo> hourlyInfos, HourlyInfo? lastHourlyInfo, int v)
         {
             if (lastHourlyInfo != null)
@@ -216,11 +240,11 @@ namespace SessyController.Services
 
         private void CalculateSolarPosition(int hour, double latitude, double longitude, int timezoneOffset, out double altitude, out double azimuth)
         {
-            int dayOfYear = _timeZoneService.Now.DayOfYear; // Dynamische dag van het jaar
-            double declination = 23.45 * Math.Sin((2 * Math.PI / 365) * (dayOfYear - 81)); // Juiste declinatiehoek
+            int dayOfYear = _timeZoneService.Now.DayOfYear; // Dynamic day of the year.
+            double declination = 23.45 * Math.Sin((2 * Math.PI / 365) * (dayOfYear - 81)); // Correct declination angle
 
-            // Correcte zonne-uurhoekberekening met lengtegraadcompensatie
-            double solarTimeOffset = 4 * (longitude - 15 * timezoneOffset); // 4 minuten per graad
+            // Calculate solar angle and longituge compensation.
+            double solarTimeOffset = 4 * (longitude - 15 * timezoneOffset); // 4 minutes per degree
             double trueSolarTime = hour * 60 + solarTimeOffset;
             double hourAngle = (trueSolarTime / 4.0) - 180.0;
 
@@ -228,16 +252,14 @@ namespace SessyController.Services
             double decRad = declination * Math.PI / 180.0;
             double haRad = hourAngle * Math.PI / 180.0;
 
-            // Berekening zonnehoogte (altitude)
+            // Calculate altitude.
             altitude = Math.Asin(Math.Sin(latRad) * Math.Sin(decRad) + Math.Cos(latRad) * Math.Cos(decRad) * Math.Cos(haRad)) * 180.0 / Math.PI;
 
-            // Verbeterde berekening van azimut
             double cosAzimuth = (Math.Sin(decRad) - Math.Sin(latRad) * Math.Sin(altitude * Math.PI / 180)) / (Math.Cos(latRad) * Math.Cos(altitude * Math.PI / 180));
-            azimuth = Math.Acos(Math.Max(-1, Math.Min(1, cosAzimuth))) * 180.0 / Math.PI; // Voorkom NaN fouten
+            azimuth = Math.Acos(Math.Max(-1, Math.Min(1, cosAzimuth))) * 180.0 / Math.PI; // Prevent NaN errors
 
-            if (hourAngle > 0) azimuth = 360 - azimuth; // Correctie voor middag
+            if (hourAngle > 0) azimuth = 360 - azimuth; // Correction for afternoon.
 
-            // Debug logging om waarden te controleren
             _logger.LogInformation($"Hour: {hour}, Solar Altitude: {altitude:F2}, Solar Azimuth: {azimuth:F2}, Hour Angle: {hourAngle:F2}");
         }
 

@@ -77,7 +77,7 @@ namespace SessyController.Services
                 try
                 {
                     var now = _timeZoneService.Now;
-                    var delayTime = 60 - now.Minute;
+                    var delayTime = now.DateCeilingQuarter().Minute - now.Minute;
 
                     await Task.Delay(TimeSpan.FromMinutes(delayTime), cancelationToken);
                 }
@@ -107,7 +107,7 @@ namespace SessyController.Services
                     var prices = _dayAheadMarketService.GetPrices();
 
                     var weatherHourData = weatherData.UurVerwachting
-                        .FirstOrDefault(uv => uv.TimeStamp == selectTime);
+                        .FirstOrDefault(uv => uv.TimeStamp == selectTime.DateHour());
                     var hourlyInfo = prices
                         .FirstOrDefault(hi => hi.Time.DateFloorQuarter() == selectTime);
 
