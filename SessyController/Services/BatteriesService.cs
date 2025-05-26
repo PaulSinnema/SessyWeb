@@ -293,14 +293,12 @@ namespace SessyController.Services
         private void HandleManualCharging(HourlyInfo currentHourlyInfo)
         {
 #if !DEBUG
-            var chargingPower = currentHourlyInfo.Mode == Modes.Charging ? _batteryContainer.GetChargingCapacityPerQuarter() : _batteryContainer.GetDischargingCapacityPerQuarter();
-
             var localTime = _timeZoneService.Now;
 
             if (_settingsConfig.ManualChargingHours.Contains(localTime.Hour))
-                _batteryContainer.StartCharging(chargingPower);
+                _batteryContainer.StartCharging(_batteryContainer.GetChargingCapacityPerQuarter());
             else if (_settingsConfig.ManualDischargingHours.Contains(localTime.Hour))
-                _batteryContainer.StartDisharging(chargingPower);
+                _batteryContainer.StartDisharging(_batteryContainer.GetDischargingCapacityPerQuarter());
             else if (_settingsConfig.ManualNetZeroHomeHours.Contains(localTime.Hour))
                 _batteryContainer.StartNetZeroHome();
             else
