@@ -13,6 +13,11 @@
         public double Grid => Produced - Consumed;
         public decimal Price { get; set; }
         public decimal Cost { get; set; }
+
+        public override string ToString()
+        {
+            return $"{Time} Consumed: {Consumed}, Produced: {Produced}, Grid: {Grid}, Price {Price}, Cost: {Cost}";
+        }
     }
 
     public class FinancialMonthResult
@@ -21,5 +26,10 @@
         public int Month { get; set; }
         public string YearMonth => $"{Year}/{Month}";
         public List<FinancialResult>? FinancialResultsList { get; set; } = new();
+
+        public override string ToString()
+        {
+            return $"{Year}-{Month}";
+        }
     }
 }

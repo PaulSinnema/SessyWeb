@@ -49,7 +49,7 @@ namespace SessyWeb.Pages
             if (firstRender)
             {
                 DateChosen = _timeZoneService!.Now.Date;
-                PeriodChosen = PeriodsEnums.Month;
+                PeriodChosen = PeriodsEnums.Day;
 
                 await financialResultsGrid!.FirstPage();
             }
