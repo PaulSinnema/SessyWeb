@@ -77,7 +77,7 @@ namespace SessyController.Services
                 try
                 {
                     var now = _timeZoneService.Now;
-                    var delayTime = (now.DateCeilingQuarter() - now).TotalSeconds;
+                    var delayTime = (now.DateCeilingQuarter() - now).TotalSeconds + 5; // 5 extra to be sure.
 
                     await Task.Delay(TimeSpan.FromSeconds(delayTime), cancelationToken);
                 }
@@ -118,6 +118,8 @@ namespace SessyController.Services
                         DataChanged?.Invoke();
                     }
                 }
+                else
+                    throw new InvalidOperationException($"There is already an entry for date {selectTime} in the energy history table");
             }
         }
 
