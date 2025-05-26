@@ -2,8 +2,6 @@
 using SessyCommon.Extensions;
 using SessyController.Configurations;
 using SessyController.Services.Items;
-using System.ComponentModel;
-using static SessyController.Services.ActivePowerStrategy;
 using static SessyController.Services.Items.Session;
 
 namespace SessyController.Services
@@ -1138,12 +1136,6 @@ namespace SessyController.Services
 
             if (hourlyInfos != null && hourlyInfos.Count > 0)
             {
-                double totalBatteryCapacity = _batteryContainer.GetTotalCapacity();
-                double chargingPower = _batteryContainer.GetChargingCapacityPerQuarter();
-                double dischargingPower = _batteryContainer.GetDischargingCapacityPerQuarter();
-                int maxChargingHours = (int)Math.Ceiling(totalBatteryCapacity / chargingPower);
-                int maxDischargingHours = (int)Math.Ceiling(totalBatteryCapacity / dischargingPower);
-
                 var loggerFactory = _scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
 
                 _sessions = new Sessions(hourlyInfos,
