@@ -77,9 +77,9 @@ namespace SessyController.Services
                 try
                 {
                     var now = _timeZoneService.Now;
-                    var delayTime = now.DateCeilingQuarter().Minute - now.Minute;
+                    var delayTime = (now.DateCeilingQuarter() - now).TotalSeconds;
 
-                    await Task.Delay(TimeSpan.FromMinutes(delayTime), cancelationToken);
+                    await Task.Delay(TimeSpan.FromSeconds(delayTime), cancelationToken);
                 }
                 catch (Exception ex)
                 {

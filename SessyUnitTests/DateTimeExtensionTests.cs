@@ -67,13 +67,13 @@ namespace SessyUnitTests
         // Any value before 10:15 should ceil to 10:15
         [InlineData("2025-04-28T10:07:29", "2025-04-28T10:15:00")]
         [InlineData("2025-04-28T10:07:30", "2025-04-28T10:15:00")]
-        // Between 15 and 30 → 15
+        // Between 15 and 30 → 30
         [InlineData("2025-04-28T10:22:00", "2025-04-28T10:30:00")]
-        // Between 30 and 45 → 30
+        // Between 30 and 45 → 45
         [InlineData("2025-04-28T10:37:31", "2025-04-28T10:45:00")]
-        // Final minute of the hour → 45
+        // Final minute of the hour → 11:00
         [InlineData("2025-04-28T10:59:00", "2025-04-28T11:00:00")]
-        // Crossing midnight remains same date but floors to previous quarter
+        // Crossing midnight get next date at midnight
         [InlineData("2025-04-28T23:59:00", "2025-04-29T00:00:00")]
         public void CeilingToQuarterHour_ReturnsExpected(string input, string expected)
         {
@@ -87,6 +87,35 @@ namespace SessyUnitTests
             // Assert
             Assert.Equal(expectedDt, actual);
             Assert.Equal(inputDt.Kind, actual.Kind);
+        }
+
+        [Fact]
+        public void CeilingToQuarterHourMinusMinuteShouldNotBeNegative()
+        {
+            for (int minute = 0; minute < 60; minute++)
+            {
+                int minuteExpected = 0;
+
+                if (minute < 16)
+                    minuteExpected = 15;
+                else if (minute < 31)
+                    minuteExpected = 30;
+                else if (minute < 46)
+                    minuteExpected = 45;
+                else
+                    minuteExpected = 60;
+
+                    // Arrange
+                    var inputDt = new DateTime(2025, 5, 26, 11, minute, 0);
+                var expectedDt = new DateTime(2025, 5, 26, minuteExpected == 0 ? 12 : 11, minuteExpected == 60 ? 00 : minuteExpected, 0);
+
+                // Act
+                var actual = (inputDt.DateCeilingQuarter() - inputDt).Minutes;
+
+                // Assert
+                Assert.True(actual >= 0);
+                Assert.True(actual <= 15);
+            }
         }
 
         [Fact]
