@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using SessyController.Configurations;
+using SessyController.Services.Items;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json.Serialization;
@@ -270,8 +271,9 @@ namespace SessyController.Services
             SYSTEM_STATE_OVERRIDE_BATTERY_UNDERVOLTAGE = 13,
         };
 
-        private string _systemStateString = string.Empty;
-        private SystemStates _systemState;
+        private string _systemStateString { get; set; } = string.Empty;
+
+        private SystemStates _systemState { get; set; }
 
         /// <summary>
         /// The current system state (e.g., "SYSTEM_STATE_STANDBY").
@@ -296,11 +298,144 @@ namespace SessyController.Services
             set
             {
                 _systemStateString = value;
-                var names = Enum.GetNames(typeof(SystemStates));
-                _systemState = (SystemStates)Enum.Parse(typeof(SystemStates), _systemStateString);
+
+                GetSystemState();
             }
         }
 
+        private void GetSystemState()
+        {
+            var names = Enum.GetNames(typeof(SystemStates));
+            _systemState = (SystemStates)Enum.Parse(typeof(SystemStates), _systemStateString);
+        }
+
+        public string SystemStateColor
+        {
+            get
+            {
+                var color = "green";
+
+                switch (SystemState)
+                {
+                    case SystemStates.SYSTEM_STATE_INIT:
+                        color = "magenta";
+                        break;
+
+                    case SystemStates.SYSTEM_STATE_STANDBY:
+                        color = "gray";
+                        break;
+
+                    case SystemStates.SYSTEM_STATE_WAITING_FOR_SAFE_SITUATION:
+                    case SystemStates.SYSTEM_STATE_WAITING_IN_SAFE_SITUATION:
+                        color = "orange";
+                        break;
+
+                    case SystemStates.SYSTEM_STATE_RUNNING_SAFE:
+                        break;
+
+                    case SystemStates.SYSTEM_STATE_WAIT_FOR_PERIPHERALS:
+                    case SystemStates.SYSTEM_STATE_OVERRIDE_OVERFREQUENCY:
+                    case SystemStates.SYSTEM_STATE_OVERRIDE_UNDERFREQUENCY:
+                    case SystemStates.SYSTEM_STATE_DISCONNECT:
+                    case SystemStates.SYSTEM_STATE_ERROR:
+                        color = "red";
+                        break;
+
+                    case SystemStates.SYSTEM_STATE_BATTERY_FULL:
+                        color = "blue";
+                        break;
+
+                    case SystemStates.SYSTEM_STATE_BATTERY_EMPTY:
+                        color = "lightblue";
+                        break;
+
+                    case SystemStates.SYSTEM_STATE_RECONNECT:
+                    case SystemStates.SYSTEM_STATE_OVERRIDE_BATTERY_UNDERVOLTAGE:
+                        color = "purple";
+
+                        break;
+
+                    default:
+                        break;
+                }
+
+                return color;
+            }
+        }
+
+        public string SystemStateTitle
+        {
+            get
+            {
+                var title = "?????";
+
+                switch (SystemState)
+                {
+                    case SystemStates.SYSTEM_STATE_INIT:
+                        title = "Initializing";
+                        break;
+
+                    case SystemStates.SYSTEM_STATE_STANDBY:
+                        title = "Standby";
+                        break;
+
+                    case SystemStates.SYSTEM_STATE_WAITING_FOR_SAFE_SITUATION:
+                        title = "Waiting for safe situation";
+                        break;
+
+                    case SystemStates.SYSTEM_STATE_WAITING_IN_SAFE_SITUATION:
+                        title = "Waiting in safe situation";
+                        break;
+
+                    case SystemStates.SYSTEM_STATE_RUNNING_SAFE:
+                        title = "Running safe";
+                        break;
+
+                    case SystemStates.SYSTEM_STATE_WAIT_FOR_PERIPHERALS:
+                        title = "Wating for peripherals";
+                        break;
+
+                    case SystemStates.SYSTEM_STATE_OVERRIDE_OVERFREQUENCY:
+                        title = "Override over frequency";
+                        break;
+
+                    case SystemStates.SYSTEM_STATE_OVERRIDE_UNDERFREQUENCY:
+                        title = "Override under frequency";
+                        break;
+
+                    case SystemStates.SYSTEM_STATE_DISCONNECT:
+                        title = "Disconnected";
+                        break;
+
+                    case SystemStates.SYSTEM_STATE_ERROR:
+                        title = "Error";
+                        break;
+
+                    case SystemStates.SYSTEM_STATE_BATTERY_FULL:
+                        title = "Full";
+                        break;
+
+                    case SystemStates.SYSTEM_STATE_BATTERY_EMPTY:
+                        title = "Empty";
+                        break;
+
+                    case SystemStates.SYSTEM_STATE_RECONNECT:
+                        title = "Reconnecting";
+                        break;
+
+                    case SystemStates.SYSTEM_STATE_OVERRIDE_BATTERY_UNDERVOLTAGE:
+                        title = "Override under voltage";
+
+                        break;
+
+                    default:
+                        break;
+                }
+
+                return title;
+            }
+        }
+        
         /// <summary>
         /// Detailed information about the current system state.
         /// </summary>

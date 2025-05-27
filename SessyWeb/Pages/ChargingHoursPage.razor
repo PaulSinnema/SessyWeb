@@ -28,7 +28,7 @@
                     <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@TotalSolarPowerExpectedTodayVisual kWh</b></RadzenText>
                     @if (TotalSolarPowerExpectedTomorrow > 0)
                     {
-                                <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@TotalSolarPowerExpectedTomorrowVisual kWh</b></RadzenText>
+                        <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@TotalSolarPowerExpectedTomorrowVisual kWh</b></RadzenText>
                     }
                 </RadzenStack>
 
@@ -50,9 +50,10 @@
                         {
                             foreach (var battery in BatteryWithStatusList!)
                             {
-                                var style = $"background-color: {battery.StatusColor}; padding: 1px 1px 1px 1px;";
+                                var style = $"background-color: {battery.StatusColor}; padding: 1px 1px 1px 1px; cursor: pointer; width: 20px; text-align: center;";
+                                var title = $"{battery.StatusTitle}";
 
-                                <RadzenPanel style=@style>@battery.Battery.Id</RadzenPanel>
+                                <RadzenPanel style=@style title=@title>@battery.Battery.Id</RadzenPanel>
                             }
                         }
                     }

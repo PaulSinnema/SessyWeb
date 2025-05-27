@@ -7,7 +7,10 @@
 }
 else
 {
-    <RadzenCard title="Sessy battery" Style="background-color: transparent; width:97%; margin: 0px;">
+    var style = $"background-color: {powerStatus!.Sessy!.SystemStateColor}; padding: 0px 5px 0px 5px;";
+    var title = powerStatus!.Sessy!.SystemStateTitle;
+
+    <RadzenCard title=@title Style="background-color: transparent; width:97%; margin: 0px;">
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center">
             @if (!IsMobile)
             {
@@ -17,6 +20,7 @@ else
                     </RadzenStack>
                 </RadzenColumn>
             }
+
             <RadzenStack Orientation="Orientation.Vertical" AlignItems="AlignItems.Normal" Style="width: 100%; max-width: 1000px;">
                 <RadzenCard class="rz-background-color-primary-light rz-shadow-0 rz-border-radius-0 rz-p-8 rz-border-radius-2" style="margin: 1rem calc(-1 * var(--rz-card-padding));">
                     <RadzenText TextStyle="TextStyle.H6" class="rz-color-on-primary-light"><strong>@Battery!.GetName()</strong></RadzenText>
@@ -41,15 +45,8 @@ else
 
                         <RadzenColumn SizeSM="4">
                             <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">System state</RadzenText>
-                            @if (powerStatus?.Sessy?.SystemState == Sessy.SystemStates.SYSTEM_STATE_ERROR)
-                            {
-                                <RadzenText TextStyle="TextStyle.Body1" class="rz-background-color-danger rz-color-on-primary-light"><b>@powerStatus?.Sessy?.SystemStateString</b></RadzenText>
-                            }
-                            else
-                            {
-                                <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@powerStatus?.Sessy?.SystemStateString</b></RadzenText>
-                            }
 
+                            <RadzenText TextStyle="TextStyle.Body1" style=@style>@powerStatus?.Sessy?.SystemStateString</RadzenText>
                             <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">System state details</RadzenText>
                             <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@powerStatus?.Sessy?.SystemStateDetails</b></RadzenText>
                         </RadzenColumn>

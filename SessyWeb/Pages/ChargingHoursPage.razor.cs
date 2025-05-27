@@ -73,58 +73,10 @@ namespace SessyWeb.Pages
         public class BatteryWithStatus
         {
             public Battery Battery { get; set; } = default!;
-            public string StatusColor => GetStatusColor();
+            public string StatusColor => PowerStatus!.Sessy!.SystemStateColor;
+            public string StatusTitle => PowerStatus!.Sessy!.SystemStateTitle;
 
             public PowerStatus? PowerStatus { get; set; }
-
-            public string GetStatusColor()
-            {
-                var color = "green";
-
-                if (PowerStatus != null)
-                {
-                    switch (PowerStatus!.Sessy!.SystemState)
-                    {
-                        case SystemStates.SYSTEM_STATE_INIT:
-                            break;
-                        case SystemStates.SYSTEM_STATE_WAIT_FOR_PERIPHERALS:
-                            break;
-                        case SystemStates.SYSTEM_STATE_STANDBY:
-                            break;
-                        case SystemStates.SYSTEM_STATE_WAITING_FOR_SAFE_SITUATION:
-                        case SystemStates.SYSTEM_STATE_WAITING_IN_SAFE_SITUATION:
-                            color = "orange";
-                            break;
-                        case SystemStates.SYSTEM_STATE_RUNNING_SAFE:
-                            break;
-                        case SystemStates.SYSTEM_STATE_OVERRIDE_OVERFREQUENCY:
-                            break;
-                        case SystemStates.SYSTEM_STATE_OVERRIDE_UNDERFREQUENCY:
-                            break;
-                        case SystemStates.SYSTEM_STATE_DISCONNECT:
-                            break;
-                        case SystemStates.SYSTEM_STATE_RECONNECT:
-                            break;
-                        case SystemStates.SYSTEM_STATE_ERROR:
-                            color = "red";
-                            break;
-                        case SystemStates.SYSTEM_STATE_BATTERY_FULL:
-                            break;
-                        case SystemStates.SYSTEM_STATE_BATTERY_EMPTY:
-                            break;
-                        case SystemStates.SYSTEM_STATE_OVERRIDE_BATTERY_UNDERVOLTAGE:
-                            break;
-                        default:
-                            break;
-                    }
-                }
-                else
-                {
-                    color = "purple";
-                }
-
-                    return color;
-            }
         }
 
         /// <summary>
