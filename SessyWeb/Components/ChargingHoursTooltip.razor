@@ -1,42 +1,52 @@
-﻿<RadzenCard>
-    <div>
-        <RadzenFormField Text="Date and time" Style="flex: 1;">
-            <RadzenDatePicker Value=@HourlyInfo?.Time ShowButton="false" disabled TValue="DateTime"/>
-        </RadzenFormField>
-    </div>
-    <div>
-        <RadzenFormField Text="Price" Style="flex: 1;">
-            <RadzenNumeric Format="0.0000" ShowUpDown="false" Value=@HourlyInfo?.BuyingPrice disabled Style="width: 150px;" />
-        </RadzenFormField>
-    </div>
-    <div>
-        <RadzenFormField Text="State" Style="flex: 1;">
-            <RadzenTextBox Value=@HourlyInfo?.DisplayState disabled Style="width: 150px;" />
-        </RadzenFormField>
-    </div>
-    <div>
-        <RadzenFormField Text="Profit" Style="flex: 1;">
-            <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.Profit disabled Style="width: 150px;" />
-        </RadzenFormField>
-    </div>
-    <div>
-        <RadzenFormField Text="Charge remaining" Style="flex: 1;">
-            <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.ChargeLeftPercentage disabled Style="width: 150px;" />
-        </RadzenFormField>
-    </div>
-    <div>
-        <RadzenFormField Text="Solar power" Style="flex: 1;">
-            <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.SolarPower disabled Style="width: 150px;" />
-        </RadzenFormField>
-    </div>
-    <div>
-        <RadzenFormField Text="Global radiation" Style="flex: 1;">
-            <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.SolarGlobalRadiation disabled Style="width: 150px;" />
-        </RadzenFormField>
-    </div>
-    <div>
-        <RadzenFormField Text="Charge needed" Style="flex: 1;">
-            <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.ChargeNeeded disabled Style="width: 150px;" />
-        </RadzenFormField>
-    </div>
+﻿@{
+    var style = "padding: 0px; margin: 0px;";
+    var fixedWidthStyle = $"{style} width: 150px;";
+    var state = $"   {HourlyInfo?.DisplayState}";
+}
+<RadzenCard Style=@style>
+    <RadzenStack Orientation="Orientation.Horizontal">
+        <RadzenCard Style=@style>
+            <RadzenFormField Text="Date and time" Style=@style>
+                <RadzenDatePicker Value=@HourlyInfo?.Time ShowButton="false" disabled TValue="DateTime" Style=@fixedWidthStyle />
+            </RadzenFormField>
+        </RadzenCard>
+        <RadzenCard Style=@style>
+            <RadzenFormField Text="Price" Style=@style>
+                <RadzenNumeric Format="0.0000" ShowUpDown="false" Value=@HourlyInfo?.BuyingPrice disabled Style=@fixedWidthStyle />
+            </RadzenFormField>
+        </RadzenCard>
+        <RadzenCard Style=@style>
+            <RadzenFormField Text="State" Style=@style>
+                <RadzenTextBox Value=@state disabled Style=@fixedWidthStyle />
+            </RadzenFormField>
+        </RadzenCard>
+        <RadzenCard Style=@style>
+            <RadzenFormField Text="Profit" Style=@style>
+                <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.Profit disabled Style=@fixedWidthStyle />
+            </RadzenFormField>
+        </RadzenCard>
+    </RadzenStack>
+
+    <RadzenStack Orientation="Orientation.Horizontal">
+        <RadzenCard Style=@style>
+            <RadzenFormField Text="Charge remaining" Style=@style>
+                <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.ChargeLeftPercentage disabled Style=@fixedWidthStyle />
+            </RadzenFormField>
+        </RadzenCard>
+        <RadzenCard Style=@style>
+            <RadzenFormField Text="Solar power" Style=@style>
+                <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.SolarPower disabled Style=@fixedWidthStyle />
+            </RadzenFormField>
+        </RadzenCard>
+        <RadzenCard Style=@style>
+            <RadzenFormField Text="Global radiation" Style=@style>
+                <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.SolarGlobalRadiation disabled Style=@fixedWidthStyle />
+            </RadzenFormField>
+        </RadzenCard>
+        <RadzenCard Style=@style>
+            <RadzenFormField Text="Charge needed" Style=@style>
+                <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.ChargeNeeded disabled Style=@fixedWidthStyle />
+            </RadzenFormField>
+        </RadzenCard>
+    </RadzenStack>
 </RadzenCard>
