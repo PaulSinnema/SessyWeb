@@ -1,10 +1,19 @@
-﻿@{
+﻿@inherits BaseComponent
+
+@{
     var style = "padding: 0px; margin: 0px;";
     var fixedWidthStyle = $"{style} width: 150px;";
     var state = $"   {HourlyInfo?.DisplayState}";
+    var wrap = FlexWrap.NoWrap;
+
+    if (!IsMobile)
+    {
+        wrap = FlexWrap.Wrap;
+    }
 }
+
 <RadzenCard Style=@style>
-    <RadzenStack Orientation="Orientation.Horizontal">
+    <RadzenStack Orientation="Orientation.Horizontal" Wrap=@wrap>
         <RadzenCard Style=@style>
             <RadzenFormField Text="Date and time" Style=@style>
                 <RadzenDatePicker Value=@HourlyInfo?.Time ShowButton="false" disabled TValue="DateTime" Style=@fixedWidthStyle />
@@ -27,7 +36,7 @@
         </RadzenCard>
     </RadzenStack>
 
-    <RadzenStack Orientation="Orientation.Horizontal">
+    <RadzenStack Orientation="Orientation.Horizontal" Wrap=@wrap>
         <RadzenCard Style=@style>
             <RadzenFormField Text="Charge remaining" Style=@style>
                 <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.ChargeLeftPercentage disabled Style=@fixedWidthStyle />

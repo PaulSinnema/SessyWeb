@@ -7,7 +7,7 @@
         public double PeakPowerPerPanel { get; set; } // Not in use
         public double Efficiency { get; set; } // Not in use
         public double TotalArea { get; set; } // Not in use
-        public string Orientation { get; set; } = string.Empty; // I.e.: "South", "East", "West", "North", "Southwest"
+        public double Orientation { get; set; }
 
         /// <summary>
         /// This is what your solar array can maximally produces on a day in Watts.

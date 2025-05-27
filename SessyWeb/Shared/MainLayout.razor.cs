@@ -53,7 +53,7 @@ namespace SessyWeb.Shared
             screenWidth = width;
             screenHeight = height;
 
-            IsMobile = width <= 700;
+            IsMobile = width < 933;
 
             StateHasChanged();
         }

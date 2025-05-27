@@ -263,14 +263,9 @@ namespace SessyController.Services
             _logger.LogInformation($"Hour: {hour}, Solar Altitude: {altitude:F2}, Solar Azimuth: {azimuth:F2}, Hour Angle: {hourAngle:F2}");
         }
 
-        private double GetSolarFactor(double solarAzimuth, double solarAltitude, string orientation, double tilt)
+        private double GetSolarFactor(double solarAzimuth, double solarAltitude, double orientationDegrees, double tilt)
         {
-            var key = orientation.ToLower();
-
-            if (!orientations.ContainsKey(key))
-                throw new InvalidOperationException($"Unknown orientation: {orientation}");
-
-            double panelAzimuth = orientations[key];
+            double panelAzimuth = orientationDegrees;
             double angleDifference = Math.Abs(panelAzimuth - solarAzimuth);
 
             if (angleDifference > 180) angleDifference = 360 - angleDifference;

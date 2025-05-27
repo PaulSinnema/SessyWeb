@@ -4,11 +4,11 @@
 @inject RadzenTheme RadzenTheme
 @inject IJSRuntime JSRuntime
 
-<RadzenTooltip />
-<RadzenChartTooltip />
-<RadzenTheme Theme="@NewTheme" />
-
 <CascadingValue Value="IsMobile">
+    <RadzenTooltip />
+    <RadzenChartTooltip />
+    <RadzenTheme Theme="@NewTheme" />
+
     <RadzenLayout>
         <RadzenHeader>
             <RadzenStack Orientation="@(IsMobile? Orientation.Vertical: Orientation.Horizontal)"

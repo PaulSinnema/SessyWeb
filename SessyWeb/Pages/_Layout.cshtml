@@ -7,28 +7,71 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-	<meta charset="utf-8" />
-	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-	<base href="~/" />
-	<link rel="stylesheet" href="css/bootstrap/bootstrap.min.css" />
-	<link href="css/site.css" rel="stylesheet" />
-	<link href="SessyWeb.styles.css" rel="stylesheet" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="~/" />
+    <link rel="stylesheet" href="css/bootstrap/bootstrap.min.css" />
+    <link href="css/site.css" rel="stylesheet" />
+    <link href="SessyWeb.styles.css" rel="stylesheet" />
 </head>
 <body>
-	@RenderBody()
+    @RenderBody()
 
-	<div id="blazor-error-ui">
-		<environment include="Staging,Production">
-			An error has occurred. This application may no longer respond until reloaded.
-		</environment>
-		<environment include="Development">
-			An unhandled exception has occurred. See browser dev tools for details.
-		</environment>
-		<a href="" class="reload">Reload</a>
-		<a class="dismiss">🗙</a>
-	</div>
+    <div id="blazor-error-ui">
+        <environment include="Staging,Production">
+            An error has occurred. This application may no longer respond until reloaded.
+        </environment>
+        <environment include="Development">
+            An unhandled exception has occurred. See browser dev tools for details.
+        </environment>
+        <a href="" class="reload">Reload</a>
+        <a class="dismiss">🗙</a>
+    </div>
 
-	<script src="_framework/blazor.server.js"></script>
+    <script src="_framework/blazor.server.js"></script>
+
+    <script>
+        const observeBlazorConnection = () => {
+            const modalId = 'components-reconnect-modal';
+            const failedId = 'components-reconnect-failed';
+            const rejectedId = 'components-reconnect-rejected';
+
+            const observer = new MutationObserver((mutationsList, observerInstance) => {
+                const modal = document.getElementById(modalId);
+                if (modal) {
+                    // Check if the modal indicates a permanent failure state
+                    const failedElement = document.getElementById(failedId);
+                    const rejectedElement = document.getElementById(rejectedId);
+
+                    const isFailed = failedElement && failedElement.style.display !== 'none';
+                    const isRejected = rejectedElement && rejectedElement.style.display !== 'none';
+
+                    if (isFailed || isRejected) {
+                        console.log('Blazor Server connection lost permanently. Attempting to reload...');
+                        observerInstance.disconnect(); // Stop observing to prevent multiple reload attempts
+                        window.location.reload();
+                    }
+                }
+            });
+
+            // Start observing the body for additions of nodes or changes in attributes/subtree
+            // This is broad, but ensures we catch the modal when Blazor adds/modifies it.
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true,
+                attributes: true, // Needed to detect style changes if elements are reused
+                attributeFilter: ['style', 'class'] // Focus on relevant attributes
+             });
+        };
+
+        // Start observing once the DOM is ready, or slightly after Blazor initializes.
+        // A simple timeout can also work if DOMContentLoaded fires too early for Blazor's UI.
+        if (document.readyState === "complete" || document.readyState === "interactive") {
+            observeBlazorConnection();
+        } else {
+            document.addEventListener('DOMContentLoaded', observeBlazorConnection);
+        }
+    </script>
 </body>
 </html>
 
