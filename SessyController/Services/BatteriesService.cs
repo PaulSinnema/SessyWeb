@@ -2,7 +2,10 @@
 using SessyCommon.Extensions;
 using SessyController.Configurations;
 using SessyController.Services.Items;
+using SessyData.Model;
+using SessyData.Services;
 using static SessyController.Services.Items.Session;
+using static SessyData.Model.SessyWebControl;
 
 namespace SessyController.Services
 {
@@ -34,6 +37,8 @@ namespace SessyController.Services
         private WeatherService _weatherService { get; set; }
 
         private FinancialResultsService _financialResultsService { get; set; }
+
+        private SessyWebControlDataService _sessyWebControlDataService { get; set; }
 
         private LoggingService<BatteriesService> _logger { get; set; }
 
@@ -88,6 +93,7 @@ namespace SessyController.Services
             _powerEstimatesService = _scope.ServiceProvider.GetRequiredService<PowerEstimatesService>();
             _weatherService = _scope.ServiceProvider.GetRequiredService<WeatherService>();
             _financialResultsService = _scope.ServiceProvider.GetRequiredService<FinancialResultsService>();
+            _sessyWebControlDataService = _scope.ServiceProvider.GetRequiredService<SessyWebControlDataService>();
         }
 
         public override Task StopAsync(CancellationToken cancellationToken)
@@ -161,7 +167,7 @@ namespace SessyController.Services
 
                         await EvaluateSessions();
 
-                        WeAreInControl = !await SupplierIsControllingTheBatteries();
+                        await AreWeInControl();
 
                         if (WeAreInControl)
                         {
@@ -184,6 +190,44 @@ namespace SessyController.Services
         }
 
         /// <summary>
+        /// Checks who has control. If control changed since the last store of data a new record is stored.
+        /// </summary>
+        private async Task AreWeInControl()
+        {
+            WeAreInControl = !await SupplierIsControllingTheBatteries();
+
+            SessyWebControlStatus status = WeAreInControl ? SessyWebControlStatus.SessyWeb : SessyWebControlStatus.Provider;
+
+            var last = _sessyWebControlDataService.Get((set) =>
+            {
+                return set.OrderByDescending(sc => sc.Time)
+                        .FirstOrDefault();
+            });
+
+            if (last == null || last.Status != status)
+            {
+                StoreStatus(status);
+            }
+        }
+
+        /// <summary>
+        /// Store a new control record to the database.
+        /// </summary>
+        private void StoreStatus(SessyWebControlStatus status)
+        {
+            var controlList = new List<SessyWebControl>
+            {
+                new SessyWebControl
+                {
+                    Time = _timeZoneService.Now,
+                    Status = status
+                }
+            };
+
+            _sessyWebControlDataService.Add(controlList);
+        }
+
+        /// <summary>
         /// Checks whether the supplier has control over the batteries.
         /// The StrategyOverridden boolean is true when the supplier is taking control
         /// and false when the supplier doesn't need control anymore.
@@ -197,7 +241,7 @@ namespace SessyController.Services
                 if (currentPowerStrategy.Sessy.StrategyOverridden)
                 {
                     // Supplier is controlling the batteries.
-                    return true; 
+                    return true;
                 }
             }
 

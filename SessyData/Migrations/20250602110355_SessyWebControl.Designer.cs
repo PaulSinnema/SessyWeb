@@ -12,7 +12,7 @@ namespace SessyData.Migrations
 {
     [DbContext(typeof(ModelContext))]
     [Migration("20250602110355_SessyWebControl")]
-    partial class SessyWebControl
+    partial class SessyWebControlMigration
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

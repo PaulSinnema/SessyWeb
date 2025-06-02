@@ -101,6 +101,7 @@ builder.Services.AddSingleton<SessyMonitorService>();
 builder.Services.AddSingleton<EnergyMonitorService>();
 builder.Services.AddSingleton<SolarDataService>();
 builder.Services.AddSingleton<EPEXPricesDataService>();
+builder.Services.AddSingleton<SessyWebControlDataService>();
 builder.Services.AddSingleton<TaxesService>();
 
 builder.Services.AddHostedService(provider => provider.GetRequiredService<DayAheadMarketService>());
