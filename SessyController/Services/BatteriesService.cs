@@ -1138,7 +1138,7 @@ namespace SessyController.Services
 
                 _sessions = new Sessions(hourlyInfos,
                                          _settingsConfig,
-                                         _batteryContainer,
+                                         _batteryContainer!,
                                          _timeZoneService,
                                          _financialResultsService,
                                          loggerFactory);

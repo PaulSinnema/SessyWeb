@@ -96,7 +96,9 @@ namespace SessyUnitTests
             {
                 int minuteExpected = 0;
 
-                if (minute < 16)
+                if (minute == 0)
+                    minuteExpected = 0;
+                else if (minute < 16)
                     minuteExpected = 15;
                 else if (minute < 31)
                     minuteExpected = 30;
@@ -107,15 +109,29 @@ namespace SessyUnitTests
 
                     // Arrange
                     var inputDt = new DateTime(2025, 5, 26, 11, minute, 0);
-                var expectedDt = new DateTime(2025, 5, 26, minuteExpected == 0 ? 12 : 11, minuteExpected == 60 ? 00 : minuteExpected, 0);
+                var expectedDt = new DateTime(2025, 5, 26, minuteExpected == 60 ? 12 : 11, minuteExpected == 60 ? 00 : minuteExpected, 0);
+                minuteExpected = minuteExpected == 60 ? 0 : minuteExpected;
 
                 // Act
-                var actual = (inputDt.DateCeilingQuarter() - inputDt).Minutes;
+                var actualDate = inputDt.DateCeilingQuarter();
+                var actualMinutes = actualDate.Minute;
 
                 // Assert
-                Assert.True(actual >= 0);
-                Assert.True(actual <= 15);
+                Assert.Equal(minuteExpected, actualMinutes);
+                Assert.Equal(expectedDt, actualDate);
             }
+        }
+
+        [Fact]
+        public void SpecialCaseTest()
+        {
+            var date1 = new DateTime(2025, 5, 27, 17, 34, 00);
+            var date2 = new DateTime(2025, 5, 27, 17, 34, 10).DateCeilingQuarter();
+
+            var actual = (date2 - date1).TotalSeconds;
+            var expected = (45 - 34) * 60;
+
+            Assert.Equal(expected, actual);
         }
 
         [Fact]

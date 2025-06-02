@@ -74,16 +74,17 @@ namespace SessyController.Services
                     _logger.LogException(ex, "An error occurred while monitoring p1 meters.");
                 }
 
+                var now = _timeZoneService.Now;
+                var dateCeiling = now.DateCeilingQuarter();
+                var delayTime = (dateCeiling - now).TotalSeconds + 5; // 5 extra to be sure.
+
                 try
                 {
-                    var now = _timeZoneService.Now;
-                    var delayTime = (now.DateCeilingQuarter() - now).TotalSeconds + 5; // 5 extra to be sure.
-
                     await Task.Delay(TimeSpan.FromSeconds(delayTime), cancelationToken);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogException(ex, "An error occurred during delay of thread.");
+                    _logger.LogException(ex, $"An error occurred during delay of thread. Now {now}, Date ceiling: {dateCeiling}, Delay time: {delayTime}.");
                     // Ignore exception during delay
                 }
             }
@@ -111,15 +112,12 @@ namespace SessyController.Services
                     var hourlyInfo = prices
                         .FirstOrDefault(hi => hi.Time.DateFloorQuarter() == selectTime);
 
-                    if (weatherHourData != null)
-                    {
-                        StoreEnergyHistory(p1Meter, p1Details!, hourlyInfo, selectTime, weatherHourData);
+                    StoreEnergyHistory(p1Meter, p1Details!, hourlyInfo, selectTime, weatherHourData);
 
-                        DataChanged?.Invoke();
-                    }
+                    DataChanged?.Invoke();
+
+                    _logger.LogWarning($"Energy data stored at {now} for {selectTime}");
                 }
-                else
-                    throw new InvalidOperationException($"There is already an entry for date {selectTime} in the energy history table");
             }
         }
 
@@ -155,7 +153,7 @@ namespace SessyController.Services
             return energyHistory;
         }
 
-        private void StoreEnergyHistory(P1Meter p1Meter, P1Details p1Details, HourlyInfo? hourlyInfo, DateTime time, UurVerwachting hourExpectancy)
+        private void StoreEnergyHistory(P1Meter p1Meter, P1Details p1Details, HourlyInfo? hourlyInfo, DateTime time, UurVerwachting? hourExpectancy)
         {
             var energyHistoryList = new List<EnergyHistory>();
 
@@ -168,7 +166,7 @@ namespace SessyController.Services
                 ProducedTariff1 = p1Details.PowerProducedTariff1,
                 ProducedTariff2 = p1Details.PowerProducedTariff2,
                 TarrifIndicator = p1Details.TariffIndicator,
-                Temperature = hourExpectancy.Temp,
+                Temperature = hourExpectancy?.Temp ?? -999, // In case no weather data is present we store a large negative temperature.
                 GlobalRadiation = hourExpectancy.GlobalRadiation,
                 Price = hourlyInfo != null ? hourlyInfo.BuyingPrice : 0.0
             });

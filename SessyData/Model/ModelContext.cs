@@ -33,6 +33,8 @@ namespace SessyData.Model
 
         public DbSet<SolarEdgeData> SolarEdgeData => Set<SolarEdgeData>();
 
+        public DbSet<SessyWebControl> SessyWebControl => Set<SessyWebControl>();
+
         protected override void OnConfiguring(DbContextOptionsBuilder options)
             => options.UseSqlite(_connectionString);
     }
