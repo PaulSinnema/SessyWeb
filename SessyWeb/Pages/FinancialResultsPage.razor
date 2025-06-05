@@ -4,6 +4,7 @@
 @using SessyWeb.Components
 @using SessyData.Model
 @using Radzen
+@using static SessyWeb.Components.DateChooserComponent
 
 <a>Financial results</a>
 
@@ -21,20 +22,8 @@
         <RadzenDataGridColumn Property="@nameof(FinancialMonthResult.YearMonth)" Title="YearMonth" Width="100px" Visible=false />
         <RadzenDataGridColumn TItem="FinancialMonthResult" Title="Day" Context="MonthResult">
             <HeaderTemplate>
-                <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" AlignItems="AlignItems.End" Gap="0.5rem" Style="width: 100%;">
-                    <RadzenCard Gap="0.5rem">
-                        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.Center" AlignItems="AlignItems.Center" Gap="0.5rem">
-                            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.Center" AlignItems="AlignItems.Center" Gap="0.5rem">
-                                <RadzenLabel Text="Select Date" Component="RadzenDatePickerBindValue" />
-                                <RadzenDatePicker @bind-Value=@DateChosen Change="@(date => DateChanged(date))" Name="RadzenDatePickerBindValue" ShowCalendarWeek />
-                            </RadzenStack>
-                            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.Center" Gap="0.5rem">
-                                <RadzenLabel Text="Period" Component="DropDownBindValue" />
-                                <RadzenDropDown @bind-Value=@PeriodChosen Data=@Periods Change="@(period => PeriodChanged(period))" Style="width: 100%; max-width: 400px;" Name="DropDownBindValue" />
-                            </RadzenStack>
-                        </RadzenStack>
-                    </RadzenCard>
-                </RadzenStack>
+                <DateChooserComponent DateChosenChanged="@((DateTime d) => DateChosenChanged(d))"
+                                      PeriodChosenChanged="@((PeriodsEnums p) => PeriodChosenChanged(p))" />
             </HeaderTemplate>
             <Template>
                 <FinancialDayResultComponent FinancialResultsList="@MonthResult.FinancialResultsList" />

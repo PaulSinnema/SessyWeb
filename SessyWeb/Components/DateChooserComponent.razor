@@ -1,0 +1,19 @@
+﻿@inherits BaseComponent
+
+<RadzenCard Gap="0.5rem">
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.Center" AlignItems="AlignItems.Center" Gap="0.5rem">
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.Center" Gap="0.5rem">
+            <RadzenLabel Text="Period" Component="DropDownBindValue" />
+            <RadzenDropDown @bind-Value=@PeriodChosen Data=@Periods Change="@(period => PeriodChanged(period))" Style="width: 100%; max-width: 400px;" Name="DropDownBindValue" />
+        </RadzenStack>
+        <RadzenStack Orientation="Orientation.Horizontal" Visible=@DatePickerVisible JustifyContent="JustifyContent.Center" AlignItems="AlignItems.Center" Gap="0.5rem">
+            <RadzenLabel Text="Select Date" Component="RadzenDatePickerBindValue" />
+            <RadzenDatePicker @bind-Value=@DateChosen
+                              DateFormat=@DateFormat
+                              ShowDays=@ShowDays
+                              CurrentDateChanged="@(date => DateChanged(date))"
+                              Name="RadzenDatePickerBindValue"
+                              ShowCalendarWeek />
+        </RadzenStack>
+    </RadzenStack>
+</RadzenCard>

@@ -6,6 +6,7 @@ using SessyCommon.Extensions;
 using SessyController.Services;
 using SessyController.Services.Items;
 using System.Linq.Dynamic.Core;
+using static SessyWeb.Components.DateChooserComponent;
 
 namespace SessyWeb.Pages
 {
@@ -26,48 +27,33 @@ namespace SessyWeb.Pages
 
         int count { get; set; }
 
-
         public DateTime? DateChosen { get; set; }
 
-        public enum PeriodsEnums
-        {
-            Day,
-            Week,
-            Month,
-            Year,
-            All
-        };
-
-        List<PeriodsEnums> Periods = new List<PeriodsEnums>
-        {
-            PeriodsEnums.Day, PeriodsEnums.Week, PeriodsEnums.Month, PeriodsEnums.Year, PeriodsEnums.All };
-
         public PeriodsEnums PeriodChosen { get; set; } = PeriodsEnums.Day;
+
 
         protected override async Task OnAfterRenderAsync(bool firstRender)
         {
             if (firstRender)
             {
                 DateChosen = _timeZoneService!.Now.Date;
-                PeriodChosen = PeriodsEnums.Day;
 
                 await financialResultsGrid!.FirstPage();
             }
         }
 
-        public void DateChanged(DateTime? date)
+        public async Task PeriodChosenChanged(PeriodsEnums period)
         {
-            SelectionChanged();
+            PeriodChosen = period;
+
+            await financialResultsGrid!.Reload();
         }
 
-        public void PeriodChanged(object obj)
+        public async Task DateChosenChanged(DateTime date)
         {
-            SelectionChanged();
-        }
+            DateChosen = date;
 
-        private void SelectionChanged()
-        {
-            financialResultsGrid!.Reload();
+            await financialResultsGrid!.Reload();
         }
 
         public decimal GetMonthlyTotalCost(FinancialMonthResult monthResult)
