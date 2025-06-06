@@ -203,7 +203,6 @@ namespace SessyController.Services.Items
             HourlyInfo? previousHour = null;
 
             foreach (var hourlyInfo in _hourlyInfos
-                // .Where(hp => hp.Time.Date.AddHours(hp.Time.Hour) >= localTimeHour)
                 .OrderBy(hi => hi.Time))
             {
                 switch (hourlyInfo.Mode)
