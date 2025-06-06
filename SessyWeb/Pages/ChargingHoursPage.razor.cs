@@ -1,11 +1,8 @@
 ﻿using Microsoft.AspNetCore.Components;
 using Radzen;
-using Radzen.Blazor;
 using SessyCommon.Extensions;
 using SessyController.Services;
 using SessyController.Services.Items;
-using SessyWeb.Services;
-using static SessyController.Services.Sessy;
 
 namespace SessyWeb.Pages
 {
@@ -102,7 +99,7 @@ namespace SessyWeb.Pages
 
                 BatteryWithStatusList = newStatuses;
 
-                await InvokeAsync(StateHasChanged);
+               await InvokeAsync(StateHasChanged);
 
                 await Task.Delay(5000);
             }
@@ -230,6 +227,8 @@ namespace SessyWeb.Pages
             var width = HourlyInfos?.Count * 3 * 13;
 
             GraphStyle = $"min-height: {height}px; width: {width}px; visibility: initial;";
+
+            StateHasChanged();
         }
 
         /// <summary>

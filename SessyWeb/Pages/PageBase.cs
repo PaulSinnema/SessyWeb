@@ -14,6 +14,9 @@ namespace SessyWeb.Pages
         [CascadingParameter]
         public bool IsMobile { get; set; }
 
+        [CascadingParameter]
+        public bool IsLandscape { get; set; }
+
         public bool IsComponentActive { get; internal set; } = false;
 
         protected override void OnInitialized()

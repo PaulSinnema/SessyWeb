@@ -1,8 +1,6 @@
 ﻿using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Mvc;
 using Radzen;
 using SessyWeb.Services;
-using System.Data;
 
 namespace SessyWeb.Shared
 {
@@ -25,6 +23,8 @@ namespace SessyWeb.Shared
 
         public bool IsMobile { get; set; } = false;
 
+        public bool IsLandscape { get; set; } = false;
+
         protected override void OnInitialized()
         {
             MenuStyle = MenuStyleIcon;
@@ -36,14 +36,14 @@ namespace SessyWeb.Shared
         {
             if (firstRender)
             {
-                _screenSizeService!.OnScreenSizeChanged += _screenSizeService_OnScreenSizeChanged;
-
                 screenHeight = await _screenSizeService.GetScreenHeightAsync();
                 screenWidth = await _screenSizeService.GetScreenWidthAsync();
 
                 _screenSizeService_OnScreenSizeChanged(screenHeight, screenWidth);
-            }
 
+                _screenSizeService!.OnScreenSizeChanged += _screenSizeService_OnScreenSizeChanged;
+
+            }
 
             await base.OnAfterRenderAsync(firstRender);
         }
@@ -53,7 +53,8 @@ namespace SessyWeb.Shared
             screenWidth = width;
             screenHeight = height;
 
-            IsMobile = width < 933;
+            IsMobile = width <= 1000;
+            IsLandscape = width > height;
 
             StateHasChanged();
         }

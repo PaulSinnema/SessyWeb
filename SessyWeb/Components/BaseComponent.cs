@@ -1,5 +1,4 @@
 ﻿using Microsoft.AspNetCore.Components;
-using SessyController.Services;
 
 namespace SessyWeb.Components
 {
@@ -7,6 +6,9 @@ namespace SessyWeb.Components
     {
         [CascadingParameter]
         public bool IsMobile { get; set; }
+
+        [CascadingParameter]
+        public bool IsLandscape { get; set; }
 
         public IFormatProvider GetFormatProvider()
         {

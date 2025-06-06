@@ -1,0 +1,79 @@
+﻿@inherits BaseComponent
+<div style="width: 100%; overflow: auto;">
+    <RadzenChart Style=@GraphStyle>
+        <RadzenLegend Position="@(IsMobile? LegendPosition.Right: LegendPosition.Top)" Visible="true" />
+        <RadzenChartTooltipOptions Shared="false" Visible="true" />
+        <RadzenColumnSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Price" LineType="LineType.Dashed" ValueProperty="BuyingPrice">
+            <TooltipTemplate Context="data">
+                <ChargingHoursTooltip HourlyInfo=@data />
+            </TooltipTemplate>
+            <ChildContent>
+                <RadzenMarkers Visible="false" />
+                <RadzenSeriesDataLabels Visible="true" />
+            </ChildContent>
+        </RadzenColumnSeries>
+        <RadzenLineSeries Data="@HourlyInfos" Smooth="true" CategoryProperty="Time" Title="Smoothed price" LineType="LineType.Dotted" ValueProperty="SmoothedPrice">
+            <TooltipTemplate Context="data">
+                <ChargingHoursTooltip HourlyInfo=@data />
+            </TooltipTemplate>
+            <ChildContent>
+                <RadzenMarkers Visible="false" />
+                <RadzenSeriesDataLabels Visible="false" />
+            </ChildContent>
+        </RadzenLineSeries>
+        <RadzenLineSeries Data="@HourlyInfos" Smooth="true" CategoryProperty="Time" Title="Charging mode" ValueProperty="VisualizeInChart">
+            <TooltipTemplate Context="data">
+                <ChargingHoursTooltip HourlyInfo=@data />
+            </TooltipTemplate>
+            <ChildContent>
+                <RadzenMarkers Visible="false" />
+                <RadzenSeriesDataLabels Visible="false" />
+            </ChildContent>
+        </RadzenLineSeries>
+        <RadzenColumnSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Revenue" ValueProperty="ProfitVisual">
+            <TooltipTemplate Context="data">
+                <ChargingHoursTooltip HourlyInfo=@data />
+            </TooltipTemplate>
+            <ChildContent>
+                <RadzenMarkers Visible="false" />
+                <RadzenSeriesDataLabels Visible="false" />
+            </ChildContent>
+        </RadzenColumnSeries>
+        <RadzenLineSeries Data="@HourlyInfos" Smooth="true" CategoryProperty="Time" Title="Charge remaining" ValueProperty="ChargeLeftVisual">
+            <TooltipTemplate Context="data">
+                <ChargingHoursTooltip HourlyInfo=@data />
+            </TooltipTemplate>
+            <ChildContent>
+                <RadzenMarkers Visible="false" />
+                <RadzenSeriesDataLabels Visible="false" />
+            </ChildContent>
+        </RadzenLineSeries>
+        <RadzenLineSeries Data="@HourlyInfos" Smooth="true" CategoryProperty="Time" Title="Solar power" LineType="LineType.Dashed" ValueProperty="SolarPowerVisual">
+            <TooltipTemplate Context="data">
+                <ChargingHoursTooltip HourlyInfo=@data />
+            </TooltipTemplate>
+            <ChildContent>
+                <RadzenMarkers Visible="false" />
+                <RadzenSeriesDataLabels Visible="false" />
+            </ChildContent>
+        </RadzenLineSeries>
+        <RadzenLineSeries Data="@HourlyInfos" Smooth="true" CategoryProperty="Time" Title="Charge needed" LineType="LineType.Dashed" ValueProperty="ChargeNeededVisual">
+            <TooltipTemplate Context="data">
+                <ChargingHoursTooltip HourlyInfo=@data />
+            </TooltipTemplate>
+            <ChildContent>
+                <RadzenMarkers Visible="false" />
+                <RadzenSeriesDataLabels Visible="false" />
+            </ChildContent>
+        </RadzenLineSeries>
+        <RadzenCategoryAxis Padding="40" Formatter="@FormatAsDayHour" TickDistance="75">
+            <RadzenGridLines Visible="true" />
+            <RadzenAxisTitle Text="Time" />
+        </RadzenCategoryAxis>
+        <RadzenValueAxis Formatter="@FormatAsPrice">
+            <RadzenGridLines Visible="true" />
+            <RadzenAxisTitle Text="Price" />
+        </RadzenValueAxis>
+        <RadzenBarOptions Radius="5" />
+    </RadzenChart>
+</div>

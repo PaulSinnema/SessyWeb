@@ -1,6 +1,6 @@
 ﻿@inherits BaseComponent
 
-<RadzenStack Orientation="Orientation.Vertical" AlignItems="@(IsMobile? AlignItems.Normal: AlignItems.End)" Style="width:100%; padding-right: 10px;">
+<RadzenStack Orientation="Orientation.Vertical" AlignItems="AlignItems.End" Style="width:100%; padding-right: 10px;">
     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="@(IsMobile? AlignItems.Start: AlignItems.End)" Style="height: 100%;">
         <RadzenText TextStyle="TextStyle.DisplayH5" Class="clock-style" Text="@CurrentTime" />
     </RadzenStack>
