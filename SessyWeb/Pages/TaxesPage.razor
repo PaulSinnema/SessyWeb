@@ -54,6 +54,21 @@
                 <RadzenNumeric @bind-Value="fr.ReturnDeliveryCompensation" Style="width:100%" />
             </EditTemplate>
         </RadzenDataGridColumn>
+        <RadzenDataGridColumn Property="@nameof(Taxes.NetManagementCost)" Title="Net management cost">
+            <EditTemplate Context="fr">
+                <RadzenNumeric @bind-Value="fr.NetManagementCost" Style="width:100%" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn Property="@nameof(Taxes.FixedTransportFee)" Title="Fixed transport fee">
+            <EditTemplate Context="fr">
+                <RadzenNumeric @bind-Value="fr.FixedTransportFee" Style="width:100%" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn Property="@nameof(Taxes.CapacityTransportFee)" Title="Capacity transport fee">
+            <EditTemplate Context="fr">
+                <RadzenNumeric @bind-Value="fr.CapacityTransportFee" Style="width:100%" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
         <RadzenDataGridColumn Context="order" Filterable="false" Sortable="false" TextAlign="TextAlign.Right" Frozen="true" FrozenPosition="FrozenColumnPosition.Right">
             <Template Context="fr">
                 <RadzenButton Icon="add_circle"
