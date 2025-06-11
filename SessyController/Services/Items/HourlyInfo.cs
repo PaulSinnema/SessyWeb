@@ -7,21 +7,24 @@ namespace SessyController.Services.Items
     public class HourlyInfo
     {
         public HourlyInfo(DateTime time,
-                          double? buyPrice,
-                          double? sellPrice,
+                          double marketPrice,
                           SettingsConfig settingsConfig,
                           BatteryContainer batteryContainer,
                           SolarEdgeService solarEdgeService,
-                          TimeZoneService timeZoneService)
+                          TimeZoneService timeZoneService,
+                          CalculationService calculationService)
         {
             Time = time;
-            BuyingPrice = buyPrice.HasValue ? buyPrice.Value : 0.0;
-            SellingPrice = sellPrice.HasValue ? sellPrice.Value : 0.0;
 
             _settingsConfig = settingsConfig;
             _batteryContainer = batteryContainer;
             _solarEdgeService = solarEdgeService;
             _timeZoneService = timeZoneService;
+            _calculationService = calculationService;
+
+            MarketPrice = marketPrice;
+            BuyingPrice = _calculationService.CalculateEnergyPrice(time, true) ?? 0.0;
+            SellingPrice = _calculationService.CalculateEnergyPrice(time, false) ?? 0.0;
 
             TotalCapacity = _batteryContainer.GetTotalCapacity();
 
@@ -37,12 +40,16 @@ namespace SessyController.Services.Items
 
         private TimeZoneService _timeZoneService { get; set; }
 
+        private CalculationService _calculationService { get; set; }
+
         /// <summary>
         /// Price from ENTSO-E
         /// </summary>
-        public double BuyingPrice { get; set; }
+        public double MarketPrice { get; private set; }
 
-        public double SellingPrice { get; set; }
+        public double BuyingPrice { get; private set; }
+
+        public double SellingPrice { get; private set; }
 
         public double SmoothedPrice { get; private set; }
         public double SmoothedSolarPower { get; set; }

@@ -3,9 +3,9 @@ using SessyData.Model;
 
 namespace SessyData.Services
 {
-    public class TaxesService : ServiceBase<Taxes>
+    public class TaxesDataService : ServiceBase<Taxes>
     {
-        public TaxesService(IServiceScopeFactory serviceScopeFactory) : base(serviceScopeFactory) { }
+        public TaxesDataService(IServiceScopeFactory serviceScopeFactory) : base(serviceScopeFactory) { }
 
         /// <summary>
         /// Get the active Tax record for a date. Returns null if no record is found.

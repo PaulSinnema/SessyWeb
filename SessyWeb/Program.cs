@@ -15,11 +15,11 @@ using SessyWeb.Services;
 
 AppDomain.CurrentDomain.UnhandledException += (sender, eventArgs) =>
 {
-    var senderType = sender.GetType();
+    var senderType = sender?.GetType() ?? null;
     var ex = (Exception)eventArgs.ExceptionObject;
 
     Console.WriteLine($"🚨 Critical unhandled exception occurred: {ex.ToDetailedString()}");
-    Console.WriteLine($"Sender is: {senderType.FullName} IsTerminating: {eventArgs.IsTerminating}");
+    Console.WriteLine($"Sender is: {senderType?.FullName} IsTerminating: {eventArgs.IsTerminating}");
 };
 
 var builder = WebApplication.CreateBuilder(args);
@@ -84,12 +84,12 @@ builder.Services.AddScoped<SolarService>();
 builder.Services.AddScoped<TcpClientProvider>();
 builder.Services.AddScoped<SessyStatusHistoryService>();
 builder.Services.AddScoped<ScreenSizeService>();
-builder.Services.AddScoped<EnergyHistoryService>();
 builder.Services.AddScoped<DbHelper>();
 builder.Services.AddScoped<PowerEstimatesService>();
 builder.Services.AddScoped<FinancialResultsService>();
 builder.Services.AddScoped<SolarEdgeDataService>();
 
+builder.Services.AddSingleton<EnergyHistoryService>();
 builder.Services.AddSingleton<SolarEdgeService>();
 builder.Services.AddSingleton<P1MeterService>();
 builder.Services.AddSingleton<BatteryContainer>();
@@ -102,7 +102,8 @@ builder.Services.AddSingleton<EnergyMonitorService>();
 builder.Services.AddSingleton<SolarDataService>();
 builder.Services.AddSingleton<EPEXPricesDataService>();
 builder.Services.AddSingleton<SessyWebControlDataService>();
-builder.Services.AddSingleton<TaxesService>();
+builder.Services.AddSingleton<TaxesDataService>();
+builder.Services.AddSingleton<CalculationService>();
 
 builder.Services.AddHostedService(provider => provider.GetRequiredService<DayAheadMarketService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<BatteriesService>());

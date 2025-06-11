@@ -45,9 +45,12 @@ namespace SessyController.Services
         private IOptionsMonitor<SettingsConfig> _settingsConfigMonitor { get; set; }
 
         private IHttpClientFactory _httpClientFactory { get; set; }
+
+        private CalculationService _calculationService { get; set; }
+
         private IServiceScope _scope { get; set; }
 
-        private TaxesService _taxesService { get; set; }
+        private TaxesDataService _taxesService { get; set; }
         private SolarEdgeService _solarEdgeService { get; set; }
 
         private SettingsConfig _settingsConfig { get; set; }
@@ -63,8 +66,9 @@ namespace SessyController.Services
                                     BatteryContainer batteryContainer,
                                     EPEXPricesDataService epexPricesDataService,
                                     IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
-                                    TaxesService taxesService,
+                                    TaxesDataService taxesService,
                                     SolarEdgeService solarEdgeService,
+                                    CalculationService calculationService,
                                     IHttpClientFactory httpClientFactory,
                                     IServiceScopeFactory serviceScopeFactory)
         {
@@ -79,6 +83,7 @@ namespace SessyController.Services
             _solarEdgeService = solarEdgeService;
             _settingsConfigMonitor = settingsConfigMonitor;
             _httpClientFactory = httpClientFactory;
+            _calculationService = calculationService;
 
             _scope = serviceScopeFactory.CreateScope();
 
@@ -294,7 +299,13 @@ namespace SessyController.Services
                 if (data != null)
                 {
                     hourlyInfos = data.OrderBy(ep => ep.Time)
-                        .Select(ep => new HourlyInfo(ep.Time, GetBuyingPrice(ep), GetSellingPrice(ep), _settingsConfig, _batteryContainer, _solarEdgeService, _timeZoneService))
+                        .Select(ep => new HourlyInfo(ep.Time, 
+                                                     ep!.Price!.Value,
+                                                     _settingsConfig,
+                                                     _batteryContainer,
+                                                     _solarEdgeService,
+                                                     _timeZoneService,
+                                                     _calculationService))
                         .ToList();
 
                     return hourlyInfos;
@@ -411,30 +422,6 @@ namespace SessyController.Services
             _logger.LogError("Unable to create HttpClient");
 
             return new ConcurrentDictionary<DateTime, double>();
-        }
-
-        /// <summary>
-        /// Get tye buying price for energy.
-        /// </summary>
-        public double GetBuyingPrice(EPEXPrices epexPrices)
-        {
-            return GetPrice(epexPrices, _taxes.PurchaseCompensation);
-        }
-
-        /// <summary>
-        /// Get the selling price for energy.
-        /// </summary>
-        public double GetSellingPrice(EPEXPrices epexPrices)
-        {
-            return GetPrice(epexPrices, _taxes.ReturnDeliveryCompensation);
-        }
-
-        /// <summary>
-        /// Calculate the price including compensation, energy tax and value added tax.
-        /// </summary>
-        private double GetPrice(EPEXPrices epexPrices, double compensation)
-        {
-            return ((epexPrices.Price!.Value + _taxes.EnergyTax + compensation) * (100 + _taxes.ValueAddedTax)) / 100;
         }
 
         /// <summary>

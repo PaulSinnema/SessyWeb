@@ -36,8 +36,8 @@ namespace SessyWeb.Shared
         {
             if (firstRender)
             {
-                screenHeight = await _screenSizeService.GetScreenHeightAsync();
-                screenWidth = await _screenSizeService.GetScreenWidthAsync();
+                screenHeight = await _screenSizeService!.GetScreenHeightAsync();
+                screenWidth = await _screenSizeService!.GetScreenWidthAsync();
 
                 _screenSizeService_OnScreenSizeChanged(screenHeight, screenWidth);
 

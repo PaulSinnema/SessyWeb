@@ -1,61 +1,88 @@
 ﻿@inherits BaseComponent
 
 @{
-    var style = "padding: 0px; margin: 0px;";
-    var fixedWidthStyle = $"{style} width: 150px;";
+    var style = "padding: 0px; margin: 0px; height: 20px;";
+    var fixedWidthStyle = $"{style} width: 150px; height: 25px;";
     var state = $"   {HourlyInfo?.DisplayState}";
-    var wrap = FlexWrap.NoWrap;
-
-    if (!IsMobile)
-    {
-        wrap = FlexWrap.Wrap;
-    }
 }
 
-<RadzenCard Style=@style>
-    <RadzenStack Orientation="Orientation.Horizontal" Wrap=@wrap>
-        <RadzenCard Style=@style>
-            <RadzenFormField Text="Date and time" Style=@style>
-                <RadzenDatePicker Value=@HourlyInfo?.Time ShowButton="false" disabled TValue="DateTime" Style=@fixedWidthStyle />
-            </RadzenFormField>
-        </RadzenCard>
-        <RadzenCard Style=@style>
-            <RadzenFormField Text="Price" Style=@style>
-                <RadzenNumeric Format="0.0000" ShowUpDown="false" Value=@HourlyInfo?.BuyingPrice disabled Style=@fixedWidthStyle />
-            </RadzenFormField>
-        </RadzenCard>
-        <RadzenCard Style=@style>
-            <RadzenFormField Text="State" Style=@style>
-                <RadzenTextBox Value=@state disabled Style=@fixedWidthStyle />
-            </RadzenFormField>
-        </RadzenCard>
-        <RadzenCard Style=@style>
-            <RadzenFormField Text="Profit" Style=@style>
-                <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.Profit disabled Style=@fixedWidthStyle />
-            </RadzenFormField>
-        </RadzenCard>
-    </RadzenStack>
+    <RadzenRow>
+        <RadzenColumn Size="8">
+            <RadzenTextBox Value="Date and time" disabled Style=@fixedWidthStyle />
+        </RadzenColumn>
+        <RadzenColumn Size="2">
+            <RadzenDatePicker Value=@HourlyInfo?.Time ShowButton="false" disabled TValue="DateTime" Style=@fixedWidthStyle />
+        </RadzenColumn>
+    </RadzenRow>
 
-    <RadzenStack Orientation="Orientation.Horizontal" Wrap=@wrap>
-        <RadzenCard Style=@style>
-            <RadzenFormField Text="Charge remaining" Style=@style>
-                <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.ChargeLeftPercentage disabled Style=@fixedWidthStyle />
-            </RadzenFormField>
-        </RadzenCard>
-        <RadzenCard Style=@style>
-            <RadzenFormField Text="Solar power" Style=@style>
-                <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.SolarPower disabled Style=@fixedWidthStyle />
-            </RadzenFormField>
-        </RadzenCard>
-        <RadzenCard Style=@style>
-            <RadzenFormField Text="Global radiation" Style=@style>
-                <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.SolarGlobalRadiation disabled Style=@fixedWidthStyle />
-            </RadzenFormField>
-        </RadzenCard>
-        <RadzenCard Style=@style>
-            <RadzenFormField Text="Charge needed" Style=@style>
-                <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.ChargeNeeded disabled Style=@fixedWidthStyle />
-            </RadzenFormField>
-        </RadzenCard>
-    </RadzenStack>
-</RadzenCard>
+    <RadzenRow>
+        <RadzenColumn Size="8">
+            <RadzenTextBox Value="Price" disabled Style=@fixedWidthStyle />
+        </RadzenColumn>
+        <RadzenColumn Size="2">
+            <RadzenNumeric Format="0.0000" ShowUpDown="false" Value=@HourlyInfo?.BuyingPrice disabled Style=@fixedWidthStyle />
+        </RadzenColumn>
+    </RadzenRow>
+
+    <RadzenRow>
+        <RadzenColumn Size="8">
+            <RadzenTextBox Value="Charge remaining" disabled Style=@fixedWidthStyle />
+        </RadzenColumn>
+        <RadzenColumn Size="2">
+            <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.ChargeLeftPercentage disabled Style=@fixedWidthStyle />
+        </RadzenColumn>
+    </RadzenRow>
+
+    <RadzenRow>
+        <RadzenColumn Size="8">
+            <RadzenTextBox Value="State" disabled Style=@fixedWidthStyle />
+        </RadzenColumn>
+        <RadzenColumn Size="2">
+            <RadzenTextBox Value=@state disabled Style=@fixedWidthStyle />
+        </RadzenColumn>
+    </RadzenRow>
+
+    <RadzenRow>
+        <RadzenColumn Size="8">
+            <RadzenTextBox Value="Revenue" disabled Style=@fixedWidthStyle />
+        </RadzenColumn>
+        <RadzenColumn Size="2">
+            <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.Profit disabled Style=@fixedWidthStyle />
+        </RadzenColumn>
+    </RadzenRow>
+
+    <RadzenRow>
+        <RadzenColumn Size="8">
+            <RadzenTextBox Value="Charge remaining" disabled Style=@fixedWidthStyle />
+        </RadzenColumn>
+        <RadzenColumn Size="2">
+            <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.ChargeLeftPercentage disabled Style=@fixedWidthStyle />
+        </RadzenColumn>
+    </RadzenRow>
+
+    <RadzenRow>
+        <RadzenColumn Size="8">
+            <RadzenTextBox Value="Solar power" disabled Style=@fixedWidthStyle />
+        </RadzenColumn>
+        <RadzenColumn Size="2">
+            <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.SolarPower disabled Style=@fixedWidthStyle />
+        </RadzenColumn>
+    </RadzenRow>
+
+    <RadzenRow>
+        <RadzenColumn Size="8">
+            <RadzenTextBox Value="Global radiation" disabled Style=@fixedWidthStyle />
+        </RadzenColumn>
+        <RadzenColumn Size="2">
+            <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.SolarGlobalRadiation disabled Style=@fixedWidthStyle />
+        </RadzenColumn>
+    </RadzenRow>
+
+    <RadzenRow>
+        <RadzenColumn Size="8">
+            <RadzenTextBox Value="Charge needed" disabled Style=@fixedWidthStyle />
+        </RadzenColumn>
+        <RadzenColumn Size="2">
+            <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.ChargeNeeded disabled Style=@fixedWidthStyle />
+        </RadzenColumn>
+    </RadzenRow>

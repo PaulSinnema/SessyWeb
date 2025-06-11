@@ -167,7 +167,7 @@ namespace SessyController.Services
                 ProducedTariff2 = p1Details.PowerProducedTariff2,
                 TarrifIndicator = p1Details.TariffIndicator,
                 Temperature = hourExpectancy?.Temp ?? -999, // In case no weather data is present we store a large negative temperature.
-                GlobalRadiation = hourExpectancy.GlobalRadiation,
+                GlobalRadiation = hourExpectancy?.GlobalRadiation ?? -999,
                 Price = hourlyInfo != null ? hourlyInfo.BuyingPrice : 0.0
             });
 

@@ -15,7 +15,7 @@ namespace SessyWeb.Pages
         TimeZoneService? _timezoneService { get; set; }
 
         [Inject]
-        private TaxesService? _taxesService { get; set; }
+        private TaxesDataService? _taxesService { get; set; }
 
         private List<Taxes>? TaxesList { get; set; } = new();
 
