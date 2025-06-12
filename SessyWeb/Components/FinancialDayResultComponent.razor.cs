@@ -16,6 +16,9 @@ namespace SessyWeb.Components
 
         RadzenDataGrid<FinancialResult>? financialResultsGrid { get; set; }
 
+        [Parameter]
+        public bool ExpandAllGroups { get; set; }
+
         protected override async Task OnAfterRenderAsync(bool firstRender)
         {
             if (firstRender)

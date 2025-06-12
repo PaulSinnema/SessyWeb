@@ -25,9 +25,13 @@ namespace SessyWeb.Pages
 
         RadzenDataGrid<FinancialMonthResult>? financialResultsGrid { get; set; }
 
-        int count { get; set; }
+        int Count { get; set; }
+
+        public decimal TotalCost { get; set; } = 0;
 
         public DateTime? DateChosen { get; set; }
+
+        public bool ExpandAllGroups { get; set; } = true;
 
         public PeriodsEnums PeriodChosen { get; set; } = PeriodsEnums.Day;
 
@@ -61,13 +65,20 @@ namespace SessyWeb.Pages
             return monthResult.FinancialResultsList!.Sum(fr => fr.Cost);
         }
 
+        public decimal GetTotalCost(List<FinancialMonthResult> list)
+        {
+            if(list != null)
+                return list.Sum(fr => fr.TotalCost);
+
+            return 0;
+        }
+
         public void OnRender(DataGridRenderEventArgs<FinancialMonthResult> args)
         {
             if (args.FirstRender)
             {
                 _energyMonitorService!.DataChanged += EnergyMonitorServiceDataChanged;
                 args.Grid.Groups.Add(new GroupDescriptor() { Property = nameof(FinancialResult.YearMonth), Title = "Time" });
-                StateHasChanged();
             }
         }
 
@@ -76,7 +87,6 @@ namespace SessyWeb.Pages
             await InvokeAsync(async () =>
             {
                 await financialResultsGrid!.Reload();
-                StateHasChanged();
             });
         }
 
@@ -87,6 +97,8 @@ namespace SessyWeb.Pages
             var chosen = DateChosen!.Value.DateFloorQuarter();
             DateTime start;
             DateTime end;
+
+            ExpandAllGroups = true;
 
             switch (PeriodChosen)
             {
@@ -108,11 +120,13 @@ namespace SessyWeb.Pages
                 case PeriodsEnums.Year:
                     start = new DateTime(chosen.Year, 1, 1);
                     end = new DateTime(chosen.Year, 12, 31);
+                    ExpandAllGroups = false;
                     break;
 
                 case PeriodsEnums.All:
                     start = DateTime.MinValue;
                     end = DateTime.MaxValue;
+                    ExpandAllGroups = false;
                     break;
 
                 default:
@@ -133,9 +147,12 @@ namespace SessyWeb.Pages
                 query = query.OrderBy(args.OrderBy);
             }
 
-            count = query.Count();
+            TotalCost = query.Sum(fr => fr.TotalCost);
+            Count = query.Count();
 
             FinancialMonthResultsList = query.Skip(args.Skip!.Value).Take(args.Top!.Value).ToList();
+
+            StateHasChanged();
         }
     }
 }

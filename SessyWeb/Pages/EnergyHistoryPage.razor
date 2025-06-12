@@ -28,11 +28,6 @@
         <RadzenDataGridColumn Property="@nameof(EnergyHistory.ProducedTariff2)" Title="Produced tariff 2" />
         <RadzenDataGridColumn Property="@nameof(EnergyHistory.TarrifIndicator)" Title="Tariff indicator" />
         <RadzenDataGridColumn Property="@nameof(EnergyHistory.Temperature)" Title="Temperature" />
-        <RadzenDataGridColumn Property="@nameof(EnergyHistory.Price)" Title="Price">
-            <EditTemplate Context="fr">
-                <RadzenNumeric @bind-Value="fr.Price" Style="width:100%" InputAttributes="@(new Dictionary<string, object>() { { "aria-label", "Select freight" } })" />
-            </EditTemplate>
-        </RadzenDataGridColumn>
         <RadzenDataGridColumn Property="@nameof(EnergyHistory.GlobalRadiation)" Title="Global radiation" />
         <RadzenDataGridColumn Context="order" Filterable="false" Sortable="false" TextAlign="TextAlign.Right" Frozen="true" FrozenPosition="FrozenColumnPosition.Right">
             <Template Context="fr">

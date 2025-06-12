@@ -4,18 +4,19 @@
 @inherits BaseComponent
 
 <RadzenDataGrid @ref=@financialResultsGrid
-                Data="@FinancialResultsList"
+                Data=@FinancialResultsList
+                Count=@FinancialResultsList!.Count
                 Context="data"
                 AllowSorting="true"
                 AllowFiltering="true"
                 AllowPaging="true"
                 AllowGrouping="false"
-                PageSize="288"
+                PageSize="100"
                 ShowPagingSummary="true"
                 GroupFootersAlwaysVisible="true"
                 Render="@OnRender"
                 Density="Density.Compact"
-                AllGroupsExpanded="false"
+                AllGroupsExpanded=@ExpandAllGroups
                 PagerHorizontalAlign="HorizontalAlign.Center">
     <Columns>
         <RadzenDataGridColumn Property="@nameof(FinancialResult.YearMonth)" Title="Time"/>

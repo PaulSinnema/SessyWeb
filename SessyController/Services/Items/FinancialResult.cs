@@ -26,6 +26,7 @@
         public int Month { get; set; }
         public string YearMonth => $"{Year}/{Month}";
         public List<FinancialResult>? FinancialResultsList { get; set; } = new();
+        public decimal TotalCost => FinancialResultsList!.Sum(fr => fr.Cost);
 
         public override string ToString()
         {

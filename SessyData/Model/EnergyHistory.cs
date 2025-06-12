@@ -16,7 +16,6 @@ namespace SessyData.Model
         public double ProducedTariff2 { get; set; }
         public int TarrifIndicator { get; set; }
         public double Temperature { get; set; }
-        public double Price { get; set; }
         public double GlobalRadiation { get; set; }
 
         public void Update(EnergyHistory updateInfo)
@@ -29,7 +28,6 @@ namespace SessyData.Model
             ProducedTariff2 = updateInfo.ProducedTariff2;
             TarrifIndicator = updateInfo.TarrifIndicator;
             Temperature = updateInfo.Temperature;
-            Price = updateInfo.Price;
             GlobalRadiation = updateInfo.GlobalRadiation;
         }
 
