@@ -20,9 +20,9 @@ namespace SessyController.Services
 
         public List<FinancialMonthResult> GetFinancialMonthResults(DateTime start, DateTime end)
         {
-            var histories = _energyHistoryService.GetList((set) =>
+            var histories = _energyHistoryService.GetList((hist) =>
             {
-                return set
+                return hist
                     .Where(eh => eh.Time >= start && eh.Time <= end)
                     .OrderBy(eh => eh.Time)
                     .ToList();
@@ -47,14 +47,15 @@ namespace SessyController.Services
                     var gridPower = new GridPower(history, lastHistory);
 
                     var netUsage = gridPower.TotalInversed;
-                    var price = GetTaxedPrice(lastHistory, gridPower);
-                    var cost = (decimal)netUsage * price / 1000;
+
+                    var price = _calculationService.CalculateEnergyPrice(history.Time, gridPower.IsConsumer);
+                    var cost = (decimal)(netUsage * (price ?? 0.0) / 1000);
 
                     monthResult.FinancialResultsList.Add(new FinancialResult
                     {
                         Consumed = gridPower.TotalConsumed,
                         Produced = gridPower.TotalProduced,
-                        Price = price,
+                        Price = (decimal)(price ?? 0.0),
                         Time = lastHistory.Time,
                         Cost = cost
                     });

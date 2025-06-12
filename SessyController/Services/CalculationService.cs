@@ -18,29 +18,28 @@ namespace SessyController.Services
             _energyHistoryService = energyHistoryService;
         }
 
+        private static Taxes? _taxes { get; set; } = null;
+        private static EPEXPrices? _epexPrice {get; set;} = null;
+
         /// <summary>
         /// Calculate the price including overhead cost.
         /// Returns null if prices, taxes or overhead cost are missing.
         /// </summary>
-        public double? CalculateEnergyPrice(DateTime date, bool buying)
+        public double? CalculateEnergyPrice(DateTime time, bool buying)
         {
-            var epexPriceRecord = _epexPricesDataService.Get((set) => set.FirstOrDefault(ep => ep.Time == date));
-            var taxRecord = _taxesDataService.GetTaxesForDate(date);
+            if(_epexPrice == null || _epexPrice.Time != time)
+                _epexPrice = _epexPricesDataService.Get((set) => set.FirstOrDefault(ep => ep.Time == time));
 
-            if (epexPriceRecord != null && taxRecord != null && epexPriceRecord.Price.HasValue)
+            if(_taxes == null || _taxes.Time != time)
+                _taxes = _taxesDataService.GetTaxesForDate(time);
+
+            if (_epexPrice != null && _taxes != null && _epexPrice.Price.HasValue)
             {
-                var compensation = buying ? taxRecord.PurchaseCompensation : taxRecord.ReturnDeliveryCompensation;
-                var valueAddedTaxFactor = taxRecord.ValueAddedTax / 100 + 1;
-                var overheadCost = GetOverheadCost(date, taxRecord);
+                var compensation = buying ? _taxes.PurchaseCompensation : _taxes.ReturnDeliveryCompensation;
+                var valueAddedTaxFactor = _taxes.ValueAddedTax / 100 + 1;
+                var overheadCost = GetOverheadCost(time, _taxes) ?? 0.0;
 
-                if (overheadCost != null)
-                {
-                    return (epexPriceRecord.Price.Value +
-                        overheadCost +
-                        taxRecord.EnergyTax +
-                        compensation) *
-                        valueAddedTaxFactor;
-                }
+                return (_epexPrice.Price + overheadCost + _taxes.EnergyTax + compensation) * valueAddedTaxFactor;
             }
 
             return null;
