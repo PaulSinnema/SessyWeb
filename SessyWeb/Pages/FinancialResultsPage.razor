@@ -8,38 +8,47 @@
 
 <a>Financial results</a>
 
-<RadzenDataGrid @ref=financialResultsGrid
-                Data=@FinancialMonthResultsList
-                Count=@Count
-                Context="monthData"
-                Render="@OnRender"
-                LoadData="@LoadData"
-                Responsive="true"
-                AllowPaging="true"
-                AllowGrouping="false"
-                PageSize="3"
-                ShowPagingSummary="true"
-                GroupFootersAlwaysVisible="true"
-                AllGroupsExpanded=@ExpandAllGroups>
-    <Columns>
-        <RadzenDataGridColumn Property="@nameof(FinancialMonthResult.YearMonth)" Title="YearMonth" Width="100px" Visible=false />
-        <RadzenDataGridColumn TItem="FinancialMonthResult" Title="Day" Context="MonthResult">
-            <HeaderTemplate>
-                <DateChooserComponent DateChosenChanged="@((DateTime d) => DateChosenChanged(d))"
-                                      PeriodChosenChanged="@((PeriodsEnums p) => PeriodChosenChanged(p))" />
-            </HeaderTemplate>
-            <Template>
-                <FinancialDayResultComponent FinancialResultsList="@MonthResult.FinancialResultsList" ExpandAllGroups=@ExpandAllGroups/>
-            </Template>
-            <GroupFooterTemplate>
-                <b> @String.Format(GetFormatProvider(), "Total monthly cost: {0:C}", GetMonthlyTotalCost(@MonthResult.Data.Items.AsQueryable().FirstOrDefault()))</b>
-            </GroupFooterTemplate>
-        </RadzenDataGridColumn>
-    </Columns>
-</RadzenDataGrid>
+<RadzenLayout>
+    <RadzenHeader>
+        <RadzenCard>
+            <DateChooserComponent DateChosenChanged="@((DateTime d) => DateChosenChanged(d))"
+                                  PeriodChosenChanged="@((PeriodsEnums p) => PeriodChosenChanged(p))" />
+        </RadzenCard>
+    </RadzenHeader>
 
-<RadzenCard>
-    <RadzenText>
-        <b> @String.Format(GetFormatProvider(), "Total cost: {0:C}", TotalCost))</b>
-    </RadzenText>
-</RadzenCard>
+    <RadzenBody>
+        <RadzenDataGrid @ref=financialResultsGrid
+                        Data=@FinancialMonthResultsList
+                        Count=@Count
+                        Context="monthData"
+                        Render="@OnRender"
+                        LoadData="@LoadData"
+                        Responsive="true"
+                        AllowPaging="true"
+                        AllowGrouping="false"
+                        PageSize="3"
+                        ShowPagingSummary="true"
+                        GroupFootersAlwaysVisible="true"
+                        AllGroupsExpanded=@ExpandAllGroups>
+            <Columns>
+                <RadzenDataGridColumn Property="@nameof(FinancialMonthResult.YearMonth)" Title="YearMonth" Width="100px" Visible=false />
+                <RadzenDataGridColumn TItem="FinancialMonthResult" Title="Day" Context="MonthResult">
+                    <Template>
+                        <FinancialDayResultComponent FinancialResultsList="@MonthResult.FinancialResultsList" ExpandAllGroups=@ExpandAllGroups />
+                    </Template>
+                    <GroupFooterTemplate>
+                        <b> @String.Format(GetFormatProvider(), "Total monthly cost: {0:C}", GetMonthlyTotalCost(@MonthResult.Data.Items.AsQueryable().FirstOrDefault()))</b>
+                    </GroupFooterTemplate>
+                </RadzenDataGridColumn>
+            </Columns>
+        </RadzenDataGrid>
+    </RadzenBody>
+
+    <RadzenFooter>
+        <RadzenCard>
+            <RadzenText>
+                <b> @String.Format(GetFormatProvider(), "Total cost: {0:C}", TotalCost)</b>
+            </RadzenText>
+        </RadzenCard>
+    </RadzenFooter>
+</RadzenLayout>
