@@ -13,8 +13,8 @@ namespace SessyWeb.Shared
 
         public MenuItemDisplayStyle DisplayStyle { get; set; } = MenuItemDisplayStyle.Icon;
 
-        private const string MenuStyleIcon = "width: 100%; min-width: 50px;";
-        private const string MenuStyleIconAndText = "width: 100%; min-width: 200px;";
+        private const string MenuStyleIcon = "width: 100%; min-width: 50px; height: 100%;";
+        private const string MenuStyleIconAndText = "width: 100%; min-width: 200px; height: 100%;";
 
         private int screenWidth { get; set; }
         private int screenHeight { get; set; }

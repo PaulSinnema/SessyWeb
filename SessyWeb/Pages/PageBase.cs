@@ -4,7 +4,7 @@ using SessyWeb.Services;
 
 namespace SessyWeb.Pages
 {
-    public class PageBase : ComponentBase, IDisposable
+    public class PageBase : LayoutComponentBase, IDisposable
     {
         [Inject]
         public BatteryContainer? batteryContainer { get; set; }

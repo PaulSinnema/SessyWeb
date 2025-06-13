@@ -13,8 +13,8 @@
         <RadzenChartTooltip />
         <RadzenTheme Theme="@NewTheme" />
 
-        <RadzenLayout>
-            <RadzenHeader>
+        <RadzenLayout Style="height: 100vh;">
+            <RadzenHeader Style="height: 100%;">
                 <RadzenStack Orientation="Orientation.Horizontal"
                              AlignItems="AlignItems.Normal"
                              Gap="0">
@@ -89,7 +89,7 @@
                                      Icon="license" />
 
             </RadzenPanelMenu>
-            <RadzenBody>
+            <RadzenBody Style="height: 100%;">
                 @* <RadzenText>Width: @screenWidth height: @screenHeight</RadzenText> *@
                 <div class="rz-p-4">
                     @Body

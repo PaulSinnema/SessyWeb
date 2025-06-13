@@ -4,8 +4,6 @@ using SessyController.Configurations;
 using SessyController.Services.Items;
 using SessyData.Model;
 using SessyData.Services;
-using System.Globalization;
-using static SessyController.Services.WeatherService;
 
 namespace SessyController.Services
 {
@@ -30,18 +28,6 @@ namespace SessyController.Services
 
         private PowerSystemsConfig _powerSystemsConfig { get; set; }
         private TimeZoneService _timeZoneService { get; set; }
-
-        Dictionary<string, double> orientations = new Dictionary<string, double>
-            {
-                { "south", 180 },
-                { "east", 90 },
-                { "west", 270 },
-                { "north", 0 },
-                { "southwest", 225 },
-                { "southeast", 135 },
-                { "northeast", 45 },
-                { "northwest", 315 }
-            };
 
         public SolarService(IConfiguration configuration,
                             TimeZoneService timeZoneService,

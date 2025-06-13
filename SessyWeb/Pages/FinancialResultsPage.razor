@@ -6,47 +6,50 @@
 @using Radzen
 @using static SessyWeb.Components.DateChooserComponent
 
-<a>Financial results</a>
 
-<RadzenLayout>
-    <RadzenHeader>
-        <RadzenCard>
+<RadzenLayout Style="height: 80vh;">
+    <RadzenHeader Style="height: 100%;margin: 0px; padding: 0px;">
+        <RadzenStack Orientation=Orientation.Horizontal AlignItems="AlignItems.Center" Style="height:100%;margin: 0px; padding: 0px;">
+            <h4>Financial results</h4>
             <DateChooserComponent DateChosenChanged="@((DateTime d) => DateChosenChanged(d))"
                                   PeriodChosenChanged="@((PeriodsEnums p) => PeriodChosenChanged(p))" />
-        </RadzenCard>
+        </RadzenStack>
     </RadzenHeader>
 
-    <RadzenBody>
-        <RadzenDataGrid @ref=financialResultsGrid
-                        Data=@FinancialMonthResultsList
-                        Count=@Count
-                        Context="monthData"
-                        Render="@OnRender"
-                        LoadData="@LoadData"
-                        Responsive="true"
-                        AllowPaging="true"
-                        AllowGrouping="false"
-                        PageSize="3"
-                        ShowPagingSummary="true"
-                        GroupFootersAlwaysVisible="true"
-                        AllGroupsExpanded=@ExpandAllGroups>
-            <Columns>
-                <RadzenDataGridColumn Property="@nameof(FinancialMonthResult.YearMonth)" Title="YearMonth" Width="100px" Visible=false />
-                <RadzenDataGridColumn TItem="FinancialMonthResult" Title="Day" Context="MonthResult">
-                    <Template>
-                        <FinancialDayResultComponent FinancialResultsList="@MonthResult.FinancialResultsList" ExpandAllGroups=@ExpandAllGroups />
-                    </Template>
-                    <GroupFooterTemplate>
-                        <b> @String.Format(GetFormatProvider(), "Total monthly cost: {0:C}", GetMonthlyTotalCost(@MonthResult.Data.Items.AsQueryable().FirstOrDefault()))</b>
-                    </GroupFooterTemplate>
-                </RadzenDataGridColumn>
-            </Columns>
-        </RadzenDataGrid>
+    <RadzenBody Style="height: 100%;margin: 0px; padding: 0px;">
+        <RadzenContentContainer Style="height: 100%;margin: 0px; padding: 0px;">
+            <RadzenDataGrid @ref=financialResultsGrid
+                            Style="height: 100%;"
+                            Data=@FinancialMonthResultsList
+                            Count=@Count
+                            Context="monthData"
+                            Render="@OnRender"
+                            LoadData="@LoadData"
+                            Responsive="true"
+                            AllowPaging="true"
+                            AllowGrouping="false"
+                            PageSize="3"
+                            ShowPagingSummary="true"
+                            GroupFootersAlwaysVisible="true"
+                            AllGroupsExpanded=@ExpandAllGroups>
+                <Columns>
+                    <RadzenDataGridColumn Property="@nameof(FinancialMonthResult.YearMonth)" Title="YearMonth" Width="100px" Visible=false />
+                    <RadzenDataGridColumn TItem="FinancialMonthResult" Title="Day" Context="MonthResult">
+                        <Template>
+                            <FinancialDayResultComponent FinancialResultsList="@MonthResult.FinancialResultsList" ExpandAllGroups=@ExpandAllGroups />
+                        </Template>
+                        <GroupFooterTemplate>
+                            <b> @String.Format(GetFormatProvider(), "Total monthly cost: {0:C}", GetMonthlyTotalCost(@MonthResult.Data.Items.AsQueryable().FirstOrDefault()))</b>
+                        </GroupFooterTemplate>
+                    </RadzenDataGridColumn>
+                </Columns>
+            </RadzenDataGrid>
+        </RadzenContentContainer>
     </RadzenBody>
 
-    <RadzenFooter>
-        <RadzenCard>
-            <RadzenText>
+    <RadzenFooter Style="height: 100%;">
+        <RadzenCard Style="height: 100%;margin: 0px; padding: 0px;">
+            <RadzenText Style="margin: 0px; padding: 0px;">
                 <b> @String.Format(GetFormatProvider(), "Total cost: {0:C}", TotalCost)</b>
             </RadzenText>
         </RadzenCard>

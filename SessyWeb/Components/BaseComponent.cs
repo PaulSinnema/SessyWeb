@@ -2,7 +2,7 @@
 
 namespace SessyWeb.Components
 {
-    public class BaseComponent : ComponentBase
+    public class BaseComponent : LayoutComponentBase
     {
         [CascadingParameter]
         public bool IsMobile { get; set; }
