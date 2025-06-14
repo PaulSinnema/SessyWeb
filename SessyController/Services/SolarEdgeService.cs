@@ -163,7 +163,7 @@ namespace SessyController.Services
                     .Distinct()
                     .OrderBy(date => date);
 
-                if(hours.Count() > 1) // A new hour has started.
+                if (hours.Count() > 1) // A new hour has started.
                 {
                     var date = hours.First();
                     var count = collection.Where(c => c.Key.DateFloorQuarter() == date).Count();
@@ -184,7 +184,7 @@ namespace SessyController.Services
 
                     foreach (var item in collection.ToList())
                     {
-                        if(item.Key.DateFloorQuarter() == date)
+                        if (item.Key.DateFloorQuarter() == date)
                             collection.Remove(item.Key);
                     }
                 }
@@ -271,16 +271,15 @@ namespace SessyController.Services
             {
                 using var client = await GetModbusClient(id);
 
-                await client.WriteMultipleRegisters(SunspecConsts.AdvancedPwrControlEn, 1u);  // UInt32
-                await client.WriteMultipleRegisters(SunspecConsts.ReactivePwrConfig, 4u);  // UInt32
-                await client.WriteSingleRegister(SunspecConsts.EnableDynamicPowerControl, 1);
+                await client.WriteSingleRegister(0xF142, (uint)1);
+                await client.WriteSingleRegister(0xF104, (uint)4);
 
                 await CommitValues(client);
 
-                var enableDynamicPowerControlRead = await client.ReadHoldingRegisters<Types.UInt32>(SunspecConsts.AdvancedPwrControlEn);
-                var reactivePwrConfigRead = await client.ReadHoldingRegisters<Types.UInt32>(SunspecConsts.ReactivePwrConfig);
+                var enableDynamicPowerControlRead = await client.ReadHoldingRegisters<Types.Int32>(0xF142);
+                var reactivePwrConfigRead = await client.ReadHoldingRegisters<Types.Int32>(0xF104);
 
-                if (enableDynamicPowerControlRead.Value != 1 || 
+                if (enableDynamicPowerControlRead.Value != 1 ||
                     reactivePwrConfigRead.Value != 4)
                     throw new InvalidOperationException($"Enabling advanced power control failed");
             }
@@ -294,11 +293,11 @@ namespace SessyController.Services
         {
             ushort result = 0;
 
-            await client.WriteSingleRegister(SunspecConsts.CommitPowerControlSettings, 1);
+            await client.WriteSingleRegister(0xF100, 1);
 
             for (int i = 0; i < 30; i++)
             {
-                var read = await client.ReadHoldingRegisters<Types.UInt16>(SunspecConsts.CommitPowerControlSettings);
+                var read = await client.ReadHoldingRegisters<Types.UInt16>(0xF100);
 
                 if (read.Value == 0x00)
                 {
@@ -316,29 +315,24 @@ namespace SessyController.Services
 
         public async Task RestoreDynamicPowerSettings(string id)
         {
-            UInt32 AdvancedPwrControlEnValue = 0;
-            UInt32 ReactivePwrConfigValue = 0;
-           // UInt16 RestorePowerControlDefaultSettingsValue = 1;
+            UInt32 advancedPwrControlEnValue = 1;
+            UInt32 reactivePwrConfigValue = 0;
+            UInt16 restorePowerControlDefaultSettingsValue = 1;
 
             try
             {
                 using var client = await GetModbusClient(id);
 
-                await client.WriteSingleRegister(SunspecConsts.AdvancedPwrControlEn, AdvancedPwrControlEnValue);
-                await client.WriteSingleRegister(SunspecConsts.ReactivePwrConfig, ReactivePwrConfigValue);
-                // await client.WriteSingleRegister(SunspecConsts.RestorePowerControlDefaultSettings, RestorePowerControlDefaultSettingsValue);
+                await client.WriteSingleRegister(0xF101, restorePowerControlDefaultSettingsValue);
 
                 await CommitValues(client);
 
-                var enableDynamicPowerControlRead = await client.ReadHoldingRegisters<Types.UInt32>(SunspecConsts.AdvancedPwrControlEn);
-                var reactivePwrConfigRead = await client.ReadHoldingRegisters<Types.UInt32>(SunspecConsts.ReactivePwrConfig);
+                var enableDynamicPowerControlRead = await client.ReadHoldingRegisters<Types.Int32>(0xF142);
+                var reactivePwrConfigRead = await client.ReadHoldingRegisters<Types.Int32>(0xF104);
 
-                if (enableDynamicPowerControlRead.Value != AdvancedPwrControlEnValue ||
-                    reactivePwrConfigRead.Value != ReactivePwrConfigValue)
+                if (enableDynamicPowerControlRead.Value != advancedPwrControlEnValue ||
+                    reactivePwrConfigRead.Value != reactivePwrConfigValue)
                     throw new InvalidOperationException($"Restore advanced power settings failed");
-               // var RestorePowerControlDefaultSettingsRead = await client.ReadHoldingRegisters<Types.UInt16>(SunspecConsts.RestorePowerControlDefaultSettings);
-
-                //if (RestorePowerControlDefaultSettingsRead.Value != 0) throw new InvalidOperationException($"Restoring default values failed");
             }
             catch (Exception ex)
             {
@@ -346,50 +340,50 @@ namespace SessyController.Services
             }
         }
 
-        public async Task<ushort> GetCosPhiQPreference(string id)
-        {
-            using var client = await GetModbusClient(id);
+        //public async Task<ushort> GetCosPhiQPreference(string id)
+        //{
+        //    using var client = await GetModbusClient(id);
 
-            var preference = await client.ReadHoldingRegisters<Types.UInt16>(cosPhiQPreference);
+        //    var preference = await client.ReadHoldingRegisters<Types.UInt16>(cosPhiQPreference);
 
-            return preference.Value;
-        }
+        //    return preference.Value;
+        //}
 
-        public async Task<ushort> GetActiveReactivePreference(string id)
-        {
-            using var client = await GetModbusClient(id);
+        //public async Task<ushort> GetActiveReactivePreference(string id)
+        //{
+        //    using var client = await GetModbusClient(id);
 
-            var preference = await client.ReadHoldingRegisters<Types.UInt16>(activeReactivePreference);
+        //    var preference = await client.ReadHoldingRegisters<Types.UInt16>(activeReactivePreference);
 
-            return preference.Value;
-        }
+        //    return preference.Value;
+        //}
 
         public async Task<float> GetActivePowerLimit(string id)
         {
             using var client = await GetModbusClient(id);
 
-            var powerSet = await client.ReadHoldingRegisters<Types.Float32>(activePowerLimit);
+            var powerSet = await client.ReadHoldingRegisters<Types.UInt16>(0xF001);
 
             return powerSet.Value;
         }
 
-        public async Task<float> GetReactivePowerLimit(string id)
-        {
-            using var client = await GetModbusClient(id);
+        //public async Task<float> GetReactivePowerLimit(string id)
+        //{
+        //    using var client = await GetModbusClient(id);
 
-            var powerSet = await client.ReadHoldingRegisters<Types.Float32>(reactivePowerLimit);
+        //    var powerSet = await client.ReadHoldingRegisters<Types.Int16>(reactivePowerLimit);
 
-            return powerSet.Value;
-        }
+        //    return powerSet.Value;
+        //}
 
-        public async Task<float> GetDynamicActivePowerLimit(string id)
-        {
-            using var client = await GetModbusClient(id);
+        //public async Task<float> GetDynamicActivePowerLimit(string id)
+        //{
+        //    using var client = await GetModbusClient(id);
 
-            var powerSet = await client.ReadHoldingRegisters<Types.Float32>(dynamicActivePowerLimit);
+        //    var powerSet = await client.ReadHoldingRegisters<Types.Float32>(dynamicActivePowerLimit);
 
-            return powerSet.Value;
-        }
+        //    return powerSet.Value;
+        //}
 
         public async Task SetActivePowerLimit(string id, UInt16 power)
         {
@@ -397,35 +391,35 @@ namespace SessyController.Services
 
             using var client = await GetModbusClient(id);
 
-            await client.WriteSingleRegister(SunspecConsts.ActivePowerLimit, power);
+            await client.WriteSingleRegister(0xF001, power);
         }
 
-        public async Task SetReactivePowerLimit(string id, float power)
-        {
-            if (power < 0) throw new ArgumentOutOfRangeException(nameof(power));
+        //public async Task SetReactivePowerLimit(string id, float power)
+        //{
+        //    if (power < 0) throw new ArgumentOutOfRangeException(nameof(power));
 
-            using var client = await GetModbusClient(id);
+        //    using var client = await GetModbusClient(id);
 
-            await client.WriteMultipleRegisters(reactivePowerLimit, power);
-        }
+        //    await client.WriteMultipleRegisters(reactivePowerLimit, power);
+        //}
 
-        public async Task SetDynamicActivePowerLimit(string id, float power)
-        {
-            if (power < 0) throw new ArgumentOutOfRangeException(nameof(power));
+        //public async Task SetDynamicActivePowerLimit(string id, float power)
+        //{
+        //    if (power < 0) throw new ArgumentOutOfRangeException(nameof(power));
 
-            using var client = await GetModbusClient(id);
+        //    using var client = await GetModbusClient(id);
 
-            await client.WriteMultipleRegisters(dynamicActivePowerLimit, power);
-        }
+        //    await client.WriteMultipleRegisters(dynamicActivePowerLimit, power);
+        //}
 
-        public async Task SetDynamicReactivePowerLimit(string id, float power)
-        {
-            if (power < 0) throw new ArgumentOutOfRangeException(nameof(power));
+        //public async Task SetDynamicReactivePowerLimit(string id, float power)
+        //{
+        //    if (power < 0) throw new ArgumentOutOfRangeException(nameof(power));
 
-            using var client = await GetModbusClient(id);
+        //    using var client = await GetModbusClient(id);
 
-            await client.WriteMultipleRegisters(dynamicReactivePowerLimit, power);
-        }
+        //    await client.WriteMultipleRegisters(dynamicReactivePowerLimit, power);
+        //}
     }
 }
 

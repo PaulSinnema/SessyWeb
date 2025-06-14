@@ -126,27 +126,27 @@ namespace SessyWeb.Controllers
             return new OkResult();
         }
 
-        /// <summary>
-        /// Gets the ActiveReactivePreference
-        /// </summary>
-        [HttpGet("SolarEdgeService:GetActiveReactivePreference", Name = "{id}/GetActiveReactivePreference")]
-        public async Task<IActionResult> GetActiveReactivePreference(string id)
-        {
-            ushort preference = await _solarEdgeService.GetActiveReactivePreference(id);
+        ///// <summary>
+        ///// Gets the ActiveReactivePreference
+        ///// </summary>
+        //[HttpGet("SolarEdgeService:GetActiveReactivePreference", Name = "{id}/GetActiveReactivePreference")]
+        //public async Task<IActionResult> GetActiveReactivePreference(string id)
+        //{
+        //    ushort preference = await _solarEdgeService.GetActiveReactivePreference(id);
 
-            return Ok(preference);
-        }
+        //    return Ok(preference);
+        //}
 
-        /// <summary>
-        /// Gets the ActiveReactivePreference
-        /// </summary>
-        [HttpGet("SolarEdgeService:GetCosPhiQPreference", Name = "{id}/GetCosPhiQPreference")]
-        public async Task<IActionResult> GetCosPhiQPreference(string id)
-        {
-            ushort preference = await _solarEdgeService.GetCosPhiQPreference(id);
+        ///// <summary>
+        ///// Gets the ActiveReactivePreference
+        ///// </summary>
+        //[HttpGet("SolarEdgeService:GetCosPhiQPreference", Name = "{id}/GetCosPhiQPreference")]
+        //public async Task<IActionResult> GetCosPhiQPreference(string id)
+        //{
+        //    ushort preference = await _solarEdgeService.GetCosPhiQPreference(id);
 
-            return Ok(preference);
-        }
+        //    return Ok(preference);
+        //}
 
         /// <summary>
         /// Gets the Active power limit.
@@ -159,49 +159,49 @@ namespace SessyWeb.Controllers
             return Ok(powerLimit);
         }
 
-        /// <summary>
-        /// Gets the reactive power limit.
-        /// </summary>
-        [HttpGet("SolarEdgeService:GetReactivePowerLimit", Name = "{id}/GetReactivePowerLimit")]
-        public async Task<IActionResult> GetReactivePowerLimit(string id)
-        {
-            float powerLimit = await _solarEdgeService.GetReactivePowerLimit(id);
+        ///// <summary>
+        ///// Gets the reactive power limit.
+        ///// </summary>
+        //[HttpGet("SolarEdgeService:GetReactivePowerLimit", Name = "{id}/GetReactivePowerLimit")]
+        //public async Task<IActionResult> GetReactivePowerLimit(string id)
+        //{
+        //    float powerLimit = await _solarEdgeService.GetReactivePowerLimit(id);
 
-            return Ok(powerLimit);
-        }
+        //    return Ok(powerLimit);
+        //}
 
-        /// <summary>
-        /// Gets the dynamic active power limit.
-        /// </summary>
-        [HttpGet("SolarEdgeService:GetDynamicActivePowerLimit", Name = "{id}/GetDynamicActivePowerLimit")]
-        public async Task<IActionResult> GetDynamicActivePowerLimit(string id)
-        {
-            float powerLimit = await _solarEdgeService.GetDynamicActivePowerLimit(id);
+        ///// <summary>
+        ///// Gets the dynamic active power limit.
+        ///// </summary>
+        //[HttpGet("SolarEdgeService:GetDynamicActivePowerLimit", Name = "{id}/GetDynamicActivePowerLimit")]
+        //public async Task<IActionResult> GetDynamicActivePowerLimit(string id)
+        //{
+        //    float powerLimit = await _solarEdgeService.GetDynamicActivePowerLimit(id);
 
-            return Ok(powerLimit);
-        }
+        //    return Ok(powerLimit);
+        //}
 
-        /// <summary>
-        /// Sets the dynamic active power limit.
-        /// </summary>
-        [HttpPut("SolarEdgeService:SetDynamicActivePowerLimit", Name = "{id}/SetDynamicActivePowerLimit")]
-        public async Task<IActionResult> SetDynamicActivePowerLimit(string id, ushort power)
-        {
-            await _solarEdgeService.SetDynamicActivePowerLimit(id, power);
+        ///// <summary>
+        ///// Sets the dynamic active power limit.
+        ///// </summary>
+        //[HttpPut("SolarEdgeService:SetDynamicActivePowerLimit", Name = "{id}/SetDynamicActivePowerLimit")]
+        //public async Task<IActionResult> SetDynamicActivePowerLimit(string id, ushort power)
+        //{
+        //    await _solarEdgeService.SetDynamicActivePowerLimit(id, power);
 
-            return new OkResult();
-        }
+        //    return new OkResult();
+        //}
 
-        /// <summary>
-        /// Sets the dynamic reactive power limit.
-        /// </summary>
-        [HttpPut("SolarEdgeService:SetDynamicReactivePowerLimit", Name = "{id}/SetDynamicReactivePowerLimit")]
-        public async Task<IActionResult> SetDynamicReactivePowerLimit(string id, ushort power)
-        {
-            await _solarEdgeService.SetDynamicReactivePowerLimit(id, power);
+        ///// <summary>
+        ///// Sets the dynamic reactive power limit.
+        ///// </summary>
+        //[HttpPut("SolarEdgeService:SetDynamicReactivePowerLimit", Name = "{id}/SetDynamicReactivePowerLimit")]
+        //public async Task<IActionResult> SetDynamicReactivePowerLimit(string id, ushort power)
+        //{
+        //    await _solarEdgeService.SetDynamicReactivePowerLimit(id, power);
 
-            return new OkResult();
-        }
+        //    return new OkResult();
+        //}
 
         /// <summary>
         /// Sets the active power limit.
