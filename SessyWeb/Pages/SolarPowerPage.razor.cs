@@ -3,6 +3,7 @@ using Radzen.Blazor.Rendering;
 using SessyController.Services;
 using SessyData.Model;
 using SessyData.Services;
+using static SessyWeb.Components.DateChooserComponent;
 
 namespace SessyWeb.Pages
 {
@@ -14,36 +15,18 @@ namespace SessyWeb.Pages
         [Inject]
         TimeZoneService? _timeZoneService { get; set; }
 
+        [Inject]
+        SolarService? _solarService { get; set; }
+
         public List<SolarEdgeData> SolarEdgeData { get; set; } = new();
 
         public DateTime? DateChosen { get; set; }
 
-        private string GraphStyle { get; set; } = "min-width: 500px;";
+        public PeriodsEnums PeriodChosen { get; set; }
 
-        public enum PeriodsEnums
-        {
-            Day,
-            Week,
-            Month,
-            Year,
-            All
-        };
+        public double SolarPower { get; set; }
 
-        List<PeriodsEnums> Periods = new List<PeriodsEnums>
-        {
-            PeriodsEnums.Day, PeriodsEnums.Week, PeriodsEnums.Month, PeriodsEnums.Year, PeriodsEnums.All };
-
-        public PeriodsEnums PeriodChosen { get; set; } = PeriodsEnums.Day;
-
-        public void DateChanged(DateTime? date)
-        {
-            SelectionChanged();
-        }
-
-        public void PeriodChanged(object obj)
-        {
-            SelectionChanged();
-        }
+        private string GraphStyle { get; set; } = "width: 100%; height: 60vh";
 
         protected override Task OnAfterRenderAsync(bool firstRender)
         {
@@ -60,6 +43,20 @@ namespace SessyWeb.Pages
             return base.OnAfterRenderAsync(firstRender);
         }
 
+        public void PeriodChosenChanged(PeriodsEnums period)
+        {
+            PeriodChosen = period;
+
+            SelectionChanged();
+        }
+
+        public void DateChosenChanged(DateTime date)
+        {
+            DateChosen = date;
+
+            SelectionChanged();
+        }
+
         private void SelectionChanged()
         {
             var date = _timeZoneService!.Now.Date;
@@ -71,41 +68,84 @@ namespace SessyWeb.Pages
             else
             {
                 DateChosen = date;
-            }    
+            }
 
-                SolarEdgeData = _solarEdgeDataService!.GetList((set) =>
+            SolarEdgeData = _solarEdgeDataService!.GetList((set) =>
+            {
+                switch (PeriodChosen)
                 {
-                    switch (PeriodChosen)
-                    {
-                        case PeriodsEnums.Day:
-                            return set
-                                .Where(sed => sed.Time.Date == DateChosen)
-                                .ToList();
+                    case PeriodsEnums.Day:
+                        return set
+                            .Where(sed => sed.Time.Date == DateChosen)
+                            .ToList();
 
-                        case PeriodsEnums.Week:
-                            return set
-                                .Where(sed => date.StartOfWeek() <= sed.Time && date.EndOfWeek() >= sed.Time)
-                                .ToList();
+                    case PeriodsEnums.Week:
+                        return set
+                            .Where(sed => date.StartOfWeek() <= sed.Time && date.EndOfWeek().AddDays(1).AddSeconds(-1) >= sed.Time)
+                            .ToList();
 
-                        case PeriodsEnums.Month:
-                            return set
-                                .Where(sed => date.StartOfMonth() <= sed.Time && date.EndOfMonth() >= sed.Time)
-                                .ToList();
+                    case PeriodsEnums.Month:
+                        return set
+                            .Where(sed => date.StartOfMonth() <= sed.Time && date.EndOfMonth().AddDays(1).AddSeconds(-1) >= sed.Time)
+                            .ToList();
 
-                        case PeriodsEnums.Year:
-                            return set
-                                .Where(sed => date.Year == sed.Time.Year)
-                                .ToList();
+                    case PeriodsEnums.Year:
+                        return set
+                            .Where(sed => date.Year == sed.Time.Year)
+                            .ToList();
 
-                        case PeriodsEnums.All:
-                            return set.ToList();
+                    case PeriodsEnums.All:
+                        return set.ToList();
 
-                        default:
-                            throw new InvalidOperationException($"Wrong period type {PeriodChosen}");
-                    }
-                })
-                    .OrderBy(sed => sed.Time)
-                    .ToList(); ;
+                    default:
+                        throw new InvalidOperationException($"Wrong period type {PeriodChosen}");
+                }
+            })
+                .OrderBy(sed => sed.Time)
+                .ToList(); ;
+
+            SolarPower = GetSolarPower(date);
+
+            StateHasChanged();
+        }
+
+        private double GetSolarPower(DateTime date)
+        {
+            DateTime start;
+            DateTime end;
+
+            switch (PeriodChosen)
+            {
+                case PeriodsEnums.Day:
+                    start = date.Date;
+                    end = start.AddDays(1).AddSeconds(-1);
+                    break;
+
+                case PeriodsEnums.Week:
+                    start = date.StartOfWeek();
+                    end = date.EndOfWeek().AddDays(1).AddSeconds(-1);
+                    break;
+
+                case PeriodsEnums.Month:
+                    start = date.StartOfMonth();
+                    end = date.EndOfMonth().AddDays(1).AddSeconds(-1);
+                    break;
+
+                case PeriodsEnums.Year:
+                    start = new DateTime(date.Year, 1, 1);
+                    end = new DateTime(date.Year, 12, 31, 23, 59, 59);
+                    break;
+
+                case PeriodsEnums.All:
+                    start = DateTime.MinValue;
+                    end = DateTime.MaxValue;
+                    break;
+
+                default:
+                    throw new InvalidOperationException($"Wrong period chosen {PeriodChosen}");
+            }
+
+            return _solarService!.GetRealizedSolarPower(start, end);
         }
     }
 }

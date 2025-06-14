@@ -13,9 +13,10 @@ namespace SessyWeb.Components
         [Parameter]
         public EventCallback<PeriodsEnums> PeriodChosenChanged { get; set; }
 
+        [Parameter]
         public DateTime? DateChosen { get; set; }
+        [Parameter]
         public PeriodsEnums PeriodChosen { get; set; }
-
 
         public bool DatePickerVisible { get; set; } = true;
 

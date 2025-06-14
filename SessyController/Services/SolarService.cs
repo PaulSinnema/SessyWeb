@@ -18,6 +18,8 @@ namespace SessyController.Services
 
         private SolarDataService _solarDataService { get; set; }
 
+        private SolarEdgeDataService _solarEdgeDataService { get; set; }
+
         private SettingsConfig _settingsConfig { get; set; }
 
         private IDisposable? _settingsConfigSubscription { get; set; }
@@ -36,6 +38,7 @@ namespace SessyController.Services
                             WeatherService weatherService,
                             DayAheadMarketService dayAheadMarketService,
                             SolarDataService solarDataService,
+                            SolarEdgeDataService solarEdgeDataService,
                             IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
                             IServiceScopeFactory serviceScopeFactory)
         {
@@ -46,6 +49,7 @@ namespace SessyController.Services
             _weatherService = weatherService;
             _dayAheadMarketService = dayAheadMarketService;
             _solarDataService = solarDataService;
+            _solarEdgeDataService = solarEdgeDataService;
             _settingsConfigMonitor = settingsConfigMonitor;
             _serviceScopeFactory = serviceScopeFactory;
 
@@ -84,6 +88,44 @@ namespace SessyController.Services
             }
 
             return 0.0;
+        }
+
+        /// <summary>
+        /// Retrieve the actual measured solar power for a period.
+        /// </summary>
+        public double GetRealizedSolarPower(DateTime start, DateTime end)
+        {
+            try
+            {
+                var solarPower = 0.0;
+                var list = _solarEdgeDataService.GetList((set) =>
+                {
+                    return set
+                            .Where(sd => sd.Time >= start && sd.Time <= end)
+                            .OrderBy(sd => sd.Time)
+                            .ToList();
+                });
+
+                SolarEdgeData? previousSolarData = null;
+
+                foreach (var solarData in list)
+                {
+                    if (previousSolarData != null)
+                    {
+                        double minutes = (solarData.Time! - previousSolarData.Time!).Minutes;
+
+                        solarPower += (solarData.Power * minutes) / 60000;
+                    }
+
+                    previousSolarData = solarData;
+                }
+
+                return solarPower;
+            }
+            catch (Exception)
+            {
+                return 0.0;
+            }
         }
 
         public void GetExpectedSolarPower(List<HourlyInfo> hourlyInfos)

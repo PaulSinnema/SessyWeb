@@ -1,23 +1,30 @@
 ﻿@page "/solarpower"
 @inherits PageBase
+@using SessyController.Services.Items
+@using SessyWeb.Components
+@using SessyData.Model
+@using Radzen
+@using static SessyWeb.Components.DateChooserComponent
 
-    <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Center" Gap="0.5rem" class="rz-p-12">
-<div style="width: 100%; overflow: auto;">
-        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Center" Gap="0.5rem" class="rz-p-12">
-            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Center" Gap="0.5rem" class="rz-p-12">
-                <RadzenLabel Text="Select Date" Component="RadzenDatePickerBindValue" />
-                <RadzenDatePicker @bind-Value=@DateChosen Change="@(date => DateChanged(date))" Name="RadzenDatePickerBindValue" ShowCalendarWeek />
-            </RadzenStack>
-            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.Center" Gap="0.5rem" class="rz-p-sm-12">
-                <RadzenLabel Text="Period" Component="DropDownBindValue" />
-                <RadzenDropDown @bind-Value=@PeriodChosen Data=@Periods Change="@(period => PeriodChanged(period))" Style="width: 100%; max-width: 400px;" Name="DropDownBindValue" />
-            </RadzenStack>
+<RadzenLayout Style="height: 80vh;">
+    <RadzenHeader Style="height: 100%;margin: 0px; padding: 0px;">
+        <RadzenStack Orientation=Orientation.Horizontal AlignItems="AlignItems.Center" Style="height:100%;margin: 0px; padding: 0px;">
+            <h4>Solar power</h4>
+            <DateChooserComponent PeriodChosen=@PeriodChosen
+                                  DateChosenChanged=@((DateTime d) => DateChosenChanged(d))
+                                  PeriodChosenChanged=@((PeriodsEnums p) => PeriodChosenChanged(p)) />
         </RadzenStack>
-        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Center" Gap="0.5rem" class="rz-p-12">
+    </RadzenHeader>
+
+    <RadzenBody>
+        <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="0.5rem" Style="width: 100%;">
             <RadzenChart Style="@GraphStyle">
                 <RadzenLegend Position="LegendPosition.Top" Visible="true" />
                 <RadzenAreaSeries Data="@SolarEdgeData" Smooth="true" Title="Solar power" CategoryProperty="Time" LineType="LineType.Dotted" ValueProperty="Power" />
             </RadzenChart>
         </RadzenStack>
-        </div>
-    </RadzenStack>
+    </RadzenBody>
+    <RadzenFooter>
+        <b>@String.Format(GetFormatProvider(), "Total solar power: {0:N5} kWh", SolarPower)</b>
+    </RadzenFooter>
+</RadzenLayout>
