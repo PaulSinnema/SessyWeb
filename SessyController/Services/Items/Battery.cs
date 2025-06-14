@@ -58,6 +58,8 @@ namespace SessyController.Services.Items
                     exception = ex;
                     tries++;
                     _logger.LogInformation($"Could not get power status for battery {Id}. Retry {tries}");
+
+                    Thread.Sleep(5000); // wait a while.
                 }
             } while (tries < 10);
 
@@ -82,6 +84,8 @@ namespace SessyController.Services.Items
                     exception = ex;
                     tries++;
                     _logger.LogInformation($"Could not get active power strategy for battery {Id}. Retry {tries}");
+
+                    Thread.Sleep(5000); // wait a while.
                 }
 
             }
