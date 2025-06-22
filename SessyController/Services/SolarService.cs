@@ -107,7 +107,7 @@ namespace SessyController.Services
                             .ToList();
                 });
 
-                SolarEdgeData? previousSolarData = null;
+                SolarInverterData? previousSolarData = null;
 
                 foreach (var solarData in list)
                 {

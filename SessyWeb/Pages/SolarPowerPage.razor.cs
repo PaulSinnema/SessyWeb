@@ -18,7 +18,7 @@ namespace SessyWeb.Pages
         [Inject]
         SolarService? _solarService { get; set; }
 
-        public List<SolarEdgeData> SolarEdgeData { get; set; } = new();
+        public List<SolarInverterData> SolarEdgeData { get; set; } = new();
 
         public DateTime? DateChosen { get; set; }
 

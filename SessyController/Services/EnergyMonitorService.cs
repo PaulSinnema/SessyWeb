@@ -116,7 +116,7 @@ namespace SessyController.Services
 
                     DataChanged?.Invoke();
 
-                    _logger.LogWarning($"Energy data stored at {now} for {selectTime}");
+                    _logger.LogInformation($"Energy data stored at {now} for {selectTime}");
                 }
             }
         }

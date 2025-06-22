@@ -151,9 +151,9 @@ namespace SessyController.Services.InverterServices
                     var total = collection.Where(c => c.Key.DateFloorQuarter() == date).Sum(c => c.Value);
                     var power = total / count;
 
-                    List<SolarEdgeData> list = new List<SolarEdgeData>
+                    List<SolarInverterData> list = new List<SolarInverterData>
                     {
-                        new SolarEdgeData
+                        new SolarInverterData
                         {
                             InverterId = id,
                             Time = date,

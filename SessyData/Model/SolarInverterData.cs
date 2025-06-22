@@ -9,7 +9,7 @@ namespace SessyData.Model
     /// In this class the minute data is stored. After 1 hour this data
     /// is compressed into a SolarEdgeHourData row and removed from this set.
     /// </summary>
-    public class SolarEdgeData : IUpdatable<SolarEdgeData>
+    public class SolarInverterData : IUpdatable<SolarInverterData>
     {
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)] // Auto-increment
@@ -18,7 +18,7 @@ namespace SessyData.Model
         public DateTime Time { get; set; }
         public double Power { get; set; }
 
-        public void Update(SolarEdgeData updateInfo)
+        public void Update(SolarInverterData updateInfo)
         {
             InverterId = updateInfo.InverterId;
             Time = updateInfo.Time;
