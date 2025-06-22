@@ -6,13 +6,13 @@ namespace SessyController.Providers
 {
     public class TcpClientProvider
     {
-        private readonly IServiceProvider _serviceProvider;
-        private readonly PowerSystemsConfig _solarEdgeConfig;
+        private PowerSystemsConfig _solarEdgeConfig { get; set; }
 
-        public TcpClientProvider(IServiceProvider serviceProvider, IOptions<PowerSystemsConfig> solarEdgeConfig)
+        public TcpClientProvider(IOptionsMonitor<PowerSystemsConfig> solarEdgeConfig)
         {
-            _serviceProvider = serviceProvider;
-            _solarEdgeConfig = solarEdgeConfig.Value;
+            _solarEdgeConfig = solarEdgeConfig.CurrentValue;
+
+            solarEdgeConfig.OnChange((PowerSystemsConfig config) => _solarEdgeConfig = config);
         }
 
         public async Task<ModbusClient> GetModbusClient(string endpointName, string id)
@@ -21,7 +21,7 @@ namespace SessyController.Providers
                 throw new InvalidOperationException($"No TcpClient configuration found for endpoint: {endpointName}");
 
             if(!ids.TryGetValue(id, out var config))
-                throw new InvalidOperationException($"No TcpClient configuration fout for id {id}");
+                throw new InvalidOperationException($"No TcpClient configuration found for id {id}");
 
             if (config.IpAddress == null)
             {

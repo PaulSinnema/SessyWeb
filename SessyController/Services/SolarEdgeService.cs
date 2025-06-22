@@ -15,32 +15,16 @@ namespace SessyController.Services
     /// </summary>
     public class SolarEdgeService : BackgroundService
     {
-        private const ushort acPowerStartAddress = 0x9C93;
-        private const ushort acPowerSFStartAddress = 0x9C94;
-        private const ushort statusStartAddress = 0x9CAB;
-
-        private const ushort enableDynamicPowerControl = 0xF300;
         private const ushort advancedPwrControlEn = 0xF142;
         private const ushort reactivePwrConfig = 0xF104;
 
         private const ushort RestorePowerControlDefaultSettings = 0xF101;
 
-        private const ushort dynamicActivePowerLimit = 0xF322;
-        private const ushort dynamicReactivePowerLimit = 0xF324;
-
-        private const ushort activeReactivePreference = 0xF308;
-        private const ushort cosPhiQPreference = 0xF309;
-        private const ushort activePowerLimit = 0xF30C;
-        private const ushort reactivePowerLimit = 0xF30E;
-
         private readonly IConfiguration _configuration;
         private LoggingService<SolarEdgeService> _logger { get; set; }
-        private IHttpClientFactory _httpClientFactory { get; set; }
         private PowerSystemsConfig _powerSystemsConfig { get; set; }
         private IServiceScope _scope { get; set; }
         private TcpClientProvider _tcpClientProvider { get; set; }
-        private ConfigurationService _configurationService { get; set; }
-
         public double ActualSolarPowerInWatts { get; private set; }
 
         private TimeZoneService _timeZoneService;
@@ -54,13 +38,11 @@ namespace SessyController.Services
         {
             _configuration = configuration;
             _logger = logger;
-            _httpClientFactory = httpClientFactory;
             _powerSystemsConfig = powerSystemsConfig.Value;
 
             _scope = serviceScopeFactory.CreateScope();
 
             _tcpClientProvider = _scope.ServiceProvider.GetRequiredService<TcpClientProvider>();
-            _configurationService = _scope.ServiceProvider.GetRequiredService<ConfigurationService>();
             _timeZoneService = _scope.ServiceProvider.GetRequiredService<TimeZoneService>();
             _solarEdgeDataService = _scope.ServiceProvider.GetRequiredService<SolarEdgeDataService>();
         }
@@ -101,7 +83,6 @@ namespace SessyController.Services
         }
 
         private Dictionary<string, Dictionary<DateTime, double>> CollectedPowerData { get; set; } = new();
-        private DateTime? lastDataStoredTime { get; set; } = null;
 
         private async Task Process(CancellationToken cancelationToken)
         {
@@ -265,22 +246,29 @@ namespace SessyController.Services
             return result.Value;
         }
 
+        /// <summary>
+        /// Enable dynamic power mode. Call this routine before you try to set the power limit.
+        /// It will take several minutes for the Inverter to restart after calling this routine.
+        /// </summary>
         public async Task EnableDynamicPower(string id)
         {
+            UInt32 advancedPwrControlEnValue = 1;
+            UInt32 reactivePwrConfigValue = 4;
+
             try
             {
                 using var client = await GetModbusClient(id);
 
-                await client.WriteSingleRegister(0xF142, (uint)1);
-                await client.WriteSingleRegister(0xF104, (uint)4);
+                await client.WriteSingleRegister(advancedPwrControlEn, advancedPwrControlEnValue);
+                await client.WriteSingleRegister(reactivePwrConfig, reactivePwrConfigValue);
 
                 await CommitValues(client);
 
-                var enableDynamicPowerControlRead = await client.ReadHoldingRegisters<Types.Int32>(0xF142);
-                var reactivePwrConfigRead = await client.ReadHoldingRegisters<Types.Int32>(0xF104);
+                var enableDynamicPowerControlRead = await client.ReadHoldingRegisters<Types.Int32>(advancedPwrControlEn);
+                var reactivePwrConfigRead = await client.ReadHoldingRegisters<Types.Int32>(reactivePwrConfig);
 
-                if (enableDynamicPowerControlRead.Value != 1 ||
-                    reactivePwrConfigRead.Value != 4)
+                if (enableDynamicPowerControlRead.Value != advancedPwrControlEnValue ||
+                    reactivePwrConfigRead.Value != reactivePwrConfigValue)
                     throw new InvalidOperationException($"Enabling advanced power control failed");
             }
             catch (Exception ex)
@@ -289,6 +277,9 @@ namespace SessyController.Services
             }
         }
 
+        /// <summary>
+        /// Commit values into the registers of the Inverter logic.
+        /// </summary>
         private async Task<bool> CommitValues(ModbusClient client)
         {
             ushort result = 0;
@@ -313,6 +304,11 @@ namespace SessyController.Services
             throw new InvalidOperationException($"Failed to commit values, last error code: {result}");
         }
 
+        /// <summary>
+        /// Disables the dynamic power mode. After this routine is called you can no longer 
+        /// set the power limit.
+        /// It will take several minutes for the Inverter to restart after calling this routine.
+        /// </summary>
         public async Task RestoreDynamicPowerSettings(string id)
         {
             UInt32 advancedPwrControlEnValue = 1;
@@ -323,12 +319,12 @@ namespace SessyController.Services
             {
                 using var client = await GetModbusClient(id);
 
-                await client.WriteSingleRegister(0xF101, restorePowerControlDefaultSettingsValue);
+                await client.WriteSingleRegister(RestorePowerControlDefaultSettings, restorePowerControlDefaultSettingsValue);
 
                 await CommitValues(client);
 
-                var enableDynamicPowerControlRead = await client.ReadHoldingRegisters<Types.Int32>(0xF142);
-                var reactivePwrConfigRead = await client.ReadHoldingRegisters<Types.Int32>(0xF104);
+                var enableDynamicPowerControlRead = await client.ReadHoldingRegisters<Types.Int32>(advancedPwrControlEn);
+                var reactivePwrConfigRead = await client.ReadHoldingRegisters<Types.Int32>(reactivePwrConfig);
 
                 if (enableDynamicPowerControlRead.Value != advancedPwrControlEnValue ||
                     reactivePwrConfigRead.Value != reactivePwrConfigValue)
@@ -340,24 +336,9 @@ namespace SessyController.Services
             }
         }
 
-        //public async Task<ushort> GetCosPhiQPreference(string id)
-        //{
-        //    using var client = await GetModbusClient(id);
-
-        //    var preference = await client.ReadHoldingRegisters<Types.UInt16>(cosPhiQPreference);
-
-        //    return preference.Value;
-        //}
-
-        //public async Task<ushort> GetActiveReactivePreference(string id)
-        //{
-        //    using var client = await GetModbusClient(id);
-
-        //    var preference = await client.ReadHoldingRegisters<Types.UInt16>(activeReactivePreference);
-
-        //    return preference.Value;
-        //}
-
+        /// <summary>
+        /// Gets the current active power limit.
+        /// </summary>
         public async Task<float> GetActivePowerLimit(string id)
         {
             using var client = await GetModbusClient(id);
@@ -367,24 +348,11 @@ namespace SessyController.Services
             return powerSet.Value;
         }
 
-        //public async Task<float> GetReactivePowerLimit(string id)
-        //{
-        //    using var client = await GetModbusClient(id);
-
-        //    var powerSet = await client.ReadHoldingRegisters<Types.Int16>(reactivePowerLimit);
-
-        //    return powerSet.Value;
-        //}
-
-        //public async Task<float> GetDynamicActivePowerLimit(string id)
-        //{
-        //    using var client = await GetModbusClient(id);
-
-        //    var powerSet = await client.ReadHoldingRegisters<Types.Float32>(dynamicActivePowerLimit);
-
-        //    return powerSet.Value;
-        //}
-
+        /// <summary>
+        /// Sets the current active power limit.
+        /// You must enable the dynamic power mode before you can change the limit with
+        /// this method.
+        /// </summary>
         public async Task SetActivePowerLimit(string id, UInt16 power)
         {
             if (power < 0 || power > 100) throw new ArgumentOutOfRangeException(nameof(power));
@@ -393,33 +361,6 @@ namespace SessyController.Services
 
             await client.WriteSingleRegister(0xF001, power);
         }
-
-        //public async Task SetReactivePowerLimit(string id, float power)
-        //{
-        //    if (power < 0) throw new ArgumentOutOfRangeException(nameof(power));
-
-        //    using var client = await GetModbusClient(id);
-
-        //    await client.WriteMultipleRegisters(reactivePowerLimit, power);
-        //}
-
-        //public async Task SetDynamicActivePowerLimit(string id, float power)
-        //{
-        //    if (power < 0) throw new ArgumentOutOfRangeException(nameof(power));
-
-        //    using var client = await GetModbusClient(id);
-
-        //    await client.WriteMultipleRegisters(dynamicActivePowerLimit, power);
-        //}
-
-        //public async Task SetDynamicReactivePowerLimit(string id, float power)
-        //{
-        //    if (power < 0) throw new ArgumentOutOfRangeException(nameof(power));
-
-        //    using var client = await GetModbusClient(id);
-
-        //    await client.WriteMultipleRegisters(dynamicReactivePowerLimit, power);
-        //}
     }
 }
 
