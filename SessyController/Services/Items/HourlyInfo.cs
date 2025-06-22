@@ -1,5 +1,6 @@
 ﻿using SessyCommon.Extensions;
 using SessyController.Configurations;
+using SessyController.Services.InverterServices;
 using static SessyController.Services.Items.Session;
 
 namespace SessyController.Services.Items
@@ -10,7 +11,7 @@ namespace SessyController.Services.Items
                           double marketPrice,
                           SettingsConfig settingsConfig,
                           BatteryContainer batteryContainer,
-                          SolarEdgeService solarEdgeService,
+                          SolarEdgeInverterService solarEdgeService,
                           TimeZoneService timeZoneService,
                           CalculationService calculationService)
         {
@@ -36,7 +37,7 @@ namespace SessyController.Services.Items
 
         private BatteryContainer _batteryContainer { get; set; }
 
-        private SolarEdgeService _solarEdgeService { get; set; }
+        private SolarEdgeInverterService _solarEdgeService { get; set; }
 
         private TimeZoneService _timeZoneService { get; set; }
 

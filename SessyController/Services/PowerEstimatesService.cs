@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Options;
 using SessyController.Configurations;
+using SessyController.Services.InverterServices;
 using SessyController.Services.Items;
 using SessyData.Model;
 using SessyData.Services;
@@ -17,7 +18,7 @@ namespace SessyController.Services
         private SessyService _sessyService { get; set; }
         private P1MeterService _p1MeterService { get; set; }
         private DayAheadMarketService _dayAheadMarketService { get; set; }
-        private SolarEdgeService _solarEdgeService { get; set; }
+        private SolarEdgeInverterService _solarEdgeService { get; set; }
         private SolarService _solarService { get; set; }
         private BatteryContainer _batteryContainer { get; set; }
         private TimeZoneService _timeZoneService { get; set; }
@@ -42,7 +43,7 @@ namespace SessyController.Services
             _sessyService = _scope.ServiceProvider.GetRequiredService<SessyService>();
             _p1MeterService = _scope.ServiceProvider.GetRequiredService<P1MeterService>();
             _dayAheadMarketService = _scope.ServiceProvider.GetRequiredService<DayAheadMarketService>();
-            _solarEdgeService = _scope.ServiceProvider.GetRequiredService<SolarEdgeService>();
+            _solarEdgeService = _scope.ServiceProvider.GetRequiredService<SolarEdgeInverterService>();
             _solarService = _scope.ServiceProvider.GetRequiredService<SolarService>();
             _batteryContainer = _scope.ServiceProvider.GetRequiredService<BatteryContainer>();
             _timeZoneService = _scope.ServiceProvider.GetRequiredService<TimeZoneService>();

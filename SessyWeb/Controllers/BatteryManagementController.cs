@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using SessyController.Services;
+using SessyController.Services.InverterServices;
 using SessyController.Services.Items;
 using static P1MeterService;
 using static SessyController.Services.WeatherService;
@@ -17,14 +18,14 @@ namespace SessyWeb.Controllers
         private readonly BatteriesService _batteriesService;
         private readonly DayAheadMarketService _dayAheadMarketService;
         private readonly SessyService _sessyService;
-        private readonly SolarEdgeService _solarEdgeService;
+        private readonly SolarEdgeInverterService _solarEdgeService;
         private readonly P1MeterService _p1MeterService;
         private readonly WeatherService _weatherService;
 
         public BatteryManagementController(DayAheadMarketService DayAheadMarketService,
                                            BatteriesService batteriesService,
                                            SessyService sessyService,
-                                           SolarEdgeService solarEdgeService,
+                                           SolarEdgeInverterService solarEdgeService,
                                            P1MeterService p1MeterService,
                                            WeatherService weatherService,
                                            ILogger<BatteryManagementController> logger)

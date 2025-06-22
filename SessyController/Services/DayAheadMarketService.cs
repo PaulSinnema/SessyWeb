@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Options;
 using SessyCommon.Extensions;
 using SessyController.Configurations;
+using SessyController.Services.InverterServices;
 using SessyController.Services.Items;
 using SessyData.Model;
 using SessyData.Services;
@@ -51,7 +52,7 @@ namespace SessyController.Services
         private IServiceScope _scope { get; set; }
 
         private TaxesDataService _taxesService { get; set; }
-        private SolarEdgeService _solarEdgeService { get; set; }
+        private SolarEdgeInverterService _solarEdgeService { get; set; }
 
         private SettingsConfig _settingsConfig { get; set; }
         private IDisposable? _settingsConfigMonitorSubscription { get; set; }
@@ -67,7 +68,7 @@ namespace SessyController.Services
                                     EPEXPricesDataService epexPricesDataService,
                                     IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
                                     TaxesDataService taxesService,
-                                    SolarEdgeService solarEdgeService,
+                                    SolarEdgeInverterService solarEdgeService,
                                     CalculationService calculationService,
                                     IHttpClientFactory httpClientFactory,
                                     IServiceScopeFactory serviceScopeFactory)

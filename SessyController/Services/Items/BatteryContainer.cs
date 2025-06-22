@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Options;
 using SessyController.Configurations;
+using SessyController.Services.InverterServices;
 
 namespace SessyController.Services.Items
 {
@@ -9,13 +10,13 @@ namespace SessyController.Services.Items
     public class BatteryContainer
     {
         private SessyBatteryConfig _sessyBatteryConfig;
-        private SolarEdgeService _solarEdgeService;
+        private SolarEdgeInverterService _solarEdgeService;
 
         public List<Battery>? Batteries { get; set; }
 
         public BatteryContainer(IServiceScopeFactory serviceScopeFactory,
                                 IOptions<SessyBatteryConfig> sessyBatteryConfig,
-                                SolarEdgeService solarEdgeService)
+                                SolarEdgeInverterService solarEdgeService)
         {
             _sessyBatteryConfig = sessyBatteryConfig.Value;
             _solarEdgeService = solarEdgeService;

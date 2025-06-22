@@ -4,8 +4,11 @@ using Radzen;
 using Radzen.Blazor;
 using SessyCommon.Extensions;
 using SessyController.Configurations;
+using SessyController.Interfaces;
+using SessyController.Managers;
 using SessyController.Providers;
 using SessyController.Services;
+using SessyController.Services.InverterServices;
 using SessyController.Services.Items;
 using SessyData.Helpers;
 using SessyData.Model;
@@ -90,7 +93,7 @@ builder.Services.AddScoped<FinancialResultsService>();
 builder.Services.AddScoped<SolarEdgeDataService>();
 
 builder.Services.AddSingleton<EnergyHistoryService>();
-builder.Services.AddSingleton<SolarEdgeService>();
+builder.Services.AddSingleton<SolarEdgeInverterService>();
 builder.Services.AddSingleton<P1MeterService>();
 builder.Services.AddSingleton<BatteryContainer>();
 builder.Services.AddSingleton<TimeZoneService>();
@@ -105,13 +108,23 @@ builder.Services.AddSingleton<SessyWebControlDataService>();
 builder.Services.AddSingleton<TaxesDataService>();
 builder.Services.AddSingleton<CalculationService>();
 
+// Solar inverters
+builder.Services.AddSingleton<SolarInverterManager>();
+builder.Services.AddSingleton<ISolarInverterService, EnphaseInverterService>();
+builder.Services.AddSingleton<ISolarInverterService, GoodWeInverterService>();
+builder.Services.AddSingleton<ISolarInverterService, HuaweiInverterService>();
+// For now only the SolarEdge inverter is implemented (for obvious reasons :-), I don't have the others.
+builder.Services.AddSingleton<ISolarInverterService, SolarEdgeInverterService>();
+builder.Services.AddSingleton<ISolarInverterService, SungrowInverterService>();
+builder.Services.AddSingleton<ISolarInverterService, VictronInverterService>();
+
 builder.Services.AddHostedService(provider => provider.GetRequiredService<DayAheadMarketService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<BatteriesService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<WeatherService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<SessyMonitorService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<EnergyMonitorService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<P1MeterService>());
-builder.Services.AddHostedService(provider => provider.GetRequiredService<SolarEdgeService>());
+builder.Services.AddHostedService(provider => provider.GetRequiredService<SolarInverterManager>());
 
 builder.Services.AddRazorPages(options =>
 {

@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Options;
 using SessyCommon.Extensions;
 using SessyController.Configurations;
+using SessyController.Services.InverterServices;
 using SessyController.Services.Items;
 using SessyData.Model;
 using SessyData.Services;
@@ -10,7 +11,7 @@ namespace SessyController.Services
     public class SolarService : IDisposable
     {
         private IConfiguration _configuration { get; set; }
-        private LoggingService<SolarEdgeService> _logger { get; set; }
+        private LoggingService<SolarEdgeInverterService> _logger { get; set; }
 
         private WeatherService _weatherService { get; set; }
 
@@ -33,7 +34,7 @@ namespace SessyController.Services
 
         public SolarService(IConfiguration configuration,
                             TimeZoneService timeZoneService,
-                            LoggingService<SolarEdgeService> logger,
+                            LoggingService<SolarEdgeInverterService> logger,
                             IOptions<PowerSystemsConfig> powerSystemsConfig,
                             WeatherService weatherService,
                             DayAheadMarketService dayAheadMarketService,

@@ -3,25 +3,27 @@ using Djohnnie.SolarEdge.ModBus.TCP.Constants;
 using Microsoft.Extensions.Options;
 using SessyCommon.Extensions;
 using SessyController.Configurations;
+using SessyController.Interfaces;
 using SessyController.Providers;
 using SessyData.Model;
 using SessyData.Services;
 using Types = Djohnnie.SolarEdge.ModBus.TCP.Types;
 
-namespace SessyController.Services
+namespace SessyController.Services.InverterServices
 {
     /// <summary>
     /// This class is used to read the result from the SolarEdge inverter.
     /// </summary>
-    public class SolarEdgeService : BackgroundService
+    public class SolarEdgeInverterService : ISolarInverterService
     {
         private const ushort advancedPwrControlEn = 0xF142;
         private const ushort reactivePwrConfig = 0xF104;
 
         private const ushort RestorePowerControlDefaultSettings = 0xF101;
 
-        private readonly IConfiguration _configuration;
-        private LoggingService<SolarEdgeService> _logger { get; set; }
+        public string ProviderName => "SolarEdge";
+
+        private LoggingService<SolarEdgeInverterService> _logger { get; set; }
         private PowerSystemsConfig _powerSystemsConfig { get; set; }
         private IServiceScope _scope { get; set; }
         private TcpClientProvider _tcpClientProvider { get; set; }
@@ -30,13 +32,11 @@ namespace SessyController.Services
         private TimeZoneService _timeZoneService;
         private SolarEdgeDataService _solarEdgeDataService;
 
-        public SolarEdgeService(IConfiguration configuration,
-                                      LoggingService<SolarEdgeService> logger,
-                                      IHttpClientFactory httpClientFactory,
-                                      IOptions<PowerSystemsConfig> powerSystemsConfig,
-                                      IServiceScopeFactory serviceScopeFactory)
+        public SolarEdgeInverterService(LoggingService<SolarEdgeInverterService> logger,
+                                        IHttpClientFactory httpClientFactory,
+                                        IOptions<PowerSystemsConfig> powerSystemsConfig,
+                                        IServiceScopeFactory serviceScopeFactory)
         {
-            _configuration = configuration;
             _logger = logger;
             _powerSystemsConfig = powerSystemsConfig.Value;
 
@@ -47,7 +47,7 @@ namespace SessyController.Services
             _solarEdgeDataService = _scope.ServiceProvider.GetRequiredService<SolarEdgeDataService>();
         }
 
-        protected override async Task ExecuteAsync(CancellationToken cancelationToken)
+        public async Task Start(CancellationToken cancelationToken)
         {
             _logger.LogWarning("SolarEdge service started ...");
 
@@ -184,7 +184,7 @@ namespace SessyController.Services
             {
                 try
                 {
-                    return await _tcpClientProvider.GetModbusClient("SolarEdge", id);
+                    return await _tcpClientProvider.GetModbusClient(ProviderName, id);
                 }
                 catch (Exception ex)
                 {
@@ -252,8 +252,8 @@ namespace SessyController.Services
         /// </summary>
         public async Task EnableDynamicPower(string id)
         {
-            UInt32 advancedPwrControlEnValue = 1;
-            UInt32 reactivePwrConfigValue = 4;
+            uint advancedPwrControlEnValue = 1;
+            uint reactivePwrConfigValue = 4;
 
             try
             {
@@ -311,9 +311,9 @@ namespace SessyController.Services
         /// </summary>
         public async Task RestoreDynamicPowerSettings(string id)
         {
-            UInt32 advancedPwrControlEnValue = 1;
-            UInt32 reactivePwrConfigValue = 0;
-            UInt16 restorePowerControlDefaultSettingsValue = 1;
+            uint advancedPwrControlEnValue = 1;
+            uint reactivePwrConfigValue = 0;
+            ushort restorePowerControlDefaultSettingsValue = 1;
 
             try
             {
@@ -353,7 +353,7 @@ namespace SessyController.Services
         /// You must enable the dynamic power mode before you can change the limit with
         /// this method.
         /// </summary>
-        public async Task SetActivePowerLimit(string id, UInt16 power)
+        public async Task SetActivePowerLimit(string id, ushort power)
         {
             if (power < 0 || power > 100) throw new ArgumentOutOfRangeException(nameof(power));
 
