@@ -155,6 +155,7 @@ namespace SessyController.Services.InverterServices
                     {
                         new SolarInverterData
                         {
+                            ProviderName = ProviderName,
                             InverterId = id,
                             Time = date,
                             Power = power

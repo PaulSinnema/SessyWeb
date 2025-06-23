@@ -9,18 +9,39 @@
 <RadzenLayout Style="height: 80vh;">
     <RadzenHeader Style="height: 100%;margin: 0px; padding: 0px;">
         <RadzenStack Orientation=Orientation.Horizontal AlignItems="AlignItems.Center" Style="height:100%;margin: 0px; padding: 0px;">
-            <h4>Solar power</h4>
+            <RadzenLabel Text="Solar power" Component="RadzenDropDownBindValue" class="h4 m-2" />
+            
             <DateChooserComponent PeriodChosen=@PeriodChosen
                                   DateChosenChanged=@((DateTime d) => DateChosenChanged(d))
                                   PeriodChosenChanged=@((PeriodsEnums p) => PeriodChosenChanged(p)) />
+
+            <RadzenLabel Text="Select provider" Component="RadzenDropDownBindValue" />
+
+            <RadzenDropDown TValue="string"
+                            @bind-Value="selectedProvider"
+                            Data="@providerNames"
+                            Placeholder="Select provider"
+                            Style="width: 200px;" />
         </RadzenStack>
     </RadzenHeader>
 
     <RadzenBody>
         <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="0.5rem" Style="width: 100%;">
+
             <RadzenChart Style="@GraphStyle">
                 <RadzenLegend Position="LegendPosition.Top" Visible="true" />
-                <RadzenAreaSeries Data="@SolarEdgeData" Smooth="true" Title="Solar power" CategoryProperty="Time" LineType="LineType.Dotted" ValueProperty="Power" />
+                @foreach (var provider in groupedData)
+                {
+                    if (selectedProvider == "All" || selectedProvider == provider.Key)
+                    {
+                        <RadzenAreaSeries Data="@provider.Value"
+                                          Title="@provider.Key"
+                                          CategoryProperty="Time"
+                                          ValueProperty="Power"
+                                          Smooth="true"
+                                          LineType="LineType.Dotted" />
+                    }
+                }
             </RadzenChart>
         </RadzenStack>
     </RadzenBody>

@@ -18,7 +18,11 @@ namespace SessyWeb.Pages
         [Inject]
         SolarService? _solarService { get; set; }
 
-        public List<SolarInverterData> SolarEdgeData { get; set; } = new();
+        private Dictionary<string, List<SolarInverterData>> groupedData { get; set; } = new();
+        private List<string> providerNames { get; set; } = new();
+        public List<SolarInverterData> SolarInverterData { get; set; } = new();
+
+        public string selectedProvider { get; set; } = "All";
 
         public DateTime? DateChosen { get; set; }
 
@@ -70,7 +74,7 @@ namespace SessyWeb.Pages
                 DateChosen = date;
             }
 
-            SolarEdgeData = _solarEdgeDataService!.GetList((set) =>
+            SolarInverterData = _solarEdgeDataService!.GetList((set) =>
             {
                 switch (PeriodChosen)
                 {
@@ -105,6 +109,13 @@ namespace SessyWeb.Pages
                 .ToList(); ;
 
             SolarPower = GetSolarPower(date);
+
+            groupedData = SolarInverterData
+                    .GroupBy(d => d.ProviderName)
+                    .ToDictionary(g => g.Key, g => g.ToList());
+
+            providerNames = groupedData.Keys.OrderBy(k => k).ToList();
+            providerNames.Insert(0, "All");
 
             StateHasChanged();
         }
