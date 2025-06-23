@@ -30,7 +30,7 @@ namespace SessyController.Managers
                 .ToList();
         }
 
-        public async Task<double> GetTotalSolarPower()
+        public async Task<double> GetTotalACPowerInWatts()
         {
             double total = 0;
             foreach (var service in _activeInverters)

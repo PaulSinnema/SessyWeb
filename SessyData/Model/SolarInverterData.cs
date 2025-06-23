@@ -14,12 +14,14 @@ namespace SessyData.Model
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)] // Auto-increment
         public int Id { get; set; }
+        public string ProviderName { get; set; }
         public string InverterId { get; set; }
         public DateTime Time { get; set; }
         public double Power { get; set; }
 
         public void Update(SolarInverterData updateInfo)
         {
+            ProviderName = updateInfo.ProviderName;
             InverterId = updateInfo.InverterId;
             Time = updateInfo.Time;
             Power = updateInfo.Power;
