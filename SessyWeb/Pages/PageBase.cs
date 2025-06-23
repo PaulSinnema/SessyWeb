@@ -1,21 +1,19 @@
 ﻿using Microsoft.AspNetCore.Components;
 using SessyController.Services.Items;
+using SessyWeb.Helpers;
 using SessyWeb.Services;
 
 namespace SessyWeb.Pages
 {
-    public class PageBase : LayoutComponentBase, IDisposable
+    public class PageBase : ComponentBase, IDisposable
     {
         [Inject]
         public BatteryContainer? batteryContainer { get; set; }
         [Inject]
         public ScreenSizeService? _screenSizeService { get; set; }
 
-        [CascadingParameter]
-        public bool IsMobile { get; set; }
-
-        [CascadingParameter]
-        public bool IsLandscape { get; set; }
+        [CascadingParameter(Name = "ScreenInfo")]
+        public ScreenInfo? ScreenInfo { get; set; }
 
         public bool IsComponentActive { get; internal set; } = false;
 

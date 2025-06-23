@@ -1,14 +1,12 @@
 ﻿using Microsoft.AspNetCore.Components;
+using SessyWeb.Helpers;
 
 namespace SessyWeb.Components
 {
-    public class BaseComponent : LayoutComponentBase
+    public class BaseComponent : ComponentBase
     {
-        [CascadingParameter]
-        public bool IsMobile { get; set; }
-
-        [CascadingParameter]
-        public bool IsLandscape { get; set; }
+        [CascadingParameter(Name = "ScreenInfo")]
+        public ScreenInfo? ScreenInfo{ get; set; }
 
         public IFormatProvider GetFormatProvider()
         {

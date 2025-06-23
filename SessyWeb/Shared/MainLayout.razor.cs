@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Components;
 using Radzen;
+using SessyWeb.Helpers;
 using SessyWeb.Services;
 
 namespace SessyWeb.Shared
@@ -16,14 +17,12 @@ namespace SessyWeb.Shared
         private const string MenuStyleIcon = "width: 100%; min-width: 50px; height: 100%;";
         private const string MenuStyleIconAndText = "width: 100%; min-width: 200px; height: 100%;";
 
+        public ScreenInfo ScreenInfo { get; set; } = new();
+
         private int screenWidth { get; set; }
         private int screenHeight { get; set; }
 
         public string? MenuStyle { get; set; }
-
-        public bool IsMobile { get; set; } = false;
-
-        public bool IsLandscape { get; set; } = false;
 
         protected override void OnInitialized()
         {
@@ -48,13 +47,13 @@ namespace SessyWeb.Shared
             await base.OnAfterRenderAsync(firstRender);
         }
 
-        private void _screenSizeService_OnScreenSizeChanged(int height, int width)
+        private void _screenSizeService_OnScreenSizeChanged (int height, int width)
         {
             screenWidth = width;
             screenHeight = height;
 
-            IsMobile = width <= 1000;
-            IsLandscape = width > height;
+            ScreenInfo.Width = width;
+            ScreenInfo.Height = height;
 
             StateHasChanged();
         }

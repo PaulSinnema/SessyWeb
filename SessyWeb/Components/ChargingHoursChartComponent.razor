@@ -1,7 +1,8 @@
-﻿@inherits BaseComponent
+﻿@using SessyWeb.Helpers
+@inherits BaseComponent
 <div style="width: 100%; overflow: auto;">
     <RadzenChart Style=@GraphStyle>
-        <RadzenLegend Position="@(IsMobile? LegendPosition.Right: LegendPosition.Top)" Visible="true" />
+        <RadzenLegend Position="@((ScreenInfo?.IsMobile ?? false) ? LegendPosition.Right: LegendPosition.Top)" Visible="true" />
         <RadzenChartTooltipOptions Shared="false" Visible="true" />
         <RadzenColumnSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Price" LineType="LineType.Dashed" ValueProperty="BuyingPrice">
             <TooltipTemplate Context="data">
@@ -76,11 +77,11 @@
                 <RadzenSeriesDataLabels Visible="false" />
             </ChildContent>
         </RadzenLineSeries>
-        <RadzenCategoryAxis Padding="40" Formatter="@FormatAsDayHour" TickDistance="75">
+        <RadzenCategoryAxis Padding="40" Formatter="@Formatters.FormatAsDayHour" TickDistance="75">
             <RadzenGridLines Visible="true" />
             <RadzenAxisTitle Text="Time" />
         </RadzenCategoryAxis>
-        <RadzenValueAxis Formatter="@FormatAsPrice">
+        <RadzenValueAxis Formatter="@Formatters.FormatAsPrice">
             <RadzenGridLines Visible="true" />
             <RadzenAxisTitle Text="Price" />
         </RadzenValueAxis>

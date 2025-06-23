@@ -9,7 +9,8 @@
 <RadzenLayout Style="height: 80vh;">
     <RadzenHeader Style="height: 100%;margin: 0px; padding: 0px;">
         <RadzenStack Orientation=Orientation.Horizontal AlignItems="AlignItems.Center" Style="height:100%;margin: 0px; padding: 0px;">
-            <h4>Financial results</h4>
+            <RadzenLabel Text="Financial results" class="h4 m-2" />
+
             <DateChooserComponent DateChosenChanged="@((DateTime d) => DateChosenChanged(d))"
                                   PeriodChosenChanged="@((PeriodsEnums p) => PeriodChosenChanged(p))" />
         </RadzenStack>

@@ -4,6 +4,7 @@
 @using SessyWeb.Components
 @using SessyData.Model
 @using Radzen
+@using SessyWeb.Helpers
 @using static SessyWeb.Components.DateChooserComponent
 
 <RadzenLayout Style="height: 80vh;">
@@ -42,10 +43,19 @@
                                           LineType="LineType.Dotted" />
                     }
                 }
+
+                @{
+                    Func<object, string> formatter = PeriodChosen == PeriodsEnums.Day ? Formatters.FormatAsDayHour : Formatters.FormatAsDate;
+                }
+                <RadzenCategoryAxis Padding="40" Formatter="@formatter" TickDistance="75">
+                    <RadzenGridLines Visible="true" />
+                    <RadzenAxisTitle Text="Time" />
+                </RadzenCategoryAxis>
+
             </RadzenChart>
         </RadzenStack>
     </RadzenBody>
     <RadzenFooter>
-        <b>@String.Format(GetFormatProvider(), "Total solar power: {0:N5} kWh", SolarPower)</b>
+        <b>@String.Format(GetFormatProvider(), "Total solar power: {0:N2} kWh", SolarPower)</b>
     </RadzenFooter>
 </RadzenLayout>

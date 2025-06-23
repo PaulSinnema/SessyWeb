@@ -12,7 +12,7 @@ else
 
     <RadzenCard title=@title Style="background-color: transparent; width:97%; margin: 0px;">
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center">
-            @if (!IsMobile)
+            @if (!ScreenInfo?.IsMobile ?? false)
             {
                 <RadzenColumn SizeXL="12" SizeSM="6" SizeMD="4">
                     <RadzenStack Orientation="Orientation.Vertical" AlignItems="AlignItems.Center">
