@@ -1,8 +1,10 @@
 ﻿using Microsoft.AspNetCore.Components;
+using Radzen.Blazor;
 using Radzen.Blazor.Rendering;
 using SessyController.Services;
 using SessyData.Model;
 using SessyData.Services;
+using SessyWeb.Helpers;
 using static SessyWeb.Components.DateChooserComponent;
 
 namespace SessyWeb.Pages
@@ -18,7 +20,7 @@ namespace SessyWeb.Pages
         [Inject]
         SolarService? _solarService { get; set; }
 
-        private Dictionary<string, List<SolarInverterData>> groupedData { get; set; } = new();
+        private Dictionary<string, List<SolarInverterData>> GroupedData { get; set; } = new();
         private List<string> providerNames { get; set; } = new();
         public List<SolarInverterData> SolarInverterData { get; set; } = new();
 
@@ -32,47 +34,74 @@ namespace SessyWeb.Pages
 
         private string GraphStyle { get; set; } = "width: 100%; height: 60vh";
 
-        protected override Task OnAfterRenderAsync(bool firstRender)
+        private RadzenChart? SolarPowerChart { get; set; }
+
+        private int SolarPowerChartWidth { get; set; } = 2000;
+
+        private int TickDistance { get; set; }
+
+        protected override async Task OnInitializedAsync()
+        {
+            DateChosen = _timeZoneService!.Now.Date;
+            PeriodChosen = PeriodsEnums.Month;
+
+            await base.OnInitializedAsync();
+        }
+
+        protected override async Task OnAfterRenderAsync(bool firstRender)
         {
             if (firstRender)
             {
-                DateChosen = _timeZoneService!.Now.Date;
-                PeriodChosen = PeriodsEnums.Month;
-
-                SelectionChanged();
-
-                StateHasChanged();
+                await SelectionChanged();
             }
 
-            return base.OnAfterRenderAsync(firstRender);
+            await base.OnAfterRenderAsync(firstRender);
         }
 
-        public void PeriodChosenChanged(PeriodsEnums period)
+        public async Task PeriodChosenChanged(PeriodsEnums period)
         {
             PeriodChosen = period;
 
-            SelectionChanged();
+            await SelectionChanged();
         }
 
-        public void DateChosenChanged(DateTime date)
+        public async Task DateChosenChanged(DateTime date)
         {
             DateChosen = date;
 
-            SelectionChanged();
+            await SelectionChanged();
         }
 
-        private void SelectionChanged()
-        {
-            var date = _timeZoneService!.Now.Date;
+        private Func<object, string>? Formatter { get; set; } = null;
 
-            if (DateChosen != null)
+        public void FillFormatter()
+        {
+            switch (PeriodChosen)
             {
-                date = DateChosen.Value.Date;
+                case PeriodsEnums.Day:
+                    Formatter = Formatters.FormatAsDayHour;
+                    break;
+
+                case PeriodsEnums.Week:
+                case PeriodsEnums.Month:
+                    Formatter = Formatters.FormatAsDay;
+                    break;
+
+                case PeriodsEnums.Year:
+                case PeriodsEnums.All:
+                    Formatter = Formatters.FormatAsMonth;
+                    break;
+
+                default:
+                    throw new InvalidOperationException($"Invalid PeriodChosen: {PeriodChosen}");
             }
-            else
-            {
-                DateChosen = date;
-            }
+        }
+
+        private async Task SelectionChanged()
+        {
+            SolarPowerChartWidth = await _screenSizeService!.GetElementWidth(SolarPowerChart!.Element);
+
+            DateChosen ??= DateChosen?.Date ?? _timeZoneService!.Now.Date;
 
             SolarInverterData = _solarEdgeDataService!.GetList((set) =>
             {
@@ -85,17 +114,17 @@ namespace SessyWeb.Pages
 
                     case PeriodsEnums.Week:
                         return set
-                            .Where(sed => date.StartOfWeek() <= sed.Time && date.EndOfWeek().AddDays(1).AddSeconds(-1) >= sed.Time)
+                            .Where(sed => DateChosen!.Value.StartOfWeek() <= sed.Time && DateChosen!.Value.EndOfWeek().AddDays(1).AddSeconds(-1) >= sed.Time)
                             .ToList();
 
                     case PeriodsEnums.Month:
                         return set
-                            .Where(sed => date.StartOfMonth() <= sed.Time && date.EndOfMonth().AddDays(1).AddSeconds(-1) >= sed.Time)
+                            .Where(sed => DateChosen!.Value.StartOfMonth() <= sed.Time && DateChosen!.Value.EndOfMonth().AddDays(1).AddSeconds(-1) >= sed.Time)
                             .ToList();
 
                     case PeriodsEnums.Year:
                         return set
-                            .Where(sed => date.Year == sed.Time.Year)
+                            .Where(sed => DateChosen!.Value.Year == sed.Time.Year)
                             .ToList();
 
                     case PeriodsEnums.All:
@@ -104,20 +133,75 @@ namespace SessyWeb.Pages
                     default:
                         throw new InvalidOperationException($"Wrong period type {PeriodChosen}");
                 }
-            })
-                .OrderBy(sed => sed.Time)
-                .ToList(); ;
+            }).OrderBy(sed => sed.Time)
+              .ToList(); ;
 
-            SolarPower = GetSolarPower(date);
+            SolarPower = GetSolarPower(DateChosen!.Value);
 
-            groupedData = SolarInverterData
+            GroupedData = SolarInverterData
                     .GroupBy(d => d.ProviderName)
                     .ToDictionary(g => g.Key, g => g.ToList());
 
-            providerNames = groupedData.Keys.OrderBy(k => k).ToList();
+            providerNames = GroupedData.Keys.OrderBy(k => k).ToList();
             providerNames.Insert(0, "All");
 
+            var numberOfElements = GroupedData.Values.Count();
+
+            DetermineTickDistance(GroupedData);
+
+            FillFormatter();
+
             StateHasChanged();
+
+            await SolarPowerChart.Reload();
+        }
+
+        private void DetermineTickDistance(Dictionary<string, List<SolarInverterData>> groupedData)
+        {
+            var start = groupedData.Values.Min(list => list.Min(sid => sid.Time));
+            var end = groupedData.Values.Max(list => list.Max(sid => sid.Time)).AddDays(1);
+
+            switch (PeriodChosen)
+            {
+                case PeriodsEnums.Day:
+                    {
+                        var hours = (end - start).Hours;
+
+                        TickDistance = SolarPowerChartWidth / (hours == 0 ? 24 : hours);
+
+                        break;
+                    }
+
+                case PeriodsEnums.Week:
+                    {
+                        var days = (end - start).Days;
+
+                        TickDistance = SolarPowerChartWidth / (days == 0 ? 7 : days);
+
+                        break;
+                    }
+
+                case PeriodsEnums.Month:
+                    {
+                        var days = (end - start).Days;
+
+                        TickDistance = SolarPowerChartWidth / (days == 0 ? 31 : days);
+                        break;
+                    }
+
+                case PeriodsEnums.Year:
+                case PeriodsEnums.All:
+                    {
+                        var months = (end - start).Days / 30;
+
+                        TickDistance = SolarPowerChartWidth / (months == 0 ? 12 : months);
+
+                        break;
+                    }
+
+                default:
+                    throw new InvalidOperationException($"Invalid period: {PeriodChosen}");
+            }
         }
 
         private double GetSolarPower(DateTime date)

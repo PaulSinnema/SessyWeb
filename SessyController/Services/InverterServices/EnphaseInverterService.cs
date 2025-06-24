@@ -1,41 +1,17 @@
-﻿using SessyController.Interfaces;
+﻿using Microsoft.Extensions.Options;
+using SessyController.Configurations;
+using SessyController.Interfaces;
 
 namespace SessyController.Services.InverterServices
 {
-    public class EnphaseInverterService : ISolarInverterService
+    public class EnphaseInverterService : SunspecInverterService
     {
-#pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
-        public async Task Start(CancellationToken cancelationToken)
-#pragma warning restore CS1998 // Async method lacks 'await' operators and will run synchronously
+        public EnphaseInverterService(LoggingService<SolarEdgeInverterService> logger,
+                                      IHttpClientFactory httpClientFactory,
+                                      IOptions<PowerSystemsConfig> powerSystemsConfig,
+                                      IServiceScopeFactory serviceScopeFactory) 
+            : base(logger, "Enphase", httpClientFactory, powerSystemsConfig, serviceScopeFactory)
         {
-            throw new NotImplementedException();
-        }
-
-        public string ProviderName => "Enphase";
-
-        public Task<ushort> GetACPower(string id)
-        {
-            throw new NotImplementedException();
-        }
-
-        public Task<double> GetACPowerInWatts(string id)
-        {
-            throw new NotImplementedException();
-        }
-
-        public Task<short> GetACPowerScaleFactor(string id)
-        {
-            throw new NotImplementedException();
-        }
-
-        public Task<ushort> GetStatus(string id)
-        {
-            throw new NotImplementedException();
-        }
-
-        public Task<double> GetTotalACPowerInWatts()
-        {
-            throw new NotImplementedException();
         }
     }
 }

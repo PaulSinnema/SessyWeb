@@ -11,10 +11,10 @@
             {
                 var dateTime = (DateTime)value;
 
-                return $"{dateTime.Day}/{dateTime.Month} {dateTime.Hour}:{dateTime.Minute:00}";
+                return $"{dateTime:dd MMM HH}:00";
             }
 
-            return "Not DateTime";
+            return "No DateTime";
         }
 
         public static string FormatAsDate(object value)
@@ -26,7 +26,31 @@
                 return $"{dateTime.Day}/{dateTime.Month}/{dateTime.Year}";
             }
 
-            return "Not DateTime";
+            return "No DateTime";
+        }
+
+        public static string FormatAsDay(object value)
+        {
+            if (value is DateTime)
+            {
+                var dateTime = (DateTime)value;
+
+                return $"{dateTime:dd MMM}";
+            }
+
+            return "No DateTime";
+        }
+
+        public static string FormatAsMonth(object value)
+        {
+            if (value is DateTime)
+            {
+                var dateTime = (DateTime)value;
+
+                return $"{dateTime:MMM yyyy}";
+            }
+
+            return "No DateTime";
         }
 
         /// <summary>

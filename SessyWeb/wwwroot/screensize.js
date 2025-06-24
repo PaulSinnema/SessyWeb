@@ -11,3 +11,8 @@ export function initialize(dotNetHelper) {
         dotNetHelper.invokeMethodAsync("UpdateScreenSize", getScreenHeight(), getScreenWidth());
     });
 }
+
+export function getElementWidth (element) {
+    if (!element) return 0;
+    return element.offsetWidth;
+};

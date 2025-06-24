@@ -10,44 +10,43 @@
 <RadzenLayout Style="height: 80vh;">
     <RadzenHeader Style="height: 100%;margin: 0px; padding: 0px;">
         <RadzenStack Orientation=Orientation.Horizontal AlignItems="AlignItems.Center" Style="height:100%;margin: 0px; padding: 0px;">
+            @* TickDistance: <p>@TickDistance</p> *@
+
             <RadzenLabel Text="Solar power" Component="RadzenDropDownBindValue" class="h4 m-2" />
-            
+
             <DateChooserComponent PeriodChosen=@PeriodChosen
-                                  DateChosenChanged=@((DateTime d) => DateChosenChanged(d))
-                                  PeriodChosenChanged=@((PeriodsEnums p) => PeriodChosenChanged(p)) />
+            DateChosenChanged=@((DateTime d) => DateChosenChanged(d))
+            PeriodChosenChanged=@((PeriodsEnums p) => PeriodChosenChanged(p)) />
 
             <RadzenLabel Text="Select provider" Component="RadzenDropDownBindValue" />
 
             <RadzenDropDown TValue="string"
-                            @bind-Value="selectedProvider"
-                            Data="@providerNames"
-                            Placeholder="Select provider"
-                            Style="width: 200px;" />
+            @bind-Value="selectedProvider"
+            Data="@providerNames"
+            Placeholder="Select provider"
+            Style="width: 200px;" />
         </RadzenStack>
     </RadzenHeader>
 
     <RadzenBody>
         <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="0.5rem" Style="width: 100%;">
 
-            <RadzenChart Style="@GraphStyle">
+            <RadzenChart Style="@GraphStyle" @ref=SolarPowerChart>
                 <RadzenLegend Position="LegendPosition.Top" Visible="true" />
-                @foreach (var provider in groupedData)
+                @foreach (var provider in GroupedData)
                 {
                     if (selectedProvider == "All" || selectedProvider == provider.Key)
                     {
                         <RadzenAreaSeries Data="@provider.Value"
-                                          Title="@provider.Key"
-                                          CategoryProperty="Time"
-                                          ValueProperty="Power"
-                                          Smooth="true"
-                                          LineType="LineType.Dotted" />
+                        Title="@provider.Key"
+                        CategoryProperty="Time"
+                        ValueProperty="Power"
+                        Smooth="true"
+                        LineType="LineType.Dotted" />
                     }
                 }
 
-                @{
-                    Func<object, string> formatter = PeriodChosen == PeriodsEnums.Day ? Formatters.FormatAsDayHour : Formatters.FormatAsDate;
-                }
-                <RadzenCategoryAxis Padding="40" Formatter="@formatter" TickDistance="75">
+                <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance>
                     <RadzenGridLines Visible="true" />
                     <RadzenAxisTitle Text="Time" />
                 </RadzenCategoryAxis>
@@ -55,7 +54,9 @@
             </RadzenChart>
         </RadzenStack>
     </RadzenBody>
+
     <RadzenFooter>
         <b>@String.Format(GetFormatProvider(), "Total solar power: {0:N2} kWh", SolarPower)</b>
     </RadzenFooter>
 </RadzenLayout>
+

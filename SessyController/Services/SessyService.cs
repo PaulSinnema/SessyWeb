@@ -108,7 +108,7 @@ namespace SessyController.Services
         /// <returns>An awaitable Task representing the asynchronous operation.</returns>
         public async Task SetPowerSetpointAsync(string id, PowerSetpoint setpoint)
         {
-            _logger.LogInformation($"SetPowerSetpoint({id}, {setpoint})");
+            _logger.LogWarning($"SetPowerSetpoint({id}, {setpoint.Setpoint})");
 
             SessyBatteryEndpoint battery = GetBatteryConfiguration(id);
             using var client = CreateHttpClient(battery);

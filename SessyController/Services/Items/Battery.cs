@@ -61,7 +61,7 @@ namespace SessyController.Services.Items
 
                     Thread.Sleep(5000); // wait a while.
                 }
-            } while (tries < 10);
+            } while (tries <= 10);
 
             throw new InvalidOperationException($"Could not get power status after 10 retries for battery {Id}", exception);
         }
@@ -140,7 +140,9 @@ namespace SessyController.Services.Items
             if (lastPowerSetpoint != null)
             {
                 if (lastPowerSetpoint.Setpoint != powerSetpoint.Setpoint)
+                {
                     await _sessyService.SetPowerSetpointAsync(Id, powerSetpoint);
+                }
             }
             else
             {
