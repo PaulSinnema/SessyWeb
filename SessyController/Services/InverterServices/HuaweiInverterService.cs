@@ -7,7 +7,7 @@ namespace SessyController.Services.InverterServices
     {
         public HuaweiInverterService(LoggingService<SolarEdgeInverterService> logger,
                                      IHttpClientFactory httpClientFactory,
-                                     IOptions<PowerSystemsConfig> powerSystemsConfig,
+                                     IOptionsMonitor<PowerSystemsConfig> powerSystemsConfig,
                                      IServiceScopeFactory serviceScopeFactory)
             : base(logger, "Huawei", httpClientFactory, powerSystemsConfig, serviceScopeFactory)
         {

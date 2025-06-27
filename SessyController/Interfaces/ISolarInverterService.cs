@@ -1,4 +1,6 @@
-﻿namespace SessyController.Interfaces
+﻿using Endpoint = SessyController.Configurations.Endpoint;
+
+namespace SessyController.Interfaces
 {
     public interface ISolarInverterService
     {
@@ -8,6 +10,9 @@
         Task<ushort> GetACPower(string id);
         Task<short> GetACPowerScaleFactor(string id);
         Task<ushort> GetStatus(string id);
+        Task ThrottleInverterToPercentage(ushort percentage);
+
+        Dictionary<string, Endpoint> Endpoints { get; }
         string ProviderName { get; }
     }
 }

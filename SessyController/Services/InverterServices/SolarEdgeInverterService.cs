@@ -10,7 +10,7 @@ namespace SessyController.Services.InverterServices
     {
         public SolarEdgeInverterService(LoggingService<SolarEdgeInverterService> logger,
                                         IHttpClientFactory httpClientFactory,
-                                        IOptions<PowerSystemsConfig> powerSystemsConfig,
+                                        IOptionsMonitor<PowerSystemsConfig> powerSystemsConfig,
                                         IServiceScopeFactory serviceScopeFactory)
             : base(logger, "SolarEdge", httpClientFactory, powerSystemsConfig, serviceScopeFactory)
         {

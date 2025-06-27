@@ -7,7 +7,8 @@ namespace SessyController.Managers
     public class SolarInverterManager : BackgroundService
     {
         private PowerSystemsConfig _powerSystemsConfig { get; set; }
-        private List<ISolarInverterService> _activeInverters { get; set; } = new();
+        private List<ISolarInverterService> _activeInverterServices { get; set; } = new();
+        private double TotalCapacity => _activeInverterServices.Sum(serv => serv.Endpoints.Sum(ep => ep.Value.InverterMaxCapacity));
 
         public SolarInverterManager(IEnumerable<ISolarInverterService> inverterServices,
                                     IOptionsMonitor<PowerSystemsConfig> powerSystemsConfig)
@@ -25,7 +26,7 @@ namespace SessyController.Managers
 
         private void FillActiveInverterServices(IEnumerable<ISolarInverterService> inverterServices)
         {
-            _activeInverters = inverterServices
+            _activeInverterServices = inverterServices
                 .Where(inverterService => _powerSystemsConfig.Endpoints.ContainsKey(inverterService.ProviderName))
                 .ToList();
         }
@@ -33,7 +34,7 @@ namespace SessyController.Managers
         public async Task<double> GetTotalACPowerInWatts()
         {
             double total = 0;
-            foreach (var service in _activeInverters)
+            foreach (var service in _activeInverterServices)
             {
                 total += await service.GetTotalACPowerInWatts();
             }
@@ -42,14 +43,36 @@ namespace SessyController.Managers
         }
 
         public ISolarInverterService? GetByName(string name) =>
-            _activeInverters.FirstOrDefault(s => s.ProviderName.Equals(name, StringComparison.OrdinalIgnoreCase));
+            _activeInverterServices.FirstOrDefault(s => s.ProviderName.Equals(name, StringComparison.OrdinalIgnoreCase));
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            foreach (var service in _activeInverters)
+            foreach (var service in _activeInverterServices)
             {
                 await service.Start(stoppingToken);
             }
+        }
+
+        private double? _lastWattsSet { get; set; } = null;
+
+        public async Task ThrottleInverterToWatts(double watts)
+        {
+            if (TotalCapacity <= 0.0) throw new InvalidOperationException($"InverterMaxCapacity not set or wrong in config for one or more endpoints");
+
+            if (!_lastWattsSet.HasValue || (_lastWattsSet.HasValue && _lastWattsSet != watts))
+            {
+                var percentage = (ushort)(watts / TotalCapacity * 100);
+
+                if (percentage > 100)
+                    percentage = 100;
+
+                foreach (var service in _activeInverterServices)
+                {
+                    await service.ThrottleInverterToPercentage(percentage);
+                }
+            }
+
+            _lastWattsSet = watts;
         }
     }
 }

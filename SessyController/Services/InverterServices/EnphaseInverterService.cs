@@ -8,7 +8,7 @@ namespace SessyController.Services.InverterServices
     {
         public EnphaseInverterService(LoggingService<SolarEdgeInverterService> logger,
                                       IHttpClientFactory httpClientFactory,
-                                      IOptions<PowerSystemsConfig> powerSystemsConfig,
+                                      IOptionsMonitor<PowerSystemsConfig> powerSystemsConfig,
                                       IServiceScopeFactory serviceScopeFactory) 
             : base(logger, "Enphase", httpClientFactory, powerSystemsConfig, serviceScopeFactory)
         {

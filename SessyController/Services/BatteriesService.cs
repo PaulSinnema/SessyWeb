@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Options;
 using SessyCommon.Extensions;
 using SessyController.Configurations;
+using SessyController.Managers;
 using SessyController.Services.InverterServices;
 using SessyController.Services.Items;
 using SessyData.Model;
@@ -19,7 +20,7 @@ namespace SessyController.Services
         private SessyService? _sessyService { get; set; }
         private P1MeterService? _p1MeterService { get; set; }
         private DayAheadMarketService? _dayAheadMarketService { get; set; }
-        private SolarEdgeInverterService? _solarEdgeService { get; set; }
+        private SolarInverterManager? _solarInverterManager { get; set; }
         private SolarService? _solarService { get; set; }
         private IServiceScopeFactory _serviceScopeFactory { get; set; }
         private IOptionsMonitor<SettingsConfig> _settingsConfigMonitor { get; set; }
@@ -87,7 +88,7 @@ namespace SessyController.Services
             _sessyService = _scope.ServiceProvider.GetRequiredService<SessyService>();
             _p1MeterService = _scope.ServiceProvider.GetRequiredService<P1MeterService>();
             _dayAheadMarketService = _scope.ServiceProvider.GetRequiredService<DayAheadMarketService>();
-            _solarEdgeService = _scope.ServiceProvider.GetRequiredService<SolarEdgeInverterService>();
+            _solarInverterManager = _scope.ServiceProvider.GetRequiredService<SolarInverterManager>();
             _solarService = _scope.ServiceProvider.GetRequiredService<SolarService>();
             _batteryContainer = _scope.ServiceProvider.GetRequiredService<BatteryContainer>();
             _timeZoneService = _scope.ServiceProvider.GetRequiredService<TimeZoneService>();
@@ -172,7 +173,16 @@ namespace SessyController.Services
 
                         if (WeAreInControl)
                         {
-                            await HandleChargingAndDischarging();
+                            HourlyInfo? currentHourlyInfo = _sessions.GetCurrentHourlyInfo();
+
+                            if (currentHourlyInfo != null)
+                            {
+                                var batteryStates = await GetBatteryStates(currentHourlyInfo);
+
+                                await HandleChargingAndDischarging(batteryStates, currentHourlyInfo);
+
+                                await HandleInverterThrottling(batteryStates, currentHourlyInfo);
+                            }
                         }
                     }
                 }
@@ -187,6 +197,23 @@ namespace SessyController.Services
 
                     DataChanged?.Invoke();
                 }
+            }
+        }
+
+        private async Task HandleInverterThrottling(BatteryStates batteryStates, HourlyInfo currentHourlyInfo)
+        {
+            var p1Details = await _p1MeterService.GetP1DetailsAsync("P1");
+
+            if (currentHourlyInfo.PriceIsNegative && batteryStates.BatteriesAreFull)
+            {
+                if (p1Details.PowerTotal < 0) // Delivering to the net.
+                {
+                    await _solarInverterManager.ThrottleInverterToWatts(p1Details.PowerTotal * -1);
+                }
+            }
+            else
+            {
+                await _solarInverterManager.ThrottleInverterToWatts(100); // Full capacity.
             }
         }
 
@@ -253,22 +280,17 @@ namespace SessyController.Services
         /// <summary>
         /// Handle (dis)charging manual or automatic.
         /// </summary>
-        private async Task HandleChargingAndDischarging()
+        private async Task HandleChargingAndDischarging(BatteryStates batteryStates, HourlyInfo currentHourlyInfo)
         {
-            HourlyInfo? currentHourlyInfo = _sessions.GetCurrentHourlyInfo();
-
-            if (currentHourlyInfo != null)
+            if ((_dayAheadMarketService.PricesAvailable) && _settingsConfig.ManualOverride == false)
             {
-                if ((_dayAheadMarketService.PricesAvailable) && _settingsConfig.ManualOverride == false)
-                {
-                    await HandleAutomaticCharging(_sessions, currentHourlyInfo);
-                }
-                else
-                {
-                    _logger.LogInformation("No prices available from ENTSO-E, switching to manual charging");
+                await HandleAutomaticCharging(_sessions!, currentHourlyInfo, batteryStates);
+            }
+            else
+            {
+                _logger.LogInformation("No prices available from ENTSO-E, switching to manual charging");
 
-                    HandleManualCharging(currentHourlyInfo);
-                }
+                HandleManualCharging(currentHourlyInfo);
             }
         }
 
@@ -294,9 +316,9 @@ namespace SessyController.Services
             return _sessions!;
         }
 
-        private async Task HandleAutomaticCharging(Sessions sessions, HourlyInfo currentHourlyInfo)
+        private async Task HandleAutomaticCharging(Sessions sessions, HourlyInfo currentHourlyInfo, BatteryStates batteryStates)
         {
-            await CancelSessionIfStateRequiresIt(sessions, currentHourlyInfo);
+            await CancelSessionIfStateRequiresIt(sessions, currentHourlyInfo, batteryStates);
 
             var currentSession = sessions.GetSession(currentHourlyInfo);
 
@@ -374,7 +396,7 @@ namespace SessyController.Services
         /// If batteries are full (enough) stop charging this session
         /// If batteries are empty stop discharging this session
         /// </summary>
-        private async Task CancelSessionIfStateRequiresIt(Sessions sessions, HourlyInfo currentHourlyInfo)
+        private async Task CancelSessionIfStateRequiresIt(Sessions sessions, HourlyInfo currentHourlyInfo, BatteryStates batteryStates)
         {
             var session = sessions.GetSession(currentHourlyInfo);
 
@@ -394,13 +416,10 @@ namespace SessyController.Services
 
                 if (currentHourlyInfo.Charging)
                 {
-                    bool batteriesAreFull = await AreAllBatteriesFull();
-                    bool chargeAtMaximum = await IsMaxChargeNeededReached(currentHourlyInfo);
-
-                    if (batteriesAreFull || chargeAtMaximum)
+                    if (batteryStates.BatteriesAreFull || batteryStates.ChargeAtMaximum)
                     {
                         StopSession(session);
-                        _logger.LogWarning($"Warning: Charging session stopped because batteries are full (enough). {session}, batteries are full: {batteriesAreFull}");
+                        _logger.LogWarning($"Warning: Charging session stopped because batteries are full (enough). {session}, batteries are full: {batteryStates.BatteriesAreFull}, charge at maximum: {batteryStates.ChargeAtMaximum}");
                     }
                 }
                 else if (currentHourlyInfo.Discharging)
@@ -415,6 +434,25 @@ namespace SessyController.Services
                     }
                 }
             }
+        }
+
+        public class BatteryStates
+        {
+            public bool BatteriesAreFull { get; set; }
+            public bool ChargeAtMaximum { get; set; }
+        }
+
+        /// <summary>
+        /// Gets states for the battery. BatteriesAreFull and ChargeAtMaximum.
+        /// </summary>
+        private async Task<BatteryStates> GetBatteryStates(HourlyInfo currentHourlyInfo)
+        {
+            BatteryStates batteryStates = new();
+
+            batteryStates.BatteriesAreFull = await AreAllBatteriesFull();
+            batteryStates.ChargeAtMaximum = await IsMaxChargeNeededReached(currentHourlyInfo);
+
+            return batteryStates;
         }
 
         /// <summary>
@@ -1242,7 +1280,7 @@ namespace SessyController.Services
                 _sessyService = null;
                 _p1MeterService = null;
                 _dayAheadMarketService = null;
-                _solarEdgeService = null;
+                _solarInverterManager = null;
                 _solarService = null;
                 _batteryContainer = null;
                 _timeZoneService = null;

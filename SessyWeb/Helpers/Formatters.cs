@@ -11,7 +11,7 @@
             {
                 var dateTime = (DateTime)value;
 
-                return $"{dateTime:dd MMM HH}:00";
+                return $"{dateTime:dd/MM HH}h";
             }
 
             return "No DateTime";
