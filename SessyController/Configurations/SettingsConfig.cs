@@ -5,9 +5,15 @@ namespace SessyController.Configurations
     public class SettingsConfig
     {
         /// <summary>
+        /// Tells the system not to use the Net Zero Home from Sessy but my own.
+        /// </summary>
+        public bool UseMyNetZeroHomeRoutine { get; set; }
+
+        /// <summary>
         /// If set to true will use manual hours rather than automated hours.
         /// </summary>
         public bool ManualOverride { get; set; }
+
         /// <summary>
         /// List of hours to charge when manual is set to true.
         /// </summary>

@@ -132,24 +132,34 @@ namespace SessyController.Services.Items
         }
 
         private PowerSetpoint? lastPowerSetpoint = null;
+        private SemaphoreSlim SetPowerSetPointSemaphore = new SemaphoreSlim(1);
 
         public async Task SetPowerSetpointAsync(PowerSetpoint powerSetpoint)
         {
-            EnsureInitialized();
+            SetPowerSetPointSemaphore.Wait();
 
-            if (lastPowerSetpoint != null)
+            try
             {
-                if (lastPowerSetpoint.Setpoint != powerSetpoint.Setpoint)
+                EnsureInitialized();
+
+                if (lastPowerSetpoint != null)
+                {
+                    if (lastPowerSetpoint.Setpoint != powerSetpoint.Setpoint)
+                    {
+                        await _sessyService.SetPowerSetpointAsync(Id, powerSetpoint);
+                    }
+                }
+                else
                 {
                     await _sessyService.SetPowerSetpointAsync(Id, powerSetpoint);
                 }
-            }
-            else
-            {
-                await _sessyService.SetPowerSetpointAsync(Id, powerSetpoint);
-            }
 
-            lastPowerSetpoint = powerSetpoint;
+                lastPowerSetpoint = powerSetpoint;
+            }
+            finally
+            {
+                SetPowerSetPointSemaphore.Release();
+            }
         }
 
         /// <summary>

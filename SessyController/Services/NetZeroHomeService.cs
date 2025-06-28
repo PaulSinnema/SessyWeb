@@ -58,9 +58,9 @@ namespace SessyController.Services
 
                 try
                 {
-                    int delayTime = 2; // Check again in 5 seconds
+                    int delayTime = 500; // Check again in 5 seconds
 
-                    await Task.Delay(TimeSpan.FromSeconds(delayTime), cancelationToken);
+                    await Task.Delay(TimeSpan.FromMilliseconds(delayTime), cancelationToken);
                 }
                 catch (TaskCanceledException)
                 {
@@ -134,7 +134,7 @@ namespace SessyController.Services
 
             if (NetZeroHomeActive)
             {
-                double powerToSetForBatteries = _powerInformation.HomeConsumption + _powerInformation.SolarPower;
+                double powerToSetForBatteries = _powerInformation.HomeConsumption - _powerInformation.SolarPower;
 
                 _batteryContainer.SetPowerSetpoint((int)powerToSetForBatteries);
             }
