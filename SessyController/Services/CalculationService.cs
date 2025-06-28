@@ -1,4 +1,5 @@
-﻿using SessyData.Model;
+﻿using SessyController.Services.Items;
+using SessyData.Model;
 using SessyData.Services;
 
 namespace SessyController.Services

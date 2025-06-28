@@ -99,6 +99,20 @@ public class P1MeterService : BackgroundService, IDisposable
         return config;
     }
 
+    public async Task<double> GetTotalACPowerInWatts()
+    {
+        double total = 0.0; 
+
+        foreach (var p1meter in _p1Configuration.Endpoints.Keys)
+        {
+            var details = await GetP1DetailsAsync(p1meter);
+
+            total += details.PowerTotal;
+        }
+
+        return total;
+    }
+
     /// <summary>
     /// Creates a configured HTTP client for interacting with the P1 Meter API.
     /// </summary>

@@ -67,6 +67,13 @@
                 </RadzenStack>
             }
 
+            <RadzenStack Orientation="Orientation.Vertical" Gap="0" AlignItems="AlignItems.Start" Style="width: 200px;">
+                <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Power</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>Batteries:@PowerInformation?.BatteryPower</b></RadzenText>
+                <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>Solar:@PowerInformation?.SolarPower</b></RadzenText>
+                <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>Net: @PowerInformation?.NetPower</b></RadzenText>
+            </RadzenStack>
+
             <RadzenStack Orientation="Orientation.Horizontal" Style="width: 100%;">
                 <RadzenStack Orientation="Orientation.Vertical" Gap="2" AlignItems="AlignItems.Start" Style="width: 150px;">
                     <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Heartbeat</RadzenText>

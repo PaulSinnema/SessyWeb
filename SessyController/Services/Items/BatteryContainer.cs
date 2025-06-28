@@ -49,6 +49,23 @@ namespace SessyController.Services.Items
         }
 
         /// <summary>
+        /// Get the total AC power from all batteries in the array.
+        /// </summary>
+        public async Task<double> GetTotalACPowerInWatts()
+        {
+            double total = 0.0;
+
+            foreach (var bat in Batteries)
+            {
+                var powerStatus = await bat.GetPowerStatus();
+
+                total += powerStatus.Sessy!.Power;
+            }
+
+            return total;
+        }
+
+        /// <summary>
         /// State of charge of all Sessy batteries.
         /// 1 = 100%.
         /// </summary>
@@ -112,6 +129,20 @@ namespace SessyController.Services.Items
             Batteries.ForEach(async bat =>
             {
                 await bat.SetActivePowerStrategyToZeroNetHome();
+            });
+        }
+
+        public void SetPowerSetpoint(int watts)
+        {
+            var powerToSet = watts / Batteries.Count;
+
+            Batteries.ForEach(async bat =>
+            {
+                await bat.SetActivePowerStrategyToOpenAPI();
+
+                var powerSetpoint = new PowerSetpoint { Setpoint = powerToSet };
+
+                await bat.SetPowerSetpointAsync(powerSetpoint);
             });
         }
 

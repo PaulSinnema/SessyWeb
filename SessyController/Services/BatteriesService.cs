@@ -42,6 +42,8 @@ namespace SessyController.Services
 
         private SessyWebControlDataService _sessyWebControlDataService { get; set; }
 
+        private NetZeroHomeService _zeroNetHomeService { get; set; }
+
         private LoggingService<BatteriesService> _logger { get; set; }
 
         private static List<HourlyInfo>? hourlyInfos { get; set; } = new List<HourlyInfo>();
@@ -96,6 +98,7 @@ namespace SessyController.Services
             _weatherService = _scope.ServiceProvider.GetRequiredService<WeatherService>();
             _financialResultsService = _scope.ServiceProvider.GetRequiredService<FinancialResultsService>();
             _sessyWebControlDataService = _scope.ServiceProvider.GetRequiredService<SessyWebControlDataService>();
+            _zeroNetHomeService = _scope.ServiceProvider.GetRequiredService<NetZeroHomeService>();
         }
 
         public override Task StopAsync(CancellationToken cancellationToken)
@@ -322,11 +325,16 @@ namespace SessyController.Services
 
             var currentSession = sessions.GetSession(currentHourlyInfo);
 
+            _zeroNetHomeService.SetNetZeroHome(_sessions!, false);
+
+
 #if !DEBUG
             switch (currentHourlyInfo.Mode)
             {
                 case Modes.Charging:
                     {
+                        _zeroNetHomeService.SetNetZeroHome(_sessions!, false);
+
                         var chargingPower = currentSession.ChargingPowerInWatts;
                         _batteryContainer.StartCharging(chargingPower);
                         break;
@@ -334,6 +342,8 @@ namespace SessyController.Services
 
                 case Modes.Discharging:
                     {
+                        _zeroNetHomeService.SetNetZeroHome(_sessions!, false);
+
                         var chargingPower = currentSession.ChargingPowerInWatts;
                         _batteryContainer.StartDisharging(chargingPower);
                         break;
@@ -341,7 +351,8 @@ namespace SessyController.Services
 
                 case Modes.ZeroNetHome:
                     {
-                        _batteryContainer.StartNetZeroHome();
+                        _zeroNetHomeService.SetNetZeroHome(_sessions!, true);
+                        // _batteryContainer.StartNetZeroHome();
                         break;
                     }
 

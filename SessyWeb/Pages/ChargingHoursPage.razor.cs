@@ -3,6 +3,7 @@ using Radzen;
 using SessyCommon.Extensions;
 using SessyController.Services;
 using SessyController.Services.Items;
+using static SessyController.Services.NetZeroHomeService;
 
 namespace SessyWeb.Pages
 {
@@ -16,6 +17,10 @@ namespace SessyWeb.Pages
         public SolarService? _solarService { get; set; }
         [Inject]
         public TimeZoneService? _timeZoneService { get; set; }
+        [Inject]
+        public NetZeroHomeService? _netZeroHomeService { get; set; }
+
+        public PowerInformationContainer? PowerInformation { get; set; }
 
         public List<HourlyInfo>? HourlyInfos { get; set; } = new List<HourlyInfo>();
 
@@ -95,6 +100,10 @@ namespace SessyWeb.Pages
                         Battery = battery,
                         PowerStatus = powerStatus
                     });
+
+                    PowerInformation = _netZeroHomeService!.PowerInformation;
+
+                    StateHasChanged();
                 }
 
                 BatteryWithStatusList = newStatuses;

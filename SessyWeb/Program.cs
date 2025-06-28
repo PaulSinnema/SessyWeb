@@ -107,6 +107,7 @@ builder.Services.AddSingleton<EPEXPricesDataService>();
 builder.Services.AddSingleton<SessyWebControlDataService>();
 builder.Services.AddSingleton<TaxesDataService>();
 builder.Services.AddSingleton<CalculationService>();
+builder.Services.AddSingleton<NetZeroHomeService>();
 
 // Solar inverters
 builder.Services.AddSingleton<SolarInverterManager>();
@@ -125,6 +126,7 @@ builder.Services.AddHostedService(provider => provider.GetRequiredService<SessyM
 builder.Services.AddHostedService(provider => provider.GetRequiredService<EnergyMonitorService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<P1MeterService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<SolarInverterManager>());
+builder.Services.AddHostedService(provider => provider.GetRequiredService<NetZeroHomeService>());
 
 builder.Services.AddRazorPages(options =>
 {
