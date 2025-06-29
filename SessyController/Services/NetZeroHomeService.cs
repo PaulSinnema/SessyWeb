@@ -126,17 +126,17 @@ namespace SessyController.Services
             try
             {
                 _powerInformation = await GetPowerInformation();
+
+                if (NetZeroHomeActive)
+                {
+                    double powerToSetForBatteries = _powerInformation.HomeConsumption - _powerInformation.SolarPower;
+
+                    _batteryContainer.SetPowerSetpoint((int)powerToSetForBatteries);
+                }
             }
             finally
             {
                 NulOnMeterSemaphore.Release();
-            }
-
-            if (NetZeroHomeActive)
-            {
-                double powerToSetForBatteries = _powerInformation.HomeConsumption - _powerInformation.SolarPower;
-
-                _batteryContainer.SetPowerSetpoint((int)powerToSetForBatteries);
             }
         }
 
