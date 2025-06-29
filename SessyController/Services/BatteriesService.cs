@@ -327,14 +327,14 @@ namespace SessyController.Services
             {
                 case Modes.Charging:
                     {
-                        var chargingPower = currentSession.ChargingPowerInWatts;
+                        var chargingPower = currentSession.GetChargingPowerInWatts(currentHourlyInfo);
                         _batteryContainer.StartCharging(chargingPower);
                         break;
                     }
 
                 case Modes.Discharging:
                     {
-                        var chargingPower = currentSession.ChargingPowerInWatts;
+                        var chargingPower = currentSession.GetChargingPowerInWatts(currentHourlyInfo);
                         _batteryContainer.StartDisharging(chargingPower);
                         break;
                     }
