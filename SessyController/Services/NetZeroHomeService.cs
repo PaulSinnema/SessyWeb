@@ -129,9 +129,7 @@ namespace SessyController.Services
 
                 if (NetZeroHomeActive)
                 {
-                    double powerToSetForBatteries = _powerInformation.HomeConsumption - _powerInformation.SolarPower;
-
-                    _batteryContainer.SetPowerSetpoint((int)powerToSetForBatteries);
+                    _batteryContainer.SetPowerSetpoint(_powerInformation.NetZeroHomeBatteryPower);
                 }
             }
             finally
@@ -151,6 +149,7 @@ namespace SessyController.Services
             public double NetPower { get; set; }
 
             public double HomeConsumption => SolarPower + BatteryPower + NetPower;
+            public int NetZeroHomeBatteryPower => (int)(HomeConsumption - SolarPower);
 
             public override string ToString()
             {

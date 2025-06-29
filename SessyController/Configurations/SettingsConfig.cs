@@ -5,6 +5,11 @@ namespace SessyController.Configurations
     public class SettingsConfig
     {
         /// <summary>
+        /// Allows for testing production like execution.
+        /// </summary>
+        public bool TestMode { get; set; }
+
+        /// <summary>
         /// Tells the system not to use the Net Zero Home from Sessy but my own.
         /// </summary>
         public bool UseMyNetZeroHomeRoutine { get; set; }

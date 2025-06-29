@@ -183,8 +183,6 @@ namespace SessyController.Services
                                 var batteryStates = await GetBatteryStates(currentHourlyInfo);
 
                                 await HandleChargingAndDischarging(batteryStates, currentHourlyInfo);
-
-                                await HandleInverterThrottling(batteryStates, currentHourlyInfo);
                             }
                         }
                     }
@@ -200,23 +198,6 @@ namespace SessyController.Services
 
                     DataChanged?.Invoke();
                 }
-            }
-        }
-
-        private async Task HandleInverterThrottling(BatteryStates batteryStates, HourlyInfo currentHourlyInfo)
-        {
-            var p1Details = await _p1MeterService.GetP1DetailsAsync("P1");
-
-            if (currentHourlyInfo.PriceIsNegative && batteryStates.BatteriesAreFull)
-            {
-                if (p1Details.PowerTotal < 0) // Delivering to the net.
-                {
-                    await _solarInverterManager.ThrottleInverterToWatts(p1Details.PowerTotal * -1);
-                }
-            }
-            else
-            {
-                await _solarInverterManager.ThrottleInverterToWatts(100); // Full capacity.
             }
         }
 
@@ -326,7 +307,6 @@ namespace SessyController.Services
             var currentSession = sessions.GetSession(currentHourlyInfo);
 
             _zeroNetHomeService.SetNetZeroHome(_sessions!, false);
-
 
 #if !DEBUG
             switch (currentHourlyInfo.Mode)

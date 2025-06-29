@@ -8,15 +8,17 @@ namespace SessyController.Services.Items
     {
         private readonly SessyService _sessyService;
         private readonly LoggingService<Battery> _logger;
+        private readonly TimeZoneService _timeZoneService;
 
         private SessyBatteryEndpoint? _endpoint { get; set; }
         public string Id { get; private set; }
         private bool _initialized = false;
 
-        public Battery(LoggingService<Battery> logger, SessyService sessyService)
+        public Battery(LoggingService<Battery> logger, SessyService sessyService, TimeZoneService timeZoneService)
         {
             _sessyService = sessyService;
             _logger = logger;
+            _timeZoneService = timeZoneService;
             Id = string.Empty;
         }
 
@@ -40,7 +42,36 @@ namespace SessyController.Services.Items
             return _endpoint.MaxDischarge;
         }
 
+        private PowerStatus? _powerStatus { get; set; }
+        private DateTime? _lastPowerStatusCached { get; set; }
+
+        /// <summary>
+        /// Get the battery power status. Value is cached for 2 seconds.
+        /// </summary>
         public async Task<PowerStatus?> GetPowerStatus()
+        {
+            var now = _timeZoneService.Now;
+            var seconds = 99;
+
+            if (_lastPowerStatusCached.HasValue)
+            {
+                seconds = (now - _lastPowerStatusCached).Value.Seconds;
+            }
+
+            if (seconds > 2)
+            {
+                await CachePowerStatus().ConfigureAwait(false);
+
+                _lastPowerStatusCached = now;
+            }
+
+            return _powerStatus;
+        }
+
+        /// <summary>
+        /// Cache the Power Status.
+        /// </summary>
+        private async Task CachePowerStatus()
         {
             var tries = 0;
             Exception? exception = null;
@@ -51,7 +82,8 @@ namespace SessyController.Services.Items
             {
                 try
                 {
-                    return await _sessyService.GetPowerStatusAsync(Id).ConfigureAwait(false);
+                    _powerStatus = await _sessyService.GetPowerStatusAsync(Id).ConfigureAwait(false);
+                    return;
                 }
                 catch (Exception ex)
                 {
