@@ -335,7 +335,7 @@ namespace SessyController.Services
                     {
                         _zeroNetHomeService.SetNetZeroHome(_sessions!, false);
 
-                        var chargingPower = currentSession.ChargingPowerInWatts;
+                        var chargingPower = currentSession.GetChargingPowerInWatts(currentHourlyInfo);
                         _batteryContainer.StartCharging(chargingPower);
                         break;
                     }
@@ -344,7 +344,7 @@ namespace SessyController.Services
                     {
                         _zeroNetHomeService.SetNetZeroHome(_sessions!, false);
 
-                        var chargingPower = currentSession.ChargingPowerInWatts;
+                        var chargingPower = currentSession.GetChargingPowerInWatts(currentHourlyInfo);
                         _batteryContainer.StartDisharging(chargingPower);
                         break;
                     }
