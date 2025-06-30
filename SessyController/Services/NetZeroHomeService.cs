@@ -37,7 +37,7 @@ namespace SessyController.Services
 
             _sessions = sessions;
 
-            NetZeroHomeActive = true; //  active;
+            NetZeroHomeActive = active;
         }
 
         protected override async Task ExecuteAsync(CancellationToken cancelationToken)
