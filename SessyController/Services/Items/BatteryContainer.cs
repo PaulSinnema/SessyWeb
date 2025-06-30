@@ -132,18 +132,49 @@ namespace SessyController.Services.Items
             });
         }
 
-        public void SetPowerSetpoint(int watts)
+        /// <summary>
+        /// Get the total of setpoints set on the Sessy batteries.
+        /// </summary>
+        public async Task<double> GetPowerSetpoint()
         {
-            var powerToSet = watts / Batteries.Count;
+            var totalSetpoint = 0.0;
 
-            Batteries.ForEach(async bat =>
+            foreach (var bat in Batteries)
             {
+                await bat.SetActivePowerStrategyToOpenAPI();
+
+                var powerStatus = await bat.GetPowerStatus();
+
+                totalSetpoint = powerStatus.Sessy.PowerSetpoint;    
+            }
+
+            return totalSetpoint;
+        }
+
+        public async Task SetPowerSetpoint(int watts)
+        {
+            var totalPercentage = Batteries.Count * 100.0;
+            var deltaPercentage = 0.0;
+
+            foreach (var bat in Batteries)
+            {
+                deltaPercentage += await bat.BatterySetpointDeltaPercentage() ?? 0.0;
+            }
+
+            var factor = (double)watts / deltaPercentage;
+
+            foreach (var bat in Batteries)
+            {
+                var delta = await bat.BatterySetpointDeltaPercentage();
+
+                var powerToSet = (int)(factor * delta ?? 0.0);
+
                 await bat.SetActivePowerStrategyToOpenAPI();
 
                 var powerSetpoint = new PowerSetpoint { Setpoint = powerToSet };
 
                 await bat.SetPowerSetpointAsync(powerSetpoint);
-            });
+            }
         }
 
         /// <summary>

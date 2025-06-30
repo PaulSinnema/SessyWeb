@@ -45,6 +45,7 @@ namespace SessyWeb.Components
             if (Battery != null)
             {
                 powerStatus = await Battery.GetPowerStatus();
+
                 ActivePowerStrategy = await Battery.GetActivePowerStrategy();
                 await InvokeAsync(StateHasChanged);
             }

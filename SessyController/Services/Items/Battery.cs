@@ -12,6 +12,9 @@ namespace SessyController.Services.Items
 
         private SessyBatteryEndpoint? _endpoint { get; set; }
         public string Id { get; private set; }
+
+        public double? LastSetpoint { get; set; } = null;
+
         private bool _initialized = false;
 
         public Battery(LoggingService<Battery> logger, SessyService sessyService, TimeZoneService timeZoneService)
@@ -46,6 +49,33 @@ namespace SessyController.Services.Items
         private DateTime? _lastPowerStatusCached { get; set; }
 
         /// <summary>
+        /// When the battery is almost full or empty the power is less than the setpoint.
+        /// This routine returns the percentage that is still loading from the setpoint value.
+        /// </summary>
+        public async Task<double?> BatterySetpointDeltaPercentage()
+        {
+            var powerStatus = await GetPowerStatus();
+            double percentage = 100.0;
+
+            double power = powerStatus.Sessy.Power;
+            var lastSetPoint = LastSetpoint.HasValue ? LastSetpoint.Value : 0.0;
+
+            if (LastSetpoint != 0.0 && power != 0)
+            {
+                percentage = lastSetPoint / 100.0 * power;
+
+                percentage = percentage < 0.0 ? -percentage : percentage;
+
+                if (percentage > 100)
+                    percentage = 100;
+            }
+
+            _logger.LogInformation($"BatterySetpointDeltaPercentage Id: {Id} => power {power}, LastSetPoint: {lastPowerSetpoint} percentage: {percentage}");
+
+            return percentage;
+        }
+
+        /// <summary>
         /// Get the battery power status. Value is cached for 2 seconds.
         /// </summary>
         public async Task<PowerStatus?> GetPowerStatus()
@@ -58,7 +88,7 @@ namespace SessyController.Services.Items
                 seconds = (now - _lastPowerStatusCached).Value.Seconds;
             }
 
-            if (seconds > 2)
+            if (seconds > 1)
             {
                 await CachePowerStatus().ConfigureAwait(false);
 
@@ -174,6 +204,7 @@ namespace SessyController.Services.Items
             {
                 EnsureInitialized();
 
+
                 if (lastPowerSetpoint != null)
                 {
                     if (lastPowerSetpoint.Setpoint != powerSetpoint.Setpoint)
@@ -185,6 +216,8 @@ namespace SessyController.Services.Items
                 {
                     await _sessyService.SetPowerSetpointAsync(Id, powerSetpoint);
                 }
+
+                LastSetpoint = lastPowerSetpoint?.Setpoint ?? 0.0;
 
                 lastPowerSetpoint = powerSetpoint;
             }

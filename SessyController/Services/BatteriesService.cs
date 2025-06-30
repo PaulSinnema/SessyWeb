@@ -331,15 +331,7 @@ namespace SessyController.Services
 
                 case Modes.ZeroNetHome:
                     {
-                        if (_settingsConfig.UseMyNetZeroHomeRoutine)
-                        {
-                            _zeroNetHomeService.SetNetZeroHome(_sessions!, true);
-                        }
-                        else
-                        {
-                            _zeroNetHomeService.SetNetZeroHome(_sessions!, true);
-                            _batteryContainer.StartNetZeroHome();
-                        }
+                        _zeroNetHomeService.SetNetZeroHome(_sessions!, true);
 
                         break;
                     }

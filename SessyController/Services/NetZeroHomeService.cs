@@ -37,7 +37,7 @@ namespace SessyController.Services
 
             _sessions = sessions;
 
-            NetZeroHomeActive = active;
+            NetZeroHomeActive = true; //  active;
         }
 
         protected override async Task ExecuteAsync(CancellationToken cancelationToken)
@@ -94,6 +94,8 @@ namespace SessyController.Services
             }
         }
 
+        private SemaphoreSlim NulOnMeterSemaphore = new SemaphoreSlim(1);
+        
         /// <summary>
         /// Get the last read power information. This is updated every 2 seconds.
         /// </summary>
@@ -114,8 +116,6 @@ namespace SessyController.Services
             }
         }
 
-        private SemaphoreSlim NulOnMeterSemaphore = new SemaphoreSlim(1);
-
         /// <summary>
         /// Handle nul on meter.
         /// </summary>
@@ -129,7 +129,7 @@ namespace SessyController.Services
 
                 if (NetZeroHomeActive)
                 {
-                    _batteryContainer.SetPowerSetpoint(_powerInformation.NetZeroHomeBatteryPower);
+                    await _batteryContainer.SetPowerSetpoint(_powerInformation.NetZeroHomeBatteryPower);
                 }
             }
             finally
@@ -145,15 +145,17 @@ namespace SessyController.Services
         {
             public DateTime Time { get; set; }
             public double SolarPower { get; set; }
+            public double TotalSetpoint { get; internal set; }
             public double BatteryPower { get; set; }
             public double NetPower { get; set; }
 
             public double HomeConsumption => SolarPower + BatteryPower + NetPower;
-            public int NetZeroHomeBatteryPower => (int)(HomeConsumption - SolarPower);
+            public int NetZeroHomeBatteryPower => (int)-(SolarPower - HomeConsumption);
+
 
             public override string ToString()
             {
-                return $"{Time}: SolarPower: {SolarPower}, BatterPower: {BatteryPower}, NetPower: {NetPower}, HomeConsuption: {HomeConsumption}";
+                return $"{Time}: SolarPower: {SolarPower}, BatterPower: {BatteryPower}, NetPower: {NetPower}, HomeConsumption: {HomeConsumption}";
             }
         }
 
@@ -165,12 +167,20 @@ namespace SessyController.Services
             var powerInformation = new PowerInformationContainer
             {
                 Time = _timeZoneService.Now,
+                TotalSetpoint = await GetPowerSetPointInWatts(),
                 SolarPower = await GetSolarPower(),
                 BatteryPower = await GetBatteryPower(),
                 NetPower = await GetNetPower()
             };
 
             return powerInformation;
+        }
+
+        private async Task<double> GetPowerSetPointInWatts()
+        {
+            var powerSetpoint = await _batteryContainer.GetPowerSetpoint();
+
+            return powerSetpoint;
         }
 
         /// <summary>
