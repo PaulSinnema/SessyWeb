@@ -46,6 +46,7 @@ namespace SessyController.Services.Items
             var chargeNeeded = currentHourlyInfo.ChargeNeeded;
             var totalCapacity = _batteryContainer.GetTotalCapacity();
             var prices = SessionHourlyInfos.Sum(hi => hi.BuyingPrice);
+            var now = _timeZoneService.Now;
 
             switch (Mode)
             {
@@ -54,7 +55,9 @@ namespace SessyController.Services.Items
                         var toCharge = chargeNeeded;
                         var capacity = _batteryContainer.GetChargingCapacityPerQuarter();
 
-                        foreach (var hourlyInfo in SessionHourlyInfos.OrderBy(hi => hi.BuyingPrice))
+                        foreach (var hourlyInfo in SessionHourlyInfos
+                            .Where(hi => hi.Time >= now)
+                            .OrderBy(hi => hi.BuyingPrice))
                         {
                             var watts = Math.Min(capacity, toCharge);
                             toCharge -= watts;
@@ -73,7 +76,9 @@ namespace SessyController.Services.Items
                         var toDischarge = totalCapacity - chargeNeeded;
                         var capacity = _batteryContainer.GetDischargingCapacityPerQuarter();
 
-                        foreach (var hourlyInfo in SessionHourlyInfos.OrderByDescending(hi => hi.SellingPrice))
+                        foreach (var hourlyInfo in SessionHourlyInfos
+                            .Where(hi => hi.Time >= now)
+                            .OrderByDescending(hi => hi.SellingPrice))
                         {
                             var watts = Math.Min(capacity, toDischarge);
                             toDischarge -= watts;
