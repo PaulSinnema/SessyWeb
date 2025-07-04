@@ -78,7 +78,7 @@ namespace SessyController.Services.Items
         public double Selling { get; set; }
 
         private double _chargeLeft;
-        private bool _chargeLeftSet = false;
+        //private bool _chargeLeftSet = false;
 
         public double ChargeLeft
         {
@@ -93,12 +93,12 @@ namespace SessyController.Services.Items
             set
             {
                 _chargeLeft = value;
-                _chargeLeftSet = true;
+                // _chargeLeftSet = true;
             }
         }
 
         private double _chargeNeeded;
-        private bool _chargeNeededSet = false;
+        // private bool _chargeNeededSet = false;
 
         public double ChargeNeeded
         {
@@ -113,7 +113,7 @@ namespace SessyController.Services.Items
             set
             {
                 _chargeNeeded = value;
-                _chargeNeededSet = true;
+                // _chargeNeededSet = true;
             }
         }
 
