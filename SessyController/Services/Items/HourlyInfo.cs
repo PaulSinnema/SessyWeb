@@ -127,9 +127,9 @@ namespace SessyController.Services.Items
 
         public double SolarGlobalRadiation { get; set; }
 
-        public double SolarPower { get; set; }
+        public double SolarPowerPerQuarterHour { get; set; }
 
-        public double SolarPowerInWatts => SolarPower * 1000;
+        public double SolarPowerInWatts => SolarPowerPerQuarterHour * 1000;
 
         public double SolarPowerVisual => SmoothedSolarPower / 2.5 / _settingsConfig.SolarCorrection;
 
@@ -139,7 +139,7 @@ namespace SessyController.Services.Items
         {
             Charging = false;
             Discharging = false;
-            SolarPower = 0.0;
+            SolarPowerPerQuarterHour = 0.0;
             ChargeLeft = 0.0;
             Buying = 0.0;
             Selling = 0.0;
@@ -344,7 +344,7 @@ namespace SessyController.Services.Items
         /// </summary>
         public override string ToString()
         {
-            return $"{Time}: Charging: {Charging}, Discharging: {Discharging}, Zero Net Home: {NetZeroHomeWithSolar}, Price: {BuyingPrice}, Charge left: {_chargeLeft}, Charge needed: {_chargeNeeded}, Solar power {SolarPower}";
+            return $"{Time}: Charging: {Charging}, Discharging: {Discharging}, Zero Net Home: {NetZeroHomeWithSolar}, Price: {BuyingPrice}, Charge left: {_chargeLeft}, Charge needed: {_chargeNeeded}, Solar power {SolarPowerPerQuarterHour}";
         }
     }
 }

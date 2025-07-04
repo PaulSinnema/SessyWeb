@@ -68,7 +68,7 @@ namespace SessyController.Services.Items
                             }
                         }
 
-                        throw new InvalidOperationException($"Could not find current hourly info {currentHourlyInfo}");
+                        throw new InvalidOperationException($"Could not find current hourly info for mode {Mode}, HourlyInfo: {currentHourlyInfo}");
                     }
 
                 case Modes.Discharging:
@@ -87,7 +87,7 @@ namespace SessyController.Services.Items
                                 return Math.Max(watts, 0.0);
                         }
 
-                        throw new InvalidOperationException($"Could not find current hourly info {currentHourlyInfo}");
+                        throw new InvalidOperationException($"Could not find current hourly info for mode {Mode}, HourlyInfo: {currentHourlyInfo}");
                     }
 
                 default:

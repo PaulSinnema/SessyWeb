@@ -131,25 +131,19 @@ namespace SessyController.Services.Items
             await SetActivePowerStrategy(new ActivePowerStrategy { Strategy = PowerStrategies.POWER_STRATEGY_NOM.ToString() });
         }
 
-        private PowerSetpoint? lastPowerSetpoint = null;
-
         public async Task SetPowerSetpointAsync(PowerSetpoint powerSetpoint)
         {
             EnsureInitialized();
 
-            if (lastPowerSetpoint != null)
+            var powerStatus = await GetPowerStatus().ConfigureAwait(false);
+
+            if (powerStatus.Sessy.PowerSetpoint != powerSetpoint.Setpoint)
             {
-                if (lastPowerSetpoint.Setpoint != powerSetpoint.Setpoint)
+                if (powerStatus.Sessy.SystemState == Sessy.SystemStates.SYSTEM_STATE_RUNNING_SAFE)
                 {
-                    await _sessyService.SetPowerSetpointAsync(Id, powerSetpoint);
+                    await _sessyService.SetPowerSetpointAsync(Id, powerSetpoint).ConfigureAwait(false);
                 }
             }
-            else
-            {
-                await _sessyService.SetPowerSetpointAsync(Id, powerSetpoint);
-            }
-
-            lastPowerSetpoint = powerSetpoint;
         }
 
         /// <summary>

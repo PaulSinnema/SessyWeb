@@ -44,15 +44,6 @@
 
 <RadzenRow>
     <RadzenColumn Size="8">
-        <RadzenTextBox Value="Charge remaining" disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-    <RadzenColumn Size="2">
-        <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.ChargeLeftPercentage disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-</RadzenRow>
-
-<RadzenRow>
-    <RadzenColumn Size="8">
         <RadzenTextBox Value="State" disabled Style=@fixedWidthStyle />
     </RadzenColumn>
     <RadzenColumn Size="2">
@@ -62,19 +53,10 @@
 
 <RadzenRow>
     <RadzenColumn Size="8">
-        <RadzenTextBox Value="Charge remaining" disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-    <RadzenColumn Size="2">
-        <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.ChargeLeftPercentage disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-</RadzenRow>
-
-<RadzenRow>
-    <RadzenColumn Size="8">
         <RadzenTextBox Value="Solar power" disabled Style=@fixedWidthStyle />
     </RadzenColumn>
     <RadzenColumn Size="2">
-        <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.SolarPower disabled Style=@fixedWidthStyle />
+        <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.SolarPowerPerQuarterHour disabled Style=@fixedWidthStyle />
     </RadzenColumn>
 </RadzenRow>
 
@@ -84,6 +66,15 @@
     </RadzenColumn>
     <RadzenColumn Size="2">
         <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.SolarGlobalRadiation disabled Style=@fixedWidthStyle />
+    </RadzenColumn>
+</RadzenRow>
+
+<RadzenRow>
+    <RadzenColumn Size="8">
+        <RadzenTextBox Value="Charge left %" disabled Style=@fixedWidthStyle />
+    </RadzenColumn>
+    <RadzenColumn Size="2">
+        <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.ChargeLeftPercentage disabled Style=@fixedWidthStyle />
     </RadzenColumn>
 </RadzenRow>
 
