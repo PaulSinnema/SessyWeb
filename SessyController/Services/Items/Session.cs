@@ -38,6 +38,62 @@ namespace SessyController.Services.Items
             }
         }
 
+        /// <summary>
+        /// The charging power in Watts for (dis)charging.
+        /// </summary>
+        public double GetChargingPowerInWatts(HourlyInfo currentHourlyInfo)
+        {
+            var chargeNeeded = currentHourlyInfo.ChargeNeeded;
+            var totalCapacity = _batteryContainer.GetTotalCapacity();
+            var prices = SessionHourlyInfos.Sum(hi => hi.BuyingPrice);
+            var now = _timeZoneService.Now;
+
+            switch (Mode)
+            {
+                case Modes.Charging:
+                    {
+                        var toCharge = chargeNeeded;
+                        var capacity = _batteryContainer.GetChargingCapacityPerQuarter();
+
+                        foreach (var hourlyInfo in SessionHourlyInfos
+                            .Where(hi => hi.Time >= now)
+                            .OrderBy(hi => hi.BuyingPrice))
+                        {
+                            var watts = Math.Min(capacity, toCharge);
+                            toCharge -= watts;
+
+                            if (hourlyInfo.Time == currentHourlyInfo.Time)
+                            {
+                                return Math.Max(watts, 0.0);
+                            }
+                        }
+
+                        throw new InvalidOperationException($"Could not find current hourly info for mode {Mode}, HourlyInfo: {currentHourlyInfo}");
+                    }
+
+                case Modes.Discharging:
+                    {
+                        var toDischarge = totalCapacity - chargeNeeded;
+                        var capacity = _batteryContainer.GetDischargingCapacityPerQuarter();
+
+                        foreach (var hourlyInfo in SessionHourlyInfos
+                            .Where(hi => hi.Time >= now)
+                            .OrderByDescending(hi => hi.SellingPrice))
+                        {
+                            var watts = Math.Min(capacity, toDischarge);
+                            toDischarge -= watts;
+
+                            if (hourlyInfo.Time == currentHourlyInfo.Time)
+                                return Math.Max(watts, 0.0);
+                        }
+
+                        throw new InvalidOperationException($"Could not find current hourly info for mode {Mode}, HourlyInfo: {currentHourlyInfo}");
+                    }
+
+                default:
+                    throw new InvalidOperationException($"Invalid mode {this}");
+            }
+        }
 
         /// <summary>
         /// Returns true if the hourlyInfo is contained in the sessions list.
@@ -109,57 +165,6 @@ namespace SessyController.Services.Items
             _settingsConfig = settingsConfig;
         }
 
-        /// <summary>
-        /// The charging power in Watts for (dis)charging.
-        /// </summary>
-        public double GetChargingPowerInWatts(HourlyInfo currentHourlyInfo)
-        {
-            var chargeNeeded = currentHourlyInfo.ChargeNeeded;
-            var totalCapacity = _batteryContainer.GetTotalCapacity();
-
-            switch (Mode)
-            {
-                case Modes.Charging:
-                    {
-                        var toCharge = chargeNeeded;
-                        var capacity = _batteryContainer.GetChargingCapacityPerQuarter();
-
-                        foreach (var hourlyInfo in SessionHourlyInfos.OrderBy(hi => hi.BuyingPrice))
-                        {
-                            var watts = Math.Min(capacity, toCharge);
-                            toCharge -= watts;
-
-                            if (hourlyInfo.Time == currentHourlyInfo.Time)
-                            {
-                                return Math.Max(watts, 0.0);
-                            }
-                        }
-
-                        throw new InvalidOperationException($"Could not find current hourly info {currentHourlyInfo}");
-                    }
-
-                case Modes.Discharging:
-                    {
-                        var toDischarge = totalCapacity - chargeNeeded;
-                        var capacity = _batteryContainer.GetDischargingCapacityPerQuarter();
-
-                        foreach (var hourlyInfo in SessionHourlyInfos.OrderByDescending(hi => hi.SellingPrice))
-                        {
-                            var watts = Math.Min(capacity, toDischarge);
-                            toDischarge -= watts;
-
-                            if (hourlyInfo.Time == currentHourlyInfo.Time)
-                                return Math.Max(watts, 0.0);
-                        }
-
-                        throw new InvalidOperationException($"Could not find current hourly info {currentHourlyInfo}");
-                    }
-
-                default:
-                    throw new InvalidOperationException($"Invalid mode {this}");
-            }
-        }
-        
         /// <summary>
         /// Returns the total charge needed for this session.
         /// </summary>

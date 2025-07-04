@@ -204,26 +204,14 @@ namespace SessyController.Services.Items
             {
                 EnsureInitialized();
 
+            var powerStatus = await GetPowerStatus().ConfigureAwait(false);
 
-                if (lastPowerSetpoint != null)
-                {
-                    if (lastPowerSetpoint.Setpoint != powerSetpoint.Setpoint)
-                    {
-                        await _sessyService.SetPowerSetpointAsync(Id, powerSetpoint);
-                    }
-                }
-                else
-                {
-                    await _sessyService.SetPowerSetpointAsync(Id, powerSetpoint);
-                }
-
-                LastSetpoint = lastPowerSetpoint?.Setpoint ?? 0.0;
-
-                lastPowerSetpoint = powerSetpoint;
-            }
-            finally
+            if (powerStatus.Sessy.PowerSetpoint != powerSetpoint.Setpoint)
             {
-                SetPowerSetPointSemaphore.Release();
+                if (powerStatus.Sessy.SystemState == Sessy.SystemStates.SYSTEM_STATE_RUNNING_SAFE)
+                {
+                    await _sessyService.SetPowerSetpointAsync(Id, powerSetpoint).ConfigureAwait(false);
+                }
             }
         }
 

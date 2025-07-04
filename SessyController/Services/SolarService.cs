@@ -82,7 +82,7 @@ namespace SessyController.Services
 
                 foreach (var hourlyInfo in list)
                 {
-                    solarPower += hourlyInfo.SolarPower;
+                    solarPower += hourlyInfo.SolarPowerPerQuarterHour;
                 }
 
                 return solarPower;
@@ -147,7 +147,7 @@ namespace SessyController.Services
 
                 var range = hourlyInfos.Skip(start).Take(end - start + 1);
 
-                double average = range.Count() > 0 ? range.Average(h => h.SolarPower) : 0.0;
+                double average = range.Count() > 0 ? range.Average(h => h.SolarPowerPerQuarterHour) : 0.0;
 
                 hourlyInfos[i].SmoothedSolarPower = average;
             }
@@ -186,7 +186,7 @@ namespace SessyController.Services
                         {
                             currentHourlyInfo.SolarGlobalRadiation = solarData.GlobalRadiation;
 
-                            currentHourlyInfo.SolarPower = 0.0;
+                            currentHourlyInfo.SolarPowerPerQuarterHour = 0.0;
 
                             if (SolarSystemRunning(currentHourlyInfo))
                             {
@@ -194,22 +194,7 @@ namespace SessyController.Services
                                 {
                                     foreach (var id in config.Keys)
                                     {
-                                        var endpoint = config[id];
-
-                                        var longitude = endpoint.Longitude;
-                                        var latitude = endpoint.Latitude;
-
-                                        double solarAltitude;
-                                        double solarAzimuth;
-
-                                        CalculateSolarPosition(solarData.Time!.Value.Hour, latitude, longitude, endpoint.TimeZoneOffset, out solarAltitude, out solarAzimuth);
-
-                                        foreach (PhotoVoltaic solarPanel in endpoint.SolarPanels.Values)
-                                        {
-                                            double solarFactor = GetSolarFactor(solarAzimuth, solarAltitude, solarPanel.Orientation, solarPanel.Tilt);
-
-                                            currentHourlyInfo.SolarPower += CalculateSolarPower(solarData.GlobalRadiation, solarFactor, solarPanel, solarAltitude);
-                                        }
+                                        CalculateSolarPerArray(solarData, currentHourlyInfo, config, id);
                                     }
                                 }
                             }
@@ -220,6 +205,26 @@ namespace SessyController.Services
                         }
                     }
                 }
+            }
+        }
+
+        private void CalculateSolarPerArray(SolarData solarData, HourlyInfo currentHourlyInfo, Dictionary<string, Configurations.Endpoint> config, string id)
+        {
+            var endpoint = config[id];
+
+            var longitude = endpoint.Longitude;
+            var latitude = endpoint.Latitude;
+
+            double solarAltitude;
+            double solarAzimuth;
+
+            CalculateSolarPosition(currentHourlyInfo.Time.AddMinutes(30), latitude, longitude, out solarAltitude, out solarAzimuth);
+
+            foreach (PhotoVoltaic solarPanel in endpoint.SolarPanels.Values)
+            {
+                double solarFactor = GetSolarFactor(solarAzimuth, solarAltitude, solarPanel.Orientation, solarPanel.Tilt);
+
+                currentHourlyInfo.SolarPowerPerQuarterHour += CalculateSolarPowerPerQuarterHour(solarData.GlobalRadiation, solarFactor, solarPanel, solarAltitude);
             }
         }
 
@@ -238,36 +243,75 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Currently ENTSO-E does not have the 15 minutes resolution active (from 11 juni 2025). So we need
+        /// Currently ENTSO-E does not have the 15 minutes resolution active (from 1 October 2025). So we need
         /// to add fake data for the missing quarters.
         /// </summary>
-        private void AddSolarPowerToHourlyInfosFor15MinuteResolution(List<HourlyInfo> hourlyInfos, HourlyInfo? lastHourlyInfo, int v)
+        private void AddSolarPowerToHourlyInfosFor15MinuteResolution(List<HourlyInfo> hourlyInfos, HourlyInfo? lastHourlyInfo, int minutes)
         {
             if (lastHourlyInfo != null)
             {
-                var date = lastHourlyInfo.Time.DateHour().AddMinutes(v);
+                var date = lastHourlyInfo.Time.DateHour().AddMinutes(minutes);
                 var hourlyInfo = hourlyInfos.Where(hi => hi.Time == date).FirstOrDefault();
 
                 if (hourlyInfo != null)
                 {
                     hourlyInfo.SolarGlobalRadiation = lastHourlyInfo.SolarGlobalRadiation;
-                    hourlyInfo.SolarPower = lastHourlyInfo.SolarPower;
+                    hourlyInfo.SolarPowerPerQuarterHour = lastHourlyInfo.SolarPowerPerQuarterHour;
                 }
             }
         }
 
-        public double CalculateSolarPower(double globalRadiation, double solarFactor, PhotoVoltaic solarPanel, double solarAltitude)
+        public double CalculateSolarPowerPerQuarterHour(double globalRadiation, double solarFactor, PhotoVoltaic solarPanel, double solarAltitude)
         {
-            double totalPeakPower = solarPanel.HighestDailySolarProduction;
+            double totalPeakPower = solarPanel.PeakPowerForArray;
 
             double altitudeFactor = (solarAltitude > 10) ? 1.0 : Math.Max(0, solarAltitude / 10.0);
 
-            double powerkWatt = globalRadiation * (totalPeakPower / 1000) * solarFactor * altitudeFactor / 1000;
+            double powerkWatt = globalRadiation * (totalPeakPower / 1000) * solarFactor * altitudeFactor / 1000 / 4; // kW per quarter hour
 
-            return powerkWatt / 4; // kW per quarter hour
+            return powerkWatt;
         }
 
-        private void CalculateSolarPosition(int hour, double latitude, double longitude, int timezoneOffset, out double altitude, out double azimuth)
+        private void CalculateSolarPosition(DateTime dateTime, double latitude, double longitude, out double altitude, out double azimuth)
+        {
+            // Tijdzone offset automatisch bepalen
+            TimeZoneInfo tz = TimeZoneInfo.FindSystemTimeZoneById("W. Europe Standard Time");
+            TimeSpan offset = tz.GetUtcOffset(dateTime);
+            int timezoneOffset = (int)offset.TotalHours;
+
+            int dayOfYear = dateTime.DayOfYear;
+
+            double declination = 23.45 * Math.Sin((2 * Math.PI / 365) * (dayOfYear - 81));
+
+            double minutesOfDay = dateTime.TimeOfDay.TotalMinutes;
+
+            double solarTimeOffset = 4 * (longitude - 15 * timezoneOffset);
+            double trueSolarTime = minutesOfDay + solarTimeOffset;
+
+            double hourAngle = (trueSolarTime / 4.0) - 180.0;
+
+            double latRad = latitude * Math.PI / 180.0;
+            double decRad = declination * Math.PI / 180.0;
+            double haRad = hourAngle * Math.PI / 180.0;
+
+            altitude = Math.Asin(
+                Math.Sin(latRad) * Math.Sin(decRad) +
+                Math.Cos(latRad) * Math.Cos(decRad) * Math.Cos(haRad))
+                * 180.0 / Math.PI;
+
+            double cosAzimuth = (
+                Math.Sin(decRad) -
+                Math.Sin(latRad) * Math.Sin(altitude * Math.PI / 180.0))
+                / (Math.Cos(latRad) * Math.Cos(altitude * Math.PI / 180.0));
+
+            azimuth = Math.Acos(Math.Max(-1, Math.Min(1, cosAzimuth))) * 180.0 / Math.PI;
+
+            if (hourAngle > 0)
+                azimuth = 360 - azimuth;
+        }
+
+
+        private void CalculateSolarPositionOld(int hour, double latitude, double longitude, int timezoneOffset, out double altitude, out double azimuth)
         {
             int dayOfYear = _timeZoneService.Now.DayOfYear; // Dynamic day of the year.
             double declination = 23.45 * Math.Sin((2 * Math.PI / 365) * (dayOfYear - 81)); // Correct declination angle
@@ -292,17 +336,25 @@ namespace SessyController.Services
             _logger.LogInformation($"Hour: {hour}, Solar Altitude: {altitude:F2}, Solar Azimuth: {azimuth:F2}, Hour Angle: {hourAngle:F2}");
         }
 
+        /// <summary>
+        /// Calculates the solar factor for a photovoltaic panel based on the sun's azimuth and altitude,
+        /// the panel's orientation and tilt, and applies a correction factor from the settings.
+        /// The factor represents the effective fraction of solar radiation received by the panel.
+        /// </summary>
         private double GetSolarFactor(double solarAzimuth, double solarAltitude, double orientationDegrees, double tilt)
         {
-            double panelAzimuth = orientationDegrees;
-            double angleDifference = Math.Abs(panelAzimuth - solarAzimuth);
-
+            double angleDifference = Math.Abs(orientationDegrees - solarAzimuth);
             if (angleDifference > 180) angleDifference = 360 - angleDifference;
 
-            // Account for panel tilt
-            double tiltFactor = Math.Cos((90 - solarAltitude) * Math.PI / 180) * Math.Cos(tilt * Math.PI / 180);
+            // Calculate Radials
+            double alphaRad = solarAltitude * Math.PI / 180;
+            double betaRad = tilt * Math.PI / 180;
+            double gammaRad = angleDifference * Math.PI / 180;
 
-            var factor = Math.Max(0, Math.Cos(angleDifference * Math.PI / 180) * tiltFactor);
+            double cosThetaI = Math.Sin(alphaRad) * Math.Cos(betaRad) + Math.Cos(alphaRad) * Math.Sin(betaRad) * Math.Cos(gammaRad);
+
+            // Sun behind solarpanel, factor becomes zero
+            var factor = Math.Max(0, cosThetaI);
 
             return factor * _settingsConfig.SolarCorrection;
         }

@@ -72,8 +72,13 @@ namespace SessyController.Services.Items
         {
             var localTime = _timeZoneService.Now.DateFloorQuarter();
 
-            return _hourlyInfos?
+            var hourlyInfo = _hourlyInfos?
                 .FirstOrDefault(hp => hp.Time == localTime);
+
+            if (hourlyInfo == null)
+                _logger.LogWarning($"Hourly info for {localTime} not found in hourly info list.");
+
+            return hourlyInfo;
         }
 
         /// <summary>

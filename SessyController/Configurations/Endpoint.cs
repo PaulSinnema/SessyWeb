@@ -14,7 +14,6 @@ namespace SessyController.Configurations
 
         public double Latitude { get; set; }
         public double Longitude { get; set; }
-        public int TimeZoneOffset { get; set; } // Time zone (F.i. Netherlands = 1)
         public double InverterMaxCapacity { get; set; }
 
         public Dictionary<string, PhotoVoltaic>? SolarPanels { get; set; }
