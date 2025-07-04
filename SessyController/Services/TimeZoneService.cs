@@ -27,7 +27,7 @@ namespace SessyController.Services
         /// Gets the local time using the timezone set in appsettings.json.
         /// </summary>
 #if DEBUG
-        public DateTime Now => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _timeZone).AddHours(-12);
+        public DateTime Now => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _timeZone);
 #else
         public DateTime Now => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _timeZone);
 #endif

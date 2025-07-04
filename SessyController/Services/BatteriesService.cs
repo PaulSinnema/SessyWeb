@@ -303,26 +303,31 @@ namespace SessyController.Services
 
             var currentSession = sessions.GetSession(currentHourlyInfo);
 
-#if !DEBUG
             switch (currentHourlyInfo.Mode)
             {
                 case Modes.Charging:
                     {
                         var chargingPower = currentSession.GetChargingPowerInWatts(currentHourlyInfo);
+#if !DEBUG
                         _batteryContainer.StartCharging(chargingPower);
+#endif
                         break;
                     }
 
                 case Modes.Discharging:
                     {
                         var chargingPower = currentSession.GetChargingPowerInWatts(currentHourlyInfo);
+#if !DEBUG
                         _batteryContainer.StartDisharging(chargingPower);
+#endif
                         break;
                     }
 
                 case Modes.ZeroNetHome:
                     {
+#if !DEBUG
                         _batteryContainer.StartNetZeroHome();
+#endif
                         break;
                     }
 
@@ -330,12 +335,13 @@ namespace SessyController.Services
                 case Modes.Unknown:
                 default:
                     {
+#if DEBUG
                         _batteryContainer.StopAll();
+#endif
                         break;
                     }
 
             }
-#endif
         }
 
         private void HandleManualCharging(HourlyInfo currentHourlyInfo)
@@ -344,9 +350,9 @@ namespace SessyController.Services
             var localTime = _timeZoneService.Now;
 
             if (_settingsConfig.ManualChargingHours.Contains(localTime.Hour))
-                _batteryContainer.StartCharging(_batteryContainer.GetChargingCapacityPerQuarter());
+                _batteryContainer.StartCharging(_batteryContainer.GetChargingCapacity());
             else if (_settingsConfig.ManualDischargingHours.Contains(localTime.Hour))
-                _batteryContainer.StartDisharging(_batteryContainer.GetDischargingCapacityPerQuarter());
+                _batteryContainer.StartDisharging(_batteryContainer.GetDischargingCapacity());
             else if (_settingsConfig.ManualNetZeroHomeHours.Contains(localTime.Hour))
                 _batteryContainer.StartNetZeroHome();
             else

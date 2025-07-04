@@ -46,17 +46,17 @@ namespace SessyController.Services.Items
             var chargeNeeded = currentHourlyInfo.ChargeNeeded;
             var totalCapacity = _batteryContainer.GetTotalCapacity();
             var prices = SessionHourlyInfos.Sum(hi => hi.BuyingPrice);
-            var now = _timeZoneService.Now;
+            var quarterTime = _timeZoneService.Now.DateFloorQuarter();
 
             switch (Mode)
             {
                 case Modes.Charging:
                     {
                         var toCharge = chargeNeeded;
-                        var capacity = _batteryContainer.GetChargingCapacityPerQuarter();
+                        var capacity = _batteryContainer.GetChargingCapacity();
 
                         foreach (var hourlyInfo in SessionHourlyInfos
-                            .Where(hi => hi.Time >= now)
+                            .Where(hi => hi.Time >= quarterTime)
                             .OrderBy(hi => hi.BuyingPrice))
                         {
                             var watts = Math.Min(capacity, toCharge);
@@ -74,10 +74,10 @@ namespace SessyController.Services.Items
                 case Modes.Discharging:
                     {
                         var toDischarge = totalCapacity - chargeNeeded;
-                        var capacity = _batteryContainer.GetDischargingCapacityPerQuarter();
+                        var capacity = _batteryContainer.GetDischargingCapacity();
 
                         foreach (var hourlyInfo in SessionHourlyInfos
-                            .Where(hi => hi.Time >= now)
+                            .Where(hi => hi.Time >= quarterTime)
                             .OrderByDescending(hi => hi.SellingPrice))
                         {
                             var watts = Math.Min(capacity, toDischarge);
@@ -175,7 +175,7 @@ namespace SessyController.Services.Items
                 throw new InvalidOperationException($"Invalid mode {this}");
 
             var hours = GetHours();
-            var charge = _batteryContainer.GetChargingCapacityPerQuarter();
+            var charge = _batteryContainer.GetChargingCapacity();
 
             return Math.Min(_batteryContainer.GetTotalCapacity(), hours * charge);
         }
@@ -338,7 +338,7 @@ namespace SessyController.Services.Items
             int quarters = 0;
             var nextSession = _sessions.GetNextSession(this);
             double power = 0.0;
-            var capacity = Mode == Modes.Charging ? _batteryContainer.GetChargingCapacityPerQuarter() : _batteryContainer.GetDischargingCapacityPerQuarter();
+            var capacity = Mode == Modes.Charging ? _batteryContainer.GetChargingCapacity() : _batteryContainer.GetDischargingCapacity();
 
             switch (Mode)
             {

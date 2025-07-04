@@ -40,8 +40,8 @@ namespace SessyController.Services.Items
 
             _sessionList = new List<Session>();
             _hourlyInfos = hourlyInfos;
-            _totalChargingCapacityPerQuarter = batteryContainer.GetChargingCapacityPerQuarter();
-            _totalDischargingCapacityPerQuarter = batteryContainer.GetDischargingCapacityPerQuarter();
+            _totalChargingCapacityPerQuarter = batteryContainer.GetChargingCapacity();
+            _totalDischargingCapacityPerQuarter = batteryContainer.GetDischargingCapacity();
             _totalBatteryCapacity = batteryContainer.GetTotalCapacity();
             _maxChargingQuarters = (int)Math.Ceiling(_totalBatteryCapacity / _totalChargingCapacityPerQuarter);
             _maxDischargingQuarters = (int)Math.Ceiling(_totalBatteryCapacity / _totalDischargingCapacityPerQuarter);
