@@ -133,6 +133,8 @@ namespace SessyController.Services
         {
             GetEstimatesForSolarPower(hourlyInfos);
 
+            ApplyPerformanceFactor(hourlyInfos, _timeZoneService.Now);
+
             AddSmoothedSolarPower(hourlyInfos, 8);
         }
 
@@ -205,6 +207,57 @@ namespace SessyController.Services
                         }
                     }
                 }
+            }
+        }
+
+        private void ApplyPerformanceFactor(List<QuarterlyInfo> hourlyInfos, DateTime now)
+        {
+            // Alleen kwartieren van vandaag
+            var todayInfos = hourlyInfos
+                .Where(q => q.Time.Date == now.Date)
+                .ToList();
+
+            var pastInfos = todayInfos
+                .Where(q => q.Time < now)
+                .ToList();
+
+            var futureInfos = todayInfos
+                .Where(q => q.Time >= now)
+                .ToList();
+
+            if (pastInfos.Count == 0)
+            {
+                _logger.LogInformation("Geen kwartieren van vandaag in het verleden gevonden, performance factor wordt niet toegepast.");
+                return;
+            }
+
+            // Som forecast
+            var forecastToNow = pastInfos.Sum(q => q.SolarPowerPerQuarterHour);
+
+            // Som gemeten productie
+            var realizedToNow = GetRealizedSolarPower(
+                pastInfos.Min(q => q.Time),
+                pastInfos.Max(q => q.Time.AddMinutes(15))
+            );
+
+            if (forecastToNow <= 0.0)
+            {
+                _logger.LogWarning("Forecast tot nu is nul, performance factor wordt niet toegepast.");
+                return;
+            }
+
+            // Performance factor berekenen
+            var factor = realizedToNow / forecastToNow;
+
+            // Clampen
+            factor = Math.Max(0.2, Math.Min(5.0, factor));
+
+            _logger.LogInformation($"Performance factor toegepast: {factor:F2} (Realized={realizedToNow:F2} kWh, Forecast={forecastToNow:F2} kWh)");
+
+            // Infos aanpassen
+            foreach (var q in todayInfos)
+            {
+                q.SolarPowerPerQuarterHour *= factor;
             }
         }
 
@@ -308,32 +361,6 @@ namespace SessyController.Services
 
             if (hourAngle > 0)
                 azimuth = 360 - azimuth;
-        }
-
-
-        private void CalculateSolarPositionOld(int hour, double latitude, double longitude, int timezoneOffset, out double altitude, out double azimuth)
-        {
-            int dayOfYear = _timeZoneService.Now.DayOfYear; // Dynamic day of the year.
-            double declination = 23.45 * Math.Sin((2 * Math.PI / 365) * (dayOfYear - 81)); // Correct declination angle
-
-            // Calculate solar angle and longituge compensation.
-            double solarTimeOffset = 4 * (longitude - 15 * timezoneOffset); // 4 minutes per degree
-            double trueSolarTime = hour * 60 + solarTimeOffset;
-            double hourAngle = (trueSolarTime / 4.0) - 180.0;
-
-            double latRad = latitude * Math.PI / 180.0;
-            double decRad = declination * Math.PI / 180.0;
-            double haRad = hourAngle * Math.PI / 180.0;
-
-            // Calculate altitude.
-            altitude = Math.Asin(Math.Sin(latRad) * Math.Sin(decRad) + Math.Cos(latRad) * Math.Cos(decRad) * Math.Cos(haRad)) * 180.0 / Math.PI;
-
-            double cosAzimuth = (Math.Sin(decRad) - Math.Sin(latRad) * Math.Sin(altitude * Math.PI / 180)) / (Math.Cos(latRad) * Math.Cos(altitude * Math.PI / 180));
-            azimuth = Math.Acos(Math.Max(-1, Math.Min(1, cosAzimuth))) * 180.0 / Math.PI; // Prevent NaN errors
-
-            if (hourAngle > 0) azimuth = 360 - azimuth; // Correction for afternoon.
-
-            _logger.LogInformation($"Hour: {hour}, Solar Altitude: {altitude:F2}, Solar Azimuth: {azimuth:F2}, Hour Angle: {hourAngle:F2}");
         }
 
         /// <summary>
