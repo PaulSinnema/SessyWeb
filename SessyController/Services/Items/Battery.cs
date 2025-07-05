@@ -139,7 +139,8 @@ namespace SessyController.Services.Items
 
             if (powerStatus.Sessy.PowerSetpoint != powerSetpoint.Setpoint)
             {
-                if (powerStatus.Sessy.SystemState == Sessy.SystemStates.SYSTEM_STATE_RUNNING_SAFE)
+                if (powerStatus.Sessy.SystemState == Sessy.SystemStates.SYSTEM_STATE_RUNNING_SAFE ||
+                    powerStatus.Sessy.SystemState == Sessy.SystemStates.SYSTEM_STATE_STANDBY)
                 {
                     await _sessyService.SetPowerSetpointAsync(Id, powerSetpoint).ConfigureAwait(false);
                 }

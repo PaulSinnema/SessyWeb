@@ -17,7 +17,7 @@ namespace SessyWeb.Pages
         [Inject]
         public TimeZoneService? _timeZoneService { get; set; }
 
-        public List<HourlyInfo>? HourlyInfos { get; set; } = new List<HourlyInfo>();
+        public List<QuarterlyInfo>? HourlyInfos { get; set; } = new List<QuarterlyInfo>();
 
         public double TotalSolarPowerExpectedToday { get; private set; }
         public double TotalSolarPowerExpectedTomorrow { get; private set; }
@@ -203,7 +203,7 @@ namespace SessyWeb.Pages
         }
 
         /// <summary>
-        /// Retrieve all the hourlyInfo objects but only the current and future ones.
+        /// Retrieve all the quarterlyInfo objects but only the current and future ones.
         /// </summary>
         private void GetOnlyCurrentHourlyInfos()
         {
@@ -219,7 +219,7 @@ namespace SessyWeb.Pages
         public bool WeAreInControl => _batteriesService!.WeAreInControl;
 
         /// <summary>
-        /// Change the width of the chart depending on the number of hourlyInfo objects.
+        /// Change the width of the chart depending on the number of quarterlyInfo objects.
         /// </summary>
         private void ChangeChartStyle(int height)
         {

@@ -278,13 +278,13 @@ namespace SessyController.Services
         /// <summary>
         /// Get the fetched prices for yesterday, today and tomorrow (if present) as a sorted list.
         /// </summary>
-        public List<HourlyInfo> GetPrices()
+        public List<QuarterlyInfo> GetPrices()
         {
             GetPricesSemaphore.Wait();
 
             try
             {
-                List<HourlyInfo> hourlyInfos = new List<HourlyInfo>();
+                List<QuarterlyInfo> hourlyInfos = new List<QuarterlyInfo>();
 
                 var now = _timeZoneService.Now;
                 var start = now.AddDays(-1).Date;
@@ -300,7 +300,7 @@ namespace SessyController.Services
                 if (data != null)
                 {
                     hourlyInfos = data.OrderBy(ep => ep.Time)
-                        .Select(ep => new HourlyInfo(ep.Time, 
+                        .Select(ep => new QuarterlyInfo(ep.Time, 
                                                      ep!.Price!.Value,
                                                      _settingsConfig,
                                                      _batteryContainer,
@@ -312,7 +312,7 @@ namespace SessyController.Services
                     return hourlyInfos;
                 }
 
-                return new List<HourlyInfo>();
+                return new List<QuarterlyInfo>();
             }
             finally
             {

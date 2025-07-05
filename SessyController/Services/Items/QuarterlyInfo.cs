@@ -5,9 +5,9 @@ using static SessyController.Services.Items.Session;
 
 namespace SessyController.Services.Items
 {
-    public class HourlyInfo
+    public class QuarterlyInfo
     {
-        public HourlyInfo(DateTime time,
+        public QuarterlyInfo(DateTime time,
                           double marketPrice,
                           SettingsConfig settingsConfig,
                           BatteryContainer batteryContainer,
@@ -208,7 +208,7 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Adds a gesmoothed price to each HourlyInfo object in the list.
         /// </summary>
-        public static void AddSmoothedPrices(List<HourlyInfo> hourlyInfos, int windowSize = 4)
+        public static void AddSmoothedPrices(List<QuarterlyInfo> hourlyInfos, int windowSize = 4)
         {
             if (hourlyInfos == null || hourlyInfos.Count == 0) return;
 

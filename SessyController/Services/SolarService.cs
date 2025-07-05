@@ -80,9 +80,9 @@ namespace SessyController.Services
                     .OrderBy(hi => hi.Time)
                     .ToList();
 
-                foreach (var hourlyInfo in list)
+                foreach (var quarterlyInfo in list)
                 {
-                    solarPower += hourlyInfo.SolarPowerPerQuarterHour;
+                    solarPower += quarterlyInfo.SolarPowerPerQuarterHour;
                 }
 
                 return solarPower;
@@ -129,14 +129,14 @@ namespace SessyController.Services
             }
         }
 
-        public void GetExpectedSolarPower(List<HourlyInfo> hourlyInfos)
+        public void GetExpectedSolarPower(List<QuarterlyInfo> hourlyInfos)
         {
             GetEstimatesForSolarPower(hourlyInfos);
 
             AddSmoothedSolarPower(hourlyInfos, 8);
         }
 
-        private void AddSmoothedSolarPower(List<HourlyInfo> hourlyInfos, int windowSize = 6)
+        private void AddSmoothedSolarPower(List<QuarterlyInfo> hourlyInfos, int windowSize = 6)
         {
             if (hourlyInfos == null || hourlyInfos.Count == 0) return;
 
@@ -160,7 +160,7 @@ namespace SessyController.Services
         ///     - Position (longitude, latitude)
         /// - Negative prices assessment
         /// </summary>
-        private void GetEstimatesForSolarPower(List<HourlyInfo> hourlyInfos)
+        private void GetEstimatesForSolarPower(List<QuarterlyInfo> hourlyInfos)
         {
             if (_weatherService.Initialized && _dayAheadMarketService.PricesAvailable)
             {
@@ -208,7 +208,7 @@ namespace SessyController.Services
             }
         }
 
-        private void CalculateSolarPerArray(SolarData solarData, HourlyInfo currentHourlyInfo, Dictionary<string, Configurations.Endpoint> config, string id)
+        private void CalculateSolarPerArray(SolarData solarData, QuarterlyInfo currentHourlyInfo, Dictionary<string, Configurations.Endpoint> config, string id)
         {
             var endpoint = config[id];
 
@@ -231,7 +231,7 @@ namespace SessyController.Services
         /// <summary>
         /// Returns true if the inverter does not shut down due to negative prices.
         /// </summary>
-        private bool SolarSystemRunning(HourlyInfo currentHourlyInfo)
+        private bool SolarSystemRunning(QuarterlyInfo currentHourlyInfo)
         {
             if (!_settingsConfig.SolarSystemShutsDownDuringNegativePrices)
                 return true;
@@ -246,17 +246,17 @@ namespace SessyController.Services
         /// Currently ENTSO-E does not have the 15 minutes resolution active (from 1 October 2025). So we need
         /// to add fake data for the missing quarters.
         /// </summary>
-        private void AddSolarPowerToHourlyInfosFor15MinuteResolution(List<HourlyInfo> hourlyInfos, HourlyInfo? lastHourlyInfo, int minutes)
+        private void AddSolarPowerToHourlyInfosFor15MinuteResolution(List<QuarterlyInfo> hourlyInfos, QuarterlyInfo? lastHourlyInfo, int minutes)
         {
             if (lastHourlyInfo != null)
             {
                 var date = lastHourlyInfo.Time.DateHour().AddMinutes(minutes);
-                var hourlyInfo = hourlyInfos.Where(hi => hi.Time == date).FirstOrDefault();
+                var quarterlyInfo = hourlyInfos.Where(hi => hi.Time == date).FirstOrDefault();
 
-                if (hourlyInfo != null)
+                if (quarterlyInfo != null)
                 {
-                    hourlyInfo.SolarGlobalRadiation = lastHourlyInfo.SolarGlobalRadiation;
-                    hourlyInfo.SolarPowerPerQuarterHour = lastHourlyInfo.SolarPowerPerQuarterHour;
+                    quarterlyInfo.SolarGlobalRadiation = lastHourlyInfo.SolarGlobalRadiation;
+                    quarterlyInfo.SolarPowerPerQuarterHour = lastHourlyInfo.SolarPowerPerQuarterHour;
                 }
             }
         }

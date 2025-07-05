@@ -24,9 +24,9 @@ namespace SessyController.Services.Items
         private int _maxDischargingQuarters { get; set; }
         private double _cycleCost { get; set; }
 
-        private List<HourlyInfo> _hourlyInfos { get; set; }
+        private List<QuarterlyInfo> _hourlyInfos { get; set; }
 
-        public Sessions(List<HourlyInfo> hourlyInfos,
+        public Sessions(List<QuarterlyInfo> hourlyInfos,
                         SettingsConfig settingsConfig,
                         BatteryContainer batteryContainer,
                         TimeZoneService? timeZoneService,
@@ -40,8 +40,8 @@ namespace SessyController.Services.Items
 
             _sessionList = new List<Session>();
             _hourlyInfos = hourlyInfos;
-            _totalChargingCapacityPerQuarter = batteryContainer.GetChargingCapacity();
-            _totalDischargingCapacityPerQuarter = batteryContainer.GetDischargingCapacity();
+            _totalChargingCapacityPerQuarter = batteryContainer.GetChargingCapacity() / 4.0; // Per quarter hour.
+            _totalDischargingCapacityPerQuarter = batteryContainer.GetDischargingCapacity() / 4.0; // Per quarter hour.
             _totalBatteryCapacity = batteryContainer.GetTotalCapacity();
             _maxChargingQuarters = (int)Math.Ceiling(_totalBatteryCapacity / _totalChargingCapacityPerQuarter);
             _maxDischargingQuarters = (int)Math.Ceiling(_totalBatteryCapacity / _totalDischargingCapacityPerQuarter);
@@ -68,17 +68,17 @@ namespace SessyController.Services.Items
             return 0;
         }
 
-        public HourlyInfo? GetCurrentHourlyInfo()
+        public QuarterlyInfo? GetCurrentHourlyInfo()
         {
             var localTime = _timeZoneService.Now.DateFloorQuarter();
 
-            var hourlyInfo = _hourlyInfos?
+            var quarterlyInfo = _hourlyInfos?
                 .FirstOrDefault(hp => hp.Time == localTime);
 
-            if (hourlyInfo == null)
+            if (quarterlyInfo == null)
                 _logger.LogWarning($"Hourly info for {localTime} not found in hourly info list.");
 
-            return hourlyInfo;
+            return quarterlyInfo;
         }
 
         /// <summary>
@@ -104,11 +104,11 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Returns true if the hourly info object is in any session.
         /// </summary>
-        public bool InAnySession(HourlyInfo hourlyInfo)
+        public bool InAnySession(QuarterlyInfo quarterlyInfo)
         {
             foreach (var se in _sessionList)
             {
-                if (se.Contains(hourlyInfo))
+                if (se.Contains(quarterlyInfo))
                     return true;
             }
 
@@ -118,17 +118,17 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Return the session that contains the hourly info.
         /// </summary>
-        public Session? GetSession(HourlyInfo hourlyInfo)
+        public Session? GetSession(QuarterlyInfo quarterlyInfo)
         {
             return SessionList
-                .Where(se => se.Contains(hourlyInfo))
+                .Where(se => se.Contains(quarterlyInfo))
                 .FirstOrDefault();
         }
 
         /// <summary>
         /// Gets the previous hourly info or return null if not found.
         /// </summary>
-        public HourlyInfo? GetPreviousHourlyInfo(HourlyInfo currentHourlyInfo)
+        public QuarterlyInfo? GetPreviousHourlyInfo(QuarterlyInfo currentHourlyInfo)
         {
             return _hourlyInfos
                 .Where(hi => hi.Time < currentHourlyInfo.Time)
@@ -139,13 +139,13 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Removes the hourly info object from the session and chnages its charging mode.
         /// </summary>
-        public void RemoveFromSession(HourlyInfo hourlyInfo)
+        public void RemoveFromSession(QuarterlyInfo quarterlyInfo)
         {
             foreach (var session in _sessionList)
             {
-                if (session.Contains(hourlyInfo))
+                if (session.Contains(quarterlyInfo))
                 {
-                    session.RemoveHourlyInfo(hourlyInfo);
+                    session.RemoveQuarterlyInfo(quarterlyInfo);
                 }
             }
         }
@@ -164,9 +164,9 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Adds a new session to the sessions hourly info list and initializes it.
         /// </summary>
-        public void AddNewSession(Modes mode, HourlyInfo hourlyInfo)
+        public void AddNewSession(Modes mode, QuarterlyInfo quarterlyInfo)
         {
-            if (!InAnySession(hourlyInfo))
+            if (!InAnySession(quarterlyInfo))
             {
                 switch (mode)
                 {
@@ -174,7 +174,7 @@ namespace SessyController.Services.Items
                         {
                             Session session = new Session(this, _timeZoneService!, mode, _maxChargingQuarters, _batteryContainer, _settingsConfig);
                             _sessionList.Add(session);
-                            session.AddHourlyInfo(hourlyInfo);
+                            session.AddHourlyInfo(quarterlyInfo);
                             CompleteSession(session, _hourlyInfos, _maxChargingQuarters, _cycleCost);
                             break;
                         }
@@ -183,7 +183,7 @@ namespace SessyController.Services.Items
                         {
                             Session session = new Session(this, _timeZoneService!, mode, _maxDischargingQuarters, _batteryContainer, _settingsConfig);
                             _sessionList.Add(session);
-                            session.AddHourlyInfo(hourlyInfo);
+                            session.AddHourlyInfo(quarterlyInfo);
                             CompleteSession(session, _hourlyInfos, _maxDischargingQuarters, _cycleCost);
                             break;
                         }
@@ -193,7 +193,7 @@ namespace SessyController.Services.Items
                 }
             }
             else
-                _logger.LogInformation($"Overlap in sessions {hourlyInfo}");
+                _logger.LogInformation($"Overlap in sessions {quarterlyInfo}");
         }
 
         /// <summary>
@@ -201,103 +201,103 @@ namespace SessyController.Services.Items
         /// </summary>
         public void CalculateProfits(TimeZoneService timeZoneService)
         {
-            List<HourlyInfo> lastChargingSession = new List<HourlyInfo>();
+            List<QuarterlyInfo> lastChargingSession = new List<QuarterlyInfo>();
 
             var localTime = timeZoneService.Now;
             var localTimeHour = localTime.Date.AddHours(localTime.Hour);
-            HourlyInfo? previousHour = null;
+            QuarterlyInfo? previousHour = null;
 
-            foreach (var hourlyInfo in _hourlyInfos
+            foreach (var quarterlyInfo in _hourlyInfos
                 .OrderBy(hi => hi.Time))
             {
-                switch (hourlyInfo.Mode)
+                switch (quarterlyInfo.Mode)
                 {
                     case Modes.Charging:
-                        CalculateChargingProfits(lastChargingSession, previousHour, hourlyInfo);
+                        CalculateChargingProfits(lastChargingSession, previousHour, quarterlyInfo);
                         break;
 
                     case Modes.Discharging:
-                        CalculateDischargingProfits(hourlyInfo);
+                        CalculateDischargingProfits(quarterlyInfo);
                         break;
 
                     case Modes.ZeroNetHome:
-                        CalculateZeroNetHomeProfits(lastChargingSession, hourlyInfo, true);
+                        CalculateZeroNetHomeProfits(lastChargingSession, quarterlyInfo, true);
                         break;
 
                     case Modes.Disabled:
-                        CalculateDisabledProfits(hourlyInfo);
+                        CalculateDisabledProfits(quarterlyInfo);
                         break;
 
                     case Modes.Unknown:
                     default:
-                        throw new InvalidOperationException($"Wrong mode {hourlyInfo.Mode}"); ;
+                        throw new InvalidOperationException($"Wrong mode {quarterlyInfo.Mode}"); ;
                 }
 
-                CalculateZeroNetHomeProfits(lastChargingSession, hourlyInfo, false);
+                CalculateZeroNetHomeProfits(lastChargingSession, quarterlyInfo, false);
 
-                previousHour = hourlyInfo;
+                previousHour = quarterlyInfo;
             }
         }
 
-        private void CalculateChargingProfits(List<HourlyInfo> lastChargingSession, HourlyInfo? previousHour, HourlyInfo hourlyInfo)
+        private void CalculateChargingProfits(List<QuarterlyInfo> lastChargingSession, QuarterlyInfo? previousHour, QuarterlyInfo quarterlyInfo)
         {
             var totalChargingCapacity = Math.Min(_totalChargingCapacityPerQuarter, _totalBatteryCapacity - (previousHour == null ? 0.0 : previousHour.ChargeLeft)) / 1000;
 
-            hourlyInfo.Selling = 0.00;
-            hourlyInfo.Buying = totalChargingCapacity * hourlyInfo.BuyingPrice;
+            quarterlyInfo.Selling = 0.00;
+            quarterlyInfo.Buying = totalChargingCapacity * quarterlyInfo.BuyingPrice;
 
             if (lastChargingSession.Count > 0)
             {
                 var lastDateCharging = lastChargingSession.Max(hi => hi.Time);
 
-                if ((hourlyInfo.Time - lastDateCharging).Hours > 1)
+                if ((quarterlyInfo.Time - lastDateCharging).Hours > 1)
                 {
                     lastChargingSession.Clear();
                 }
             }
 
-            lastChargingSession.Add(hourlyInfo);
+            lastChargingSession.Add(quarterlyInfo);
         }
 
-        private void CalculateDischargingProfits(HourlyInfo hourlyInfo)
+        private void CalculateDischargingProfits(QuarterlyInfo quarterlyInfo)
         {
-            var totalDischargingCapacity = Math.Min(_totalDischargingCapacityPerQuarter, hourlyInfo.ChargeLeft - hourlyInfo.ChargeNeeded) / 1000;
+            var totalDischargingCapacity = Math.Min(_totalDischargingCapacityPerQuarter, quarterlyInfo.ChargeLeft - quarterlyInfo.ChargeNeeded) / 1000;
 
-            hourlyInfo.Selling = totalDischargingCapacity * hourlyInfo.SellingPrice;
-            hourlyInfo.Buying = 0.00;
+            quarterlyInfo.Selling = totalDischargingCapacity * quarterlyInfo.SellingPrice;
+            quarterlyInfo.Buying = 0.00;
         }
 
         /// <summary>
         /// Calculate the profit if NetZeroHome were enabled for this hour.
         /// </summary>
-        private void CalculateZeroNetHomeProfits(List<HourlyInfo> lastChargingSession, HourlyInfo hourlyInfo, bool save)
+        private void CalculateZeroNetHomeProfits(List<QuarterlyInfo> lastChargingSession, QuarterlyInfo quarterlyInfo, bool save)
         {
-            var kWh = (Math.Min(_settingsConfig.EnergyNeedsPerMonth / 96, hourlyInfo.ChargeLeft) / 1000); // Per quarter hour.
-            var selling = hourlyInfo.SellingPrice * kWh;
+            var kWh = (Math.Min(_settingsConfig.EnergyNeedsPerMonth / 96, quarterlyInfo.ChargeLeft) / 1000); // Per quarter hour.
+            var selling = quarterlyInfo.SellingPrice * kWh;
             var buying = lastChargingSession.Count > 0 ? lastChargingSession.Average(lcs => lcs.BuyingPrice) * kWh : 0.0;
-            hourlyInfo.NetZeroHomeProfit = selling - buying;
+            quarterlyInfo.NetZeroHomeProfit = selling - buying;
 
             if (save)
             {
-                hourlyInfo.Selling = selling;
-                hourlyInfo.Buying = buying;
+                quarterlyInfo.Selling = selling;
+                quarterlyInfo.Buying = buying;
             }
         }
 
-        private static void CalculateDisabledProfits(HourlyInfo hourlyInfo)
+        private static void CalculateDisabledProfits(QuarterlyInfo quarterlyInfo)
         {
-            hourlyInfo.Selling = 0.0;
-            hourlyInfo.Buying = 0.0;
+            quarterlyInfo.Selling = 0.0;
+            quarterlyInfo.Buying = 0.0;
         }
 
         /// <summary>
         /// Adds an hourly info object to the sessions hourly info list if it is not contained in
         /// any other session.
         /// </summary>
-        public void AddHourlyInfo(Session session, HourlyInfo hourlyInfo)
+        public void AddHourlyInfo(Session session, QuarterlyInfo quarterlyInfo)
         {
-            if (!InAnySession(hourlyInfo))
-                session.AddHourlyInfo(hourlyInfo);
+            if (!InAnySession(quarterlyInfo))
+                session.AddHourlyInfo(quarterlyInfo);
         }
 
         public double GetMaxZeroNetHomeHours(Session previousSession, Session session)
@@ -310,19 +310,19 @@ namespace SessyController.Services.Items
             var hours = 0;
             var firstTime = true;
 
-            foreach (var hourlyInfo in _hourlyInfos)
+            foreach (var quarterlyInfo in _hourlyInfos)
             {
-                if (hourlyInfo.Time >= first && hourlyInfo.Time <= last && currentCharge >= 0)
+                if (quarterlyInfo.Time >= first && quarterlyInfo.Time <= last && currentCharge >= 0)
                 {
                     if (firstTime)
                     {
-                        currentCharge = hourlyInfo.ChargeLeft;
+                        currentCharge = quarterlyInfo.ChargeLeft;
                         firstTime = false;
                     }
 
                     hours++;
 
-                    if (hourlyInfo.NetZeroHomeWithSolar)
+                    if (quarterlyInfo.NetZeroHomeWithSolar)
                         currentCharge -= homeNeeds;
                 }
             }
@@ -333,7 +333,7 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Adds neighboring hours to the Session
         /// </summary>
-        public void CompleteSession(Session session, List<HourlyInfo> hourlyInfos, int maxQuarters, double cycleCost)
+        public void CompleteSession(Session session, List<QuarterlyInfo> hourlyInfos, int maxQuarters, double cycleCost)
         {
             if (session.GetHourlyInfoList().Count != 1)
                 throw new InvalidOperationException($"Session has zero or more than 1 hourly price.");
@@ -429,7 +429,7 @@ namespace SessyController.Services.Items
             }
         }
 
-        public List<HourlyInfo> GetInfoObjectsBetween(Session previousSession, Session nextSession)
+        public List<QuarterlyInfo> GetInfoObjectsBetween(Session previousSession, Session nextSession)
         {
             return _hourlyInfos!
                 .Where(hi => hi.Time < nextSession.FirstDateTime && hi.Time > previousSession.LastDateTime)
@@ -437,12 +437,12 @@ namespace SessyController.Services.Items
         }
 
         /// <summary>
-        /// Gets the hourlyInfo objects between 2 sessions.
+        /// Gets the quarterlyInfo objects between 2 sessions.
         /// </summary>
         /// <summary>
-        /// Gets all hourlyInfo objects after the session.
+        /// Gets all quarterlyInfo objects after the session.
         /// </summary>
-        public List<HourlyInfo> GetInfoObjectsAfter(Session session)
+        public List<QuarterlyInfo> GetInfoObjectsAfter(Session session)
         {
             return _hourlyInfos!
                 .Where(hi => hi.Time > session.LastDateTime)
@@ -453,7 +453,7 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Gets the average price for prices inside the window of the current hourly info.
         /// </summary>
-        private double GetAveragePriceInWindow(List<HourlyInfo> hourlyInfos, int index, int window = 10)
+        private double GetAveragePriceInWindow(List<QuarterlyInfo> hourlyInfos, int index, int window = 10)
         {
             var halfWindow = window / 2;
             var start = index - halfWindow;
@@ -476,13 +476,13 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Returns the single session the hourly info object is in.
         /// </summary>
-        public Session FindSession(HourlyInfo hourlyInfo)
+        public Session FindSession(QuarterlyInfo quarterlyInfo)
         {
             List<Session> foundSessions = new List<Session>();
 
             foreach (var session in SessionList)
             {
-                if (session.Contains(hourlyInfo))
+                if (session.Contains(quarterlyInfo))
                     foundSessions.Add(session);
             }
 
@@ -494,9 +494,9 @@ namespace SessyController.Services.Items
         /// </summary>
         public void MergeSessions(Session session1, Session session2)
         {
-            foreach (var hourlyInfo in session2.GetHourlyInfoList())
+            foreach (var quarterlyInfo in session2.GetHourlyInfoList())
             {
-                session1.AddHourlyInfo(hourlyInfo);
+                session1.AddHourlyInfo(quarterlyInfo);
             }
 
             session2.ClearHourlyInfoList();

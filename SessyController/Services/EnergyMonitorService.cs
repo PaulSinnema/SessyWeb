@@ -109,10 +109,10 @@ namespace SessyController.Services
 
                     var weatherHourData = weatherData.UurVerwachting
                         .FirstOrDefault(uv => uv.TimeStamp == selectTime.DateHour());
-                    var hourlyInfo = prices
+                    var quarterlyInfo = prices
                         .FirstOrDefault(hi => hi.Time.DateFloorQuarter() == selectTime);
 
-                    StoreEnergyHistory(p1Meter, p1Details!, hourlyInfo, selectTime, weatherHourData);
+                    StoreEnergyHistory(p1Meter, p1Details!, quarterlyInfo, selectTime, weatherHourData);
 
                     DataChanged?.Invoke();
 
@@ -153,7 +153,7 @@ namespace SessyController.Services
             return energyHistory;
         }
 
-        private void StoreEnergyHistory(P1Meter p1Meter, P1Details p1Details, HourlyInfo? hourlyInfo, DateTime time, UurVerwachting? hourExpectancy)
+        private void StoreEnergyHistory(P1Meter p1Meter, P1Details p1Details, QuarterlyInfo? quarterlyInfo, DateTime time, UurVerwachting? hourExpectancy)
         {
             var energyHistoryList = new List<EnergyHistory>();
 
