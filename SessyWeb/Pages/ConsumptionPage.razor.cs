@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Components;
 using Radzen.Blazor;
 using Radzen.Blazor.Rendering;
+using SessyCommon.Extensions;
 using SessyController.Services;
 using SessyData.Model;
 using SessyData.Services;
@@ -26,6 +27,14 @@ namespace SessyWeb.Pages
         private int TickDistance { get; set; }
 
         public List<Consumption> ConsumptionData { get; set; } = new();
+
+        protected override async Task OnInitializedAsync()
+        {
+            DateChosen = _timeZoneService!.Now.Date;
+            PeriodChosen = PeriodsEnums.Month;
+
+            await base.OnInitializedAsync();
+        }
 
         protected override async Task OnAfterRenderAsync(bool firstRender)
         {
@@ -90,62 +99,67 @@ namespace SessyWeb.Pages
                         throw new InvalidOperationException($"Wrong period type {PeriodChosen}");
                 }
             }).OrderBy(sed => sed.Time)
-              .ToList(); ;
+              .ToList();
 
             DetermineTickDistance(ConsumptionData);
 
             FillFormatter();
 
-            StateHasChanged();
-
             await ConsumptionChart!.Reload();
+
+            StateHasChanged();
         }
 
-        private void DetermineTickDistance(List<Consumption> consumptionData)
+        private void DetermineTickDistance(List<Consumption>? consumptionData)
         {
-            var start = consumptionData.Min(list => list.Time);
-            var end = consumptionData.Max(list => list.Time).AddDays(1);
+            TickDistance = ConsumptionChartWidth;
 
-            switch (PeriodChosen)
+            if (consumptionData != null && consumptionData.Count > 0)
             {
-                case PeriodsEnums.Day:
-                    {
-                        var hours = (end - start).Hours;
+                var start = consumptionData.Min(list => list.Time).DateFloorQuarter();
+                var end = consumptionData.Max(list => list.Time).AddDays(1).DateCeilingQuarter();
 
-                        TickDistance = ConsumptionChartWidth / (hours == 0 ? 24 : hours);
+                switch (PeriodChosen)
+                {
+                    case PeriodsEnums.Day:
+                        {
+                            var quarters = (end - start).Hours * 4;
 
-                        break;
-                    }
+                            TickDistance = ConsumptionChartWidth / (quarters == 0 ? 96 : quarters);
 
-                case PeriodsEnums.Week:
-                    {
-                        var days = (end - start).Days;
+                            break;
+                        }
 
-                        TickDistance = ConsumptionChartWidth / (days == 0 ? 7 : days);
+                    case PeriodsEnums.Week:
+                        {
+                            var days = (end - start).Days;
 
-                        break;
-                    }
+                            TickDistance = ConsumptionChartWidth / (days == 0 ? 7 : days);
 
-                case PeriodsEnums.Month:
-                    {
-                        var days = (end - start).Days;
+                            break;
+                        }
 
-                        TickDistance = ConsumptionChartWidth / (days == 0 ? 31 : days);
-                        break;
-                    }
+                    case PeriodsEnums.Month:
+                        {
+                            var days = (end - start).Days;
 
-                case PeriodsEnums.Year:
-                case PeriodsEnums.All:
-                    {
-                        var months = (end - start).Days / 30;
+                            TickDistance = ConsumptionChartWidth / (days == 0 ? 31 : days);
+                            break;
+                        }
 
-                        TickDistance = ConsumptionChartWidth / (months == 0 ? 12 : months);
+                    case PeriodsEnums.Year:
+                    case PeriodsEnums.All:
+                        {
+                            var months = (end - start).Days / 30;
 
-                        break;
-                    }
+                            TickDistance = ConsumptionChartWidth / (months == 0 ? 12 : months);
 
-                default:
-                    throw new InvalidOperationException($"Invalid period: {PeriodChosen}");
+                            break;
+                        }
+
+                    default:
+                        throw new InvalidOperationException($"Invalid period: {PeriodChosen}");
+                }
             }
         }
 
@@ -157,7 +171,7 @@ namespace SessyWeb.Pages
             switch (PeriodChosen)
             {
                 case PeriodsEnums.Day:
-                    Formatter = Formatters.FormatAsDayHour;
+                    Formatter = Formatters.FormatAsDayHourMinutes;
                     break;
 
                 case PeriodsEnums.Week:

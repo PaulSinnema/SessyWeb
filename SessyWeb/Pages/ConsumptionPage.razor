@@ -35,12 +35,18 @@
                                   CategoryProperty="Time"
                                   ValueProperty="ConsumptionKWh"
                                   Smooth="true"
-                                  LineType="LineType.Dotted" />
+                                  LineType="LineType.Solid" >
+                    <RadzenSeriesDataLabels Visible="true" />
+                </RadzenAreaSeries>
 
                 <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance>
                     <RadzenGridLines Visible="true" />
                     <RadzenAxisTitle Text="Time" />
                 </RadzenCategoryAxis>
+                <RadzenValueAxis Formatter="@Helpers.Formatters.FormatAsWatt">
+                    <RadzenGridLines Visible="true" />
+                    <RadzenAxisTitle Text="kW" />
+                </RadzenValueAxis>
 
             </RadzenChart>
         </RadzenStack>

@@ -78,7 +78,7 @@ namespace SessyController.Services
                 }
                 try
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(2), cancelationToken);
+                    await Task.Delay(TimeSpan.FromSeconds(1), cancelationToken);
                 }
                 catch (Exception ex)
                 {
@@ -123,7 +123,7 @@ namespace SessyController.Services
 
         private async Task StoreConsumption(P1Meter p1Meter)
         {
-            var now = _timeZoneService.Now;
+            var now = _timeZoneService.Now.DateFloorQuarter();
 
             if (_consumptionData.Count >= 900) // 15 minutes of data
             {

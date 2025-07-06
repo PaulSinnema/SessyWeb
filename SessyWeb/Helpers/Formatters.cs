@@ -17,6 +17,21 @@
             return "No DateTime";
         }
 
+        /// <summary>
+        /// Format the time displayed in the Y-axis.
+        /// </summary>
+        public static string FormatAsDayHourMinutes(object value)
+        {
+            if (value is DateTime)
+            {
+                var dateTime = (DateTime)value;
+
+                return $"{dateTime:dd/MM HH:mm}";
+            }
+
+            return "No DateTime";
+        }
+
         public static string FormatAsDate(object value)
         {
             if (value is DateTime)
@@ -63,6 +78,21 @@
                 var price = (double)value;
 
                 return $"{price:n2}";
+            }
+
+            return "";
+        }
+
+        /// <summary>
+        /// Format the prices displayed in the X-axis.
+        /// </summary>
+        public static string FormatAsWatt(object value)
+        {
+            if (value is double)
+            {
+                var kwh = (double)value;
+
+                return $"{kwh:n0}W";
             }
 
             return "";

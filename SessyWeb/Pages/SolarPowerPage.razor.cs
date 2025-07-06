@@ -158,49 +158,54 @@ namespace SessyWeb.Pages
 
         private void DetermineTickDistance(Dictionary<string, List<SolarInverterData>> groupedData)
         {
-            var start = groupedData.Values.Min(list => list.Min(sid => sid.Time));
-            var end = groupedData.Values.Max(list => list.Max(sid => sid.Time)).AddDays(1);
-
-            switch (PeriodChosen)
+            TickDistance = SolarPowerChartWidth;
+            
+            if (groupedData != null && groupedData.Count > 0)
             {
-                case PeriodsEnums.Day:
-                    {
-                        var hours = (end - start).Hours;
+                var start = groupedData.Values.Min(list => list.Min(sid => sid.Time));
+                var end = groupedData.Values.Max(list => list.Max(sid => sid.Time)).AddDays(1);
 
-                        TickDistance = SolarPowerChartWidth / (hours == 0 ? 24 : hours);
+                switch (PeriodChosen)
+                {
+                    case PeriodsEnums.Day:
+                        {
+                            var hours = (end - start).Hours;
 
-                        break;
-                    }
+                            TickDistance = SolarPowerChartWidth / (hours == 0 ? 24 : hours);
 
-                case PeriodsEnums.Week:
-                    {
-                        var days = (end - start).Days;
+                            break;
+                        }
 
-                        TickDistance = SolarPowerChartWidth / (days == 0 ? 7 : days);
+                    case PeriodsEnums.Week:
+                        {
+                            var days = (end - start).Days;
 
-                        break;
-                    }
+                            TickDistance = SolarPowerChartWidth / (days == 0 ? 7 : days);
 
-                case PeriodsEnums.Month:
-                    {
-                        var days = (end - start).Days;
+                            break;
+                        }
 
-                        TickDistance = SolarPowerChartWidth / (days == 0 ? 31 : days);
-                        break;
-                    }
+                    case PeriodsEnums.Month:
+                        {
+                            var days = (end - start).Days;
 
-                case PeriodsEnums.Year:
-                case PeriodsEnums.All:
-                    {
-                        var months = (end - start).Days / 30;
+                            TickDistance = SolarPowerChartWidth / (days == 0 ? 31 : days);
+                            break;
+                        }
 
-                        TickDistance = SolarPowerChartWidth / (months == 0 ? 12 : months);
+                    case PeriodsEnums.Year:
+                    case PeriodsEnums.All:
+                        {
+                            var months = (end - start).Days / 30;
 
-                        break;
-                    }
+                            TickDistance = SolarPowerChartWidth / (months == 0 ? 12 : months);
 
-                default:
-                    throw new InvalidOperationException($"Invalid period: {PeriodChosen}");
+                            break;
+                        }
+
+                    default:
+                        throw new InvalidOperationException($"Invalid period: {PeriodChosen}");
+                }
             }
         }
 
