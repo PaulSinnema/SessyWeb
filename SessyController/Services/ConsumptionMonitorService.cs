@@ -96,19 +96,7 @@ namespace SessyController.Services
 
             foreach (P1Meter? p1Meter in _p1MeterContainer.P1Meters)
             {
-                var now = _timeZoneService.Now;
-                var selectTime = now.DateFloorQuarter();
-
-                var p1Details = await _p1MeterContainer.GetDetails(p1Meter.Id!);
-                var weatherData = _weatherService.GetWeatherData();
-
-                var liveWeer = weatherData?.LiveWeer?.FirstOrDefault();
-
-                await StoreConsumption(p1Meter, p1Details!, selectTime, liveWeer);
-
-                DataChanged?.Invoke();
-
-                _logger.LogInformation($"Consumption data stored at {now} for {selectTime}");
+                await StoreConsumption(p1Meter);
             }
         }
 
@@ -125,21 +113,55 @@ namespace SessyController.Services
                 throw new InvalidOperationException("Weather service not initialized");
         }
 
-        private async Task StoreConsumption(P1Meter p1Meter, P1Details p1Details, DateTime time, LiveWeer? liveWeer)
+        private class ConsumptionData
         {
-            var consumptionList = new List<Consumption>();
+            public DateTime Time { get; set; }
+            public double ConsumptionKWh { get; set; }
+        }
 
-            consumptionList.Add(new Consumption
+        private List<ConsumptionData> _consumptionData = new List<ConsumptionData>();
+
+        private async Task StoreConsumption(P1Meter p1Meter)
+        {
+            var now = _timeZoneService.Now;
+
+            if (_consumptionData.Count >= 900) // 15 minutes of data
             {
-                Time = time,
-                ConsumptionKWh = await CalculateConsumption(),
-                // In case no weather data is present we store a large negative number.
-                Humidity = liveWeer?.Luchtvochtigheid ?? -999, 
-                Temperature = liveWeer?.Temp ?? -999,
-                GlobalRadiation = liveWeer?.GlobalRadiation ?? -999
-            });
+                var averageConsumption = _consumptionData.Average(c => c.ConsumptionKWh);
 
-            _consumptionService.AddRange(consumptionList);
+                var p1Details = await _p1MeterContainer.GetDetails(p1Meter.Id!);
+                var weatherData = _weatherService.GetWeatherData();
+
+                var liveWeer = weatherData?.LiveWeer?.FirstOrDefault();
+
+                _consumptionData.Clear();
+
+                var consumptionList = new List<Consumption>();
+
+                consumptionList.Add(new Consumption
+                {
+                    Time = now,
+                    ConsumptionKWh = averageConsumption,
+                    // In case no weather data is present we store a large negative number.
+                    Humidity = liveWeer?.Luchtvochtigheid ?? -999,
+                    Temperature = liveWeer?.Temp ?? -999,
+                    GlobalRadiation = liveWeer?.GlobalRadiation ?? -999
+                });
+
+                _consumptionService.AddRange(consumptionList);
+
+                DataChanged?.Invoke();
+
+                _logger.LogInformation($"Consumption data stored for {now}");
+            }
+            else
+            {
+                _consumptionData.Add(new ConsumptionData
+                {
+                    Time = now,
+                    ConsumptionKWh = await CalculateConsumption()
+                });
+            }
         }
 
         public async Task<double> CalculateConsumption()
