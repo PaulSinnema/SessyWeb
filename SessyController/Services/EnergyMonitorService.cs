@@ -11,13 +11,12 @@ namespace SessyController.Services
 {
     public class EnergyMonitorService : BackgroundService
     {
+        public WeatherService? _weatherService { get; set; }
+        public DayAheadMarketService? _dayAheadMarketService { get; set; }
         private P1MeterContainer _p1MeterContainer { get; set; }
         private IOptionsMonitor<SessyP1Config> _sessyP1ConfigMonitor { get; set; }
-        private WeatherService _weatherService { get; set; }
         private TimeZoneService _timeZoneService { get; set; }
         private P1MeterService _p1MeterService { get; set; }
-
-        private DayAheadMarketService _dayAheadMarketService { get; set; }
 
         private EnergyHistoryService _energyHistoryService { get; set; }
 
@@ -121,7 +120,7 @@ namespace SessyController.Services
             }
         }
 
-        private async Task EnsureServicesAreInitialized(CancellationToken cancelationToken)
+        public async Task EnsureServicesAreInitialized(CancellationToken cancelationToken)
         {
             var tries = 0;
 
@@ -140,7 +139,7 @@ namespace SessyController.Services
             if (!(_dayAheadMarketService.PricesInitialized && _weatherService.Initialized))
                 throw new InvalidOperationException("Day ahead service or weather service not initialized");
         }
-
+        
         private EnergyHistory? GetEnergyHistory(DateTime selectTime)
         {
             var energyHistory = _energyHistoryService.Get((set) =>
@@ -166,7 +165,8 @@ namespace SessyController.Services
                 ProducedTariff1 = p1Details.PowerProducedTariff1,
                 ProducedTariff2 = p1Details.PowerProducedTariff2,
                 TarrifIndicator = p1Details.TariffIndicator,
-                Temperature = hourExpectancy?.Temp ?? -999, // In case no weather data is present we store a large negative temperature.
+                // In case no weather data is present we store a large negative number.
+                Temperature = hourExpectancy?.Temp ?? -999, 
                 GlobalRadiation = hourExpectancy?.GlobalRadiation ?? -999
             });
 

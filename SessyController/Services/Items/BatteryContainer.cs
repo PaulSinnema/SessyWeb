@@ -176,5 +176,17 @@ namespace SessyController.Services.Items
 
             return watts / totalCapacity;
         }
+
+        internal async Task<double> GetTotalPowerInWatts()
+        {
+            var totalPower = 0.0;
+            
+            foreach (var battery in Batteries)
+            {
+                totalPower += await battery.GetPowerInWatts();
+            }
+
+            return totalPower;
+        }
     }
 }

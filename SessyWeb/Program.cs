@@ -91,6 +91,7 @@ builder.Services.AddScoped<DbHelper>();
 builder.Services.AddScoped<PowerEstimatesService>();
 builder.Services.AddScoped<FinancialResultsService>();
 builder.Services.AddScoped<SolarEdgeDataService>();
+builder.Services.AddScoped<ConsumptionDataService>();
 
 builder.Services.AddSingleton<EnergyHistoryService>();
 builder.Services.AddSingleton<SolarEdgeInverterService>();
@@ -107,6 +108,7 @@ builder.Services.AddSingleton<EPEXPricesDataService>();
 builder.Services.AddSingleton<SessyWebControlDataService>();
 builder.Services.AddSingleton<TaxesDataService>();
 builder.Services.AddSingleton<CalculationService>();
+builder.Services.AddSingleton<ConsumptionMonitorService>();
 
 // Solar inverters
 builder.Services.AddSingleton<SolarInverterManager>();
@@ -125,6 +127,7 @@ builder.Services.AddHostedService(provider => provider.GetRequiredService<SessyM
 builder.Services.AddHostedService(provider => provider.GetRequiredService<EnergyMonitorService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<P1MeterService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<SolarInverterManager>());
+builder.Services.AddHostedService(provider => provider.GetRequiredService<ConsumptionMonitorService>());
 
 builder.Services.AddRazorPages(options =>
 {

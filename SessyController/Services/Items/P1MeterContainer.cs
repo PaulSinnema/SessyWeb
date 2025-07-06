@@ -88,5 +88,22 @@ namespace SessyController.Services.Items
                 _isDisposed = true;
             }
         }
+
+        internal async Task<double> GetTotalPowerInWatts()
+        {
+            var powerInWatts = 0.0;
+
+            foreach (var meter in P1Meters)
+            {
+                var details = await GetDetails(meter!.Name!);
+
+                if (details != null)
+                {
+                    powerInWatts += details.PowerTotal;
+                }
+            }
+
+            return powerInWatts;
+        }
     }
 }

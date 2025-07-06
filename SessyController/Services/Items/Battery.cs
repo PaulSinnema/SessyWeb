@@ -1,5 +1,6 @@
 ﻿using SessyCommon.Extensions;
 using SessyController.Configurations;
+using System.Threading.Tasks;
 using static SessyController.Services.ActivePowerStrategy;
 
 namespace SessyController.Services.Items
@@ -40,6 +41,13 @@ namespace SessyController.Services.Items
             return _endpoint.MaxDischarge;
         }
 
+        internal async Task<double> GetPowerInWatts()
+        {
+            var powerStatus = await GetPowerStatus();
+
+            return powerStatus?.Sessy?.Power ?? 0.0;
+        }
+        
         public async Task<PowerStatus?> GetPowerStatus()
         {
             var tries = 0;
