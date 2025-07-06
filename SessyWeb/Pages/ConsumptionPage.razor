@@ -1,0 +1,48 @@
+﻿@page "/consumption"
+@inherits PageBase
+@using System
+@using SessyController.Services
+@using SessyController.Services.Items
+@using SessyWeb.Components
+@using static SessyWeb.Components.DateChooserComponent
+
+<PageTitle>Consumption</PageTitle>
+
+<h3>Consumption</h3>
+
+<RadzenLayout Style="height: 80vh;">
+    <RadzenHeader Style="height: 100%;margin: 0px; padding: 0px;">
+        <RadzenStack Orientation=Orientation.Horizontal AlignItems="AlignItems.Center" Style="height:100%;margin: 0px; padding: 0px;">
+            @* TickDistance: <p>@TickDistance</p> *@
+
+            <RadzenLabel Text="Solar power" Component="RadzenDropDownBindValue" class="h4 m-2" />
+
+            <DateChooserComponent PeriodChosen=@PeriodChosen
+                                  DateChosenChanged=@((DateTime d) => DateChosenChanged(d))
+                                  PeriodChosenChanged=@((PeriodsEnums p) => PeriodChosenChanged(p)) />
+
+        </RadzenStack>
+    </RadzenHeader>
+
+    <RadzenBody>
+        <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="0.5rem" Style="width: 100%;">
+
+            <RadzenChart Style="@GraphStyle" @ref=ConsumptionChart>
+                <RadzenLegend Position="LegendPosition.Top" Visible="true" />
+
+                <RadzenAreaSeries Data="@ConsumptionData"
+                                  Title="Consumption"
+                                  CategoryProperty="Time"
+                                  ValueProperty="ConsumptionKWh"
+                                  Smooth="true"
+                                  LineType="LineType.Dotted" />
+
+                <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance>
+                    <RadzenGridLines Visible="true" />
+                    <RadzenAxisTitle Text="Time" />
+                </RadzenCategoryAxis>
+
+            </RadzenChart>
+        </RadzenStack>
+    </RadzenBody>
+</RadzenLayout>
