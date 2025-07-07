@@ -21,17 +21,18 @@ namespace SessyWeb.Pages
         public PeriodsEnums PeriodChosen { get; set; }
 
         private RadzenChart? ConsumptionChart { get; set; }
+        private RadzenChart? HumidityChart { get; set; }
+        private RadzenChart? GlobalRadiationChart { get; set; }
+        private RadzenChart? TemperatureChart { get; set; }
 
         private string GraphStyle { get; set; } = "width: 100%; height: 60vh";
 
         private int TickDistance { get; set; }
 
-        public List<Consumption> ConsumptionData { get; set; } = new();
+        public List<ConsumptionDisplayData> ConsumptionData { get; set; } = new();
 
         protected override async Task OnInitializedAsync()
         {
-            DateChosen = _timeZoneService!.Now.Date;
-            PeriodChosen = PeriodsEnums.Month;
 
             await base.OnInitializedAsync();
         }
@@ -40,6 +41,9 @@ namespace SessyWeb.Pages
         {
             if (firstRender)
             {
+                DateChosen = _timeZoneService!.Now.Date;
+                PeriodChosen = PeriodsEnums.Month;
+
                 await SelectionChanged();
             }
 
@@ -60,13 +64,22 @@ namespace SessyWeb.Pages
             await SelectionChanged();
         }
 
+        public class ConsumptionDisplayData
+        {
+            public DateTime Time { get; set; }
+            public double ConsumptionKWh { get; set; }
+            public double Temperature { get; set; }
+            public double GlobalRadiation { get; set; }
+            public double Humidity { get; set; }
+        }
+
         private async Task SelectionChanged()
         {
             ConsumptionChartWidth = await _screenSizeService!.GetElementWidth(ConsumptionChart!.Element);
 
             DateChosen ??= DateChosen?.Date ?? _timeZoneService!.Now.Date;
 
-            ConsumptionData = _consumptionDataService!.GetList((set) =>
+            var list = _consumptionDataService!.GetList((set) =>
             {
                 switch (PeriodChosen)
                 {
@@ -101,16 +114,28 @@ namespace SessyWeb.Pages
             }).OrderBy(sed => sed.Time)
               .ToList();
 
+            ConsumptionData = list.Select(cd => new ConsumptionDisplayData
+            {
+                Time = cd.Time,
+                ConsumptionKWh = cd.ConsumptionKWh,
+                Humidity = cd.Humidity,
+                GlobalRadiation = cd.GlobalRadiation,
+                Temperature = cd.Temperature
+            }).ToList();
+
             DetermineTickDistance(ConsumptionData);
 
             FillFormatter();
 
-            await ConsumptionChart!.Reload();
-
             StateHasChanged();
+
+            await ConsumptionChart!.Reload();
+            await HumidityChart!.Reload();
+            await GlobalRadiationChart!.Reload();
+            await TemperatureChart!.Reload();
         }
 
-        private void DetermineTickDistance(List<Consumption>? consumptionData)
+        private void DetermineTickDistance(List<ConsumptionDisplayData>? consumptionData)
         {
             TickDistance = ConsumptionChartWidth;
 
@@ -132,7 +157,7 @@ namespace SessyWeb.Pages
 
                     case PeriodsEnums.Week:
                         {
-                            var days = (end - start).Days;
+                            var days = (end.Date - start.Date).Days;
 
                             TickDistance = ConsumptionChartWidth / (days == 0 ? 7 : days);
 
@@ -141,16 +166,17 @@ namespace SessyWeb.Pages
 
                     case PeriodsEnums.Month:
                         {
-                            var days = (end - start).Days;
+                            var days = (end.Date - start.Date).Days;
 
                             TickDistance = ConsumptionChartWidth / (days == 0 ? 31 : days);
+
                             break;
                         }
 
                     case PeriodsEnums.Year:
                     case PeriodsEnums.All:
                         {
-                            var months = (end - start).Days / 30;
+                            var months = end.Month - start.Month + 1;
 
                             TickDistance = ConsumptionChartWidth / (months == 0 ? 12 : months);
 

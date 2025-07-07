@@ -97,5 +97,20 @@
 
             return "";
         }
+
+        /// <summary>
+        /// Format the prices displayed in the X-axis.
+        /// </summary>
+        public static string FormatAsRoundedNumber(object value)
+        {
+            if (value is double)
+            {
+                var kwh = (double)value;
+
+                return $"{kwh:n0}";
+            }
+
+            return "";
+        }
     }
 }
