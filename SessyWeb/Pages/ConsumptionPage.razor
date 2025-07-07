@@ -28,22 +28,25 @@
         <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="0.5rem" Style="width: 100%;">
             <RadzenCard Style="width: 100%;">
                 <RadzenChart Style="@GraphStyle" @ref=ConsumptionChart>
-                    <RadzenLegend Position="LegendPosition.Top" Visible="true" />
+                    <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
 
-                    <RadzenLineSeries Data="@ConsumptionData"
+                    <RadzenAreaSeries Data="@ConsumptionData"
+                                      Stroke="blue"
+                                      StrokeWidth="2"
+                                      Fill="blue"
                                       Title="Consumption"
                                       CategoryProperty="Time"
                                       ValueProperty="ConsumptionKWh"
                                       Smooth="true"
                                       LineType="LineType.Solid">
                         <RadzenSeriesDataLabels Visible="true" />
-                    </RadzenLineSeries>
+                    </RadzenAreaSeries>
 
                     <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance LabelAutoRotation="-45">
                         <RadzenGridLines Visible="true" />
                         <RadzenAxisTitle Text="Time" />
                     </RadzenCategoryAxis>
-                    <RadzenValueAxis Formatter="@Helpers.Formatters.FormatAsRoundedNumber">
+                    <RadzenValueAxis Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
                         <RadzenGridLines Visible="true" />
                         <RadzenAxisTitle Text="Watt" />
                     </RadzenValueAxis>
@@ -52,19 +55,24 @@
 
             <RadzenCard Style="width: 100%;">
                 <RadzenChart Style="@GraphStyle" @ref=GlobalRadiationChart>
-                    <RadzenLegend Position="LegendPosition.Top" Visible="true" />
-                    <RadzenLineSeries Data="@ConsumptionData"
+                    <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
+                    <RadzenAreaSeries Data="@ConsumptionData"
+                                      Stroke="orange"
+                                      StrokeWidth="2"
+                                      Fill="orange"
                                       Title="Global radiation"
                                       CategoryProperty="Time"
                                       ValueProperty="GlobalRadiation"
                                       Smooth="true"
-                                      LineType="LineType.Solid" />
+                                      LineType="LineType.Solid" >
+                        <RadzenSeriesDataLabels Visible="true" />
+                                  </RadzenAreaSeries>
 
                     <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance LabelAutoRotation="-45">
                         <RadzenGridLines Visible="true" />
                         <RadzenAxisTitle Text="Time" />
                     </RadzenCategoryAxis>
-                    <RadzenValueAxis Formatter="@Helpers.Formatters.FormatAsRoundedNumber">
+                    <RadzenValueAxis Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
                         <RadzenGridLines Visible="true" />
                         <RadzenAxisTitle Text="Watt / m2" />
                     </RadzenValueAxis>
@@ -73,19 +81,24 @@
 
             <RadzenCard Style="width: 100%;">
                 <RadzenChart Style="@GraphStyle" @ref=HumidityChart>
-                    <RadzenLegend Position="LegendPosition.Top" Visible="true" />
-                    <RadzenLineSeries Data="@ConsumptionData"
+                    <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
+                    <RadzenAreaSeries Data="@ConsumptionData"
                                       Title="Humidity"
                                       CategoryProperty="Time"
+                                      Stroke="green"
+                                      StrokeWidth="2"
+                                      Fill="green"
                                       ValueProperty="Humidity"
                                       Smooth="true"
-                                      LineType="LineType.Solid" />
+                                      LineType="LineType.Solid" >
+                        <RadzenSeriesDataLabels Visible="true" />
+                                  </RadzenAreaSeries>
 
                     <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance LabelAutoRotation="-45">
                         <RadzenGridLines Visible="true" />
                         <RadzenAxisTitle Text="Time" />
                     </RadzenCategoryAxis>
-                    <RadzenValueAxis Formatter="@Helpers.Formatters.FormatAsRoundedNumber">
+                    <RadzenValueAxis Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
                         <RadzenGridLines Visible="true" />
                         <RadzenAxisTitle Text="Percentage" />
                     </RadzenValueAxis>
@@ -94,19 +107,24 @@
 
             <RadzenCard Style="width: 100%;">
                 <RadzenChart Style="@GraphStyle" @ref=TemperatureChart>
-                    <RadzenLegend Position="LegendPosition.Top" Visible="true" />
-                    <RadzenLineSeries Data="@ConsumptionData"
+                    <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
+                    <RadzenAreaSeries Data="@ConsumptionData"
+                                      Stroke="yellow"
+                                      StrokeWidth="2"
+                                      Fill="yellow"
                                       Title="Temperature"
                                       CategoryProperty="Time"
                                       ValueProperty="Temperature"
                                       Smooth="true"
-                                      LineType="LineType.Solid" />
+                                      LineType="LineType.Solid" >
+                        <RadzenSeriesDataLabels Visible="true" />
+                                  </RadzenAreaSeries>
 
                     <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance LabelAutoRotation="-45">
                         <RadzenGridLines Visible="true" />
                         <RadzenAxisTitle Text="Time" />
                     </RadzenCategoryAxis>
-                    <RadzenValueAxis Formatter="@Helpers.Formatters.FormatAsRoundedNumber">
+                    <RadzenValueAxis Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
                         <RadzenGridLines Visible="true" />
                         <RadzenAxisTitle Text="Celsius" />
                     </RadzenValueAxis>

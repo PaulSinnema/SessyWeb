@@ -101,16 +101,34 @@
         /// <summary>
         /// Format the prices displayed in the X-axis.
         /// </summary>
+        public static string FormatAsRoundedNumberWithZeroSuppression(object value)
+        {
+            return FormatDoubleAsRoundedNumberWithZeroSuppression(value, true);
+        }
+
+        /// <summary>
+        /// Format the prices displayed in the X-axis.
+        /// </summary>
         public static string FormatAsRoundedNumber(object value)
         {
             if (value is double)
             {
-                var kwh = (double)value;
-
-                return $"{kwh:n0}";
+                return FormatDoubleAsRoundedNumberWithZeroSuppression(value, false);
             }
 
             return "";
+        }
+
+        private static string FormatDoubleAsRoundedNumberWithZeroSuppression(object value, bool suppressZero)
+        {
+            var kwh = (double)value;
+
+            if (suppressZero && kwh == 0)
+            {
+                return "";
+            }
+
+            return $"{kwh:n0}";
         }
     }
 }

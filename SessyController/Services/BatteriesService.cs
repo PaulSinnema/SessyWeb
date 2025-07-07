@@ -299,9 +299,9 @@ namespace SessyController.Services
 
         private async Task HandleAutomaticCharging(Sessions sessions, QuarterlyInfo currentHourlyInfo, BatteryStates batteryStates)
         {
-            await CancelSessionIfStateRequiresIt(sessions, currentHourlyInfo, batteryStates);
-
             var currentSession = sessions.GetSession(currentHourlyInfo);
+
+            await CancelSessionIfStateRequiresIt(sessions, currentHourlyInfo, batteryStates);
 
             switch (currentHourlyInfo.Mode)
             {
@@ -406,6 +406,7 @@ namespace SessyController.Services
                     if (batteryStates.BatteriesAreFull || batteryStates.ChargeAtMaximum)
                     {
                         StopSession(session);
+
                         _logger.LogWarning($"Warning: Charging session stopped because batteries are full (enough). {session}, batteries are full: {batteryStates.BatteriesAreFull}, charge at maximum: {batteryStates.ChargeAtMaximum}");
                     }
                 }
@@ -417,6 +418,7 @@ namespace SessyController.Services
                     if (batteriesAreEmpty || chargeAtMinimum)
                     {
                         StopSession(session);
+
                         _logger.LogWarning($"Warning: Discharging session stopped. Min. charge reached or batteries are empty. {session}, batteries are empty: {batteriesAreEmpty}, charge at minimum: {chargeAtMinimum}");
                     }
                 }

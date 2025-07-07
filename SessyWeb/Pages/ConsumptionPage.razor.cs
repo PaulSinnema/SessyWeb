@@ -16,6 +16,8 @@ namespace SessyWeb.Pages
         private TimeZoneService? _timeZoneService { get; set; }
         [Inject]
         private ConsumptionDataService? _consumptionDataService { get; set; }
+        [Inject]
+        private ConsumptionMonitorService? _consumptionMonitorService { get; set; }
 
         public DateTime? DateChosen { get; set; }
         public PeriodsEnums PeriodChosen { get; set; }
@@ -43,6 +45,7 @@ namespace SessyWeb.Pages
             {
                 DateChosen = _timeZoneService!.Now.Date;
                 PeriodChosen = PeriodsEnums.Month;
+                _consumptionMonitorService!.DataChanged += SelectionChanged;
 
                 await SelectionChanged();
             }

@@ -43,6 +43,9 @@ namespace SessyController.Services.Items
         /// </summary>
         public double GetChargingPowerInWatts(QuarterlyInfo currentHourlyInfo)
         {
+            return currentHourlyInfo.Charging ? _batteryContainer.GetChargingCapacity() : _batteryContainer.GetDischargingCapacity();
+
+            // TODO: // This is not correct, we need to calculate the power based on the current hourly info and the mode.
             var chargeNeeded = currentHourlyInfo.ChargeNeeded;
             var totalCapacity = _batteryContainer.GetTotalCapacity();
             var prices = SessionHourlyInfos.Sum(hi => hi.BuyingPrice);
@@ -53,7 +56,7 @@ namespace SessyController.Services.Items
                 case Modes.Charging:
                     {
                         var toCharge = chargeNeeded;
-                        var capacity = _batteryContainer.GetChargingCapacity();
+                        var capacity = _batteryContainer.GetChargingCapacity() / 4.0;
 
                         foreach (var quarterlyInfo in SessionHourlyInfos
                             .Where(hi => hi.Time >= quarterTime)
@@ -74,7 +77,7 @@ namespace SessyController.Services.Items
                 case Modes.Discharging:
                     {
                         var toDischarge = totalCapacity - chargeNeeded;
-                        var capacity = _batteryContainer.GetDischargingCapacity();
+                        var capacity = _batteryContainer.GetDischargingCapacity() / 4.0;
 
                         foreach (var quarterlyInfo in SessionHourlyInfos
                             .Where(hi => hi.Time >= quarterTime)
