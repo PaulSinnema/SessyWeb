@@ -3,6 +3,7 @@ using Radzen;
 using SessyCommon.Extensions;
 using SessyController.Services;
 using SessyController.Services.Items;
+using SessyWeb.Helpers;
 
 namespace SessyWeb.Pages
 {
@@ -49,8 +50,6 @@ namespace SessyWeb.Pages
 
             try
             {
-                await InvokeAsync(async () => await HandleScreenHeight());
-
                 _ = UpdateLoop();
             }
             catch (Exception)
@@ -109,17 +108,14 @@ namespace SessyWeb.Pages
         {
             if (firstRender)
             {
-                _screenSizeService!.OnScreenSizeChanged += HandleResize;
                 _batteriesService!.DataChanged += BatteriesServiceDataChanged;
                 _batteriesService!.OnHeartBeat += HeartBeat;
 
-                await _screenSizeService.InitializeAsync();
-
                 await InvokeAsync(async () =>
                 {
-                    await HandleScreenHeight();
-
                     await BatteriesServiceDataChanged();
+
+                    HandleScreenHeight();
 
                     StateHasChanged();
                 });
@@ -131,10 +127,15 @@ namespace SessyWeb.Pages
         /// <summary>
         /// Handle the height of the screen.
         /// </summary>
-        private async Task HandleScreenHeight()
+        public override void ScreenInfoChanged(ScreenInfo screenInfo)
         {
-            var height = await _screenSizeService!.GetScreenHeightAsync();
-            var width = await _screenSizeService.GetScreenWidthAsync();
+            HandleScreenHeight();
+        }
+
+        private void HandleScreenHeight()
+        {
+            var height = ScreenInfo!.Height;
+            var width = ScreenInfo!.Width;
 
             HandleResize(height - 300, width);
         }
@@ -172,8 +173,6 @@ namespace SessyWeb.Pages
                 {
                     var now = _timeZoneService!.Now;
 
-                    await HandleScreenHeight();
-
                     TotalSolarPowerExpectedToday = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(now);
                     TotalSolarPowerExpectedTomorrow = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(now.AddDays(1));
 
@@ -192,7 +191,7 @@ namespace SessyWeb.Pages
         }
 
         /// <summary>
-        /// The window is resized. Hanle it.
+        /// The window is resized. Handle it.
         /// </summary>
         private async void HandleResize(int height, int width)
         {
@@ -267,7 +266,6 @@ namespace SessyWeb.Pages
         {
             if (!_isDisposed)
             {
-                _screenSizeService!.OnScreenSizeChanged -= HandleResize;
                 _batteriesService!.DataChanged -= BatteriesServiceDataChanged;
                 _batteriesService!.OnHeartBeat -= HeartBeat;
             }

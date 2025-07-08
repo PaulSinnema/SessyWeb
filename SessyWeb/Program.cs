@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using BlazorPro.BlazorSize;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Radzen;
 using Radzen.Blazor;
@@ -14,7 +15,6 @@ using SessyData.Helpers;
 using SessyData.Model;
 using SessyData.Services;
 using SessyWeb.Controllers;
-using SessyWeb.Services;
 
 AppDomain.CurrentDomain.UnhandledException += (sender, eventArgs) =>
 {
@@ -86,7 +86,6 @@ builder.Services.AddScoped<SessyService>();
 builder.Services.AddScoped<SolarService>();
 builder.Services.AddScoped<TcpClientProvider>();
 builder.Services.AddScoped<SessyStatusHistoryService>();
-builder.Services.AddScoped<ScreenSizeService>();
 builder.Services.AddScoped<DbHelper>();
 builder.Services.AddScoped<PowerEstimatesService>();
 builder.Services.AddScoped<FinancialResultsService>();
@@ -176,6 +175,8 @@ builder.Services.AddSingleton<RadzenTheme>(provider =>
     var theme = new RadzenTheme();
     return theme;
 });
+
+builder.Services.AddResizeListener();
 
 var app = builder.Build();
 

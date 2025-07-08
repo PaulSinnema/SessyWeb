@@ -1,16 +1,18 @@
-﻿using Microsoft.AspNetCore.Components;
+﻿using BlazorPro.BlazorSize;
+using Microsoft.AspNetCore.Components;
 using Radzen;
 using SessyWeb.Helpers;
-using SessyWeb.Services;
 
 namespace SessyWeb.Shared
 {
     public partial class MainLayout
     {
-        [Inject]
-        public ScreenSizeService? _screenSizeService { get; set; }
+        [Inject] 
+        private IResizeListener ResizeListener { get; set; } = default!;
 
-        public static string NewTheme { get; set; } = "Dark";
+        public BrowserWindowSize? WindowSize { get; private set; }
+
+        public static string NewTheme { get; set; } = "Dark Software";
 
         public MenuItemDisplayStyle DisplayStyle { get; set; } = MenuItemDisplayStyle.Icon;
 
@@ -31,31 +33,29 @@ namespace SessyWeb.Shared
             base.OnInitialized();
         }
 
-        protected override async Task OnAfterRenderAsync(bool firstRender)
+        protected override Task OnInitializedAsync()
         {
-            if (firstRender)
-            {
-                screenHeight = await _screenSizeService!.GetScreenHeightAsync();
-                screenWidth = await _screenSizeService!.GetScreenWidthAsync();
+            ResizeListener.OnResized += OnResized;
 
-                _screenSizeService_OnScreenSizeChanged(screenHeight, screenWidth);
-
-                _screenSizeService!.OnScreenSizeChanged += _screenSizeService_OnScreenSizeChanged;
-
-            }
-
-            await base.OnAfterRenderAsync(firstRender);
+            return base.OnInitializedAsync();
         }
 
-        private void _screenSizeService_OnScreenSizeChanged (int height, int width)
+        private async Task OnResizedAsync(BrowserWindowSize browserWindowSize)
         {
-            screenWidth = width;
-            screenHeight = height;
+            WindowSize = browserWindowSize;
 
-            ScreenInfo.Width = width;
-            ScreenInfo.Height = height;
+            screenHeight = WindowSize.Height;
+            screenWidth = WindowSize.Width;
 
-            StateHasChanged();
+            ScreenInfo.Height = screenHeight;
+            ScreenInfo.Width = screenWidth;
+
+            await InvokeAsync(StateHasChanged);
+        }
+
+        private void OnResized(object? sender, BrowserWindowSize browserWindowSize)
+        {
+            _ = OnResizedAsync(browserWindowSize);
         }
 
         void ChangeTheme(string theme)
@@ -91,6 +91,18 @@ namespace SessyWeb.Shared
         {
             DisplayStyle = MenuItemDisplayStyle.IconAndText;
             MenuStyle = MenuStyleIconAndText;
+        }
+
+        private bool _isDisposed = false;
+
+        public void Dispose()
+        {
+            if (_isDisposed)
+                return;
+
+            _isDisposed = true;
+            
+            ResizeListener.OnResized -= OnResized;
         }
     }
 }

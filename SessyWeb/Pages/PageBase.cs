@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.Components;
 using SessyController.Services.Items;
 using SessyWeb.Helpers;
-using SessyWeb.Services;
 
 namespace SessyWeb.Pages
 {
@@ -9,13 +8,29 @@ namespace SessyWeb.Pages
     {
         [Inject]
         public BatteryContainer? batteryContainer { get; set; }
-        [Inject]
-        public ScreenSizeService? _screenSizeService { get; set; }
+
+        private ScreenInfo? _screenInfo;
 
         [CascadingParameter(Name = "ScreenInfo")]
-        public ScreenInfo? ScreenInfo { get; set; }
+        public ScreenInfo? ScreenInfo
+        {
+            get => _screenInfo;
+            set
+            {
+                _screenInfo = value;
+
+                if (_screenInfo != null)
+                {
+                    ScreenInfoChanged(_screenInfo);
+                }
+            }
+        }
+
+        public virtual void ScreenInfoChanged(ScreenInfo screenInfo) { }
 
         public bool IsComponentActive { get; internal set; } = false;
+
+
 
         protected override void OnInitialized()
         {

@@ -157,7 +157,7 @@ namespace SessyController.Services
             if (_dayAheadMarketService.PricesInitialized)
             {
                 // Prevent race conditions.
-                HourlyInfoSemaphore.Wait();
+                await HourlyInfoSemaphore.WaitAsync();
 
                 try
                 {

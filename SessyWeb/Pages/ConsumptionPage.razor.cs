@@ -3,7 +3,6 @@ using Radzen.Blazor;
 using Radzen.Blazor.Rendering;
 using SessyCommon.Extensions;
 using SessyController.Services;
-using SessyData.Model;
 using SessyData.Services;
 using SessyWeb.Helpers;
 using static SessyWeb.Components.DateChooserComponent;
@@ -33,12 +32,6 @@ namespace SessyWeb.Pages
 
         public List<ConsumptionDisplayData> ConsumptionData { get; set; } = new();
 
-        protected override async Task OnInitializedAsync()
-        {
-
-            await base.OnInitializedAsync();
-        }
-
         protected override async Task OnAfterRenderAsync(bool firstRender)
         {
             if (firstRender)
@@ -46,8 +39,6 @@ namespace SessyWeb.Pages
                 DateChosen = _timeZoneService!.Now.Date;
                 PeriodChosen = PeriodsEnums.Month;
                 _consumptionMonitorService!.DataChanged += SelectionChanged;
-
-                await SelectionChanged();
             }
 
             await base.OnAfterRenderAsync(firstRender);
@@ -76,10 +67,16 @@ namespace SessyWeb.Pages
             public double Humidity { get; set; }
         }
 
+        public override void ScreenInfoChanged(ScreenInfo screenInfo)
+        {
+            ConsumptionChartWidth = ScreenInfo!.Width == 0 ? 2300 : ScreenInfo!.Width;
+
+            base.ScreenInfoChanged(screenInfo);
+        }
+
+
         private async Task SelectionChanged()
         {
-            ConsumptionChartWidth = await _screenSizeService!.GetElementWidth(ConsumptionChart!.Element);
-
             DateChosen ??= DateChosen?.Date ?? _timeZoneService!.Now.Date;
 
             var list = _consumptionDataService!.GetList((set) =>
@@ -130,12 +127,12 @@ namespace SessyWeb.Pages
 
             FillFormatter();
 
-            StateHasChanged();
-
             await ConsumptionChart!.Reload();
             await HumidityChart!.Reload();
             await GlobalRadiationChart!.Reload();
             await TemperatureChart!.Reload();
+
+            StateHasChanged();
         }
 
         private void DetermineTickDistance(List<ConsumptionDisplayData>? consumptionData)

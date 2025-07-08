@@ -97,10 +97,15 @@ namespace SessyWeb.Pages
             }
         }
 
+        public override void ScreenInfoChanged(ScreenInfo screenInfo)
+        {
+            SolarPowerChartWidth = ScreenInfo!.Width == 0 ? 2300 : ScreenInfo!.Width;
+
+            base.ScreenInfoChanged(screenInfo);
+        }
+
         private async Task SelectionChanged()
         {
-            SolarPowerChartWidth = await _screenSizeService!.GetElementWidth(SolarPowerChart!.Element);
-
             DateChosen ??= DateChosen?.Date ?? _timeZoneService!.Now.Date;
 
             SolarInverterData = _solarEdgeDataService!.GetList((set) =>
@@ -153,7 +158,7 @@ namespace SessyWeb.Pages
 
             StateHasChanged();
 
-            await SolarPowerChart.Reload();
+            await SolarPowerChart!.Reload();
         }
 
         private void DetermineTickDistance(Dictionary<string, List<SolarInverterData>> groupedData)

@@ -47,7 +47,7 @@ namespace SessyController.Services
 
                 try
                 {
-                    WeatherDataSemaphore.Wait();
+                    await WeatherDataSemaphore.WaitAsync();
 
                     try
                     {
