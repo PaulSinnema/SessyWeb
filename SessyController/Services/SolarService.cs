@@ -212,7 +212,7 @@ namespace SessyController.Services
 
         private void ApplyPerformanceFactor(List<QuarterlyInfo> hourlyInfos, DateTime now)
         {
-            // Alleen kwartieren van vandaag
+            // Only quarter hours of today
             var todayInfos = hourlyInfos
                 .Where(q => q.Time.Date == now.Date)
                 .ToList();
@@ -227,14 +227,14 @@ namespace SessyController.Services
 
             if (pastInfos.Count == 0)
             {
-                _logger.LogInformation("Geen kwartieren van vandaag in het verleden gevonden, performance factor wordt niet toegepast.");
+                _logger.LogInformation("Did not find any past quarter hours, performance factor will not be applied.");
                 return;
             }
 
             // Som forecast
             var forecastToNow = pastInfos.Sum(q => q.SolarPowerPerQuarterHour);
 
-            // Som gemeten productie
+            // Sum of measured solar power
             var realizedToNow = GetRealizedSolarPower(
                 pastInfos.Min(q => q.Time),
                 pastInfos.Max(q => q.Time.AddMinutes(15))
@@ -242,7 +242,7 @@ namespace SessyController.Services
 
             if (forecastToNow <= 0.0)
             {
-                _logger.LogWarning("Forecast tot nu is nul, performance factor wordt niet toegepast.");
+                _logger.LogInformation("Forecast is zero until now, performance will not be applied.");
                 return;
             }
 
@@ -254,7 +254,7 @@ namespace SessyController.Services
 
             _logger.LogInformation($"Performance factor toegepast: {factor:F2} (Realized={realizedToNow:F2} kWh, Forecast={forecastToNow:F2} kWh)");
 
-            // Infos aanpassen
+            // Adjust quarterInfos
             foreach (var q in todayInfos)
             {
                 q.SolarPowerPerQuarterHour *= factor;

@@ -6,6 +6,13 @@
 @using SessyWeb.Components
 @using static SessyWeb.Components.DateChooserComponent
 
+@code {
+    bool ShowDataLabels = true;
+    bool ShowMarkers = true;
+}
+
+
+
 <PageTitle>Consumption</PageTitle>
 
 <h3>Consumption</h3>
@@ -20,6 +27,12 @@
             <DateChooserComponent PeriodChosen=@PeriodChosen
                                   DateChosenChanged=@((DateTime d) => DateChosenChanged(d))
                                   PeriodChosenChanged=@((PeriodsEnums p) => PeriodChosenChanged(p)) />
+
+            <RadzenLabel Text="Show labels" Component="ShowDataLabels" />
+            <RadzenCheckBox @bind-Value="@ShowDataLabels" Name="ShowDataLabels" />
+
+            <RadzenLabel Text="Show markers" Component="ShowMarkers" />
+            <RadzenCheckBox @bind-Value="@ShowMarkers" Name="ShowMarkers" />
 
         </RadzenStack>
     </RadzenHeader>
@@ -39,7 +52,10 @@
                                       ValueProperty="ConsumptionKWh"
                                       Smooth="true"
                                       LineType="LineType.Solid">
-                        <RadzenSeriesDataLabels Visible="true" />
+                        <ChildContent>
+                            <RadzenMarkers Visible="@ShowMarkers" MarkerType="MarkerType.Circle" />
+                            <RadzenSeriesDataLabels Visible="@ShowDataLabels" />
+                        </ChildContent>
                     </RadzenAreaSeries>
 
                     <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance LabelAutoRotation="-45">
@@ -64,9 +80,12 @@
                                       CategoryProperty="Time"
                                       ValueProperty="GlobalRadiation"
                                       Smooth="true"
-                                      LineType="LineType.Solid" >
-                        <RadzenSeriesDataLabels Visible="true" />
-                                  </RadzenAreaSeries>
+                                      LineType="LineType.Solid">
+                        <ChildContent>
+                            <RadzenMarkers Visible="@ShowMarkers" MarkerType="MarkerType.Circle" />
+                            <RadzenSeriesDataLabels Visible="@ShowDataLabels" />
+                        </ChildContent>
+                    </RadzenAreaSeries>
 
                     <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance LabelAutoRotation="-45">
                         <RadzenGridLines Visible="true" />
@@ -90,9 +109,12 @@
                                       Fill="green"
                                       ValueProperty="Humidity"
                                       Smooth="true"
-                                      LineType="LineType.Solid" >
-                        <RadzenSeriesDataLabels Visible="true" />
-                                  </RadzenAreaSeries>
+                                      LineType="LineType.Solid">
+                        <ChildContent>
+                            <RadzenMarkers Visible="@ShowMarkers" MarkerType="MarkerType.Circle" />
+                            <RadzenSeriesDataLabels Visible="@ShowDataLabels" />
+                        </ChildContent>
+                    </RadzenAreaSeries>
 
                     <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance LabelAutoRotation="-45">
                         <RadzenGridLines Visible="true" />
@@ -116,9 +138,12 @@
                                       CategoryProperty="Time"
                                       ValueProperty="Temperature"
                                       Smooth="true"
-                                      LineType="LineType.Solid" >
-                        <RadzenSeriesDataLabels Visible="true" />
-                                  </RadzenAreaSeries>
+                                      LineType="LineType.Solid">
+                        <ChildContent>
+                            <RadzenMarkers Visible="@ShowMarkers" MarkerType="MarkerType.Circle" />
+                            <RadzenSeriesDataLabels Visible="@ShowDataLabels" />
+                        </ChildContent>
+                    </RadzenAreaSeries>
 
                     <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance LabelAutoRotation="-45">
                         <RadzenGridLines Visible="true" />

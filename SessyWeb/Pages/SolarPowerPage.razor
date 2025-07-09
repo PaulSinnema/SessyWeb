@@ -7,6 +7,11 @@
 @using SessyWeb.Helpers
 @using static SessyWeb.Components.DateChooserComponent
 
+@code{
+    bool ShowDataLabels = false;
+    bool ShowMarkers = true;
+}
+
 <RadzenLayout Style="height: 80vh;">
     <RadzenHeader Style="height: 100%;margin: 0px; padding: 0px;">
         <RadzenStack Orientation=Orientation.Horizontal AlignItems="AlignItems.Center" Style="height:100%;margin: 0px; padding: 0px;">
@@ -21,10 +26,17 @@
             <RadzenLabel Text="Select provider" Component="RadzenDropDownBindValue" />
 
             <RadzenDropDown TValue="string"
-            @bind-Value="selectedProvider"
-            Data="@providerNames"
-            Placeholder="Select provider"
-            Style="width: 200px;" />
+                            @bind-Value="selectedProvider"
+                            Data="@providerNames"
+                            Placeholder="Select provider"
+                            Style="width: 200px;" />
+
+
+            <RadzenLabel Text="Show labels" Component="ShowDataLabels" />
+            <RadzenCheckBox @bind-Value="@ShowDataLabels" Name="ShowDataLabels" />
+
+            <RadzenLabel Text="Show markers" Component="ShowMarkers" />
+            <RadzenCheckBox @bind-Value="@ShowMarkers" Name="ShowMarkers" />
         </RadzenStack>
     </RadzenHeader>
 
@@ -42,9 +54,18 @@
                         CategoryProperty="Time"
                         ValueProperty="Power"
                         Smooth="true"
-                        LineType="LineType.Dotted" />
+                        LineType="LineType.Dotted" >
+                            <ChildContent>
+                                <RadzenMarkers Visible="@ShowMarkers" MarkerType="MarkerType.Circle" />
+                                <RadzenSeriesDataLabels Visible="@ShowDataLabels" />
+                            </ChildContent>
+                        </RadzenAreaSeries>
                     }
                 }
+
+                <RadzenValueAxis Formatter="@Formatters.FormatAsRoundedNumberWithZeroSuppression">
+
+                </RadzenValueAxis>
 
                 <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance>
                     <RadzenGridLines Visible="true" />

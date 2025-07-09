@@ -158,40 +158,49 @@ namespace SessyController.Services.InverterServices
         /// </summary>
         private void StoreData(Dictionary<string, Dictionary<DateTime, double>> collectedPowerData)
         {
+            var now = _timeZoneService.Now;
+
             foreach (var collectionKeyValue in collectedPowerData)
             {
                 var id = collectionKeyValue.Key;
                 var collection = collectionKeyValue.Value;
 
-                var hours = collection
-                    .Select(c => c.Key.DateFloorQuarter())
-                    .Distinct()
-                    .OrderBy(date => date);
+                // Group all samples by their quarter-hour timestamp
+                var quarterGroups = collection
+                    .GroupBy(c => c.Key.DateFloorQuarter())
+                    .OrderBy(g => g.Key)
+                    .ToList();
 
-                if (hours.Count() > 1) // A new hour has started.
+                foreach (var quarterGroup in quarterGroups)
                 {
-                    var date = hours.First();
-                    var count = collection.Where(c => c.Key.DateFloorQuarter() == date).Count();
-                    var total = collection.Where(c => c.Key.DateFloorQuarter() == date).Sum(c => c.Value);
-                    var power = total / count;
+                    var quarter = quarterGroup.Key;
 
-                    List<SolarInverterData> list = new List<SolarInverterData>
+                    var nextQuarter = quarter.AddMinutes(15);
+
+                    // Only store completed quarters
+                    if (now < nextQuarter)
+                        continue;
+
+                    var values = quarterGroup.Select(g => g.Value).ToList();
+                    if (values.Count < 1)
+                        continue;
+
+                    var averagePower = values.Average();
+
+                    var entry = new SolarInverterData
                     {
-                        new SolarInverterData
-                        {
-                            ProviderName = ProviderName,
-                            InverterId = id,
-                            Time = date,
-                            Power = power
-                        }
+                        ProviderName = ProviderName,
+                        InverterId = id,
+                        Time = quarter,
+                        Power = averagePower
                     };
 
-                    _solarEdgeDataService.Add(list);
+                    _solarEdgeDataService.Add(new List<SolarInverterData> { entry });
 
-                    foreach (var item in collection.ToList())
+                    // Remove processed items from memory
+                    foreach (var item in quarterGroup)
                     {
-                        if (item.Key.DateFloorQuarter() == date)
-                            collection.Remove(item.Key);
+                        collection.Remove(item.Key);
                     }
                 }
             }
