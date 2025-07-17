@@ -16,10 +16,10 @@
     <RadzenCard Style="padding: 3px 3px 5px 10px;">
         <RadzenStack Orientation="Orientation.Horizontal" Gap="1" AlignItems="AlignItems.Start">
 
-@*             ScreenInfo: @(ScreenInfo?.ToString() ?? "Empty")
+            @*             ScreenInfo: @(ScreenInfo?.ToString() ?? "Empty")
             Show: @show
  *@                
-            @if (show)
+                    @if (show)
             {
                 <RadzenStack Orientation="Orientation.Vertical" Gap="0" AlignItems="AlignItems.Start" Style="width: 200px;">
                     <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Date</RadzenText>
@@ -99,6 +99,15 @@
                         <i class="fas fa-industry" style="color: green; font-size: 24px;" title="Provider has control"></i>
                     }
 
+                </RadzenStack>
+
+                <RadzenStack Orientation="Orientation.Vertical" Style="width: 100%;">
+                    <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Settings</RadzenText>
+
+                    <RadzenStack Orientation="Orientation.Horizontal" Gap="2" AlignItems="AlignItems.Start" Style="width: 100%;">
+                        <RadzenLabel Text="Show all" Component="ShowAll" Style="width: 100px;"/>
+                        <RadzenCheckBox @bind-Value="ShowAll" Text="Show all data of today" Name="ShowAll" />
+                    </RadzenStack>
                 </RadzenStack>
 
                 @if (show)

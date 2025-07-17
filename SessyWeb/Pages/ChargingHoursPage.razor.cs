@@ -42,6 +42,18 @@ namespace SessyWeb.Pages
         private string RowHeightStyle { get; set; } = "height 20px";
         private string GraphStyle { get; set; } = "min-width: 250px; visibility: hidden;";
 
+        private bool _showAll = false;
+
+        private bool ShowAll
+        {
+            get => _showAll;
+            set
+            {
+                _showAll = value;
+                GetOnlyCurrentHourlyInfos();
+            }
+        }
+
         protected override async Task OnInitializedAsync()
         {
             await base.OnInitializedAsync();
@@ -208,9 +220,18 @@ namespace SessyWeb.Pages
         {
             var now = _timeZoneService!.Now;
 
-            HourlyInfos = _batteriesService?.GetHourlyInfos()?
-                .Where(hi => hi.Time >= now.DateFloorQuarter())
-                .ToList();
+            if (ShowAll)
+            {
+                HourlyInfos = _batteriesService?.GetHourlyInfos()?
+                    .Where(hi => hi.Time.Date == now.Date)
+                    .ToList();
+            }
+            else
+            {
+                HourlyInfos = _batteriesService?.GetHourlyInfos()?
+                    .Where(hi => hi.Time >= now.DateFloorQuarter())
+                    .ToList();
+            }
         }
 
         public bool IsManualOverride => _batteriesService!.IsManualOverride;
