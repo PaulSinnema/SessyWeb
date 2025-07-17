@@ -45,11 +45,19 @@ namespace SessyController.Managers
         public ISolarInverterService? GetByName(string name) =>
             _activeInverterServices.FirstOrDefault(s => s.ProviderName.Equals(name, StringComparison.OrdinalIgnoreCase));
 
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        protected override async Task ExecuteAsync(CancellationToken cancellationToken)
         {
             foreach (var service in _activeInverterServices)
             {
-                await service.Start(stoppingToken);
+                await service.Start(cancellationToken);
+            }
+        }
+
+        public override async Task StopAsync(CancellationToken cancellationToken)
+        {
+            foreach (var service in _activeInverterServices)
+            {
+                await service.Stop(cancellationToken);
             }
         }
 

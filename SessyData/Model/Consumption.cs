@@ -9,6 +9,12 @@ namespace SessyData.Model
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public int Id { get; set; }
         public DateTime Time { get; set; }
+        /// <summary>
+        /// This is watts consumed in the last quarter hour, so it is the total consumption in watts for the last 15 minutes.
+        /// </summary>
+        /// <remarks>
+        /// The name suggests that it is the total consumption in kWh, but it is actually the total consumption in watts for the last 15 minutes.
+        /// </remarks>
         public double ConsumptionKWh { get; set; }
         public double Temperature { get; set; }
         public double GlobalRadiation { get; set; }

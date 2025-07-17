@@ -19,6 +19,9 @@ namespace SessyController.Services.Items
 
         private TimeZoneService? _timeZoneService { get; set; }
 
+        private ConsumptionDataService _consumptionDataService { get; set; }
+        private EnergyHistoryService _energyHistoryService { get; set; }
+
         private List<Session>? _sessionList { get; set; }
         private int _maxChargingQuarters { get; set; }
         private int _maxDischargingQuarters { get; set; }
@@ -31,12 +34,17 @@ namespace SessyController.Services.Items
                         BatteryContainer batteryContainer,
                         TimeZoneService? timeZoneService,
                         FinancialResultsService financialResultsService,
+                        ConsumptionDataService consumptionDataService,
+                        EnergyHistoryService energyHistoryService,
                         ILoggerFactory loggerFactory)
         {
             _settingsConfig = settingsConfig;
             _batteryContainer = batteryContainer;
             _financialResultsService = financialResultsService;
             _timeZoneService = timeZoneService;
+            _consumptionDataService = consumptionDataService;
+            _energyHistoryService = energyHistoryService;
+
 
             _sessionList = new List<Session>();
             _hourlyInfos = hourlyInfos;
@@ -239,12 +247,12 @@ namespace SessyController.Services.Items
             }
         }
 
-        private void CalculateChargingProfits(List<QuarterlyInfo> lastChargingSession, QuarterlyInfo? previousHour, QuarterlyInfo quarterlyInfo)
+        private void CalculateChargingProfits(List<QuarterlyInfo> lastChargingSession, QuarterlyInfo? previousQuarter, QuarterlyInfo quarterlyInfo)
         {
-            var totalChargingCapacity = Math.Min(_totalChargingCapacityPerQuarter, _totalBatteryCapacity - (previousHour == null ? 0.0 : previousHour.ChargeLeft)) / 1000;
+            double kWh = GetChargingCapacityInKWh(previousQuarter);
 
             quarterlyInfo.Selling = 0.00;
-            quarterlyInfo.Buying = totalChargingCapacity * quarterlyInfo.BuyingPrice;
+            quarterlyInfo.Buying = kWh * quarterlyInfo.BuyingPrice;
 
             if (lastChargingSession.Count > 0)
             {
@@ -257,6 +265,26 @@ namespace SessyController.Services.Items
             }
 
             lastChargingSession.Add(quarterlyInfo);
+        }
+
+        private double GetChargingCapacityInKWh(QuarterlyInfo? previousHour)
+        {
+            if (previousHour != null)
+            {
+                var time = previousHour!.Time;
+
+                var home = _consumptionDataService.GetConsumptionBetween(time.AddMinutes(-15), time);
+                var net = _energyHistoryService.GetNetPowerBetween(time, time.AddMinutes(15));
+
+                if (!home.noData && !net.noData)
+                {
+                    return -((net.watts + home.watts) / 1000);
+                }
+            }
+
+            var capacity = Math.Min(_totalChargingCapacityPerQuarter, _totalBatteryCapacity - (previousHour == null ? 0.0 : previousHour.ChargeLeft)) / 1000;
+
+            return capacity;
         }
 
         private void CalculateDischargingProfits(QuarterlyInfo quarterlyInfo)

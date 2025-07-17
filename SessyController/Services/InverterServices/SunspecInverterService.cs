@@ -24,6 +24,7 @@ namespace SessyController.Services.InverterServices
         public double ActualSolarPowerInWatts { get; private set; }
         public Dictionary<string, Endpoint> Endpoints => _powerSystemConfig!.Endpoints[ProviderName];
         public double TotalCapacity => Endpoints.Sum(ep => ep.Value.InverterMaxCapacity);
+        private bool _IsRunning { get; set; } = false;
 
         private TimeZoneService _timeZoneService;
         private SolarEdgeDataService _solarEdgeDataService;
@@ -52,8 +53,10 @@ namespace SessyController.Services.InverterServices
         {
             _logger.LogWarning("SolarEdge service started ...");
 
+            _IsRunning = true;
+
             // Loop to fetch prices every second
-            while (!cancelationToken.IsCancellationRequested)
+            while (!cancelationToken.IsCancellationRequested && _IsRunning)
             {
                 try
                 {
@@ -81,6 +84,13 @@ namespace SessyController.Services.InverterServices
             }
 
             _logger.LogWarning("SolarEdge stopped.");
+        }
+
+        public async Task Stop(CancellationToken cancelationToken)
+        {
+            _IsRunning = false;
+
+            await Task.Yield();
         }
 
         private Dictionary<string, Dictionary<DateTime, double>> CollectedPowerData { get; set; } = new();

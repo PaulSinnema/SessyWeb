@@ -2,7 +2,6 @@
 using SessyCommon.Extensions;
 using SessyController.Configurations;
 using SessyController.Managers;
-using SessyController.Services.InverterServices;
 using SessyController.Services.Items;
 using SessyData.Model;
 using SessyData.Services;
@@ -41,6 +40,9 @@ namespace SessyController.Services
         private FinancialResultsService _financialResultsService { get; set; }
 
         private SessyWebControlDataService _sessyWebControlDataService { get; set; }
+
+        private ConsumptionDataService _consumptionDataService { get; set; }
+        private EnergyHistoryService _energyHistoryDataService { get; set; }
 
         private LoggingService<BatteriesService> _logger { get; set; }
 
@@ -96,6 +98,8 @@ namespace SessyController.Services
             _weatherService = _scope.ServiceProvider.GetRequiredService<WeatherService>();
             _financialResultsService = _scope.ServiceProvider.GetRequiredService<FinancialResultsService>();
             _sessyWebControlDataService = _scope.ServiceProvider.GetRequiredService<SessyWebControlDataService>();
+            _consumptionDataService = _scope.ServiceProvider.GetRequiredService<ConsumptionDataService>();
+            _energyHistoryDataService = _scope.ServiceProvider.GetRequiredService<EnergyHistoryService>();
         }
 
         public override Task StopAsync(CancellationToken cancellationToken)
@@ -271,7 +275,7 @@ namespace SessyController.Services
             {
                 _logger.LogInformation("No prices available from ENTSO-E, switching to manual charging");
 
-                HandleManualCharging(currentHourlyInfo);
+                await HandleManualCharging(currentHourlyInfo);
             }
         }
 
@@ -309,7 +313,7 @@ namespace SessyController.Services
                     {
                         var chargingPower = currentSession.GetChargingPowerInWatts(currentHourlyInfo);
 #if !DEBUG
-                        _batteryContainer.StartCharging(chargingPower);
+                        await _batteryContainer.StartCharging(chargingPower);
 #endif
                         break;
                     }
@@ -318,7 +322,7 @@ namespace SessyController.Services
                     {
                         var chargingPower = currentSession.GetChargingPowerInWatts(currentHourlyInfo);
 #if !DEBUG
-                        _batteryContainer.StartDisharging(chargingPower);
+                        await _batteryContainer.StartDisharging(chargingPower);
 #endif
                         break;
                     }
@@ -326,7 +330,7 @@ namespace SessyController.Services
                 case Modes.ZeroNetHome:
                     {
 #if !DEBUG
-                        _batteryContainer.StartNetZeroHome();
+                        await _batteryContainer.StartNetZeroHome();
 #endif
                         break;
                     }
@@ -344,19 +348,19 @@ namespace SessyController.Services
             }
         }
 
-        private void HandleManualCharging(QuarterlyInfo currentHourlyInfo)
+        private async Task HandleManualCharging(QuarterlyInfo currentHourlyInfo)
         {
 #if !DEBUG
             var localTime = _timeZoneService.Now;
 
             if (_settingsConfig.ManualChargingHours.Contains(localTime.Hour))
-                _batteryContainer.StartCharging(_batteryContainer.GetChargingCapacity());
+                await _batteryContainer.StartCharging(_batteryContainer.GetChargingCapacity());
             else if (_settingsConfig.ManualDischargingHours.Contains(localTime.Hour))
-                _batteryContainer.StartDisharging(_batteryContainer.GetDischargingCapacity());
+                await _batteryContainer.StartDisharging(_batteryContainer.GetDischargingCapacity());
             else if (_settingsConfig.ManualNetZeroHomeHours.Contains(localTime.Hour))
-                _batteryContainer.StartNetZeroHome();
+                await _batteryContainer.StartNetZeroHome();
             else
-                _batteryContainer.StopAll();
+                await _batteryContainer.StopAll();
 #endif
         }
 
@@ -1213,6 +1217,8 @@ namespace SessyController.Services
                                          _batteryContainer!,
                                          _timeZoneService,
                                          _financialResultsService,
+                                         _consumptionDataService,
+                                         _energyHistoryDataService,
                                          loggerFactory);
 
                 var list = hourlyInfos.OrderBy(hi => hi.Time).ToList();

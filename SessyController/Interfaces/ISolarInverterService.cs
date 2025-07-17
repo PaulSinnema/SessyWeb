@@ -5,6 +5,7 @@ namespace SessyController.Interfaces
     public interface ISolarInverterService
     {
         Task Start(CancellationToken cancelationToken);
+        Task Stop(CancellationToken cancelationToken);
         Task<double> GetTotalACPowerInWatts();
         Task<double> GetACPowerInWatts(string id);
         Task<ushort> GetACPower(string id);

@@ -126,10 +126,10 @@ namespace SessyController.Services
 
                     if (_prices != null && _prices.Count > 0)
                     {
-                        // Wait until the next whole hour or until cancellation
+                        // Wait until the next whole quarter or until cancellation
                         var localTime = _timeZoneService.Now;
 
-                        delayTime = 60 - localTime.Minute + 1; // 1 minute extra to be sure
+                        delayTime = 15 - (localTime.Minute % 15) + 1; // 1 minute extra to be sure
                     }
                     else
                         _logger.LogWarning("No prices available from ENTSO-E, checking again in 5 minutes.");

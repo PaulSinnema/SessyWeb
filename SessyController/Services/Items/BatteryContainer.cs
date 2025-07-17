@@ -107,20 +107,20 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Start Charged Net Zero Home algorithm.
         /// </summary>
-        public void StartNetZeroHome()
+        public async Task StartNetZeroHome()
         {
-            Batteries.ForEach(async bat =>
+            foreach (var bat in Batteries)
             {
                 await bat.SetActivePowerStrategyToZeroNetHome();
-            });
+            }
         }
 
         /// <summary>
         /// Start charging cycle.
         /// </summary>
-        public void StartCharging(double chargingPower)
+        public async Task StartCharging(double chargingPower)
         {
-            Batteries.ForEach(async bat =>
+            foreach (var bat in Batteries)
             {
                 var maxChargingPower = bat.GetMaxCharge();
                 var totalCapacity = GetChargingCapacity();
@@ -128,15 +128,15 @@ namespace SessyController.Services.Items
 
                 await bat.SetActivePowerStrategyToOpenAPI();
                 await bat.SetPowerSetpointAsync(GetSetpoint(bat, -(Convert.ToInt16(powerToUse))));
-            });
+            }
         }
 
         /// <summary>
         /// Start discharging cycle.
         /// </summary>
-        public void StartDisharging(double dischargingPower)
+        public async Task StartDisharging(double dischargingPower)
         {
-            Batteries.ForEach(async bat =>
+            foreach (var bat in Batteries)
             {
                 var maxDischargingPower = bat.GetMaxDischarge();
                 var totalCapacity = GetDischargingCapacity();
@@ -144,19 +144,19 @@ namespace SessyController.Services.Items
 
                 await bat.SetActivePowerStrategyToOpenAPI();
                 await bat.SetPowerSetpointAsync(GetSetpoint(bat, Convert.ToInt16(powerToUse)));
-            });
+            }
         }
 
         /// <summary>
         /// Stop charging.
         /// </summary>
-        public void StopAll()
+        public async Task StopAll()
         {
-            Batteries.ForEach(async bat =>
+            foreach (var bat in Batteries)
             {
                 await bat.SetActivePowerStrategyToOpenAPI();
                 await bat.SetPowerSetpointAsync(GetSetpoint(bat, 0));
-            });
+            }
         }
 
         /// <summary>
