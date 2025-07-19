@@ -339,8 +339,8 @@ namespace SessyController.Services
                 case Modes.Unknown:
                 default:
                     {
-#if DEBUG
-                        _batteryContainer.StopAll();
+#if !DEBUG
+                        await _batteryContainer.StopAll();
 #endif
                         break;
                     }

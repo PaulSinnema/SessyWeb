@@ -46,56 +46,56 @@ namespace SessyController.Services.Items
             return currentHourlyInfo.Charging ? _batteryContainer.GetChargingCapacity() : _batteryContainer.GetDischargingCapacity();
 
             // TODO: // This is not correct, we need to calculate the power based on the current hourly info and the mode.
-            var chargeNeeded = currentHourlyInfo.ChargeNeeded;
-            var totalCapacity = _batteryContainer.GetTotalCapacity();
-            var prices = SessionHourlyInfos.Sum(hi => hi.BuyingPrice);
-            var quarterTime = _timeZoneService.Now.DateFloorQuarter();
+            //var chargeNeeded = currentHourlyInfo.ChargeNeeded;
+            //var totalCapacity = _batteryContainer.GetTotalCapacity();
+            //var prices = SessionHourlyInfos.Sum(hi => hi.BuyingPrice);
+            //var quarterTime = _timeZoneService.Now.DateFloorQuarter();
 
-            switch (Mode)
-            {
-                case Modes.Charging:
-                    {
-                        var toCharge = chargeNeeded;
-                        var capacity = _batteryContainer.GetChargingCapacity() / 4.0;
+            //switch (Mode)
+            //{
+            //    case Modes.Charging:
+            //        {
+            //            var toCharge = chargeNeeded;
+            //            var capacity = _batteryContainer.GetChargingCapacity() / 4.0;
 
-                        foreach (var quarterlyInfo in SessionHourlyInfos
-                            .Where(hi => hi.Time >= quarterTime)
-                            .OrderBy(hi => hi.BuyingPrice))
-                        {
-                            var watts = Math.Min(capacity, toCharge);
-                            toCharge -= watts;
+            //            foreach (var quarterlyInfo in SessionHourlyInfos
+            //                .Where(hi => hi.Time >= quarterTime)
+            //                .OrderBy(hi => hi.BuyingPrice))
+            //            {
+            //                var watts = Math.Min(capacity, toCharge);
+            //                toCharge -= watts;
 
-                            if (quarterlyInfo.Time == currentHourlyInfo.Time)
-                            {
-                                return Math.Max(watts, 0.0);
-                            }
-                        }
+            //                if (quarterlyInfo.Time == currentHourlyInfo.Time)
+            //                {
+            //                    return Math.Max(watts, 0.0);
+            //                }
+            //            }
 
-                        throw new InvalidOperationException($"Could not find current hourly info for mode {Mode}, HourlyInfo: {currentHourlyInfo}");
-                    }
+            //            throw new InvalidOperationException($"Could not find current hourly info for mode {Mode}, HourlyInfo: {currentHourlyInfo}");
+            //        }
 
-                case Modes.Discharging:
-                    {
-                        var toDischarge = totalCapacity - chargeNeeded;
-                        var capacity = _batteryContainer.GetDischargingCapacity() / 4.0;
+            //    case Modes.Discharging:
+            //        {
+            //            var toDischarge = totalCapacity - chargeNeeded;
+            //            var capacity = _batteryContainer.GetDischargingCapacity() / 4.0;
 
-                        foreach (var quarterlyInfo in SessionHourlyInfos
-                            .Where(hi => hi.Time >= quarterTime)
-                            .OrderByDescending(hi => hi.SellingPrice))
-                        {
-                            var watts = Math.Min(capacity, toDischarge);
-                            toDischarge -= watts;
+            //            foreach (var quarterlyInfo in SessionHourlyInfos
+            //                .Where(hi => hi.Time >= quarterTime)
+            //                .OrderByDescending(hi => hi.SellingPrice))
+            //            {
+            //                var watts = Math.Min(capacity, toDischarge);
+            //                toDischarge -= watts;
 
-                            if (quarterlyInfo.Time == currentHourlyInfo.Time)
-                                return Math.Max(watts, 0.0);
-                        }
+            //                if (quarterlyInfo.Time == currentHourlyInfo.Time)
+            //                    return Math.Max(watts, 0.0);
+            //            }
 
-                        throw new InvalidOperationException($"Could not find current hourly info for mode {Mode}, HourlyInfo: {currentHourlyInfo}");
-                    }
+            //            throw new InvalidOperationException($"Could not find current hourly info for mode {Mode}, HourlyInfo: {currentHourlyInfo}");
+            //        }
 
-                default:
-                    throw new InvalidOperationException($"Invalid mode {this}");
-            }
+            //    default:
+            //        throw new InvalidOperationException($"Invalid mode {this}");
+            //}
         }
 
         /// <summary>

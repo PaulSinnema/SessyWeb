@@ -1,7 +1,14 @@
-﻿namespace SessyWeb.Helpers
+﻿using System.Globalization;
+
+namespace SessyWeb.Helpers
 {
     public class Formatters
     {
+        public static string FormatAsNumber(object value)
+        {
+            return $"{value}";
+        }
+
         /// <summary>
         /// Format the time displayed in the Y-axis.
         /// </summary>
@@ -58,14 +65,28 @@
 
         public static string FormatAsMonth(object value)
         {
-            if (value is DateTime)
-            {
-                var dateTime = (DateTime)value;
+                int month = Convert.ToInt16(value);
 
-                return $"{dateTime:MMM yyyy}";
+                if (month >= 1 && month <= 13)
+                {
+                    var culture = new CultureInfo(CultureInfo.CurrentCulture.Name);
+
+                    return culture.DateTimeFormat.GetAbbreviatedMonthName(month);
+                }
+
+                return $"Wrong {month}";
+        }
+
+        public static string FormatAsYear(object value)
+        {
+            if (value is double)
+            {
+                var doubleValue = (double)value;
+
+                return $"{doubleValue}";
             }
 
-            return "No DateTime";
+            return "No double";
         }
 
         /// <summary>

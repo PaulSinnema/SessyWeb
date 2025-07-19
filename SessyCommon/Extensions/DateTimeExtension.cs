@@ -1,4 +1,6 @@
-﻿namespace SessyCommon.Extensions
+﻿using System.Globalization;
+
+namespace SessyCommon.Extensions
 {
     public static class DateTimeExtension
     {
@@ -74,6 +76,25 @@
             return deltas.All(m => m == 60) ? TimeResolution.SixtyMinutes
                  : deltas.All(m => m == 15) ? TimeResolution.FifteenMinutes
                  : TimeResolution.Unknown;
+        }
+
+
+        /// <summary>
+        /// Returns the ISO 8601 week number for the given date.
+        /// </summary>
+        public static int WeekNumber(this DateTime date)
+        {
+            // ISO 8601 weeks start on Monday, and the first week has at least 4 days
+            var day = CultureInfo.InvariantCulture.Calendar.GetDayOfWeek(date);
+            if (day == DayOfWeek.Sunday)
+            {
+                date = date.AddDays(-1);
+            }
+
+            return CultureInfo.InvariantCulture.Calendar.GetWeekOfYear(
+                date,
+                CalendarWeekRule.FirstFourDayWeek,
+                DayOfWeek.Monday);
         }
     }
 }

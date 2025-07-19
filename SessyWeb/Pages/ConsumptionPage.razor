@@ -11,18 +11,14 @@
     bool ShowMarkers = true;
 }
 
-
-
 <PageTitle>Consumption</PageTitle>
 
 <h3>Consumption</h3>
-
 <RadzenLayout Style="height: 80vh;">
     <RadzenHeader Style="height: 100%;margin: 0px; padding: 0px;">
         <RadzenStack Orientation=Orientation.Horizontal AlignItems="AlignItems.Center" Style="height:100%;margin: 0px; padding: 0px;">
             @* TickDistance: <p>@TickDistance</p> *@
 
-            <RadzenLabel Text="Solar power" Component="RadzenDropDownBindValue" class="h4 m-2" />
 
             <DateChooserComponent PeriodChosen=@PeriodChosen
                                   DateChosenChanged=@((DateTime d) => DateChosenChanged(d))
@@ -31,27 +27,33 @@
             <RadzenLabel Text="Show labels" Component="ShowDataLabels" />
             <RadzenCheckBox @bind-Value="@ShowDataLabels" Name="ShowDataLabels" />
 
-            <RadzenLabel Text="Show markers" Component="ShowMarkers" />
-            <RadzenCheckBox @bind-Value="@ShowMarkers" Name="ShowMarkers" />
+            @if (PeriodChosen == PeriodsEnums.Day)
+            {
+                <RadzenLabel Text="Show markers" Component="ShowMarkers" />
+                <RadzenCheckBox @bind-Value="@ShowMarkers" Name="ShowMarkers" />
+            }
 
         </RadzenStack>
     </RadzenHeader>
 
     <RadzenBody>
-        <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="0.5rem" Style="width: 100%;">
-            <RadzenCard Style="width: 100%;">
-                <RadzenChart Style="@GraphStyle" @ref=ConsumptionChart>
+        @if (PeriodChosen == PeriodsEnums.Day)
+        {
+            <RadzenCard Style="width: auto;">
+                <RadzenLabel Text="Consumption" Component="RadzenDropDownBindValue" class="h4 m-2" />
+
+                <RadzenChart Style="@GraphStyle" @ref=ConsumptionDayChart>
                     <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
 
-                    <RadzenAreaSeries Data="@ConsumptionData"
-                                      Stroke="blue"
-                                      StrokeWidth="2"
-                                      Fill="blue"
-                                      Title="Consumption"
-                                      CategoryProperty="Time"
-                                      ValueProperty="ConsumptionKWh"
-                                      Smooth="true"
-                                      LineType="LineType.Solid">
+                    <RadzenAreaSeries Data="@ConsumptionDayData"
+                    Stroke="blue"
+                    StrokeWidth="2"
+                    Fill="blue"
+                    Title="Consumption"
+                    CategoryProperty="Time"
+                    ValueProperty="ConsumptionKWh"
+                    Smooth="true"
+                    LineType="LineType.Solid">
                         <ChildContent>
                             <RadzenMarkers Visible="@ShowMarkers" MarkerType="MarkerType.Circle" />
                             <RadzenSeriesDataLabels Visible="@ShowDataLabels" />
@@ -70,17 +72,19 @@
             </RadzenCard>
 
             <RadzenCard Style="width: 100%;">
+                <RadzenLabel Text="Global radiation" Component="RadzenDropDownBindValue" class="h4 m-2" />
+
                 <RadzenChart Style="@GraphStyle" @ref=GlobalRadiationChart>
                     <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
-                    <RadzenAreaSeries Data="@ConsumptionData"
-                                      Stroke="orange"
-                                      StrokeWidth="2"
-                                      Fill="orange"
-                                      Title="Global radiation"
-                                      CategoryProperty="Time"
-                                      ValueProperty="GlobalRadiation"
-                                      Smooth="true"
-                                      LineType="LineType.Solid">
+                    <RadzenAreaSeries Data="@ConsumptionDayData"
+                    Stroke="orange"
+                    StrokeWidth="2"
+                    Fill="orange"
+                    Title="Global radiation"
+                    CategoryProperty="Time"
+                    ValueProperty="GlobalRadiation"
+                    Smooth="true"
+                    LineType="LineType.Solid">
                         <ChildContent>
                             <RadzenMarkers Visible="@ShowMarkers" MarkerType="MarkerType.Circle" />
                             <RadzenSeriesDataLabels Visible="@ShowDataLabels" />
@@ -99,17 +103,19 @@
             </RadzenCard>
 
             <RadzenCard Style="width: 100%;">
+                <RadzenLabel Text="Humidity" Component="RadzenDropDownBindValue" class="h4 m-2" />
+
                 <RadzenChart Style="@GraphStyle" @ref=HumidityChart>
                     <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
-                    <RadzenAreaSeries Data="@ConsumptionData"
-                                      Title="Humidity"
-                                      CategoryProperty="Time"
-                                      Stroke="green"
-                                      StrokeWidth="2"
-                                      Fill="green"
-                                      ValueProperty="Humidity"
-                                      Smooth="true"
-                                      LineType="LineType.Solid">
+                    <RadzenAreaSeries Data="@ConsumptionDayData"
+                    Title="Humidity"
+                    CategoryProperty="Time"
+                    Stroke="green"
+                    StrokeWidth="2"
+                    Fill="green"
+                    ValueProperty="Humidity"
+                    Smooth="true"
+                    LineType="LineType.Solid">
                         <ChildContent>
                             <RadzenMarkers Visible="@ShowMarkers" MarkerType="MarkerType.Circle" />
                             <RadzenSeriesDataLabels Visible="@ShowDataLabels" />
@@ -128,17 +134,19 @@
             </RadzenCard>
 
             <RadzenCard Style="width: 100%;">
+                <RadzenLabel Text="Temperature" Component="RadzenDropDownBindValue" class="h4 m-2" />
+
                 <RadzenChart Style="@GraphStyle" @ref=TemperatureChart>
                     <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
-                    <RadzenAreaSeries Data="@ConsumptionData"
-                                      Stroke="yellow"
-                                      StrokeWidth="2"
-                                      Fill="yellow"
-                                      Title="Temperature"
-                                      CategoryProperty="Time"
-                                      ValueProperty="Temperature"
-                                      Smooth="true"
-                                      LineType="LineType.Solid">
+                    <RadzenAreaSeries Data="@ConsumptionDayData"
+                    Stroke="yellow"
+                    StrokeWidth="2"
+                    Fill="yellow"
+                    Title="Temperature"
+                    CategoryProperty="Time"
+                    ValueProperty="Temperature"
+                    Smooth="true"
+                    LineType="LineType.Solid">
                         <ChildContent>
                             <RadzenMarkers Visible="@ShowMarkers" MarkerType="MarkerType.Circle" />
                             <RadzenSeriesDataLabels Visible="@ShowDataLabels" />
@@ -155,6 +163,129 @@
                     </RadzenValueAxis>
                 </RadzenChart>
             </RadzenCard>
-        </RadzenStack>
+        }
+        else if(PeriodChosen == PeriodsEnums.Week)
+        {
+            <RadzenCard Style="width: auto;">
+                <RadzenChart Style="@GraphStyle" @ref=ConsumptionWeekChart >
+                    <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
+
+                    <RadzenColumnSeries Data="@ConsumptionWeekData"
+                    Stroke="blue"
+                    StrokeWidth="2"
+                    Fill="blue"
+                    Title="Consumption"
+                    CategoryProperty="DayOfWeek"
+                    ValueProperty="ConsumptionKWh"
+                    LineType="LineType.Solid">
+                        <ChildContent>
+                            <RadzenSeriesDataLabels Visible="@ShowDataLabels" />
+                        </ChildContent>
+                    </RadzenColumnSeries>
+
+                    <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance LabelAutoRotation="-45" Padding="20">
+                        <RadzenGridLines Visible="true" />
+                        <RadzenAxisTitle Text="Day" />
+                    </RadzenCategoryAxis>
+                    <RadzenValueAxis Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                        <RadzenGridLines Visible="true" />
+                        <RadzenAxisTitle Text="Watt" />
+                    </RadzenValueAxis>
+                </RadzenChart>
+            </RadzenCard>
+        }
+        else if (PeriodChosen == PeriodsEnums.Month)
+        {
+            <RadzenCard Style="width: auto;">
+                <RadzenChart Style="@GraphStyle" @ref=ConsumptionMonthChart>
+                    <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
+
+                    <RadzenColumnSeries Data="@ConsumptionMonthData"
+                                        Stroke="blue"
+                                        StrokeWidth="2"
+                                        Fill="blue"
+                                        Title="Consumption"
+                                        CategoryProperty="DayOfWeek"
+                                        ValueProperty="ConsumptionKWh"
+                                        LineType="LineType.Solid">
+                        <ChildContent>
+                            <RadzenSeriesDataLabels Visible="@ShowDataLabels" />
+                        </ChildContent>
+                    </RadzenColumnSeries>
+
+                    <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance LabelAutoRotation="-45">
+                        <RadzenGridLines Visible="true" />
+                        <RadzenAxisTitle Text="Day" />
+                    </RadzenCategoryAxis>
+                    <RadzenValueAxis Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                        <RadzenGridLines Visible="true" />
+                        <RadzenAxisTitle Text="Watt" />
+                    </RadzenValueAxis>
+                </RadzenChart>
+            </RadzenCard>
+
+        }
+        else if (PeriodChosen == PeriodsEnums.Year)
+        {
+            <RadzenCard Style="width: auto;">
+                <RadzenChart Style="@GraphStyle" @ref=ConsumptionYearChart>
+                    <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
+
+                    <RadzenColumnSeries Data="@ConsumptionYearData"
+                                        Stroke="blue"
+                                        StrokeWidth="2"
+                                        Fill="blue"
+                                        Title="Consumption"
+                                        CategoryProperty="MonthOfYear"
+                                        ValueProperty="ConsumptionKWh"
+                                        LineType="LineType.Solid">
+                        <ChildContent>
+                            <RadzenSeriesDataLabels Visible="@ShowDataLabels" />
+                        </ChildContent>
+                    </RadzenColumnSeries>
+
+                    <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance LabelAutoRotation="-45">
+                        <RadzenGridLines Visible="true" />
+                        <RadzenAxisTitle Text="Month" />
+                    </RadzenCategoryAxis>
+                    <RadzenValueAxis Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                        <RadzenGridLines Visible="true" />
+                        <RadzenAxisTitle Text="Watt" />
+                    </RadzenValueAxis>
+                </RadzenChart>
+            </RadzenCard>
+
+        } else if(PeriodChosen == PeriodsEnums.All)
+        {
+            <RadzenCard Style="width: auto;">
+                <RadzenChart Style="@GraphStyle" @ref=ConsumptionAllChart>
+                    <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
+
+                    <RadzenColumnSeries Data="@ConsumptionAllData"
+                                        Stroke="blue"
+                                        StrokeWidth="2"
+                                        Fill="blue"
+                                        Title="Consumption"
+                                        CategoryProperty="Year"
+                                        ValueProperty="ConsumptionKWh"
+                                        LineType="LineType.Solid">
+                        <ChildContent>
+                            <RadzenSeriesDataLabels Visible="@ShowDataLabels" />
+                        </ChildContent>
+                    </RadzenColumnSeries>
+
+                    <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance LabelAutoRotation="-45">
+                        <RadzenGridLines Visible="true" />
+                        <RadzenAxisTitle Text="Year" />
+                    </RadzenCategoryAxis>
+                    <RadzenValueAxis Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                        <RadzenGridLines Visible="true" />
+                        <RadzenAxisTitle Text="Watt" />
+                    </RadzenValueAxis>
+                </RadzenChart>
+            </RadzenCard>
+        }
+
+
     </RadzenBody>
 </RadzenLayout>

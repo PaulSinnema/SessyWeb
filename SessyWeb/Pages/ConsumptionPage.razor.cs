@@ -21,7 +21,12 @@ namespace SessyWeb.Pages
         public DateTime? DateChosen { get; set; }
         public PeriodsEnums PeriodChosen { get; set; }
 
-        private RadzenChart? ConsumptionChart { get; set; }
+        private RadzenChart? ConsumptionDayChart { get; set; }
+        private RadzenChart? ConsumptionWeekChart { get; set; }
+        private RadzenChart? ConsumptionMonthChart { get; set; }
+        private RadzenChart? ConsumptionYearChart { get; set; }
+        private RadzenChart? ConsumptionAllChart { get; set; }
+
         private RadzenChart? HumidityChart { get; set; }
         private RadzenChart? GlobalRadiationChart { get; set; }
         private RadzenChart? TemperatureChart { get; set; }
@@ -30,7 +35,11 @@ namespace SessyWeb.Pages
 
         private int TickDistance { get; set; }
 
-        public List<ConsumptionDisplayData> ConsumptionData { get; set; } = new();
+        public List<ConsumptionDisplayDayData> ConsumptionDayData { get; set; } = new();
+        public List<ConsumptionDisplayWeekData> ConsumptionWeekData { get; set; } = new();
+        public List<ConsumptionDisplayMonthData> ConsumptionMonthData { get; set; } = new();
+        public List<ConsumptionDisplayYearData> ConsumptionYearData { get; set; } = new();
+        public List<ConsumptionDisplayAllData> ConsumptionAllData { get; set; } = new();
 
         protected override async Task OnAfterRenderAsync(bool firstRender)
         {
@@ -43,6 +52,75 @@ namespace SessyWeb.Pages
 
             await base.OnAfterRenderAsync(firstRender);
         }
+
+        /// <summary>
+        /// Handle the height of the screen.
+        /// </summary>
+        public override void ScreenInfoChanged(ScreenInfo screenInfo)
+        {
+            ConsumptionChartWidth = ScreenInfo!.Width == 0 ? 2300 : ScreenInfo!.Width;
+
+            HandleScreenHeight();
+        }
+
+        private void HandleScreenHeight()
+        {
+            var height = ScreenInfo!.Height;
+            var width = ScreenInfo!.Width;
+
+            HandleResize(height - 300, width);
+        }
+
+        /// <summary>
+        /// The window is resized. Handle it.
+        /// </summary>
+        private async void HandleResize(int height, int width)
+        {
+            await InvokeAsync(() =>
+            {
+                ChangeChartStyle(height);
+            });
+        }
+
+        /// <summary>
+        /// Change the width of the chart depending on the number of quarterlyInfo objects.
+        /// </summary>
+        private void ChangeChartStyle(int height)
+        {
+            // 25 pixels per data row
+            var width = 1000;
+
+            switch (PeriodChosen)
+            {
+                case PeriodsEnums.Day:
+                    width = ConsumptionDayData.Count * 35;
+                    break;
+
+                case PeriodsEnums.Week:
+                    width = ConsumptionWeekData.Count * 250;
+                    break;
+
+                case PeriodsEnums.Month:
+                    width = ConsumptionMonthData.Count * 60;
+                    break;
+
+                case PeriodsEnums.Year:
+                    width = ConsumptionYearData.Count * 250;
+                    break;
+
+                case PeriodsEnums.All:
+                    width = ConsumptionAllData.Count * 500;
+                    break;
+
+                default:
+                    throw new InvalidOperationException($"Invalid period: {PeriodChosen}");
+            }
+
+            GraphStyle = $"min-height: {height}px; width: {width}px; visibility: initial;";
+
+            StateHasChanged();
+        }
+
 
         public async Task PeriodChosenChanged(PeriodsEnums period)
         {
@@ -58,7 +136,7 @@ namespace SessyWeb.Pages
             await SelectionChanged();
         }
 
-        public class ConsumptionDisplayData
+        public class ConsumptionDisplayDayData
         {
             public DateTime Time { get; set; }
             public double ConsumptionKWh { get; set; }
@@ -67,126 +145,253 @@ namespace SessyWeb.Pages
             public double Humidity { get; set; }
         }
 
-        public override void ScreenInfoChanged(ScreenInfo screenInfo)
+        public class ConsumptionDisplayWeekData
         {
-            ConsumptionChartWidth = ScreenInfo!.Width == 0 ? 2300 : ScreenInfo!.Width;
-
-            base.ScreenInfoChanged(screenInfo);
+            public int Day { get; set; }
+            public string DayOfWeek { get; set; } = string.Empty;
+            public double ConsumptionKWh { get; set; }
         }
 
+        public class ConsumptionDisplayMonthData
+        {
+            public int Day { get; set; }
+            public string DayOfWeek { get; set; } = string.Empty;
+            public double ConsumptionKWh { get; set; }
+        }
+
+        public class ConsumptionDisplayYearData
+        {
+            public int Month { get; set; }
+            public string MonthOfYear { get; set; } = string.Empty;
+            public double ConsumptionKWh { get; set; }
+        }
+
+        public class ConsumptionDisplayAllData
+        {
+            public string Year { get; set; } = string.Empty;
+            public double ConsumptionKWh { get; set; }
+        }
 
         private async Task SelectionChanged()
         {
-            DateChosen ??= DateChosen?.Date ?? _timeZoneService!.Now.Date;
-
-            var list = _consumptionDataService!.GetList((set) =>
+            switch (PeriodChosen)
             {
-                switch (PeriodChosen)
-                {
-                    case PeriodsEnums.Day:
-                        return set
-                            .Where(sed => sed.Time.Date == DateChosen)
-                            .ToList();
+                case PeriodsEnums.Day:
+                    {
+                        var list = _consumptionDataService!.GetList((set) =>
+                        {
+                            return set
+                                .Where(sed => sed.Time.Date == DateChosen)
+                                .ToList();
+                        });
 
-                    case PeriodsEnums.Week:
-                        return set
+                        ConsumptionDayData = list.Select(cd => new ConsumptionDisplayDayData
+                        {
+                            Time = cd.Time,
+                            ConsumptionKWh = cd.ConsumptionKWh,
+                            Humidity = cd.Humidity,
+                            GlobalRadiation = cd.GlobalRadiation,
+                            Temperature = cd.Temperature
+                        }).ToList();
+
+                        await ReloadCharts();
+
+                        break;
+                    }
+
+
+                case PeriodsEnums.Week:
+                    {
+                        ConsumptionWeekData = _consumptionDataService!.GetList((set) =>
+                        {
+                            return set
                             .Where(sed => DateChosen!.Value.StartOfWeek() <= sed.Time &&
                                           DateChosen!.Value.EndOfWeek().AddDays(1).AddSeconds(-1) >= sed.Time)
                             .ToList();
-
-                    case PeriodsEnums.Month:
-                        return set
-                            .Where(sed => DateChosen!.Value.StartOfMonth() <= sed.Time &&
-                                          DateChosen!.Value.EndOfMonth().AddDays(1).AddSeconds(-1) >= sed.Time)
+                        }).GroupBy(cd => cd.Time.Date)
+                            .Select(gr => new ConsumptionDisplayWeekData
+                            {
+                                Day = gr.Key.Day,
+                                DayOfWeek = $"{gr.Key.DayOfWeek.ToString().Substring(0, 2)} {gr.Key.Day}",
+                                ConsumptionKWh = gr.Sum(cons => cons.ConsumptionKWh) / 4
+                            })
+                            .OrderBy(item => item.Day)
                             .ToList();
 
-                    case PeriodsEnums.Year:
-                        return set
-                            .Where(sed => DateChosen!.Value.Year == sed.Time.Year)
+                        await ReloadCharts();
+
+                        break;
+                    }
+
+                case PeriodsEnums.Month:
+                    {
+                        ConsumptionMonthData = _consumptionDataService!.GetList((set) =>
+                        {
+                            return set
+                                .Where(sed => DateChosen!.Value.StartOfMonth() <= sed.Time &&
+                                              DateChosen!.Value.EndOfMonth().AddDays(1).AddSeconds(-1) >= sed.Time)
+                                .ToList();
+                        }).GroupBy(cd => cd.Time.Date)
+                            .Select(gr => new ConsumptionDisplayMonthData
+                            {
+                                Day = gr.Key.Day,
+                                DayOfWeek = $"{gr.Key.DayOfWeek.ToString().Substring(0, 2)} {gr.Key.Day}",
+                                ConsumptionKWh = gr.Sum(cons => cons.ConsumptionKWh) / 4
+                            })
+                            .OrderBy(item => item.Day)
                             .ToList();
 
-                    case PeriodsEnums.All:
-                        return set.ToList();
+                        await ReloadCharts();
 
-                    default:
-                        throw new InvalidOperationException($"Wrong period type {PeriodChosen}");
-                }
-            }).OrderBy(sed => sed.Time)
-              .ToList();
+                        break;
+                    }
 
-            ConsumptionData = list.Select(cd => new ConsumptionDisplayData
-            {
-                Time = cd.Time,
-                ConsumptionKWh = cd.ConsumptionKWh,
-                Humidity = cd.Humidity,
-                GlobalRadiation = cd.GlobalRadiation,
-                Temperature = cd.Temperature
-            }).ToList();
+                case PeriodsEnums.Year:
+                    {
+                        ConsumptionYearData = _consumptionDataService!.GetList((set) =>
+                        {
+                            return set
+                                .Where(sed => DateChosen!.Value.Year == sed.Time.Year)
+                                .ToList();
+                        }).GroupBy(cd => cd.Time.Month)
+                            .Select(gr => new ConsumptionDisplayYearData
+                            {
+                                Month = gr.Key,
+                                MonthOfYear = Formatters.FormatAsMonth(gr.Key),
+                                ConsumptionKWh = gr.Sum(cons => cons.ConsumptionKWh) / 4
+                            })
+                            .ToList();
 
-            DetermineTickDistance(ConsumptionData);
+                        await ReloadCharts();
+
+                        break;
+                    }
+
+                case PeriodsEnums.All:
+                    {
+                        ConsumptionAllData = _consumptionDataService!.GetList((set) =>
+                        {
+                            return set
+                                .ToList();
+                        }).GroupBy(cd => cd.Time.Year)
+                            .Select(gr => new ConsumptionDisplayAllData
+                            {
+                                Year = gr.Key.ToString(),
+                                ConsumptionKWh = gr.Sum(cons => cons.ConsumptionKWh) / 4
+                            })
+                            .ToList();
+
+                        await ReloadCharts();
+
+                        break;
+                    }
+
+                default:
+                    throw new InvalidOperationException($"Invalid period: {PeriodChosen}");
+            }
+        }
+
+        private async Task ReloadCharts()
+        {
+            DetermineTickDistance();
+
+            HandleScreenHeight();
 
             FillFormatter();
 
-            await ConsumptionChart!.Reload();
-            await HumidityChart!.Reload();
-            await GlobalRadiationChart!.Reload();
-            await TemperatureChart!.Reload();
+            switch (PeriodChosen)
+            {
+                case PeriodsEnums.Day:
+                    await ConsumptionDayChart!.Reload();
+                    await HumidityChart!.Reload();
+                    await GlobalRadiationChart!.Reload();
+                    await TemperatureChart!.Reload();
+                    break;
+
+                case PeriodsEnums.Week:
+                    await ConsumptionWeekChart!.Reload();
+                    break;
+
+                case PeriodsEnums.Month:
+                    await ConsumptionMonthChart!.Reload();
+                    break;
+
+                case PeriodsEnums.Year:
+                    await ConsumptionYearChart!.Reload();
+                    break;
+
+                case PeriodsEnums.All:
+                    await ConsumptionAllChart!.Reload();
+                    break;
+
+                default:
+                    throw new InvalidOperationException($"Invalid period: {PeriodChosen}");
+            }
 
             StateHasChanged();
         }
 
-        private void DetermineTickDistance(List<ConsumptionDisplayData>? consumptionData)
+        private void DetermineTickDistance()
         {
             TickDistance = ConsumptionChartWidth;
 
-            if (consumptionData != null && consumptionData.Count > 0)
+            switch (PeriodChosen)
             {
-                var start = consumptionData.Min(list => list.Time).DateFloorQuarter();
-                var end = consumptionData.Max(list => list.Time).AddDays(1).DateCeilingQuarter();
-
-                switch (PeriodChosen)
-                {
-                    case PeriodsEnums.Day:
+                case PeriodsEnums.Day:
+                    {
+                        if (ConsumptionDayData.Count > 0)
                         {
+                            var start = ConsumptionDayData.Min(list => list.Time).DateFloorQuarter();
+                            var end = ConsumptionDayData.Max(list => list.Time).AddDays(1).DateCeilingQuarter();
                             var quarters = (end - start).Hours * 4;
 
                             TickDistance = ConsumptionChartWidth / (quarters == 0 ? 96 : quarters);
-
-                            break;
                         }
 
-                    case PeriodsEnums.Week:
-                        {
-                            var days = (end.Date - start.Date).Days;
+                        break;
+                    }
 
-                            TickDistance = ConsumptionChartWidth / (days == 0 ? 7 : days);
+                case PeriodsEnums.Week:
+                    {
+                        var days = ConsumptionWeekData.Count;
 
-                            break;
-                        }
+                        TickDistance = ConsumptionChartWidth / (days == 0 ? 8 : days * 2);
 
-                    case PeriodsEnums.Month:
-                        {
-                            var days = (end.Date - start.Date).Days;
+                        break;
+                    }
 
-                            TickDistance = ConsumptionChartWidth / (days == 0 ? 31 : days);
+                case PeriodsEnums.Month:
+                    {
+                        var days = ConsumptionMonthData.Count;
 
-                            break;
-                        }
+                        TickDistance = ConsumptionChartWidth / (days == 0 ? 31 : days * 4);
 
-                    case PeriodsEnums.Year:
-                    case PeriodsEnums.All:
-                        {
-                            var months = end.Month - start.Month + 1;
+                        break;
+                    }
 
-                            TickDistance = ConsumptionChartWidth / (months == 0 ? 12 : months);
+                case PeriodsEnums.Year:
+                    {
+                        var months = ConsumptionYearData.Count;
 
-                            break;
-                        }
+                        TickDistance = ConsumptionChartWidth / (months == 0 ? 12 : months * 2);
 
-                    default:
-                        throw new InvalidOperationException($"Invalid period: {PeriodChosen}");
-                }
+                        break;
+                    }
+
+                case PeriodsEnums.All:
+                    {
+                        var years = ConsumptionAllData.Count;
+
+                        TickDistance = ConsumptionChartWidth / (years == 0 ? 1 : years * 500);
+
+                        break;
+                    }
+
+                default:
+                    throw new InvalidOperationException($"Invalid period: {PeriodChosen}");
             }
+
+            StateHasChanged();
         }
 
         private Func<object, string>? Formatter { get; set; } = null;
@@ -202,12 +407,12 @@ namespace SessyWeb.Pages
 
                 case PeriodsEnums.Week:
                 case PeriodsEnums.Month:
-                    Formatter = Formatters.FormatAsDay;
+                    Formatter = Formatters.FormatAsNumber;
                     break;
 
                 case PeriodsEnums.Year:
                 case PeriodsEnums.All:
-                    Formatter = Formatters.FormatAsMonth;
+                    Formatter = null;
                     break;
 
                 default:
