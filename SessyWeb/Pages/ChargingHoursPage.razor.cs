@@ -91,7 +91,7 @@ namespace SessyWeb.Pages
         }
 
         /// <summary>
-        /// Get the statusses of the batteries in a loop.
+        /// Get the statuses of the batteries in a loop.
         /// </summary>
         private async Task UpdateLoop()
         {
@@ -101,7 +101,6 @@ namespace SessyWeb.Pages
 
                 foreach (var battery in batteryContainer!.Batteries!)
                 {
-                    var systemState = await battery.GetPowerStatus();
                     var powerStatus = await battery.GetPowerStatus();
 
                     newStatuses.Add(new BatteryWithStatus
