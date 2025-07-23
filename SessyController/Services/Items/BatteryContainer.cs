@@ -169,7 +169,7 @@ namespace SessyController.Services.Items
             return new PowerSetpoint { Setpoint = setpoint };
         }
 
-        internal async Task<double> GetBatterPercentage()
+        public async Task<double> GetBatterPercentage()
         {
             var watts = await GetStateOfChargeInWatts();
             var totalCapacity = GetTotalCapacity();
@@ -177,14 +177,9 @@ namespace SessyController.Services.Items
             return watts / totalCapacity;
         }
 
-        internal async Task<double> GetTotalPowerInWatts()
+        public async Task<double> GetTotalPowerInWatts()
         {
-            var totalPower = 0.0;
-            
-            foreach (var battery in Batteries)
-            {
-                totalPower += await battery.GetPowerInWatts();
-            }
+            var totalPower = await GetStateOfChargeInWatts();
 
             return totalPower;
         }

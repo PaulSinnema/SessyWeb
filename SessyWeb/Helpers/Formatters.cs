@@ -4,7 +4,7 @@ namespace SessyWeb.Helpers
 {
     public class Formatters
     {
-        public static string FormatAsNumber(object value)
+        public static string FormatValue(object value)
         {
             return $"{value}";
         }
@@ -65,16 +65,16 @@ namespace SessyWeb.Helpers
 
         public static string FormatAsMonth(object value)
         {
-                int month = Convert.ToInt16(value);
+            int month = Convert.ToInt16(value);
 
-                if (month >= 1 && month <= 13)
-                {
-                    var culture = new CultureInfo(CultureInfo.CurrentCulture.Name);
+            if (month >= 1 && month <= 13)
+            {
+                var culture = new CultureInfo(CultureInfo.CurrentCulture.Name);
 
-                    return culture.DateTimeFormat.GetAbbreviatedMonthName(month);
-                }
+                return culture.DateTimeFormat.GetAbbreviatedMonthName(month);
+            }
 
-                return $"Wrong {month}";
+            return $"Wrong {month}";
         }
 
         public static string FormatAsYear(object value)

@@ -407,7 +407,7 @@ namespace SessyWeb.Pages
 
                 case PeriodsEnums.Week:
                 case PeriodsEnums.Month:
-                    Formatter = Formatters.FormatAsNumber;
+                    Formatter = Formatters.FormatValue;
                     break;
 
                 case PeriodsEnums.Year:

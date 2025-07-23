@@ -83,3 +83,27 @@ a, .btn-link {
 .heartbeat {
     animation: heartbeat 1.5s infinite ease-in-out;
 }
+
+.section-stack {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: flex-start;
+}
+
+/* Binnenste kolommen */
+.section-column {
+    flex: 1 1 200px; /* Basisbreedte van 200px, krimpbaar */
+}
+
+/* Portret op mobiel: kolommen onder elkaar */
+@media (max-width: 600px) and (orientation: portrait) {
+    .section-stack {
+        flex-direction: column;
+    }
+
+    .section-column {
+        width: 100%;
+    }
+}

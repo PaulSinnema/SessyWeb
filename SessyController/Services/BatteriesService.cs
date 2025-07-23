@@ -282,7 +282,7 @@ namespace SessyController.Services
         /// <summary>
         /// Returns the fetched prices and analyzes them.
         /// </summary>
-        public List<QuarterlyInfo>? GetHourlyInfos()
+        public List<QuarterlyInfo>? GetQuarterlyInfos()
         {
             HourlyInfoSemaphore.Wait();
 
@@ -361,6 +361,8 @@ namespace SessyController.Services
                 await _batteryContainer.StartNetZeroHome();
             else
                 await _batteryContainer.StopAll();
+#else
+            await Task.Delay(1); // Prevent warning in debug mode
 #endif
         }
 

@@ -67,15 +67,15 @@ namespace SessyController.Services
 
             var batteryService = scope.ServiceProvider.GetRequiredService<BatteriesService>();
 
-            var hourlyInfos = batteryService.GetHourlyInfos();
+            var quarterlyInfos = batteryService.GetQuarterlyInfos();
 
-            if (hourlyInfos != null)
+            if (quarterlyInfos != null)
             {
                 var solarPower = 0.0;
                 var start = forDate.Date;
                 var end = forDate.Date.AddHours(23).AddMinutes(45);
 
-                var list = hourlyInfos
+                var list = quarterlyInfos
                     .Where(hi => hi.Time >= start && hi.Time <= end)
                     .OrderBy(hi => hi.Time)
                     .ToList();

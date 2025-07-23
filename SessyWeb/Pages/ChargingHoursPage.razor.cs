@@ -50,7 +50,10 @@ namespace SessyWeb.Pages
             set
             {
                 _showAll = value;
+
                 GetOnlyCurrentHourlyInfos();
+
+                HandleScreenHeight();
             }
         }
 
@@ -222,13 +225,13 @@ namespace SessyWeb.Pages
 
             if (ShowAll)
             {
-                HourlyInfos = _batteriesService?.GetHourlyInfos()?
+                HourlyInfos = _batteriesService?.GetQuarterlyInfos()?
                     .Where(hi => hi.Time.Date == now.Date)
                     .ToList();
             }
             else
             {
-                HourlyInfos = _batteriesService?.GetHourlyInfos()?
+                HourlyInfos = _batteriesService?.GetQuarterlyInfos()?
                     .Where(hi => hi.Time >= now.DateFloorQuarter())
                     .ToList();
             }
