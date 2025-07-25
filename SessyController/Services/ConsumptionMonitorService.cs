@@ -35,6 +35,8 @@ namespace SessyController.Services
 
         public event DataChangedDelegate? DataChanged;
 
+        private SemaphoreSlim _p1Semaphore = new SemaphoreSlim(1, 1);
+
         public ConsumptionMonitorService(LoggingService<ConsumptionMonitorService> logger,
                                          WeatherService weatherService,
                                          TimeZoneService timeZoneService,
@@ -49,7 +51,16 @@ namespace SessyController.Services
 
             _sessyP1ConfigMonitor.OnChange(config =>
             {
-                _sessyP1Config = config;
+                _p1Semaphore.Wait();
+
+                try
+                {
+                    _sessyP1Config = config;
+                }
+                finally
+                {
+                    _p1Semaphore.Release();
+                }
             });
 
             _serviceScopeFactory = serviceScopeFactory;
@@ -92,12 +103,22 @@ namespace SessyController.Services
 
         private async Task Process(CancellationToken cancelationToken)
         {
-            await EnsureServicesAreInitialized(cancelationToken);
+            _p1Semaphore.Wait();
 
-            foreach (P1Meter? p1Meter in _p1MeterContainer.P1Meters)
+            try
             {
-                await StoreConsumption(p1Meter);
+                await EnsureServicesAreInitialized(cancelationToken);
+
+                foreach (P1Meter? p1Meter in _p1MeterContainer.P1Meters!.ToList())
+                {
+                    await StoreConsumption(p1Meter);
+                }
+
             }
+            finally
+            {
+                _p1Semaphore.Release();
+            }  
         }
 
         public async Task EnsureServicesAreInitialized(CancellationToken cancelationToken)
@@ -116,7 +137,12 @@ namespace SessyController.Services
         private class ConsumptionData
         {
             public DateTime Time { get; set; }
-            public double ConsumptionKWh { get; set; }
+            public double ConsumptionWh { get; set; }
+
+            public override string ToString()
+            {
+                return $"Time: {Time}, ConsumptionWh: {ConsumptionWh}";
+            }
         }
 
         private List<ConsumptionData> _consumptionData = new List<ConsumptionData>();
@@ -127,7 +153,7 @@ namespace SessyController.Services
 
             if (_consumptionData.Count >= 900) // 15 minutes of data
             {
-                var averageConsumption = _consumptionData.Average(c => c.ConsumptionKWh);
+                var averageConsumptionWh = _consumptionData.Average(c => c.ConsumptionWh);
 
                 var p1Details = await _p1MeterContainer.GetDetails(p1Meter.Id!);
                 var weatherData = _weatherService.GetWeatherData();
@@ -141,7 +167,7 @@ namespace SessyController.Services
                 consumptionList.Add(new Consumption
                 {
                     Time = now,
-                    ConsumptionKWh = averageConsumption,
+                    ConsumptionWh = averageConsumptionWh,
                     // In case no weather data is present we store a large negative number.
                     Humidity = liveWeer?.Luchtvochtigheid ?? -999,
                     Temperature = liveWeer?.Temp ?? -999,
@@ -159,7 +185,7 @@ namespace SessyController.Services
                 _consumptionData.Add(new ConsumptionData
                 {
                     Time = now,
-                    ConsumptionKWh = await CalculateConsumption()
+                    ConsumptionWh = await CalculateConsumption()
                 });
             }
         }

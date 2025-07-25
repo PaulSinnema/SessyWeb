@@ -15,7 +15,7 @@ namespace SessyData.Model
         /// <remarks>
         /// The name suggests that it is the total consumption in kWh, but it is actually the total consumption in watts for the last 15 minutes.
         /// </remarks>
-        public double ConsumptionKWh { get; set; }
+        public double ConsumptionWh { get; set; }
         public double Temperature { get; set; }
         public double GlobalRadiation { get; set; }
         public double Humidity { get; set; }
@@ -23,7 +23,7 @@ namespace SessyData.Model
         public void Update(Consumption updateInfo)
         {
             Time = updateInfo.Time;
-            ConsumptionKWh = updateInfo.ConsumptionKWh;
+            ConsumptionWh = updateInfo.ConsumptionWh;
             Temperature = updateInfo.Temperature;
             GlobalRadiation = updateInfo.GlobalRadiation;
             Humidity = updateInfo.Humidity;
@@ -31,7 +31,7 @@ namespace SessyData.Model
 
         public override string ToString()
         {
-            return $"Id: {Id}, Time: {Time}, ConsumptionKWh: {ConsumptionKWh}, Temperature: {Temperature}, GlobalRadiation: {GlobalRadiation}, Humidity: {Humidity}";
+            return $"Id: {Id}, Time: {Time}, ConsumptionKWh: {ConsumptionWh}, Temperature: {Temperature}, GlobalRadiation: {GlobalRadiation}, Humidity: {Humidity}";
         }
     }
 }

@@ -16,7 +16,7 @@ namespace SessyData.Services
                     .ToList();
             });
 
-            return ( list.Count <= 0, list.Sum(c => c.ConsumptionKWh));
+            return ( list.Count <= 0, list.Sum(c => c.ConsumptionWh));
         }
     }
 }

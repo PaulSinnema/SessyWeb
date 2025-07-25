@@ -179,7 +179,12 @@ namespace SessyController.Services.Items
 
         public async Task<double> GetTotalPowerInWatts()
         {
-            var totalPower = await GetStateOfChargeInWatts();
+            var totalPower = 0.0;
+
+            foreach (var battery in Batteries)
+            {
+                totalPower += await battery.GetPowerInWatts();
+            }
 
             return totalPower;
         }

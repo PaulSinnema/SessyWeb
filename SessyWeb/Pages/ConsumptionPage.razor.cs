@@ -188,7 +188,7 @@ namespace SessyWeb.Pages
                         ConsumptionDayData = list.Select(cd => new ConsumptionDisplayDayData
                         {
                             Time = cd.Time,
-                            ConsumptionKWh = cd.ConsumptionKWh,
+                            ConsumptionKWh = cd.ConsumptionWh,
                             Humidity = cd.Humidity,
                             GlobalRadiation = cd.GlobalRadiation,
                             Temperature = cd.Temperature
@@ -213,7 +213,7 @@ namespace SessyWeb.Pages
                             {
                                 Day = gr.Key.Day,
                                 DayOfWeek = $"{gr.Key.DayOfWeek.ToString().Substring(0, 2)} {gr.Key.Day}",
-                                ConsumptionKWh = gr.Sum(cons => cons.ConsumptionKWh) / 4
+                                ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4
                             })
                             .OrderBy(item => item.Day)
                             .ToList();
@@ -236,7 +236,7 @@ namespace SessyWeb.Pages
                             {
                                 Day = gr.Key.Day,
                                 DayOfWeek = $"{gr.Key.DayOfWeek.ToString().Substring(0, 2)} {gr.Key.Day}",
-                                ConsumptionKWh = gr.Sum(cons => cons.ConsumptionKWh) / 4
+                                ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4
                             })
                             .OrderBy(item => item.Day)
                             .ToList();
@@ -258,7 +258,7 @@ namespace SessyWeb.Pages
                             {
                                 Month = gr.Key,
                                 MonthOfYear = Formatters.FormatAsMonth(gr.Key),
-                                ConsumptionKWh = gr.Sum(cons => cons.ConsumptionKWh) / 4
+                                ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4
                             })
                             .ToList();
 
@@ -277,7 +277,7 @@ namespace SessyWeb.Pages
                             .Select(gr => new ConsumptionDisplayAllData
                             {
                                 Year = gr.Key.ToString(),
-                                ConsumptionKWh = gr.Sum(cons => cons.ConsumptionKWh) / 4
+                                ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4
                             })
                             .ToList();
 
