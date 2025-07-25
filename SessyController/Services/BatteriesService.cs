@@ -267,11 +267,18 @@ namespace SessyController.Services
         /// </summary>
         private async Task HandleChargingAndDischarging(BatteryStates batteryStates, QuarterlyInfo currentHourlyInfo)
         {
-            if ((_dayAheadMarketService.PricesAvailable) && _settingsConfig.ManualOverride == false)
+            if (_dayAheadMarketService.PricesAvailable)
             {
-                await HandleAutomaticCharging(_sessions!, currentHourlyInfo, batteryStates);
+                if (_settingsConfig.ManualOverride == false)
+                {
+                    await HandleAutomaticCharging(_sessions!, currentHourlyInfo, batteryStates);
+                }
+                else
+                {
+                    await HandleManualCharging(currentHourlyInfo);
+                }
             }
-            else
+            else 
             {
                 _logger.LogInformation("No prices available from ENTSO-E, switching to manual charging");
 
