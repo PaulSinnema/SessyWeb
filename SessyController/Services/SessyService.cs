@@ -118,16 +118,16 @@ namespace SessyController.Services
             response.EnsureSuccessStatusCode();
         }
 
-        public async Task<DynamicStrategy?> GetDynamicScheduleAsync(string id)
+        public async Task<SessyScheduleResponse?> GetDynamicScheduleAsync(string id)
         {
             _logger.LogInformation($"GetDynamicScheduleAsync({id})");
 
             SessyBatteryEndpoint battery = GetBatteryConfiguration(id);
             using var client = CreateHttpClient(battery);
-            var response = await client.GetAsync("/api/v1/dynamic/schedule");
+            var response = await client.GetAsync("/api/v2/dynamic/schedule");
             response.EnsureSuccessStatusCode();
             var content = await response.Content.ReadAsStringAsync();
-            var result = JsonConvert.DeserializeObject<DynamicStrategy>(content);
+            var result = JsonConvert.DeserializeObject<SessyScheduleResponse>(content);
             return result;
         }
 
@@ -150,16 +150,52 @@ namespace SessyController.Services
         }
     }
 
-    public class DynamicStrategy
+    public class SessyScheduleResponse
     {
         [JsonProperty("status")]
         public string? Status { get; set; }
 
-        [JsonProperty("power_strategy")]
-        public List<PowerStrategy>? PowerStrategy { get; set; }
+        [JsonProperty("dynamic_schedule")]
+        public List<DynamicScheduleItem>? DynamicSchedule { get; set; }
 
         [JsonProperty("energy_prices")]
-        public List<EnergyPrices>? EnergyPrices { get; set; }
+        public List<EnergyPriceItem>? EnergyPrices { get; set; }
+    }
+
+    public class DynamicScheduleItem
+    {
+        [JsonProperty("start_time")]
+        public long StartTimeUnix { get; set; }
+
+        [JsonProperty("end_time")]
+        public long EndTimeUnix { get; set; }
+
+        [JsonProperty("power")]
+        public int Power { get; set; }
+
+        [Newtonsoft.Json.JsonIgnore]
+        public DateTime StartTime => DateTimeOffset.FromUnixTimeSeconds(StartTimeUnix).DateTime;
+
+        [Newtonsoft.Json.JsonIgnore]
+        public DateTime EndTime => DateTimeOffset.FromUnixTimeSeconds(EndTimeUnix).DateTime;
+    }
+
+    public class EnergyPriceItem
+    {
+        [JsonProperty("start_time")]
+        public long StartTimeUnix { get; set; }
+
+        [JsonProperty("end_time")]
+        public long EndTimeUnix { get; set; }
+
+        [JsonProperty("price")]
+        public int Price { get; set; }
+
+        [Newtonsoft.Json.JsonIgnore]
+        public DateTime StartTime => DateTimeOffset.FromUnixTimeSeconds(StartTimeUnix).DateTime;
+
+        [Newtonsoft.Json.JsonIgnore]
+        public DateTime EndTime => DateTimeOffset.FromUnixTimeSeconds(EndTimeUnix).DateTime;
     }
 
     public class PowerStrategy
@@ -435,7 +471,7 @@ namespace SessyController.Services
                 return title;
             }
         }
-        
+
         /// <summary>
         /// Detailed information about the current system state.
         /// </summary>

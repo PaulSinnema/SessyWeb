@@ -107,7 +107,7 @@ namespace SessyController.Services
             _logger.LogWarning("EPEX Hourly Infos Service started ...");
 
             // TemporaryRemoveAllNoneWholeHours();
-            
+
             // Loop to fetch prices every day
             while (!cancelationToken.IsCancellationRequested)
             {
@@ -300,7 +300,7 @@ namespace SessyController.Services
                 if (data != null)
                 {
                     hourlyInfos = data.OrderBy(ep => ep.Time)
-                        .Select(ep => new QuarterlyInfo(ep.Time, 
+                        .Select(ep => new QuarterlyInfo(ep.Time,
                                                      ep!.Price!.Value,
                                                      _settingsConfig,
                                                      _batteryContainer,
@@ -436,23 +436,11 @@ namespace SessyController.Services
 
             var list = new ConcurrentDictionary<DateTime, double>();
 
-            for (int dateIndex = 0; dateIndex < dynamicSchedule.EnergyPrices.Count; dateIndex++)
+            foreach (var ep in dynamicSchedule.EnergyPrices)
             {
-                var ep = dynamicSchedule.EnergyPrices[dateIndex];
-                var date = Convert.ToDateTime(ep.Date);
+                var priceWattHour = ep.Price / 100000.0;
 
-                // BUG: Sometime the Sessy returns 2 lists for the same date. The
-                //      second list then contains all zero prices.
-                if (!ep.Price!.All(pr => pr == 0))
-                {
-                    for (int hourIndex = 0; hourIndex < ep.Price.Count; hourIndex++)
-                    {
-                        var price = Convert.ToDouble(ep.Price[hourIndex]);
-                        var priceWattHour = price / 100000.0;
-
-                        list.AddOrUpdate(date.AddHours(hourIndex), priceWattHour, (key, oldValue) => priceWattHour);
-                    }
-                }
+                list.AddOrUpdate(ep.StartTime, priceWattHour, (key, oldValue) => priceWattHour);
             }
 
             return list;

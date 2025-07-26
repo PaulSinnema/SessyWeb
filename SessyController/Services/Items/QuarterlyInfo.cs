@@ -7,6 +7,8 @@ namespace SessyController.Services.Items
 {
     public class QuarterlyInfo
     {
+        private const double minSolarPower = 0.0;
+
         public QuarterlyInfo(DateTime time,
                           double marketPrice,
                           SettingsConfig settingsConfig,
@@ -287,7 +289,7 @@ namespace SessyController.Services.Items
             {
                 var now = _timeZoneService.Now;
 
-                if (Time == now.DateFloorQuarter() && _solarEdgeService.ActualSolarPowerInWatts > 100.0)
+                if (Time == now.DateFloorQuarter() && _solarEdgeService.ActualSolarPowerInWatts > minSolarPower)
                     return true;
 
                 return false;
@@ -299,7 +301,7 @@ namespace SessyController.Services.Items
             get
             {
                 if (Mode == Modes.ZeroNetHome)
-                    if(SolarPowerInWatts <= 100.0)
+                    if(SolarPowerInWatts <= minSolarPower)
                         return true;
 
                 return false;
@@ -314,7 +316,7 @@ namespace SessyController.Services.Items
             get => (!(Charging || Discharging)) &&
                 (
                     NetZeroHomeProfit >= _settingsConfig.NetZeroHomeMinProfit ||
-                    SolarPowerInWatts > 100.0 ||
+                    SolarPowerInWatts > minSolarPower ||
                     SolarPowerIsActive
                 );
         }

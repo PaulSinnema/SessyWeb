@@ -186,7 +186,7 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Get power strategy and EPEX prices from the battery
         /// </summary>
-        public async Task<DynamicStrategy?> GetDynamicScheduleAsync()
+        public async Task<SessyScheduleResponse?> GetDynamicScheduleAsync()
         {
             return await _sessyService.GetDynamicScheduleAsync(Id);
         }

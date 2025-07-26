@@ -46,7 +46,7 @@ namespace SessyController.Services
 
         private LoggingService<BatteriesService> _logger { get; set; }
 
-        private static List<QuarterlyInfo>? hourlyInfos { get; set; } = new List<QuarterlyInfo>();
+        private static List<QuarterlyInfo>? quarterlyInfos { get; set; } = new List<QuarterlyInfo>();
 
         public bool IsManualOverride => _settingsConfig.ManualOverride;
 
@@ -169,7 +169,7 @@ namespace SessyController.Services
 
                     if (_sessions != null)
                     {
-                        _solarService.GetExpectedSolarPower(hourlyInfos!);
+                        _solarService.GetExpectedSolarPower(quarterlyInfos!);
 
                         await EvaluateSessions();
 
@@ -295,7 +295,7 @@ namespace SessyController.Services
 
             try
             {
-                return hourlyInfos;
+                return quarterlyInfos;
             }
             finally
             {
@@ -360,11 +360,11 @@ namespace SessyController.Services
 #if !DEBUG
             var localTime = _timeZoneService.Now;
 
-            if (_settingsConfig.ManualChargingHours.Contains(localTime.Hour))
+            if (_settingsConfig.ManualChargingHours != null && _settingsConfig.ManualChargingHours.Contains(localTime.Hour))
                 await _batteryContainer.StartCharging(_batteryContainer.GetChargingCapacity());
-            else if (_settingsConfig.ManualDischargingHours.Contains(localTime.Hour))
+            else if (_settingsConfig.ManualDischargingHours != null && _settingsConfig.ManualDischargingHours.Contains(localTime.Hour))
                 await _batteryContainer.StartDisharging(_batteryContainer.GetDischargingCapacity());
-            else if (_settingsConfig.ManualNetZeroHomeHours.Contains(localTime.Hour))
+            else if (_settingsConfig.ManualNetZeroHomeHours != null && _settingsConfig.ManualNetZeroHomeHours.Contains(localTime.Hour))
                 await _batteryContainer.StartNetZeroHome();
             else
                 await _batteryContainer.StopAll();
@@ -550,13 +550,13 @@ namespace SessyController.Services
         private bool FetchPricesFromENTSO_E(DateTime localTime)
         {
             // Get the available hourly prices.
-            hourlyInfos = _dayAheadMarketService.GetPrices()
+            quarterlyInfos = _dayAheadMarketService.GetPrices()
                 .OrderBy(hp => hp.Time)
                 .ToList();
 
-            QuarterlyInfo.AddSmoothedPrices(hourlyInfos, 6);
+            QuarterlyInfo.AddSmoothedPrices(quarterlyInfos, 6);
 
-            return hourlyInfos != null && hourlyInfos.Count > 0;
+            return quarterlyInfos != null && quarterlyInfos.Count > 0;
         }
 
         private DateTime? lastSessionCreationDate { get; set; } = null;
@@ -575,7 +575,7 @@ namespace SessyController.Services
                 DateTime now = _timeZoneService.Now;
                 DateTime nowHour = now.Date.AddHours(now.Hour);
 
-                hourlyInfos = hourlyInfos!
+                quarterlyInfos = quarterlyInfos!
                     .OrderBy(hp => hp.Time)
                     .ToList();
 
@@ -630,7 +630,7 @@ namespace SessyController.Services
                 }
             }
 
-            foreach (var quarterlyInfo in hourlyInfos)
+            foreach (var quarterlyInfo in quarterlyInfos)
             {
                 switch (quarterlyInfo.Mode)
                 {
@@ -719,7 +719,7 @@ namespace SessyController.Services
             var localTimeHour = now.Date.AddHours(now.Hour);
             charge = await _batteryContainer.GetStateOfChargeInWatts();
 
-            var hourlyInfoList = hourlyInfos!
+            var hourlyInfoList = quarterlyInfos!
                 .OrderBy(hp => hp.Time)
                 .ToList();
 
@@ -1123,15 +1123,13 @@ namespace SessyController.Services
         /// </summary>
         private void HandleChargingDischargingSessions(Session previousSession, Session nextSession)
         {
-            var chargeNeeded = _batteryContainer.GetTotalCapacity(); ;
-            double quarterNeed = _settingsConfig.EnergyNeedsPerMonth / 96; // Per quarter hour
+            var chargeNeeded = _batteryContainer.GetTotalCapacity();
 
             List<QuarterlyInfo> infoObjectsBetween = _sessions.GetInfoObjectsBetween(previousSession, nextSession);
 
-            var solarPower = infoObjectsBetween.Where(oi => oi.NetZeroHomeWithSolar).Sum(io => io.SolarPowerInWatts);
+            var solarPower = infoObjectsBetween.Sum(io => io.SolarPowerInWatts);
 
             chargeNeeded -= solarPower;
-            chargeNeeded += infoObjectsBetween.Count * quarterNeed;
 
             chargeNeeded = EnsureBoundaries(chargeNeeded);
 
@@ -1217,11 +1215,11 @@ namespace SessyController.Services
 
             _sessions = null;
 
-            if (hourlyInfos != null && hourlyInfos.Count > 0)
+            if (quarterlyInfos != null && quarterlyInfos.Count > 0)
             {
                 var loggerFactory = _scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
 
-                _sessions = new Sessions(hourlyInfos,
+                _sessions = new Sessions(quarterlyInfos,
                                          _settingsConfig,
                                          _batteryContainer!,
                                          _timeZoneService,
@@ -1230,7 +1228,7 @@ namespace SessyController.Services
                                          _energyHistoryDataService,
                                          loggerFactory);
 
-                var list = hourlyInfos.OrderBy(hi => hi.Time).ToList();
+                var list = quarterlyInfos.OrderBy(hi => hi.Time).ToList();
 
                 // Check the first element
                 if (list.Count > 1)
@@ -1279,8 +1277,8 @@ namespace SessyController.Services
                 _settingsConfigSubscription.Dispose();
                 _sessyBatteryConfigSubscription.Dispose();
 
-                hourlyInfos.Clear();
-                hourlyInfos = null;
+                quarterlyInfos.Clear();
+                quarterlyInfos = null;
                 _sessyService = null;
                 _p1MeterService = null;
                 _dayAheadMarketService = null;

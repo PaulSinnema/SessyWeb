@@ -278,7 +278,7 @@ namespace SessyWeb.Controllers
         [HttpGet("SessyService:GetDynamicSchedule", Name = "{id}/GetDynamicSchedule")]
         public async Task<IActionResult> GetDynamicSchedule(string id)
         {
-            DynamicStrategy? status = await _sessyService.GetDynamicScheduleAsync(id);
+            SessyScheduleResponse? status = await _sessyService.GetDynamicScheduleAsync(id);
 
             return Ok(status);
         }
