@@ -455,18 +455,15 @@ namespace SessyController.Services
 
             foreach (var keyValuePair in _prices)
             {
-                if (!_epexPricesDataService.Exists((set) => set.Where(ep => ep.Time == keyValuePair.Key).FirstOrDefault()))
+                pricesList.Add(new EPEXPrices
                 {
-                    pricesList.Add(new EPEXPrices
-                    {
-                        Time = keyValuePair.Key,
-                        Price = keyValuePair.Value
-                    });
-                }
+                    Time = keyValuePair.Key,
+                    Price = keyValuePair.Value
+                });
             }
 
-            // Items already in the DB are not updated!
-            _epexPricesDataService.Add(pricesList, (item, set) =>
+            // Items already in the DB are updated!
+            _epexPricesDataService.AddOrUpdate(pricesList, (item, set) =>
             {
                 return set.Where(sd => sd.Time == item.Time).SingleOrDefault(); // Contains
             });

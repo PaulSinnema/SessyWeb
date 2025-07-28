@@ -1038,11 +1038,11 @@ namespace SessyController.Services
 
         private void HandleLastChargingSession(Session session)
         {
-            var totalCapacity = _batteryContainer.GetTotalCapacity();
-            var hourlyInfoObjectsAfter = _sessions.GetInfoObjectsAfter(session);
+            var hourlyInfosAfter = _sessions.GetInfoObjectsAfter(session);
+            var needed = GetEstimatePowerNeeded(hourlyInfosAfter);
 
-            session.SetChargeNeeded(totalCapacity);
-            hourlyInfoObjectsAfter.ForEach(hi => hi.ChargeNeeded = totalCapacity);
+            session.SetChargeNeeded(needed);
+            hourlyInfosAfter.ForEach(hi => hi.ChargeNeeded = needed);
         }
 
         private void HandleLastDischargingSession(Session previousSession)
@@ -1158,19 +1158,22 @@ namespace SessyController.Services
             var totalCapacity = _batteryContainer.GetTotalCapacity();
             List<QuarterlyInfo> infoObjectsBetween = _sessions.GetInfoObjectsBetween(previousSession, nextSession);
 
+
             if (previousSession.IsMoreProfitable(nextSession))
             {
-                previousSession.SetChargeNeeded(totalCapacity);
-                infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = totalCapacity);
+                var needed = GetEstimatePowerNeeded(infoObjectsBetween);
+
+                infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = needed);
+                previousSession.SetChargeNeeded(needed);
             }
             else
             {
                 if (infoObjectsBetween.Any())
                 {
-                    var chargeNeeded = GetEstimatePowerNeeded(infoObjectsBetween);
+                    var needed = GetEstimatePowerNeeded(infoObjectsBetween);
 
-                    infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = Math.Min(_batteryContainer.GetTotalCapacity(), chargeNeeded));
-                    previousSession.SetChargeNeeded(chargeNeeded);
+                    infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = needed);
+                    previousSession.SetChargeNeeded(needed);
                 }
                 else
                 {
@@ -1179,13 +1182,22 @@ namespace SessyController.Services
             }
         }
 
-        private double GetEstimatePowerNeeded(List<QuarterlyInfo> infoObjectsBetween)
+        private double GetEstimatePowerNeeded(List<QuarterlyInfo> infoObjects)
         {
-            double power = 0.0;
-            var totalCapacity = _batteryContainer.GetTotalCapacity();
             var requiredEnergyPerQuarter = _settingsConfig.EnergyNeedsPerMonth / 96.0; // Per quarter hour
 
-            foreach (var quarterlyInfo in infoObjectsBetween)
+            var endOfToday = _timeZoneService.Now.Date.AddHours(24).AddSeconds(-1);
+            double power = 0.0;
+
+            if (!infoObjects.Any(io => io.Time > endOfToday))
+            {
+                // Prices for tomorrow not known. Assume we need to calculate until noon tomorrow.
+                power += 12 * 4 * requiredEnergyPerQuarter;
+            }
+
+            // var totalCapacity = _batteryContainer.GetTotalCapacity();
+
+            foreach (var quarterlyInfo in infoObjects)
             {
                 if (quarterlyInfo.NetZeroHomeWithoutSolar)
                 {

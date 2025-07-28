@@ -15,14 +15,19 @@ namespace SessyController.Services
     {
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly SessyBatteryConfig _batteryConfig;
+        private readonly TimeZoneService _timeZoneService;
+        private readonly IOptionsMonitor<SettingsConfig> _settingsConfigMonitor;
         private readonly LoggingService<SessyService> _logger;
 
         public SessyService(LoggingService<SessyService> logger,
                             IHttpClientFactory httpClientFactory,
-                            IOptions<SessyBatteryConfig> batteryConfig)
+                            IOptions<SessyBatteryConfig> batteryConfig,
+                            TimeZoneService timeZoneService)
         {
             _httpClientFactory = httpClientFactory;
             _batteryConfig = batteryConfig.Value;
+            _timeZoneService = timeZoneService;
+
             _logger = logger; ;
         }
 
@@ -174,10 +179,10 @@ namespace SessyController.Services
         public int Power { get; set; }
 
         [Newtonsoft.Json.JsonIgnore]
-        public DateTime StartTime => DateTimeOffset.FromUnixTimeSeconds(StartTimeUnix).DateTime;
+        public DateTime StartTime => TimeZoneService.FromUnixTime(StartTimeUnix);
 
         [Newtonsoft.Json.JsonIgnore]
-        public DateTime EndTime => DateTimeOffset.FromUnixTimeSeconds(EndTimeUnix).DateTime;
+        public DateTime EndTime => TimeZoneService.FromUnixTime(EndTimeUnix);
     }
 
     public class EnergyPriceItem
@@ -192,10 +197,10 @@ namespace SessyController.Services
         public int Price { get; set; }
 
         [Newtonsoft.Json.JsonIgnore]
-        public DateTime StartTime => DateTimeOffset.FromUnixTimeSeconds(StartTimeUnix).DateTime;
+        public DateTime StartTime => TimeZoneService.FromUnixTime(StartTimeUnix);
 
         [Newtonsoft.Json.JsonIgnore]
-        public DateTime EndTime => DateTimeOffset.FromUnixTimeSeconds(EndTimeUnix).DateTime;
+        public DateTime EndTime => TimeZoneService.FromUnixTime(EndTimeUnix);
     }
 
     public class PowerStrategy

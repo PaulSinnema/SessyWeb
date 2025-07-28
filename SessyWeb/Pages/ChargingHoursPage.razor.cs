@@ -86,7 +86,6 @@ namespace SessyWeb.Pages
             public Battery Battery { get; set; } = default!;
             public string StatusColor => PowerStatus!.Sessy!.SystemStateColor;
             public string StatusTitle => PowerStatus!.Sessy!.SystemStateTitle;
-
             public PowerStatus? PowerStatus { get; set; }
         }
 
@@ -112,7 +111,7 @@ namespace SessyWeb.Pages
 
                 BatteryWithStatusList = newStatuses;
 
-               await InvokeAsync(StateHasChanged);
+                await InvokeAsync(StateHasChanged);
 
                 await Task.Delay(5000);
             }
@@ -207,12 +206,9 @@ namespace SessyWeb.Pages
         /// <summary>
         /// The window is resized. Handle it.
         /// </summary>
-        private async void HandleResize(int height, int width)
+        private void HandleResize(int height, int width)
         {
-            await InvokeAsync(() =>
-            {
-                ChangeChartStyle(height);
-            });
+            ChangeChartStyle(height);
         }
 
         /// <summary>
@@ -234,6 +230,8 @@ namespace SessyWeb.Pages
                     .Where(hi => hi.Time >= now.DateFloorQuarter())
                     .ToList();
             }
+
+            ChangeChartStyle(ScreenInfo!.Height - 300);
         }
 
         public bool IsManualOverride => _batteriesService!.IsManualOverride;
@@ -245,7 +243,7 @@ namespace SessyWeb.Pages
         /// </summary>
         private void ChangeChartStyle(int height)
         {
-            // 25 pixels per data row (3)
+            // 13 pixels per data row (3)
             var width = HourlyInfos?.Count * 3 * 13;
 
             GraphStyle = $"min-height: {height}px; width: {width}px; visibility: initial;";

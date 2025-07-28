@@ -457,6 +457,9 @@ namespace SessyController.Services.Items
             }
         }
 
+        /// <summary>
+        /// Returns the hourly info objects between 2 sessions.
+        /// </summary>
         public List<QuarterlyInfo> GetInfoObjectsBetween(Session previousSession, Session nextSession)
         {
             return _hourlyInfos!
@@ -465,10 +468,7 @@ namespace SessyController.Services.Items
         }
 
         /// <summary>
-        /// Gets the quarterlyInfo objects between 2 sessions.
-        /// </summary>
-        /// <summary>
-        /// Gets all quarterlyInfo objects after the session.
+        /// Returns the hourly info objects after the session and before the date.
         /// </summary>
         public List<QuarterlyInfo> GetInfoObjectsAfter(Session session)
         {

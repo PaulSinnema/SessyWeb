@@ -11,7 +11,7 @@ namespace SessyController.Services
     {
         private SettingsConfig _settingsConfig { get; set; }
 
-        private TimeZoneInfo _timeZone { get; set; }
+        private static TimeZoneInfo _timeZone { get; set; }
 
         public TimeZoneService(IOptions<SettingsConfig> settingsConfig)
         {
@@ -42,6 +42,11 @@ namespace SessyController.Services
 
 
             return SunlightCalculator.GetSunlightAt(now, latitude, longitude);
+        }
+
+        public static DateTime FromUnixTime(long unixTime)
+        {
+            return TimeZoneInfo.ConvertTimeFromUtc(DateTimeOffset.FromUnixTimeSeconds(unixTime).UtcDateTime, _timeZone);
         }
     }
 }

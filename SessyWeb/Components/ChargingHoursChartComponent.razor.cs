@@ -7,7 +7,22 @@ namespace SessyWeb.Components
     {
         [Parameter]
         public List<QuarterlyInfo>? HourlyInfos { get; set; }
+
+        public string _graphStyle = "min-width: 250px; visibility: hidden;";
+
         [Parameter]
-        public string GraphStyle { get; set; } = "min-width: 250px; visibility: hidden;";
+        public string GraphStyle 
+        { 
+            get => _graphStyle;
+            set
+            {
+                if (_graphStyle != value)
+                {
+                    _graphStyle = value;
+
+                    StateHasChanged();
+                }
+            }
+        } 
     }
 }
