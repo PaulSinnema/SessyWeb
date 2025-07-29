@@ -48,5 +48,16 @@ namespace SessyController.Services
         {
             return TimeZoneInfo.ConvertTimeFromUtc(DateTimeOffset.FromUnixTimeSeconds(unixTime).UtcDateTime, _timeZone);
         }
+        public static DateTime FromUnixTime(long? unixTime)
+        { 
+            if (unixTime.HasValue)
+            {
+                return FromUnixTime(unixTime.Value);
+            }
+            else
+            {
+                return DateTime.MinValue;
+            }
+        }
     }
 }

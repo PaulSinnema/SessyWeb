@@ -305,7 +305,7 @@ namespace SessyController.Services
             /// DateTime stamp converted from Unix timestamp long.
             /// </summary>
             [JsonIgnore]
-            public DateTime? TimeStamp => UnixTimestamp.HasValue ? DateTimeOffset.FromUnixTimeSeconds(UnixTimestamp.Value).UtcDateTime : null;
+            public DateTime? TimeStamp => TimeZoneService.FromUnixTime(UnixTimestamp);
 
             [JsonPropertyName("image")]
             public string Weerbeeld { get; set; } = string.Empty;
