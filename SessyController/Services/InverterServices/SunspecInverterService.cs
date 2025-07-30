@@ -5,6 +5,7 @@ using SessyCommon.Extensions;
 using SessyController.Configurations;
 using SessyController.Interfaces;
 using SessyController.Providers;
+using SessyData.Helpers;
 using SessyData.Model;
 using SessyData.Services;
 using System.Numerics;
@@ -55,6 +56,8 @@ namespace SessyController.Services.InverterServices
 
             _IsRunning = true;
 
+            CleanUpWrongData();
+
             // Loop to fetch prices every second
             while (!cancelationToken.IsCancellationRequested && _IsRunning)
             {
@@ -91,6 +94,11 @@ namespace SessyController.Services.InverterServices
             _IsRunning = false;
 
             await Task.Yield();
+        }
+
+        private void CleanUpWrongData()
+        {
+            _solarEdgeDataService.RemoveWrongData(ProviderName);
         }
 
         private Dictionary<string, Dictionary<DateTime, double>> CollectedPowerData { get; set; } = new();
@@ -191,7 +199,11 @@ namespace SessyController.Services.InverterServices
                     if (now < nextQuarter)
                         continue;
 
-                    var values = quarterGroup.Select(g => g.Value).ToList();
+                    var values = quarterGroup
+                            .Select(g => g.Value)
+                            .Where(v => !double.IsNaN(v) && !double.IsInfinity(v))
+                            .ToList();
+
                     if (values.Count < 1)
                         continue;
 
