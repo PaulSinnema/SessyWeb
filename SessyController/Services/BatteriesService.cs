@@ -361,9 +361,9 @@ namespace SessyController.Services
             var localTime = _timeZoneService.Now;
 
             if (_settingsConfig.ManualChargingHours != null && _settingsConfig.ManualChargingHours.Contains(localTime.Hour))
-                await _batteryContainer.StartCharging(_batteryContainer.GetChargingCapacity());
+                await _batteryContainer.StartCharging(_batteryContainer.GetChargingCapacityInWatts());
             else if (_settingsConfig.ManualDischargingHours != null && _settingsConfig.ManualDischargingHours.Contains(localTime.Hour))
-                await _batteryContainer.StartDisharging(_batteryContainer.GetDischargingCapacity());
+                await _batteryContainer.StartDisharging(_batteryContainer.GetDischargingCapacityInWatts());
             else if (_settingsConfig.ManualNetZeroHomeHours != null && _settingsConfig.ManualNetZeroHomeHours.Contains(localTime.Hour))
                 await _batteryContainer.StartNetZeroHome();
             else
@@ -1124,11 +1124,13 @@ namespace SessyController.Services
         private void HandleChargingDischargingSessions(Session previousSession, Session nextSession)
         {
             var chargeNeeded = _batteryContainer.GetTotalCapacity();
+            double quarterNeed = _settingsConfig.EnergyNeedsPerMonth / 96; // Per quarter hour
 
             List<QuarterlyInfo> infoObjectsBetween = _sessions.GetInfoObjectsBetween(previousSession, nextSession);
 
             var solarPower = infoObjectsBetween.Sum(io => io.SolarPowerInWatts);
 
+            chargeNeeded += quarterNeed * infoObjectsBetween.Count;
             chargeNeeded -= solarPower;
 
             chargeNeeded = EnsureBoundaries(chargeNeeded);

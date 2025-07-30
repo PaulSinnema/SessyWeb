@@ -43,7 +43,7 @@ namespace SessyController.Services.Items
         /// </summary>
         public double GetChargingPowerInWatts(QuarterlyInfo currentHourlyInfo)
         {
-            return currentHourlyInfo.Charging ? _batteryContainer.GetChargingCapacity() : _batteryContainer.GetDischargingCapacity();
+            return currentHourlyInfo.Charging ? _batteryContainer.GetChargingCapacityInWatts() : _batteryContainer.GetDischargingCapacityInWatts();
 
             // TODO: // This is not correct, we need to calculate the power based on the current hourly info and the mode.
             //var chargeNeeded = currentHourlyInfo.ChargeNeeded;
@@ -232,6 +232,25 @@ namespace SessyController.Services.Items
         }
 
         /// <summary>
+        /// Get the cost of this Session.
+        /// </summary>
+        public double GetTotalCost()
+        {
+            switch (Mode)
+            {
+                case Modes.Charging:
+                    return SessionHourlyInfos.Sum(hi => hi.ChargingCost);
+
+                case Modes.Discharging:
+                    return SessionHourlyInfos.Sum(hi => hi.DischargingCost);
+
+                default:
+                    throw new InvalidOperationException($"Wrong mode: {Mode}");
+            }
+            return 0.0;
+        }
+
+        /// <summary>
         /// Clear the hourlyInfos from the session.
         /// Caution! Clearing the list will not change the (dis)charging modes on
         /// the quarterlyInfo items unless setModes = true!
@@ -331,7 +350,7 @@ namespace SessyController.Services.Items
             {
                 case Modes.Charging:
                     {
-                        var capacity = _batteryContainer.GetChargingCapacity() / 4.0; // Per quarter hour.
+                        var capacity = _batteryContainer.GetChargingCapacityInWatts() / 4.0; // Per quarter hour.
                         var previousHourlyInfo = _sessions.GetPreviousHourlyInfo(First!);
 
                         if (previousHourlyInfo != null)
@@ -351,7 +370,7 @@ namespace SessyController.Services.Items
 
                 case Modes.Discharging:
                     {
-                        var capacity = _batteryContainer.GetDischargingCapacity() / 4.0; // Per quarter hour.
+                        var capacity = _batteryContainer.GetDischargingCapacityInWatts() / 4.0; // Per quarter hour.
                         var previousHourlyInfo = _sessions.GetPreviousHourlyInfo(First!);
 
                         if (previousHourlyInfo != null)

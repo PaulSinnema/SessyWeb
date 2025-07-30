@@ -29,9 +29,11 @@ namespace SessyController.Services.Items
             BuyingPrice = _calculationService.CalculateEnergyPrice(time, true) ?? 0.0;
             SellingPrice = _calculationService.CalculateEnergyPrice(time, false) ?? 0.0;
 
-            TotalCapacity = _batteryContainer.GetTotalCapacity();
+            TotalCapacityInWatts = _batteryContainer.GetTotalCapacity();
+            ChargingCapacityInWatts = _batteryContainer.GetChargingCapacityInWatts();
+            DischargingCapacityInWatts = _batteryContainer.GetDischargingCapacityInWatts();
 
-            if (!(TotalCapacity > 0.0))
+            if (!(TotalCapacityInWatts > 0.0))
                 throw new InvalidOperationException("The total capacity should not be 0.0");
         }
 
@@ -65,7 +67,25 @@ namespace SessyController.Services.Items
         /// <summary>
         /// How much profit does this (dis)charge give?
         /// </summary>
-        public double Profit => Selling - Buying;
+        public double Profit
+        {
+            get
+            {
+                switch (Mode)
+                {
+                    case Modes.Charging:
+                        return -ChargingCost;
+
+                    case Modes.Discharging:
+                        return DischargingCost;
+
+                    case Modes.ZeroNetHome:
+                    case Modes.Disabled:
+                    default:
+                        return 0.0;
+                }
+            }
+        }
 
         /// <summary>
         /// This is the profit if Net Zero Home were enabled. It is used
@@ -119,11 +139,21 @@ namespace SessyController.Services.Items
             }
         }
 
+        public double ToChargeInWatts => Math.Max(0.0, Math.Min(ChargingCapacityInWatts, _chargeNeeded - _chargeLeft - SolarPowerInWatts));
+
+        public double ToDischargeInWatts => Math.Max(0.0, Math.Min(DischargingCapacityInWatts, _chargeLeft - _chargeNeeded - SolarPowerInWatts));
+
+        public double ChargingCost => ToChargeInWatts / 1000 / 4.0 * BuyingPrice;
+
+        public double DischargingCost => ToDischargeInWatts / 1000 / 4.0 * SellingPrice;
+
         public double ChargeNeededVisual => _chargeNeeded / 100000;
 
-        private double TotalCapacity { get; set; }
+        private double TotalCapacityInWatts { get; }
+        public double ChargingCapacityInWatts { get; }
+        public double DischargingCapacityInWatts { get; }
 
-        public double ChargeLeftPercentage => _chargeLeft / (TotalCapacity / 100.0);
+        public double ChargeLeftPercentage => _chargeLeft / (TotalCapacityInWatts / 100.0);
 
         public double ChargeLeftVisual => _chargeLeft / 100000;
 

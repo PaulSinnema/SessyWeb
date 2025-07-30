@@ -91,7 +91,7 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Get the total charging capacity for all batteries.
         /// </summary>
-        public double GetChargingCapacity()
+        public double GetChargingCapacityInWatts()
         {
             return Batteries!.Sum(bat => bat.GetMaxCharge());
         }
@@ -99,7 +99,7 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Get the total discharging capacity for all batteries.
         /// </summary>
-        public double GetDischargingCapacity()
+        public double GetDischargingCapacityInWatts()
         {
             return Batteries!.Sum(bat => bat.GetMaxDischarge());
         }
@@ -123,7 +123,7 @@ namespace SessyController.Services.Items
             foreach (var bat in Batteries)
             {
                 var maxChargingPower = bat.GetMaxCharge();
-                var totalCapacity = GetChargingCapacity();
+                var totalCapacity = GetChargingCapacityInWatts();
                 var powerToUse = (maxChargingPower / totalCapacity) * chargingPower;
 
                 await bat.SetActivePowerStrategyToOpenAPI();
@@ -139,7 +139,7 @@ namespace SessyController.Services.Items
             foreach (var bat in Batteries)
             {
                 var maxDischargingPower = bat.GetMaxDischarge();
-                var totalCapacity = GetDischargingCapacity();
+                var totalCapacity = GetDischargingCapacityInWatts();
                 var powerToUse = (maxDischargingPower / totalCapacity) * dischargingPower;
 
                 await bat.SetActivePowerStrategyToOpenAPI();

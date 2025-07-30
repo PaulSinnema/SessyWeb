@@ -48,8 +48,8 @@ namespace SessyController.Services.Items
 
             _sessionList = new List<Session>();
             _hourlyInfos = hourlyInfos;
-            _totalChargingCapacityPerQuarter = batteryContainer.GetChargingCapacity() / 4.0; // Per quarter hour.
-            _totalDischargingCapacityPerQuarter = batteryContainer.GetDischargingCapacity() / 4.0; // Per quarter hour.
+            _totalChargingCapacityPerQuarter = batteryContainer.GetChargingCapacityInWatts() / 4.0; // Per quarter hour.
+            _totalDischargingCapacityPerQuarter = batteryContainer.GetDischargingCapacityInWatts() / 4.0; // Per quarter hour.
             _totalBatteryCapacity = batteryContainer.GetTotalCapacity();
             _maxChargingQuarters = (int)Math.Ceiling(_totalBatteryCapacity / _totalChargingCapacityPerQuarter);
             _maxDischargingQuarters = (int)Math.Ceiling(_totalBatteryCapacity / _totalDischargingCapacityPerQuarter);
@@ -561,6 +561,23 @@ namespace SessyController.Services.Items
                         if (session.IsMoreProfitable(previousSession))
                         {
                             RemoveSession(previousSession);
+                            changed = true;
+                        }
+                    } else if(previousSession.Mode == Modes.Discharging && session.Mode == Modes.Discharging)
+                    {
+                        if(session.IsMoreProfitable(previousSession))
+                        {
+                            RemoveSession(session);
+                            changed = true;
+                        }
+                    } else if(previousSession.Mode == Modes.Charging && session.Mode == Modes.Discharging)
+                    {
+                        var chargeCost = previousSession.GetTotalCost();
+                        var dischargeCost = session.GetTotalCost();
+
+                        if(chargeCost > dischargeCost)
+                        {
+                            RemoveSession(session);
                             changed = true;
                         }
                     }
