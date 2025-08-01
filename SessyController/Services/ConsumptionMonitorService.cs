@@ -153,7 +153,9 @@ namespace SessyController.Services
 
             if (_consumptionData.Count >= 900) // 15 minutes of data
             {
-                var averageConsumptionWh = _consumptionData.Average(c => c.ConsumptionWh);
+                var averageConsumptionWh = _consumptionData
+                                            .Where(c => !double.IsNaN(c) && !double.IsInfinity(c))
+                                            .Average(c => c.ConsumptionWh);
 
                 var p1Details = await _p1MeterContainer.GetDetails(p1Meter.Id!);
                 var weatherData = _weatherService.GetWeatherData();
