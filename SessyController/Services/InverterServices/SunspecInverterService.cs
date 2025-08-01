@@ -195,7 +195,9 @@ namespace SessyController.Services.InverterServices
                     if (values.Count < 1)
                         continue;
 
-                    var averagePower = values.Average();
+                    var averagePower = values
+                                            .Where(c => !double.IsNaN(c) && !double.IsInfinity(c))
+                                            .Average();
 
                     var entry = new SolarInverterData
                     {
