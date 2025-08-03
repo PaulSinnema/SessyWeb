@@ -173,9 +173,7 @@ namespace SessyController.Services
 
                         await EvaluateSessions();
 
-                        await AreWeInControl();
-
-                        if (WeAreInControl)
+                        if (await WeControlTheBatteries())
                         {
                             QuarterlyInfo? currentHourlyInfo = _sessions.GetCurrentHourlyInfo();
 
@@ -205,7 +203,7 @@ namespace SessyController.Services
         /// <summary>
         /// Checks who has control. If control changed since the last store of data a new record is stored.
         /// </summary>
-        private async Task AreWeInControl()
+        private async Task<bool> WeControlTheBatteries()
         {
             WeAreInControl = !await SupplierIsControllingTheBatteries();
 
@@ -221,6 +219,8 @@ namespace SessyController.Services
             {
                 StoreStatus(status);
             }
+
+            return WeAreInControl;
         }
 
         /// <summary>
