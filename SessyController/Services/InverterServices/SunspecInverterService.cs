@@ -53,6 +53,8 @@ namespace SessyController.Services.InverterServices
         {
             _logger.LogWarning("SolarEdge service started ...");
 
+            _solarEdgeDataService.RemoveWrongData();
+
             _IsRunning = true;
 
             // Loop to fetch prices every second

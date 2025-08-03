@@ -18,5 +18,18 @@ namespace SessyData.Services
 
             return ( list.Count <= 0, list.Sum(c => c.ConsumptionWh));
         }
+
+        public void RemoveWrongData()
+        {
+            _dbHelper.ExecuteTransaction((db) =>
+            {
+                var itemsToRemove = db.Set<Consumption>().Where(x => x.ConsumptionWh > 1000000).ToList();
+
+                if (itemsToRemove.Any())
+                {
+                    db.Set<Consumption>().RemoveRange(itemsToRemove);
+                }
+            });
+        }
     }
 }
