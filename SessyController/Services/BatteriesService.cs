@@ -1111,7 +1111,10 @@ namespace SessyController.Services
         /// </summary>
         private void HandleDischargingChargingCalculation(Session previousSession, Session nextSession)
         {
-            List<QuarterlyInfo> infoObjectsBetween = _sessions.GetInfoObjectsBetween(previousSession, nextSession);
+            List<QuarterlyInfo> infoObjectsBetween = _sessions.GetInfoObjectsBetween(previousSession, nextSession)
+                                                        .OrderBy(io => io.Time)
+                                                        .ToList();
+
             var totalNeed = GetEstimatePowerNeeded(infoObjectsBetween);
 
             previousSession.SetChargeNeeded(totalNeed);
@@ -1191,30 +1194,16 @@ namespace SessyController.Services
             var endOfToday = _timeZoneService.Now.Date.AddHours(24).AddSeconds(-1);
             double power = 0.0;
 
-            if (!infoObjects.Any(io => io.Time > endOfToday))
+            if (!quarterlyInfos!.Any(io => io.Time > endOfToday))
             {
                 // Prices for tomorrow not known. Assume we need to calculate until noon tomorrow.
-                power += 12 * 4 * requiredEnergyPerQuarter;
+                power = 12 * 4 * requiredEnergyPerQuarter;
             }
-
-            // var totalCapacity = _batteryContainer.GetTotalCapacity();
-
-            foreach (var quarterlyInfo in infoObjects)
+            else
             {
-                if (quarterlyInfo.NetZeroHomeWithoutSolar)
-                {
-                    // TODO: The estimate is incorrect. It calculates the net power from the grid (Zero Net Home), not the needs of the home.
-                    //var temperature = _weatherService.GetTemperature(quarterlyInfo.Time);
-
-                    //if (temperature != null)
-                    //{
-                    //    power += _powerEstimatesService.GetPowerEstimate(quarterlyInfo.Time, temperature.Value);
-                    //}
-                    //else
-                    //{
-                    power += requiredEnergyPerQuarter;
-                    //}
-                }
+                power = infoObjects
+                            .Count(io => io.Mode == Modes.ZeroNetHome &&
+                                         io.SolarPowerInWatts < requiredEnergyPerQuarter) * requiredEnergyPerQuarter;
             }
 
             return EnsureBoundaries(power);

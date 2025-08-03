@@ -67,7 +67,7 @@ namespace SessyCommon.Extensions
             {
                 var deltaMinutes = (int)(ordered[i] - ordered[i - 1]).TotalMinutes;
 
-                // nul of negatieve intervallen zijn ongeldig
+                // Zero or negative intervals are invalid.
                 if (deltaMinutes <= 0) return TimeResolution.Unknown;
 
                 deltas.Add(deltaMinutes);
@@ -77,7 +77,6 @@ namespace SessyCommon.Extensions
                  : deltas.All(m => m == 15) ? TimeResolution.FifteenMinutes
                  : TimeResolution.Unknown;
         }
-
 
         /// <summary>
         /// Returns the ISO 8601 week number for the given date.

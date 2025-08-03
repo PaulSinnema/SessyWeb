@@ -40,7 +40,6 @@ namespace SessyController.Services
             DateTimeZone zone = DateTimeZoneProviders.Tzdb[_settingsConfig.Timezone!];
             ZonedDateTime now = SystemClock.Instance.InZone(zone).GetCurrentZonedDateTime();
 
-
             return SunlightCalculator.GetSunlightAt(now, latitude, longitude);
         }
 
