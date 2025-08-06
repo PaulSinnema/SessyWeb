@@ -164,7 +164,7 @@ namespace SessyController.Services
             return data == null ? null : data.Temp;
         }
 
-        public (double? temperature, double? humidity, double? globalRadiation)? GetCurrentWeather()
+        public (double? temperature, double? globalRadiation)? GetCurrentWeather()
         {
             if (WeatherData != null)
             {
@@ -177,7 +177,7 @@ namespace SessyController.Services
                                  uv.TimeStamp.Value.Hour == now.Hour)
                     .FirstOrDefault();
 
-                return (currentWeather?.Temp, liveWeer?.Luchtvochtigheid, currentWeather?.GlobalRadiation);
+                return (currentWeather?.Temp, currentWeather?.GlobalRadiation);
             }
 
             return null;

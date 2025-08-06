@@ -226,6 +226,19 @@ namespace SessyController.Services
             return solarPower + netPower + batteryPower;
         }
 
+        public double GetHumidity(double? temperature)
+        {
+            var list = _consumptionDataService.GetList((set) =>
+            {
+                return set
+                    .Where(c => c.Temperature >= temperature - _temperatureDelta &&
+                                c.Temperature <= temperature + _temperatureDelta)
+                    .ToList();
+            });
+
+            return list.Average(c => c.Humidity);
+        }
+
         public double EstimateConsumptionInWattsPerQuarter(DateTime time)
         {
             var minHour = time.Hour - _hourDelta;
@@ -238,8 +251,9 @@ namespace SessyController.Services
                 var weather = currentWeather.Value;
                 double? minTemperature = weather.temperature - _temperatureDelta;
                 double? maxTemperature = weather.temperature + _temperatureDelta;
-                double? minHumidity = weather.humidity - _humidityDelta;
-                double? maxHumidity = weather.humidity + _humidityDelta;
+                double? humidity = GetHumidity(weather.temperature);
+                double? minHumidity = humidity - _humidityDelta;
+                double? maxHumidity = humidity + _humidityDelta;
                 double? minGlobalRadiation = weather.globalRadiation - _globalRadiationDelta;
                 double? maxGlobalRadiation = weather.globalRadiation + _globalRadiationDelta;
 
@@ -290,7 +304,12 @@ namespace SessyController.Services
 
                 if (list != null && list.Count > 0)
                 {
-                    return list.Average(c => c.ConsumptionWh) / 4.0; // Per quarter hour
+                    var average = list.Average(c => c.ConsumptionWh) / 4.0; // Per quarter hour
+
+                    if(average > 0)
+                    {
+                        return average;
+                    }
                 }
             }
 
