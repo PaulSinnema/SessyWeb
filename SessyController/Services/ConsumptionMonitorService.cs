@@ -243,7 +243,8 @@ namespace SessyController.Services
         {
             var minHour = time.Hour - _hourDelta;
             var maxHour = time.Hour + _hourDelta;
-            var day = time.DayOfWeek;
+            var minYear = time.Year - 1;
+            var dayOfWeek = time.DayOfWeek;
             var currentWeather = _weatherService.GetCurrentWeather();
 
             if (currentWeather != null)
@@ -260,53 +261,43 @@ namespace SessyController.Services
                 var list = _consumptionDataService.GetList((set) =>
                 {
                     return set
-                        .Where(c => c.Time.Hour >= minHour &&
+                        .Where(c => c.Time.Year >= minYear &&
+                                    c.Time.Hour >= minHour &&
                                     c.Time.Hour <= maxHour &&
-                                    c.Time.DayOfWeek == day &&
-                                    c.Temperature >= minTemperature &&
-                                    c.Temperature <= maxTemperature &&
-                                    c.Humidity >= minHumidity &&
-                                    c.Humidity <= maxHumidity &&
-                                    c.GlobalRadiation >= minGlobalRadiation &&
-                                    c.GlobalRadiation <= maxGlobalRadiation)
+                                    c.Time.DayOfWeek == dayOfWeek &&
+                                    c.ConsumptionWh > 0.0)
                         .ToList();
                 });
 
-                if(list == null || list.Count == 0)
+                var subset = list.Where(c => c.Temperature >= minTemperature &&
+                                             c.Temperature <= maxTemperature &&
+                                             c.Humidity >= minHumidity &&
+                                             c.Humidity <= maxHumidity &&
+                                             c.GlobalRadiation >= minGlobalRadiation &&
+                                             c.GlobalRadiation <= maxGlobalRadiation)
+                                 .ToList();
+
+                if (subset == null || subset.Count == 0)
                 {
-                     list = _consumptionDataService.GetList((set) =>
-                    {
-                        return set
-                            .Where(c => c.Time.Hour >= minHour &&
-                                        c.Time.Hour <= maxHour &&
-                                        c.Time.DayOfWeek == day &&
-                                        c.Temperature >= minTemperature&&
-                                        c.Temperature <= maxTemperature &&
-                                        c.GlobalRadiation >= minGlobalRadiation &&
-                                        c.GlobalRadiation <= maxGlobalRadiation)
-                            .ToList();
-                    });
+                    subset = list.Where(c => c.Temperature >= minTemperature &&
+                                             c.Temperature <= maxTemperature &&
+                                             c.GlobalRadiation >= minGlobalRadiation &&
+                                             c.GlobalRadiation <= maxGlobalRadiation)
+                                .ToList();
                 }
 
-                if (list == null || list.Count == 0)
+                if (subset == null || subset.Count == 0)
                 {
-                    list = _consumptionDataService.GetList((set) =>
-                    {
-                        return set
-                            .Where(c => c.Time.Hour >= minHour &&
-                                        c.Time.Hour <= maxHour &&
-                                        c.Time.DayOfWeek == day &&
-                                        c.Temperature >= minTemperature &&
-                                        c.Temperature <= maxTemperature)
-                            .ToList();
-                    });
+                    subset = list.Where(c => c.Temperature >= minTemperature &&
+                                             c.Temperature <= maxTemperature)
+                                .ToList();
                 }
 
-                if (list != null && list.Count > 0)
+                if (subset != null && subset.Count > 0)
                 {
-                    var average = list.Average(c => c.ConsumptionWh) / 4.0; // Per quarter hour
+                    var average = subset.Average(c => c.ConsumptionWh) / 4.0; // Per quarter hour
 
-                    if(average > 0)
+                    if (average > 0)
                     {
                         return average;
                     }
