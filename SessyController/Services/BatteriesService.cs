@@ -1225,11 +1225,11 @@ namespace SessyController.Services
                 {
                     var requiredEnergyPerQuarter = _consumptionMonitorService.EstimateConsumptionInWattsPerQuarter(infoObject.Time);
 
-                    power -= infoObject.SolarPowerInWatts;
+                    power += requiredEnergyPerQuarter;
 
                     if (infoObject.SolarPowerInWatts < requiredEnergyPerQuarter)
                     {
-                        power += requiredEnergyPerQuarter;
+                        power -= infoObject.SolarPowerInWatts;
                     }
                 }
             }
