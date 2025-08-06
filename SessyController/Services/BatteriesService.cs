@@ -1204,13 +1204,21 @@ namespace SessyController.Services
             }
         }
 
-        private double GetEstimatePowerNeeded(List<QuarterlyInfo> infoObjects)
+        public bool PricesForTomorrowAvailable()
         {
             var endOfToday = _timeZoneService.Now.Date.AddHours(24).AddSeconds(-1);
+
+            return quarterlyInfos!.Any(io => io.Time > endOfToday);
+        }
+
+        private double GetEstimatePowerNeeded(List<QuarterlyInfo> infoObjectsBetween)
+        {
+            var endOfToday = _timeZoneService.Now.Date.AddHours(24);
             double power = 0.0;
 
-            if (!quarterlyInfos!.Any(io => io.Time > endOfToday))
+            if (!PricesForTomorrowAvailable())
             {
+                // Assume we need power for the next 12 hours.
                 for (var i = 0; i < 12; i++)
                 {
                     var requiredEnergyPerQuarter = _consumptionMonitorService.EstimateConsumptionInWattsPerQuarter(endOfToday.AddHours(i));
@@ -1220,16 +1228,14 @@ namespace SessyController.Services
             }
             else
             {
-                foreach (var infoObject in infoObjects
+                foreach (var infoObject in infoObjectsBetween
                                             .Where(io => io.Mode == Modes.ZeroNetHome))
                 {
                     var requiredEnergyPerQuarter = _consumptionMonitorService.EstimateConsumptionInWattsPerQuarter(infoObject.Time);
 
-                    power += requiredEnergyPerQuarter;
-
                     if (infoObject.SolarPowerInWatts < requiredEnergyPerQuarter)
                     {
-                        power -= infoObject.SolarPowerInWatts;
+                        power += requiredEnergyPerQuarter;
                     }
                 }
             }
