@@ -16,7 +16,6 @@ namespace SessyController.Services
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly SessyBatteryConfig _batteryConfig;
         private readonly TimeZoneService _timeZoneService;
-        private readonly IOptionsMonitor<SettingsConfig> _settingsConfigMonitor;
         private readonly LoggingService<SessyService> _logger;
 
         public SessyService(LoggingService<SessyService> logger,

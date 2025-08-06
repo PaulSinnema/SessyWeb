@@ -247,7 +247,6 @@ namespace SessyController.Services.Items
                 default:
                     throw new InvalidOperationException($"Wrong mode: {Mode}");
             }
-            return 0.0;
         }
 
         /// <summary>

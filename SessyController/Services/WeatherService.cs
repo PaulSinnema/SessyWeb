@@ -147,7 +147,7 @@ namespace SessyController.Services
                 .First();
         }
 
-        internal int? GetTemperature(DateTime time)
+        public int? GetTemperature(DateTime time)
         {
             UurVerwachting? data = null;
             time = time.DateHour();
@@ -162,6 +162,25 @@ namespace SessyController.Services
             }
 
             return data == null ? null : data.Temp;
+        }
+
+        public (double? temperature, double? humidity, double? globalRadiation)? GetCurrentWeather()
+        {
+            if (WeatherData != null)
+            {
+                var now = _timeZoneService.Now.Date.AddHours(_timeZoneService.Now.Hour);
+                var liveWeer = WeatherData?.LiveWeer?.FirstOrDefault();
+
+
+                var currentWeather = WeatherData.UurVerwachting
+                    .Where(uv => uv.TimeStamp.HasValue &&
+                                 uv.TimeStamp.Value.Hour == now.Hour)
+                    .FirstOrDefault();
+
+                return (currentWeather?.Temp, liveWeer?.Luchtvochtigheid, currentWeather?.GlobalRadiation);
+            }
+
+            return null;
         }
 
         public class LiveWeer

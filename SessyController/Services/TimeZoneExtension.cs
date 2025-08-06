@@ -11,7 +11,7 @@ namespace SessyController.Services
     {
         private SettingsConfig _settingsConfig { get; set; }
 
-        private static TimeZoneInfo _timeZone { get; set; }
+        private static TimeZoneInfo? _timeZone { get; set; }
 
         public TimeZoneService(IOptions<SettingsConfig> settingsConfig)
         {
@@ -24,12 +24,12 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Gets the local time using the timezone set in appsettings.json.
+        /// Gets the local time using the time zone set in appsettings.json.
         /// </summary>
 #if DEBUG
-        public DateTime Now => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _timeZone);
+        public DateTime Now => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _timeZone!);
 #else
-        public DateTime Now => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _timeZone);
+        public DateTime Now => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _timeZone!);
 #endif
 
         /// <summary>
@@ -45,8 +45,9 @@ namespace SessyController.Services
 
         public static DateTime FromUnixTime(long unixTime)
         {
-            return TimeZoneInfo.ConvertTimeFromUtc(DateTimeOffset.FromUnixTimeSeconds(unixTime).UtcDateTime, _timeZone);
+            return TimeZoneInfo.ConvertTimeFromUtc(DateTimeOffset.FromUnixTimeSeconds(unixTime).UtcDateTime, _timeZone!);
         }
+
         public static DateTime FromUnixTime(long? unixTime)
         { 
             if (unixTime.HasValue)

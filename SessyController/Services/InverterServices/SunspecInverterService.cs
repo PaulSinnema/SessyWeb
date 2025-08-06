@@ -155,7 +155,7 @@ namespace SessyController.Services.InverterServices
                 var isEnabled = await IsDynamicPowerEnabled(id);
 
 #if DEBUG
-                _logger.LogWarning($"IsDynamicPowerEneble({id}) => {isEnabled}");
+                _logger.LogWarning($"IsDynamicPowerEnabled({id}) => {isEnabled}");
                 _logger.LogWarning($"DEBUG: {ProviderName}: SetActivePowerLimit({endpoint.Key}, {percentage})");
                 await Task.Delay(1); // To prevent a warning for the keyword 'async'.
 #else

@@ -44,6 +44,8 @@ namespace SessyController.Services
         private ConsumptionDataService _consumptionDataService { get; set; }
         private EnergyHistoryService _energyHistoryDataService { get; set; }
 
+        private ConsumptionMonitorService _consumptionMonitorService { get; set; }
+
         private LoggingService<BatteriesService> _logger { get; set; }
 
         private static List<QuarterlyInfo>? quarterlyInfos { get; set; } = new List<QuarterlyInfo>();
@@ -100,6 +102,7 @@ namespace SessyController.Services
             _sessyWebControlDataService = _scope.ServiceProvider.GetRequiredService<SessyWebControlDataService>();
             _consumptionDataService = _scope.ServiceProvider.GetRequiredService<ConsumptionDataService>();
             _energyHistoryDataService = _scope.ServiceProvider.GetRequiredService<EnergyHistoryService>();
+            _consumptionMonitorService = _scope.ServiceProvider.GetRequiredService<ConsumptionMonitorService>();
         }
 
         public override Task StopAsync(CancellationToken cancellationToken)
@@ -712,7 +715,6 @@ namespace SessyController.Services
         {
             double charge = 0.0;
             double totalCapacity = _batteryContainer.GetTotalCapacity();
-            double quarterNeed = _settingsConfig.EnergyNeedsPerMonth / 96; // Per quarter hour
             double chargingCapacity = _sessyBatteryConfig.TotalChargingCapacity / 4.0; // Per quarter hour
             double dischargingCapacity = _sessyBatteryConfig.TotalDischargingCapacity / 4.0; // Per quarter hour
             var now = _timeZoneService.Now;
@@ -727,6 +729,8 @@ namespace SessyController.Services
 
             foreach (var quarterlyInfo in hourlyInfoList.Where(hi => hi.Time >= now.DateFloorQuarter()))
             {
+                double quarterNeed = _consumptionMonitorService.EstimateConsumptionInWattsPerQuarter(quarterlyInfo.Time);
+
                 var session = _sessions.GetSession(quarterlyInfo);
 
                 switch (quarterlyInfo.Mode)
@@ -1121,15 +1125,28 @@ namespace SessyController.Services
             infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = totalNeed);
         }
 
+        private double ChargeNeededForObjectsBetween(List<QuarterlyInfo> infoObjectsBetween)
+        {
+            double chargeNeeded = 0.0;
+
+            foreach (var infoObject in infoObjectsBetween)
+            {
+                chargeNeeded += _consumptionMonitorService.EstimateConsumptionInWattsPerQuarter(infoObject.Time);
+            }
+
+            return EnsureBoundaries(chargeNeeded);
+        }
+
         /// <summary>
         /// The previous session is a charging session. The next a discharging session. Handle it.
         /// </summary>
         private void HandleChargingDischargingSessions(Session previousSession, Session nextSession)
         {
             var chargeNeeded = _batteryContainer.GetTotalCapacity();
-            double quarterNeed = _settingsConfig.EnergyNeedsPerMonth / 96; // Per quarter hour
 
             List<QuarterlyInfo> infoObjectsBetween = _sessions.GetInfoObjectsBetween(previousSession, nextSession);
+
+            double quarterNeed = ChargeNeededForObjectsBetween(infoObjectsBetween);
 
             var solarPower = infoObjectsBetween.Sum(io => io.SolarPowerInWatts);
 
@@ -1189,21 +1206,32 @@ namespace SessyController.Services
 
         private double GetEstimatePowerNeeded(List<QuarterlyInfo> infoObjects)
         {
-            var requiredEnergyPerQuarter = _settingsConfig.EnergyNeedsPerMonth / 96.0; // Per quarter hour
-
             var endOfToday = _timeZoneService.Now.Date.AddHours(24).AddSeconds(-1);
             double power = 0.0;
 
             if (!quarterlyInfos!.Any(io => io.Time > endOfToday))
             {
-                // Prices for tomorrow not known. Assume we need to calculate until noon tomorrow.
-                power = 12 * 4 * requiredEnergyPerQuarter;
+                for (var i = 0; i < 12; i++)
+                {
+                    var requiredEnergyPerQuarter = _consumptionMonitorService.EstimateConsumptionInWattsPerQuarter(endOfToday.AddHours(i));
+
+                    power += requiredEnergyPerQuarter * 4;
+                }
             }
             else
             {
-                power = infoObjects
-                            .Count(io => io.Mode == Modes.ZeroNetHome &&
-                                         io.SolarPowerInWatts < requiredEnergyPerQuarter) * requiredEnergyPerQuarter;
+                foreach (var infoObject in infoObjects
+                                            .Where(io => io.Mode == Modes.ZeroNetHome))
+                {
+                    var requiredEnergyPerQuarter = _consumptionMonitorService.EstimateConsumptionInWattsPerQuarter(infoObject.Time);
+
+                    power -= infoObject.SolarPowerInWatts;
+
+                    if (infoObject.SolarPowerInWatts < requiredEnergyPerQuarter)
+                    {
+                        power += requiredEnergyPerQuarter;
+                    }
+                }
             }
 
             return EnsureBoundaries(power);
@@ -1228,6 +1256,7 @@ namespace SessyController.Services
                                          _timeZoneService,
                                          _financialResultsService,
                                          _consumptionDataService,
+                                         _consumptionMonitorService,
                                          _energyHistoryDataService,
                                          loggerFactory);
 

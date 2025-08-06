@@ -5,14 +5,16 @@ using SessyController.Managers;
 using SessyController.Services.Items;
 using SessyData.Model;
 using SessyData.Services;
-using System.Threading;
-using static P1MeterService;
-using static SessyController.Services.WeatherService;
 
 namespace SessyController.Services
 {
     public class ConsumptionMonitorService : BackgroundService
     {
+        private const int _hourDelta = 5;
+        private const double _humidityDelta = 10.0;
+        private const double _temperatureDelta = 10.0;
+        private const double _globalRadiationDelta = 100.0;
+
         private IServiceScopeFactory _serviceScopeFactory { get; set; }
 
         public WeatherService? _weatherService { get; set; }
@@ -21,7 +23,7 @@ namespace SessyController.Services
         private P1MeterService _p1MeterService { get; set; }
         private P1MeterContainer _p1MeterContainer { get; set; }
 
-        private ConsumptionDataService _consumptionService { get; set; }
+        private ConsumptionDataService _consumptionDataService { get; set; }
 
         private SolarInverterManager _solarInverterManager { get; set; }
         private BatteryContainer _batteryContainer { get; set; }
@@ -29,7 +31,12 @@ namespace SessyController.Services
         private LoggingService<ConsumptionMonitorService> _logger { get; set; }
         private TimeZoneService _timeZoneService { get; set; }
         private IOptionsMonitor<SessyP1Config> _sessyP1ConfigMonitor { get; set; }
+
         private SessyP1Config _sessyP1Config { get; set; }
+
+        private IOptionsMonitor<SettingsConfig> _settingConfigMonitor { get; set; }
+
+        private SettingsConfig _settingConfig { get; set; }
 
         public delegate Task DataChangedDelegate();
 
@@ -41,6 +48,7 @@ namespace SessyController.Services
                                          WeatherService weatherService,
                                          TimeZoneService timeZoneService,
                                          IOptionsMonitor<SessyP1Config> sessyP1ConfigMonitor,
+                                         IOptionsMonitor<SettingsConfig> settingConfigMonitor,
                                          IServiceScopeFactory serviceScopeFactory)
         {
             _logger = logger;
@@ -48,6 +56,7 @@ namespace SessyController.Services
             _timeZoneService = timeZoneService;
             _sessyP1ConfigMonitor = sessyP1ConfigMonitor;
             _sessyP1Config = sessyP1ConfigMonitor.CurrentValue;
+            _settingConfigMonitor = settingConfigMonitor;
 
             _sessyP1ConfigMonitor.OnChange(config =>
             {
@@ -63,13 +72,29 @@ namespace SessyController.Services
                 }
             });
 
+            _settingConfig = settingConfigMonitor.CurrentValue;
+
+            settingConfigMonitor.OnChange(config =>
+            {
+                _p1Semaphore.Wait();
+
+                try
+                {
+                    _settingConfig = config;
+                }
+                finally
+                {
+                    _p1Semaphore.Release();
+                }
+            });
+
             _serviceScopeFactory = serviceScopeFactory;
 
             _scope = _serviceScopeFactory.CreateScope();
 
             _p1MeterService = _scope.ServiceProvider.GetRequiredService<P1MeterService>();
             _p1MeterContainer = new P1MeterContainer(_sessyP1ConfigMonitor, _p1MeterService);
-            _consumptionService = _scope.ServiceProvider.GetRequiredService<ConsumptionDataService>();
+            _consumptionDataService = _scope.ServiceProvider.GetRequiredService<ConsumptionDataService>();
             _solarInverterManager = _scope.ServiceProvider.GetRequiredService<SolarInverterManager>();
             _batteryContainer = _scope.ServiceProvider.GetRequiredService<BatteryContainer>();
         }
@@ -118,7 +143,7 @@ namespace SessyController.Services
             finally
             {
                 _p1Semaphore.Release();
-            }  
+            }
         }
 
         public async Task EnsureServicesAreInitialized(CancellationToken cancelationToken)
@@ -176,7 +201,7 @@ namespace SessyController.Services
                     GlobalRadiation = liveWeer?.GlobalRadiation ?? -999
                 });
 
-                _consumptionService.AddRange(consumptionList);
+                _consumptionDataService.AddRange(consumptionList);
 
                 DataChanged?.Invoke();
 
@@ -199,6 +224,77 @@ namespace SessyController.Services
             var batteryPower = await _batteryContainer.GetTotalPowerInWatts();
 
             return solarPower + netPower + batteryPower;
+        }
+
+        public double EstimateConsumptionInWattsPerQuarter(DateTime time)
+        {
+            var minHour = time.Hour - _hourDelta;
+            var maxHour = time.Hour + _hourDelta;
+            var day = time.DayOfWeek;
+            var currentWeather = _weatherService.GetCurrentWeather();
+
+            if (currentWeather != null)
+            {
+                var weather = currentWeather.Value;
+                double? minTemperature = weather.temperature - _temperatureDelta;
+                double? maxTemperature = weather.temperature + _temperatureDelta;
+                double? minHumidity = weather.humidity - _humidityDelta;
+                double? maxHumidity = weather.humidity + _humidityDelta;
+                double? minGlobalRadiation = weather.globalRadiation - _globalRadiationDelta;
+                double? maxGlobalRadiation = weather.globalRadiation + _globalRadiationDelta;
+
+                var list = _consumptionDataService.GetList((set) =>
+                {
+                    return set
+                        .Where(c => c.Time.Hour >= minHour &&
+                                    c.Time.Hour <= maxHour &&
+                                    c.Time.DayOfWeek == day &&
+                                    c.Temperature >= minTemperature &&
+                                    c.Temperature <= maxTemperature &&
+                                    c.Humidity >= minHumidity &&
+                                    c.Humidity <= maxHumidity &&
+                                    c.GlobalRadiation >= minGlobalRadiation &&
+                                    c.GlobalRadiation <= maxGlobalRadiation)
+                        .ToList();
+                });
+
+                if(list == null || list.Count == 0)
+                {
+                     list = _consumptionDataService.GetList((set) =>
+                    {
+                        return set
+                            .Where(c => c.Time.Hour >= minHour &&
+                                        c.Time.Hour <= maxHour &&
+                                        c.Time.DayOfWeek == day &&
+                                        c.Temperature >= minTemperature&&
+                                        c.Temperature <= maxTemperature &&
+                                        c.GlobalRadiation >= minGlobalRadiation &&
+                                        c.GlobalRadiation <= maxGlobalRadiation)
+                            .ToList();
+                    });
+                }
+
+                if (list == null || list.Count == 0)
+                {
+                    list = _consumptionDataService.GetList((set) =>
+                    {
+                        return set
+                            .Where(c => c.Time.Hour >= minHour &&
+                                        c.Time.Hour <= maxHour &&
+                                        c.Time.DayOfWeek == day &&
+                                        c.Temperature >= minTemperature &&
+                                        c.Temperature <= maxTemperature)
+                            .ToList();
+                    });
+                }
+
+                if (list != null && list.Count > 0)
+                {
+                    return list.Average(c => c.ConsumptionWh) / 4.0; // Per quarter hour
+                }
+            }
+
+            return (double)_settingConfig.EnergyNeedsPerMonth / 96.0; // Default to average monthly consumption
         }
     }
 }

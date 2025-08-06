@@ -20,6 +20,9 @@ namespace SessyController.Services.Items
         private TimeZoneService? _timeZoneService { get; set; }
 
         private ConsumptionDataService _consumptionDataService { get; set; }
+
+        private ConsumptionMonitorService _consumptionMonitorService { get; set; }
+
         private EnergyHistoryService _energyHistoryService { get; set; }
 
         private List<Session>? _sessionList { get; set; }
@@ -35,6 +38,7 @@ namespace SessyController.Services.Items
                         TimeZoneService? timeZoneService,
                         FinancialResultsService financialResultsService,
                         ConsumptionDataService consumptionDataService,
+                        ConsumptionMonitorService consumptionMonitorService,
                         EnergyHistoryService energyHistoryService,
                         ILoggerFactory loggerFactory)
         {
@@ -43,6 +47,7 @@ namespace SessyController.Services.Items
             _financialResultsService = financialResultsService;
             _timeZoneService = timeZoneService;
             _consumptionDataService = consumptionDataService;
+            _consumptionMonitorService = consumptionMonitorService;
             _energyHistoryService = energyHistoryService;
 
 
@@ -300,7 +305,8 @@ namespace SessyController.Services.Items
         /// </summary>
         private void CalculateZeroNetHomeProfits(List<QuarterlyInfo> lastChargingSession, QuarterlyInfo quarterlyInfo, bool save)
         {
-            var kWh = (Math.Min(_settingsConfig.EnergyNeedsPerMonth / 96, quarterlyInfo.ChargeLeft) / 1000); // Per quarter hour.
+            var quarterlyNeed = _consumptionMonitorService.EstimateConsumptionInWattsPerQuarter(quarterlyInfo.Time);
+            var kWh = (Math.Min(quarterlyNeed, quarterlyInfo.ChargeLeft) / 1000); // Per quarter hour.
             var selling = quarterlyInfo.SellingPrice * kWh;
             var buying = lastChargingSession.Count > 0 ? lastChargingSession.Average(lcs => lcs.BuyingPrice) * kWh : 0.0;
             quarterlyInfo.NetZeroHomeProfit = selling - buying;
@@ -330,7 +336,6 @@ namespace SessyController.Services.Items
 
         public double GetMaxZeroNetHomeHours(Session previousSession, Session session)
         {
-            var homeNeeds = _settingsConfig.EnergyNeedsPerMonth / 92.0; // Per quarter hour
             double currentCharge = 1.0;
 
             var first = previousSession.LastDateTime.AddHours(1);
@@ -340,6 +345,8 @@ namespace SessyController.Services.Items
 
             foreach (var quarterlyInfo in _hourlyInfos)
             {
+                var homeNeeds = _consumptionMonitorService.EstimateConsumptionInWattsPerQuarter(quarterlyInfo.Time);
+
                 if (quarterlyInfo.Time >= first && quarterlyInfo.Time <= last && currentCharge >= 0)
                 {
                     if (firstTime)
