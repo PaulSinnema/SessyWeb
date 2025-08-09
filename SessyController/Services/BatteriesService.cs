@@ -857,15 +857,15 @@ namespace SessyController.Services
                 {
                     if (lastSession.Mode == Modes.Charging && session.Mode == Modes.Discharging)
                     {
-                        using var chargeEnumerator = lastSession.GetHourlyInfoList().OrderBy(hi => hi.BuyingPrice).ToList().GetEnumerator();
-                        using var dischargeEnumerator = session.GetHourlyInfoList().OrderByDescending(hi => hi.BuyingPrice).ToList().GetEnumerator();
+                        using var chargeEnumerator = lastSession.GetHourlyInfoList().OrderBy(hi => hi.Price).ToList().GetEnumerator();
+                        using var dischargeEnumerator = session.GetHourlyInfoList().OrderByDescending(hi => hi.Price).ToList().GetEnumerator();
 
                         var hasCharging = chargeEnumerator.MoveNext();
                         var hasDischarging = dischargeEnumerator.MoveNext();
 
                         while (hasCharging && hasDischarging)
                         {
-                            if (chargeEnumerator.Current.BuyingPrice + _settingsConfig.CycleCost > dischargeEnumerator.Current.SellingPrice)
+                            if (chargeEnumerator.Current.Price + _settingsConfig.CycleCost > dischargeEnumerator.Current.Price)
                             {
                                 session.RemoveQuarterlyInfo(dischargeEnumerator.Current);
 
@@ -905,7 +905,7 @@ namespace SessyController.Services
                     case Modes.Charging:
                         {
                             listToLimit = session.GetHourlyInfoList()
-                                .OrderByDescending(hp => hp.BuyingPrice)
+                                .OrderByDescending(hp => hp.Price)
                                 .ThenBy(hp => hp.Time)
                                 .ToList();
 
@@ -915,7 +915,7 @@ namespace SessyController.Services
                     case Modes.Discharging:
                         {
                             listToLimit = session.GetHourlyInfoList()
-                                .OrderBy(hp => hp.SellingPrice)
+                                .OrderBy(hp => hp.Price)
                                 .ThenBy(hp => hp.Time)
                                 .ToList();
 
@@ -1213,7 +1213,7 @@ namespace SessyController.Services
 
         private double GetEstimatePowerNeeded(List<QuarterlyInfo> infoObjectsBetween)
         {
-            var endOfToday = _timeZoneService.Now.Date.AddHours(24);
+            var endOfToday = _timeZoneService.Now.Date.AddHours(24).AddSeconds(-1);
             double power = 0.0;
 
             if (!PricesForTomorrowAvailable())

@@ -11,18 +11,11 @@ namespace SessyWeb.Components
         public string _graphStyle = "min-width: 250px; visibility: hidden;";
 
         [Parameter]
-        public string GraphStyle 
-        { 
-            get => _graphStyle;
-            set
-            {
-                if (_graphStyle != value)
-                {
-                    _graphStyle = value;
+        public string? GraphStyle { get; set; }
 
-                    StateHasChanged();
-                }
-            }
-        } 
+        protected override void OnParametersSet()
+        {
+            StateHasChanged();
+        }
     }
 }

@@ -52,11 +52,15 @@ namespace SessyController.Services.Items
         /// </summary>
         public double MarketPrice { get; private set; }
 
-        public double BuyingPrice { get; private set; }
+        private double BuyingPrice { get; set; }
+        private double SellingPrice { get; set; }
+        public double Price => Charging ? BuyingPrice : SellingPrice;
 
-        public double SellingPrice { get; private set; }
+        private double SmoothedBuyingPrice { get; set; }
+        private double SmoothedSellingPrice { get; set; }
+        public double SmoothedPrice => Charging ? SmoothedBuyingPrice : SmoothedSellingPrice;
 
-        public double SmoothedPrice { get; private set; }
+
         public double SmoothedSolarPower { get; set; }
 
         /// <summary>
@@ -177,7 +181,8 @@ namespace SessyController.Services.Items
             Selling = 0.0;
             ChargeLeft = 0.0;
             SolarGlobalRadiation = 0.0;
-            SmoothedPrice = 0.0;
+            SmoothedBuyingPrice = 0.0;
+            SmoothedSellingPrice = 0.0;
         }
 
         public Modes Mode
@@ -251,9 +256,11 @@ namespace SessyController.Services.Items
 
                 var range = hourlyInfos.Skip(start).Take(end - start + 1);
 
-                double average = range.Count() > 0 ? range.Average(h => h.BuyingPrice) : 0.0;
+                double buyingAverage = range.Count() > 0 ? range.Average(h => h.BuyingPrice) : 0.0;
+                double sellingAverage = range.Count() > 0 ? range.Average(h => h.SellingPrice) : 0.0;
 
-                hourlyInfos[i].SmoothedPrice = average;
+                hourlyInfos[i].SmoothedBuyingPrice = buyingAverage;
+                hourlyInfos[i].SmoothedSellingPrice = sellingAverage;
             }
         }
 

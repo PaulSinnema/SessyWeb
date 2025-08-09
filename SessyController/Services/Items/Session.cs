@@ -123,7 +123,7 @@ namespace SessyController.Services.Items
         /// <summary>
         /// The average price of all hourly prices in the session.
         /// </summary>
-        public double AveragePrice => SessionHourlyInfos.Count > 0 ? SessionHourlyInfos.Average(hp => hp.BuyingPrice) : 0.0;
+        public double AveragePrice => SessionHourlyInfos.Count > 0 ? SessionHourlyInfos.Average(hp => hp.Price) : 0.0;
 
         /// <summary>
         /// First quarterlyInfo object in the session.
@@ -143,9 +143,9 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Returns true if any of the prices is negative.
         /// </summary>
-        public bool PricesAnyNegative => SessionHourlyInfos.Any(hi => hi.BuyingPrice < 0.0);
+        public bool PricesAnyNegative => SessionHourlyInfos.Any(hi => hi.Price < 0.0);
 
-        public bool PricesAllPositive => SessionHourlyInfos.All(hi => hi.BuyingPrice >= 0.0);
+        public bool PricesAllPositive => SessionHourlyInfos.All(hi => hi.Price >= 0.0);
 
         /// <summary>
         /// The last date in the session
@@ -221,10 +221,10 @@ namespace SessyController.Services.Items
             switch (Mode)
             {
                 case Modes.Charging:
-                    return SessionHourlyInfos.Average(hi => hi.BuyingPrice) < session.SessionHourlyInfos.Average(hi => hi.BuyingPrice);
+                    return SessionHourlyInfos.Average(hi => hi.Price) < session.SessionHourlyInfos.Average(hi => hi.Price);
 
                 case Modes.Discharging:
-                    return SessionHourlyInfos.Average(hi => hi.SellingPrice) > session.SessionHourlyInfos.Average(hi => hi.SellingPrice);
+                    return SessionHourlyInfos.Average(hi => hi.Price) > session.SessionHourlyInfos.Average(hi => hi.Price);
 
                 default:
                     throw new InvalidOperationException($"Wrong mode: {Mode}");
@@ -281,7 +281,7 @@ namespace SessyController.Services.Items
                 case Modes.Charging:
                     {
                         var list = hourlyInfos
-                            .OrderByDescending(hi => hi.BuyingPrice)
+                            .OrderByDescending(hi => hi.Price)
                             .ThenBy(hi => hi.Time)
                             .ToList();
 
@@ -293,7 +293,7 @@ namespace SessyController.Services.Items
                 case Modes.Discharging:
                     {
                         var list = hourlyInfos
-                            .OrderBy(hi => hi.SellingPrice)
+                            .OrderBy(hi => hi.Price)
                             .ThenBy(hi => hi.Time)
                             .ToList();
 

@@ -30,7 +30,7 @@ namespace SessyController.Services.Items
         private int _maxDischargingQuarters { get; set; }
         private double _cycleCost { get; set; }
 
-        private List<QuarterlyInfo> _hourlyInfos { get; set; }
+        private List<QuarterlyInfo> _quarterlyInfos { get; set; }
 
         public Sessions(List<QuarterlyInfo> hourlyInfos,
                         SettingsConfig settingsConfig,
@@ -52,7 +52,7 @@ namespace SessyController.Services.Items
 
 
             _sessionList = new List<Session>();
-            _hourlyInfos = hourlyInfos;
+            _quarterlyInfos = hourlyInfos;
             _totalChargingCapacityPerQuarter = batteryContainer.GetChargingCapacityInWatts() / 4.0; // Per quarter hour.
             _totalDischargingCapacityPerQuarter = batteryContainer.GetDischargingCapacityInWatts() / 4.0; // Per quarter hour.
             _totalBatteryCapacity = batteryContainer.GetTotalCapacity();
@@ -66,7 +66,7 @@ namespace SessyController.Services.Items
 
         public double TotalRevenue(DateTime date)
         {
-            return _hourlyInfos
+            return _quarterlyInfos
                     .Where(hi => hi.Time.Date == date.Date)
                     .Sum(hi => hi.Profit);
         }
@@ -85,7 +85,7 @@ namespace SessyController.Services.Items
         {
             var localTime = _timeZoneService.Now.DateFloorQuarter();
 
-            var quarterlyInfo = _hourlyInfos?
+            var quarterlyInfo = _quarterlyInfos?
                 .FirstOrDefault(hp => hp.Time == localTime);
 
             if (quarterlyInfo == null)
@@ -143,7 +143,7 @@ namespace SessyController.Services.Items
         /// </summary>
         public QuarterlyInfo? GetPreviousHourlyInfo(QuarterlyInfo currentHourlyInfo)
         {
-            return _hourlyInfos
+            return _quarterlyInfos
                 .Where(hi => hi.Time < currentHourlyInfo.Time)
                 .OrderByDescending(hi => hi.Time)
                 .FirstOrDefault();
@@ -188,7 +188,7 @@ namespace SessyController.Services.Items
                             Session session = new Session(this, _timeZoneService!, mode, _maxChargingQuarters, _batteryContainer, _settingsConfig);
                             _sessionList.Add(session);
                             session.AddHourlyInfo(quarterlyInfo);
-                            CompleteSession(session, _hourlyInfos, _maxChargingQuarters, _cycleCost);
+                            CompleteSession(session, _quarterlyInfos, _maxChargingQuarters, _cycleCost);
                             break;
                         }
 
@@ -197,7 +197,7 @@ namespace SessyController.Services.Items
                             Session session = new Session(this, _timeZoneService!, mode, _maxDischargingQuarters, _batteryContainer, _settingsConfig);
                             _sessionList.Add(session);
                             session.AddHourlyInfo(quarterlyInfo);
-                            CompleteSession(session, _hourlyInfos, _maxDischargingQuarters, _cycleCost);
+                            CompleteSession(session, _quarterlyInfos, _maxDischargingQuarters, _cycleCost);
                             break;
                         }
 
@@ -220,7 +220,7 @@ namespace SessyController.Services.Items
             var localTimeHour = localTime.Date.AddHours(localTime.Hour);
             QuarterlyInfo? previousHour = null;
 
-            foreach (var quarterlyInfo in _hourlyInfos
+            foreach (var quarterlyInfo in _quarterlyInfos
                 .OrderBy(hi => hi.Time))
             {
                 switch (quarterlyInfo.Mode)
@@ -257,7 +257,7 @@ namespace SessyController.Services.Items
             double kWh = GetChargingCapacityInKWh(previousQuarter);
 
             quarterlyInfo.Selling = 0.00;
-            quarterlyInfo.Buying = kWh * quarterlyInfo.BuyingPrice;
+            quarterlyInfo.Buying = kWh * quarterlyInfo.Price;
 
             if (lastChargingSession.Count > 0)
             {
@@ -296,7 +296,7 @@ namespace SessyController.Services.Items
         {
             var totalDischargingCapacity = Math.Min(_totalDischargingCapacityPerQuarter, quarterlyInfo.ChargeLeft - quarterlyInfo.ChargeNeeded) / 1000;
 
-            quarterlyInfo.Selling = totalDischargingCapacity * quarterlyInfo.SellingPrice;
+            quarterlyInfo.Selling = totalDischargingCapacity * quarterlyInfo.Price;
             quarterlyInfo.Buying = 0.00;
         }
 
@@ -307,8 +307,8 @@ namespace SessyController.Services.Items
         {
             var quarterlyNeed = _consumptionMonitorService.EstimateConsumptionInWattsPerQuarter(quarterlyInfo.Time);
             var kWh = (Math.Min(quarterlyNeed, quarterlyInfo.ChargeLeft) / 1000); // Per quarter hour.
-            var selling = quarterlyInfo.SellingPrice * kWh;
-            var buying = lastChargingSession.Count > 0 ? lastChargingSession.Average(lcs => lcs.BuyingPrice) * kWh : 0.0;
+            var selling = quarterlyInfo.Price * kWh;
+            var buying = lastChargingSession.Count > 0 ? lastChargingSession.Average(lcs => lcs.Price) * kWh : 0.0;
             quarterlyInfo.NetZeroHomeProfit = selling - buying;
 
             if (save)
@@ -343,7 +343,7 @@ namespace SessyController.Services.Items
             var hours = 0;
             var firstTime = true;
 
-            foreach (var quarterlyInfo in _hourlyInfos)
+            foreach (var quarterlyInfo in _quarterlyInfos)
             {
                 var homeNeeds = _consumptionMonitorService.EstimateConsumptionInWattsPerQuarter(quarterlyInfo.Time);
 
@@ -375,7 +375,8 @@ namespace SessyController.Services.Items
 
             var now = _timeZoneService.Now;
             var selectDateHour = now.Date.AddHours(now.Hour).AddMinutes(-15);
-            var index = hourlyInfos.IndexOf(session.GetHourlyInfoList().First());
+            var list = session.GetHourlyInfoList();
+            var index = hourlyInfos.IndexOf(list.First());
             var prev = index - 1;
             var next = index + 1;
 
@@ -469,7 +470,7 @@ namespace SessyController.Services.Items
         /// </summary>
         public List<QuarterlyInfo> GetInfoObjectsBetween(Session previousSession, Session nextSession)
         {
-            return _hourlyInfos!
+            return _quarterlyInfos!
                 .Where(hi => hi.Time < nextSession.FirstDateTime && hi.Time > previousSession.LastDateTime)
                 .ToList();
         }
@@ -479,7 +480,7 @@ namespace SessyController.Services.Items
         /// </summary>
         public List<QuarterlyInfo> GetInfoObjectsAfter(Session session)
         {
-            return _hourlyInfos!
+            return _quarterlyInfos!
                 .Where(hi => hi.Time > session.LastDateTime)
                 .ToList();
         }
@@ -503,9 +504,9 @@ namespace SessyController.Services.Items
                 .GetRange(start, end - start);
 
             if (list.Count > 0)
-                return list.Average(hi => hi.BuyingPrice);
+                return list.Average(hi => hi.Price);
 
-            return hourlyInfos[index].BuyingPrice;
+            return hourlyInfos[index].Price;
         }
 
         /// <summary>
