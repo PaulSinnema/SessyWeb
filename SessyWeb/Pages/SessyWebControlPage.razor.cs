@@ -28,18 +28,20 @@ namespace SessyWeb.Pages
                 await sessyWebControlGrid!.FirstPage();
         }
 
-        void LoadData(LoadDataArgs args)
+        async Task LoadData(LoadDataArgs args)
         {
             EnsureEnergyGrid();
 
             var now = _timeZoneService!.Now;
             var filter = sessyWebControlGrid!.ColumnsCollection;
 
-            SessyWebControlList = _sessyWebControlDataService!.GetList((set) =>
+            SessyWebControlList = await _sessyWebControlDataService!.GetList(async (set) =>
             {
-                var query = set
+                var result = set
                     .OrderBy(eh => eh.Time)
                     .AsQueryable();
+
+                var query = await Task.FromResult(result);
 
                 if (!string.IsNullOrEmpty(args.Filter))
                 {

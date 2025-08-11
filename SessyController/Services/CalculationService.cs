@@ -25,13 +25,18 @@ namespace SessyController.Services
         /// Calculate the price including overhead cost.
         /// Returns null if prices, taxes or overhead cost are missing.
         /// </summary>
-        public double? CalculateEnergyPrice(DateTime time, bool buying, bool includeOverheadCosts = false)
+        public async Task<double?> CalculateEnergyPrice(DateTime time, bool buying, bool includeOverheadCosts = false)
         {
             if (_epexPrice == null || _epexPrice.Time != time)
-                _epexPrice = _epexPricesDataService.Get((set) => set.FirstOrDefault(ep => ep.Time == time));
+                _epexPrice = await _epexPricesDataService.Get(async (set) =>
+                {
+                    var result = set.FirstOrDefault(ep => ep.Time == time);
+
+                    return await Task.FromResult(result);
+                });
 
             if (_taxes == null || _taxes.Time != time)
-                _taxes = _taxesDataService.GetTaxesForDate(time);
+                _taxes = await _taxesDataService.GetTaxesForDate(time);
 
             if (_epexPrice != null && _taxes != null && _epexPrice.Price.HasValue)
             {

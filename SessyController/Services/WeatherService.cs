@@ -122,9 +122,9 @@ namespace SessyController.Services
             }
         }
 
-        public WeerData? GetWeatherData()
+        public async Task<WeerData?> GetWeatherData()
         {
-            WeatherDataSemaphore.Wait();
+            await WeatherDataSemaphore.WaitAsync();
 
             try
             {

@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Options;
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using SessyCommon.Extensions;
 using SessyController.Configurations;
 using SessyController.Services.InverterServices;
@@ -90,8 +91,6 @@ namespace SessyController.Services
 
             _taxesService = taxesService;
 
-            _taxes = _taxesService.GetTaxesForDate(_timeZoneService.Now.Date);
-
             _settingsConfig = _settingsConfigMonitor.CurrentValue;
 
             _settingsConfigMonitorSubscription = _settingsConfigMonitor.OnChange((settings) => _settingsConfig = settings);
@@ -104,9 +103,11 @@ namespace SessyController.Services
         /// </summary>
         protected override async Task ExecuteAsync(CancellationToken cancelationToken)
         {
+            _taxes = await _taxesService.GetTaxesForDate(_timeZoneService.Now.Date);
+
             _logger.LogWarning("EPEX Hourly Infos Service started ...");
 
-            // TemporaryRemoveAllNoneWholeHours();
+            // await TemporaryRemoveAllNoneWholeHours();
 
             // Loop to fetch prices every day
             while (!cancelationToken.IsCancellationRequested)
@@ -150,16 +151,18 @@ namespace SessyController.Services
         }
 
 
-        private void TemporaryRemoveAllNoneWholeHours()
+        private async Task TemporaryRemoveAllNoneWholeHours()
         {
-            var list = _epexPricesDataService.GetList((set) =>
+            var list = await _epexPricesDataService.GetList(async (set) =>
             {
-                return set.ToList();
+                var result = set.ToList();
+
+                return await Task.FromResult(result);
             });
 
             list = list.Where(pr => pr.Time.DateHour() != pr.Time).ToList();
 
-            _epexPricesDataService.Remove(list, (item, set) =>
+            await _epexPricesDataService.Remove(list, (item, set) =>
             {
                 return set.Where(pr => pr.Id == item.Id).FirstOrDefault();
             });
@@ -278,9 +281,9 @@ namespace SessyController.Services
         /// <summary>
         /// Get the fetched prices for yesterday, today and tomorrow (if present) as a sorted list.
         /// </summary>
-        public List<QuarterlyInfo> GetPrices()
+        public async Task<List<QuarterlyInfo>> GetPrices()
         {
-            GetPricesSemaphore.Wait();
+            await GetPricesSemaphore.WaitAsync();
 
             try
             {
@@ -290,24 +293,20 @@ namespace SessyController.Services
                 var start = now.AddDays(-1).Date;
                 var end = now.AddDays(1).Date.AddHours(23).AddMinutes(45);
 
-                var data = _epexPricesDataService.GetList((set) =>
+                var result = await _epexPricesDataService.GetList(async (set) =>
                 {
-                    return set
+                    var result = set
                         .Where(ep => ep.Time >= start && ep.Time <= end)
                         .ToList();
+
+                    return await Task.FromResult(result);
                 });
+
+                var data = await Task.FromResult(result);
 
                 if (data != null)
                 {
-                    hourlyInfos = data.OrderBy(ep => ep.Time)
-                        .Select(ep => new QuarterlyInfo(ep.Time,
-                                                     ep!.Price!.Value,
-                                                     _settingsConfig,
-                                                     _batteryContainer,
-                                                     _solarEdgeService,
-                                                     _timeZoneService,
-                                                     _calculationService))
-                        .ToList();
+                    hourlyInfos = await BuildQuarterliesAsync(data);
 
                     return hourlyInfos;
                 }
@@ -318,6 +317,27 @@ namespace SessyController.Services
             {
                 GetPricesSemaphore.Release();
             }
+        }
+
+        public async Task<List<QuarterlyInfo>> BuildQuarterliesAsync(List<EPEXPrices> list)
+        {
+            if (list == null) return new List<QuarterlyInfo>();
+
+            var ordered = list.OrderBy(ep => ep.Time).ToList();
+
+            var tasks = ordered.Select(ep =>
+                QuarterlyInfo.CreateAsync(
+                    ep.Time,
+                    ep!.Price!.Value,
+                    _settingsConfig,
+                    _batteryContainer,
+                    _solarEdgeService,
+                    _timeZoneService,
+                    _calculationService));
+
+            var hourlyInfos = (await Task.WhenAll(tasks)).ToList();
+
+            return hourlyInfos;
         }
 
         /// <summary>

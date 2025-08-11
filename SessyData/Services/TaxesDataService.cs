@@ -10,16 +10,16 @@ namespace SessyData.Services
         /// <summary>
         /// Get the active Tax record for a date. Returns null if no record is found.
         /// </summary>
-        public Taxes? GetTaxesForDate(DateTime time)
+        public async Task<Taxes?> GetTaxesForDate(DateTime time)
         {
-            return Get((set) =>
+            return await Get(async (set) =>
             {
                 var result = set
                     .Where(tx => tx.Time <= time)
                     .OrderByDescending(tx => tx.Time)
                     .FirstOrDefault();
 
-                return result;
+                return await Task.FromResult(result);
             });
         }
     }

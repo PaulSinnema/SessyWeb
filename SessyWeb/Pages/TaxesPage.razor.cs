@@ -28,19 +28,22 @@ namespace SessyWeb.Pages
 
         protected override async Task OnAfterRenderAsync(bool firstRender)
         {
-            AddRowFor2025();
+            await AddRowFor2025();
 
             if (firstRender)
                 await taxesGrid!.FirstPage(true);
         }
 
-        private void AddRowFor2025()
+        private async Task AddRowFor2025()
         {
-            var list = _taxesService!.GetList((set => { return set.ToList(); }));
+            var list = await _taxesService!.GetList((async set => 
+            {
+                return await Task.FromResult(set.ToList()); 
+            }));
 
             if (list.Count == 0)
             {
-                _taxesService.Add(new List<Taxes>
+                await _taxesService.Add(new List<Taxes>
                                         {
                                             new Taxes
                                             {
@@ -54,7 +57,7 @@ namespace SessyWeb.Pages
                                         },
                                     (tax, set) => { return false; });
 
-                taxesGrid!.Reload();
+                await taxesGrid!.Reload();
             }
         }
 
@@ -68,11 +71,13 @@ namespace SessyWeb.Pages
 
             var filter = taxesGrid!.ColumnsCollection;
 
-            TaxesList = _taxesService!.GetList((set) =>
+            TaxesList = await _taxesService!.GetList(async (set) =>
             {
-                var query = set
+                var result = set
                     .OrderBy(eh => eh.Time)
                     .AsQueryable();
+
+                var query = await Task.FromResult(result);
 
                 if (!string.IsNullOrEmpty(args.Filter))
                 {
@@ -126,7 +131,7 @@ namespace SessyWeb.Pages
         async Task DeleteRow(Taxes taxes)
         {
             if(taxes.Id != 0)
-                _taxesService!.Remove(new List<Taxes> { taxes }, (item, set) => set.Where(eh => eh.Id == item.Id).FirstOrDefault());
+                await _taxesService!.Remove(new List<Taxes> { taxes }, (item, set) => set.Where(eh => eh.Id == item.Id).FirstOrDefault());
 
             await taxesGrid!.Reload();
         }

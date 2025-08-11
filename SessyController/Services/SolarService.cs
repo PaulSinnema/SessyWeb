@@ -94,17 +94,19 @@ namespace SessyController.Services
         /// <summary>
         /// Retrieve the actual measured solar power for a period.
         /// </summary>
-        public double GetRealizedSolarPower(DateTime start, DateTime end)
+        public async Task<double> GetRealizedSolarPower(DateTime start, DateTime end)
         {
             try
             {
                 var solarPower = 0.0;
-                var list = _solarEdgeDataService.GetList((set) =>
+                var list = await _solarEdgeDataService.GetList(async (set) =>
                 {
-                    return set
+                    var result = set
                             .Where(sd => sd.Time >= start && sd.Time <= end)
                             .OrderBy(sd => sd.Time)
                             .ToList();
+
+                    return await Task.FromResult(result);
                 });
 
                 SolarInverterData? previousSolarData = null;
@@ -129,11 +131,11 @@ namespace SessyController.Services
             }
         }
 
-        public void GetExpectedSolarPower(List<QuarterlyInfo> hourlyInfos)
+        public async Task GetExpectedSolarPower(List<QuarterlyInfo> hourlyInfos)
         {
-            GetEstimatesForSolarPower(hourlyInfos);
+            await GetEstimatesForSolarPower(hourlyInfos);
 
-            ApplyPerformanceFactor(hourlyInfos, _timeZoneService.Now);
+            await ApplyPerformanceFactor(hourlyInfos, _timeZoneService.Now);
 
             AddSmoothedSolarPower(hourlyInfos, 8);
         }
@@ -162,19 +164,21 @@ namespace SessyController.Services
         ///     - Position (longitude, latitude)
         /// - Negative prices assessment
         /// </summary>
-        private void GetEstimatesForSolarPower(List<QuarterlyInfo> hourlyInfos)
+        private async Task GetEstimatesForSolarPower(List<QuarterlyInfo> hourlyInfos)
         {
             if (_weatherService.Initialized && _dayAheadMarketService.PricesAvailable)
             {
                 var startDate = hourlyInfos.Min(hi => hi.Time);
                 var endDate = hourlyInfos.Max(hi => hi.Time);
 
-                var data = _solarDataService.GetList((set) =>
+                var data = await _solarDataService.GetList(async (set) =>
                 {
-                    return set
+                    var result = set
                         .Where(sd => sd.Time >= startDate && sd.Time <= endDate)
                         .OrderBy(sd => sd.Time)
                         .ToList();
+
+                    return await Task.FromResult(result);
                 });
 
                 if (data != null)
@@ -210,7 +214,7 @@ namespace SessyController.Services
             }
         }
 
-        private void ApplyPerformanceFactor(List<QuarterlyInfo> hourlyInfos, DateTime now)
+        private async Task ApplyPerformanceFactor(List<QuarterlyInfo> hourlyInfos, DateTime now)
         {
             // Only quarter hours of today
             var todayInfos = hourlyInfos
@@ -235,7 +239,7 @@ namespace SessyController.Services
             var forecastToNow = pastInfos.Sum(q => q.SolarPowerPerQuarterHour);
 
             // Sum of measured solar power
-            var realizedToNow = GetRealizedSolarPower(
+            var realizedToNow = await GetRealizedSolarPower(
                 pastInfos.Min(q => q.Time),
                 pastInfos.Max(q => q.Time.AddMinutes(15))
             );

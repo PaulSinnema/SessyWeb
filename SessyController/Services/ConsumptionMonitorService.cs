@@ -128,7 +128,7 @@ namespace SessyController.Services
 
         private async Task Process(CancellationToken cancelationToken)
         {
-            _p1Semaphore.Wait();
+            await _p1Semaphore.WaitAsync();
 
             try
             {
@@ -183,7 +183,7 @@ namespace SessyController.Services
                                             .Average(c => c.ConsumptionWh);
 
                 var p1Details = await _p1MeterContainer.GetDetails(p1Meter.Id!);
-                var weatherData = _weatherService.GetWeatherData();
+                var weatherData = await _weatherService.GetWeatherData();
 
                 var liveWeer = weatherData?.LiveWeer?.FirstOrDefault();
 
@@ -201,7 +201,7 @@ namespace SessyController.Services
                     GlobalRadiation = liveWeer?.GlobalRadiation ?? -999
                 });
 
-                _consumptionDataService.AddRange(consumptionList);
+                await _consumptionDataService.AddRange(consumptionList);
 
                 DataChanged?.Invoke();
 
@@ -226,85 +226,108 @@ namespace SessyController.Services
             return solarPower + netPower + batteryPower;
         }
 
-        public double GetHumidity(double? temperature)
+        public async Task<double> GetHumidity(double? temperature)
         {
-            var list = _consumptionDataService.GetList((set) =>
+            var list = await _consumptionDataService.GetList(async (set) =>
             {
-                return set
+                var result = set
                     .Where(c => c.Temperature >= temperature - _temperatureDelta &&
                                 c.Temperature <= temperature + _temperatureDelta)
                     .ToList();
+
+                return await Task.FromResult(result);
             });
 
             return list.Average(c => c.Humidity);
         }
 
-        public double EstimateConsumptionInWattsPerQuarter(DateTime time)
+        private class ConsumptionCacheItem
         {
-            var minHour = time.Hour - _hourDelta;
-            var maxHour = time.Hour + _hourDelta;
-            var minYear = time.Year - 1;
-            var dayOfWeek = time.DayOfWeek;
-            var currentWeather = _weatherService.GetCurrentWeather();
+            public DateTime FirstTime { get; set; }
+            public DateTime LastTime { get; set; }
+            public List<Consumption> Consumptions { get; set; } = new List<Consumption>();
+        }
 
-            if (currentWeather != null)
+        public async Task EstimateConsumptionInWattsPerQuarter(List<QuarterlyInfo> quarterlyInfos)
+        {
+            foreach (var quarterlyInfo in quarterlyInfos)
             {
-                var weather = currentWeather.Value;
-                double? minTemperature = weather.temperature - _temperatureDelta;
-                double? maxTemperature = weather.temperature + _temperatureDelta;
-                double? humidity = GetHumidity(weather.temperature);
-                double? minHumidity = humidity - _humidityDelta;
-                double? maxHumidity = humidity + _humidityDelta;
-                double? minGlobalRadiation = weather.globalRadiation - _globalRadiationDelta;
-                double? maxGlobalRadiation = weather.globalRadiation + _globalRadiationDelta;
+                await Task.Delay(1);
 
-                var list = _consumptionDataService.GetList((set) =>
+                var minHour = quarterlyInfo.Time.Hour - _hourDelta;
+                var maxHour = quarterlyInfo.Time.Hour + _hourDelta;
+                var minYear = quarterlyInfo.Time.Year - 1;
+                var dayOfWeek = quarterlyInfo.Time.DayOfWeek;
+                var currentWeather = await _weatherService.GetWeatherData();
+
+                if (currentWeather != null)
                 {
-                    return set
-                        .Where(c => c.Time.Year >= minYear &&
-                                    c.Time.Hour >= minHour &&
-                                    c.Time.Hour <= maxHour &&
-                                    c.Time.DayOfWeek == dayOfWeek &&
-                                    c.ConsumptionWh > 0.0)
-                        .ToList();
-                });
+                    var uurverwachting = currentWeather.UurVerwachting
+                        .FirstOrDefault(u => u.TimeStamp!.Value.Hour == quarterlyInfo.Time.Hour &&
+                                             u.TimeStamp!.Value.DayOfWeek == quarterlyInfo.Time.DayOfWeek);
 
-                var subset = list.Where(c => c.Temperature >= minTemperature &&
-                                             c.Temperature <= maxTemperature &&
-                                             c.Humidity >= minHumidity &&
-                                             c.Humidity <= maxHumidity &&
-                                             c.GlobalRadiation >= minGlobalRadiation &&
-                                             c.GlobalRadiation <= maxGlobalRadiation)
-                                 .ToList();
-
-                if (subset == null || subset.Count == 0)
-                {
-                    subset = list.Where(c => c.Temperature >= minTemperature &&
-                                             c.Temperature <= maxTemperature &&
-                                             c.GlobalRadiation >= minGlobalRadiation &&
-                                             c.GlobalRadiation <= maxGlobalRadiation)
-                                .ToList();
-                }
-
-                if (subset == null || subset.Count == 0)
-                {
-                    subset = list.Where(c => c.Temperature >= minTemperature &&
-                                             c.Temperature <= maxTemperature)
-                                .ToList();
-                }
-
-                if (subset != null && subset.Count > 0)
-                {
-                    var average = subset.Average(c => c.ConsumptionWh) / 4.0; // Per quarter hour
-
-                    if (average > 0)
+                    if (uurverwachting != null)
                     {
-                        return average;
+                        double? minTemperature = uurverwachting.Temp - _temperatureDelta;
+                        double? maxTemperature = uurverwachting.Temp + _temperatureDelta;
+                        double? humidity = await GetHumidity(uurverwachting.Temp);
+                        double? minHumidity = humidity - _humidityDelta;
+                        double? maxHumidity = humidity + _humidityDelta;
+                        double? minGlobalRadiation = uurverwachting.GlobalRadiation - _globalRadiationDelta;
+                        double? maxGlobalRadiation = uurverwachting.GlobalRadiation + _globalRadiationDelta;
+
+                        var list = await _consumptionDataService.GetList(async (set) =>
+                        {
+                            var result = set
+                                .Where(c => c.Time.Year >= minYear &&
+                                            c.Time.Hour >= minHour &&
+                                            c.Time.Hour <= maxHour &&
+                                            c.Time.DayOfWeek == dayOfWeek &&
+                                            c.ConsumptionWh > 0.0)
+                                .ToList();
+
+                            return await Task.FromResult(result);
+                        });
+
+                        var subset = list.Where(c => c.Temperature >= minTemperature &&
+                                                     c.Temperature <= maxTemperature &&
+                                                     c.Humidity >= minHumidity &&
+                                                     c.Humidity <= maxHumidity &&
+                                                     c.GlobalRadiation >= minGlobalRadiation &&
+                                                     c.GlobalRadiation <= maxGlobalRadiation)
+                                         .ToList();
+
+                        if (subset == null || subset.Count == 0)
+                        {
+                            subset = list.Where(c => c.Temperature >= minTemperature &&
+                                                     c.Temperature <= maxTemperature &&
+                                                     c.GlobalRadiation >= minGlobalRadiation &&
+                                                     c.GlobalRadiation <= maxGlobalRadiation)
+                                        .ToList();
+                        }
+
+                        if (subset == null || subset.Count == 0)
+                        {
+                            subset = list.Where(c => c.Temperature >= minTemperature &&
+                                                     c.Temperature <= maxTemperature)
+                                        .ToList();
+                        }
+
+                        if (subset != null && subset.Count > 0)
+                        {
+                            var average = subset.Average(c => c.ConsumptionWh) / 4.0; // Per quarter hour
+
+                            if (average > 0)
+                            {
+                                quarterlyInfo.EstimatedConsumptionPerQuarterHour = average;
+                                continue;
+                            }
+                        }
                     }
+
+                    quarterlyInfo.EstimatedConsumptionPerQuarterHour = _settingConfig.EnergyNeedsPerMonth / 96.0; // Default to average monthly consumption
                 }
             }
-
-            return (double)_settingConfig.EnergyNeedsPerMonth / 96.0; // Default to average monthly consumption
         }
     }
 }

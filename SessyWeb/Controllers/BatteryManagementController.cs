@@ -58,9 +58,9 @@ namespace SessyWeb.Controllers
         /// Gets the prices fetched by the background service.
         /// </summary>
         [HttpGet("DayAheadMarketService", Name = "GetPrizes")]
-        public List<QuarterlyInfo> GetPrizes()
+        public async Task<List<QuarterlyInfo>> GetPrizes()
         {
-            return _dayAheadMarketService.GetPrices();
+            return await _dayAheadMarketService.GetPrices();
         }
 
         #endregion
@@ -335,9 +335,9 @@ namespace SessyWeb.Controllers
         /// Gets the weatherdata from the free WeerOnline API.
         /// </summary>
         [HttpGet("SunExpectancyService:GetWeatherData", Name = "GetWeatherData")]
-        public IActionResult GetWeatherData()
+        public async Task<IActionResult> GetWeatherData()
         {
-            WeerData? weatherData = _weatherService.GetWeatherData();
+            WeerData? weatherData = await _weatherService.GetWeatherData();
 
             return Ok(weatherData);
         }

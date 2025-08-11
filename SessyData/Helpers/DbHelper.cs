@@ -18,9 +18,9 @@ namespace SessyData.Helpers
 
         private SemaphoreSlim dbHelperSemaphore = new SemaphoreSlim(1);
 
-        public void ExecuteTransaction(Action<ModelContext> action)
+        public async Task ExecuteTransaction(Action<ModelContext> action)
         {
-            dbHelperSemaphore.Wait();
+            await dbHelperSemaphore.WaitAsync();
 
             try
             {

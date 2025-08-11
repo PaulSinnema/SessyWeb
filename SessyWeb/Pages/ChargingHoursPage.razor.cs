@@ -189,8 +189,8 @@ namespace SessyWeb.Pages
                     TotalSolarPowerExpectedToday = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(now);
                     TotalSolarPowerExpectedTomorrow = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(now.AddDays(1));
 
-                    TotalRevenueYesterday = sessions.TotalCost(now.AddDays(-1));
-                    TotalRevenueToday = sessions.TotalCost(now);
+                    TotalRevenueYesterday = await sessions.TotalCost(now.AddDays(-1));
+                    TotalRevenueToday = await sessions.TotalCost(now);
 
                     BatteryPercentage = await _batteriesService.getBatteryPercentage();
 

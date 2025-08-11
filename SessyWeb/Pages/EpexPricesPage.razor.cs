@@ -28,18 +28,20 @@ namespace SessyWeb.Pages
                 await epexPricesGrid!.FirstPage();
         }
 
-        void LoadData(LoadDataArgs args)
+        async Task LoadData(LoadDataArgs args)
         {
             EnsureEnergyGrid();
 
             var now = _timeZoneService!.Now;
             var filter = epexPricesGrid!.ColumnsCollection;
 
-            EPEXPricesList = _epexPricesDataService!.GetList((set) =>
+            EPEXPricesList = await _epexPricesDataService!.GetList(async (set) =>
             {
-                var query = set
+                var result = set
                     .OrderBy(eh => eh.Time)
                     .AsQueryable();
+
+                var query = await Task.FromResult(result);
 
                 if (!string.IsNullOrEmpty(args.Filter))
                 {
@@ -81,7 +83,7 @@ namespace SessyWeb.Pages
         {
             List<EPEXPrices> list = new List<EPEXPrices> { EPEXPrices };
 
-            _epexPricesDataService!.AddOrUpdate(list, (item, set) => set.Where(eh => eh.Id == EPEXPrices.Id).FirstOrDefault());
+            await _epexPricesDataService!.AddOrUpdate(list, (item, set) => set.Where(eh => eh.Id == EPEXPrices.Id).FirstOrDefault());
 
             await epexPricesGrid!.UpdateRow(EPEXPrices);
         }
@@ -95,7 +97,7 @@ namespace SessyWeb.Pages
 
         async Task DeleteRow(EPEXPrices EPEXPrices)
         {
-            _epexPricesDataService!.Remove(new List<EPEXPrices> { EPEXPrices }, (item, set) => set.Where(eh => eh.Id == item.Id).FirstOrDefault());
+            await _epexPricesDataService!.Remove(new List<EPEXPrices> { EPEXPrices }, (item, set) => set.Where(eh => eh.Id == item.Id).FirstOrDefault());
 
             await epexPricesGrid!.Reload();
         }

@@ -7,9 +7,9 @@ namespace SessyData.Services
     {
         public SolarEdgeDataService(IServiceScopeFactory serviceScopeFactory) : base(serviceScopeFactory) { }
 
-        public void RemoveWrongData(string providerName)
+        public async Task RemoveWrongData(string providerName)
         {
-            _dbHelper.ExecuteTransaction((db) =>
+            await _dbHelper.ExecuteTransaction((db) =>
             {
                 var itemsToRemove = db.Set<SolarInverterData>().Where(x => x.ProviderName == providerName && x.Power > 1000000).ToList();
 

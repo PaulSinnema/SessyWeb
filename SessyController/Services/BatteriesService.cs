@@ -161,18 +161,20 @@ namespace SessyController.Services
         /// </summary>
         public async Task Process(CancellationToken cancellationToken)
         {
-            if (_dayAheadMarketService != null &&_dayAheadMarketService.PricesInitialized)
+            if (_dayAheadMarketService != null && _dayAheadMarketService.PricesInitialized)
             {
                 // Prevent race conditions.
                 await HourlyInfoSemaphore.WaitAsync();
 
                 try
                 {
-                    DetermineChargingHours();
+                    await DetermineChargingHours();
 
                     if (_sessions != null)
                     {
-                        _solarService.GetExpectedSolarPower(quarterlyInfos!);
+                        await _consumptionMonitorService.EstimateConsumptionInWattsPerQuarter(quarterlyInfos!);
+
+                        await _solarService.GetExpectedSolarPower(quarterlyInfos!);
 
                         await EvaluateSessions();
 
@@ -212,10 +214,12 @@ namespace SessyController.Services
 
             SessyWebControlStatus status = WeAreInControl ? SessyWebControlStatus.SessyWeb : SessyWebControlStatus.Provider;
 
-            var last = _sessyWebControlDataService.Get((set) =>
+            var last = await _sessyWebControlDataService.Get(async (set) =>
             {
-                return set.OrderByDescending(sc => sc.Time)
+                var result = set.OrderByDescending(sc => sc.Time)
                         .FirstOrDefault();
+
+                return await Task.FromResult(result);
             });
 
             if (last == null || last.Status != status)
@@ -281,7 +285,7 @@ namespace SessyController.Services
                     await HandleManualCharging(currentHourlyInfo);
                 }
             }
-            else 
+            else
             {
                 _logger.LogInformation("No prices available from ENTSO-E, switching to manual charging");
 
@@ -537,11 +541,11 @@ namespace SessyController.Services
         /// <summary>
         /// Determine when to charge the batteries.
         /// </summary>
-        public void DetermineChargingHours()
+        public async Task DetermineChargingHours()
         {
             DateTime localTime = _timeZoneService.Now;
 
-            if (FetchPricesFromENTSO_E(localTime))
+            if (await FetchPricesFromENTSO_E(localTime))
             {
                 GetChargingHours();
             }
@@ -550,10 +554,12 @@ namespace SessyController.Services
         /// <summary>
         /// Get the day-ahead-prices from ENTSO-E.
         /// </summary>
-        private bool FetchPricesFromENTSO_E(DateTime localTime)
+        private async Task<bool> FetchPricesFromENTSO_E(DateTime localTime)
         {
             // Get the available hourly prices.
-            quarterlyInfos = _dayAheadMarketService.GetPrices()
+            var prices = await _dayAheadMarketService.GetPrices();
+
+            quarterlyInfos = prices
                 .OrderBy(hp => hp.Time)
                 .ToList();
 
@@ -729,8 +735,6 @@ namespace SessyController.Services
 
             foreach (var quarterlyInfo in hourlyInfoList.Where(hi => hi.Time >= now.DateFloorQuarter()))
             {
-                double quarterNeed = _consumptionMonitorService.EstimateConsumptionInWattsPerQuarter(quarterlyInfo.Time);
-
                 var session = _sessions.GetSession(quarterlyInfo);
 
                 switch (quarterlyInfo.Mode)
@@ -761,7 +765,7 @@ namespace SessyController.Services
 
                     case Modes.ZeroNetHome:
                         {
-                            charge -= quarterNeed;
+                            charge -= quarterlyInfo.EstimatedConsumptionPerQuarterHour;
                             charge += quarterlyInfo.SolarPowerInWatts;
 
                             break;
@@ -1131,7 +1135,7 @@ namespace SessyController.Services
 
             foreach (var infoObject in infoObjectsBetween)
             {
-                chargeNeeded += _consumptionMonitorService.EstimateConsumptionInWattsPerQuarter(infoObject.Time);
+                chargeNeeded += infoObject.EstimatedConsumptionPerQuarterHour;
             }
 
             return EnsureBoundaries(chargeNeeded);
@@ -1204,39 +1208,19 @@ namespace SessyController.Services
             }
         }
 
-        public bool PricesForTomorrowAvailable()
-        {
-            var endOfToday = _timeZoneService.Now.Date.AddHours(24).AddSeconds(-1);
-
-            return quarterlyInfos!.Any(io => io.Time > endOfToday);
-        }
-
         private double GetEstimatePowerNeeded(List<QuarterlyInfo> infoObjectsBetween)
         {
             var endOfToday = _timeZoneService.Now.Date.AddHours(24).AddSeconds(-1);
             double power = 0.0;
 
-            if (!PricesForTomorrowAvailable())
+            foreach (var infoObject in infoObjectsBetween
+                                        .Where(io => io.Mode == Modes.ZeroNetHome))
             {
-                // Assume we need power for the next 12 hours.
-                for (var i = 0; i < 12; i++)
-                {
-                    var requiredEnergyPerQuarter = _consumptionMonitorService.EstimateConsumptionInWattsPerQuarter(endOfToday.AddHours(i));
+                var requiredEnergyPerQuarter = infoObject.EstimatedConsumptionPerQuarterHour;
 
-                    power += requiredEnergyPerQuarter * 4;
-                }
-            }
-            else
-            {
-                foreach (var infoObject in infoObjectsBetween
-                                            .Where(io => io.Mode == Modes.ZeroNetHome))
+                if (infoObject.SolarPowerInWatts < requiredEnergyPerQuarter)
                 {
-                    var requiredEnergyPerQuarter = _consumptionMonitorService.EstimateConsumptionInWattsPerQuarter(infoObject.Time);
-
-                    if (infoObject.SolarPowerInWatts < requiredEnergyPerQuarter)
-                    {
-                        power += requiredEnergyPerQuarter;
-                    }
+                    power += requiredEnergyPerQuarter;
                 }
             }
 

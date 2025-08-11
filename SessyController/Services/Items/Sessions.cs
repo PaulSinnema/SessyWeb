@@ -71,11 +71,12 @@ namespace SessyController.Services.Items
                     .Sum(hi => hi.Profit);
         }
 
-        public decimal TotalCost(DateTime date)
+        public async Task<decimal> TotalCost(DateTime date)
         {
-            var list = _financialResultsService.GetFinancialMonthResults(date.Date, date.Date.AddHours(24));
+            var queryable = await _financialResultsService.GetFinancialMonthResults(date.Date, date.Date.AddHours(24));
+            var list = queryable.ToList();
 
-            if(list.Count == 1)
+            if (list.Count == 1)
                 return list[0].FinancialResultsList!.Sum(fr => fr.Cost);
 
             return 0;
@@ -305,7 +306,7 @@ namespace SessyController.Services.Items
         /// </summary>
         private void CalculateZeroNetHomeProfits(List<QuarterlyInfo> lastChargingSession, QuarterlyInfo quarterlyInfo, bool save)
         {
-            var quarterlyNeed = _consumptionMonitorService.EstimateConsumptionInWattsPerQuarter(quarterlyInfo.Time);
+            var quarterlyNeed = quarterlyInfo.EstimatedConsumptionPerQuarterHour;
             var kWh = (Math.Min(quarterlyNeed, quarterlyInfo.ChargeLeft) / 1000); // Per quarter hour.
             var selling = quarterlyInfo.Price * kWh;
             var buying = lastChargingSession.Count > 0 ? lastChargingSession.Average(lcs => lcs.Price) * kWh : 0.0;
@@ -345,7 +346,7 @@ namespace SessyController.Services.Items
 
             foreach (var quarterlyInfo in _quarterlyInfos)
             {
-                var homeNeeds = _consumptionMonitorService.EstimateConsumptionInWattsPerQuarter(quarterlyInfo.Time);
+                var homeNeeds = quarterlyInfo.EstimatedConsumptionPerQuarterHour;
 
                 if (quarterlyInfo.Time >= first && quarterlyInfo.Time <= last && currentCharge >= 0)
                 {

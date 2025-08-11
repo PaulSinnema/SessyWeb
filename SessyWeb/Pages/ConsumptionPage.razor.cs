@@ -178,11 +178,13 @@ namespace SessyWeb.Pages
             {
                 case PeriodsEnums.Day:
                     {
-                        var list = _consumptionDataService!.GetList((set) =>
+                        var list = await _consumptionDataService!.GetList(async (set) =>
                         {
-                            return set
+                            var result = set
                                 .Where(sed => sed.Time.Date == DateChosen)
                                 .ToList();
+
+                            return await Task.FromResult(result);
                         });
 
                         ConsumptionDayData = list.Select(cd => new ConsumptionDisplayDayData
@@ -202,13 +204,17 @@ namespace SessyWeb.Pages
 
                 case PeriodsEnums.Week:
                     {
-                        ConsumptionWeekData = _consumptionDataService!.GetList((set) =>
+                        var result = await _consumptionDataService!.GetList(async (set) =>
                         {
-                            return set
-                            .Where(sed => DateChosen!.Value.StartOfWeek() <= sed.Time &&
-                                          DateChosen!.Value.EndOfWeek().AddDays(1).AddSeconds(-1) >= sed.Time)
-                            .ToList();
-                        }).GroupBy(cd => cd.Time.Date)
+                            var result = set
+                                .Where(sed => DateChosen!.Value.StartOfWeek() <= sed.Time &&
+                                              DateChosen!.Value.EndOfWeek().AddDays(1).AddSeconds(-1) >= sed.Time)
+                                .ToList();
+
+                            return await Task.FromResult(result);
+                        });
+
+                        ConsumptionWeekData = result.GroupBy(cd => cd.Time.Date)
                             .Select(gr => new ConsumptionDisplayWeekData
                             {
                                 Day = gr.Key.Day,
@@ -225,13 +231,17 @@ namespace SessyWeb.Pages
 
                 case PeriodsEnums.Month:
                     {
-                        ConsumptionMonthData = _consumptionDataService!.GetList((set) =>
+                        var result = await _consumptionDataService!.GetList(async (set) =>
                         {
-                            return set
+                            var result = set
                                 .Where(sed => DateChosen!.Value.StartOfMonth() <= sed.Time &&
                                               DateChosen!.Value.EndOfMonth().AddDays(1).AddSeconds(-1) >= sed.Time)
                                 .ToList();
-                        }).GroupBy(cd => cd.Time.Date)
+
+                            return await Task.FromResult(result);
+                        });
+                        
+                        ConsumptionMonthData = result.GroupBy(cd => cd.Time.Date)
                             .Select(gr => new ConsumptionDisplayMonthData
                             {
                                 Day = gr.Key.Day,
@@ -248,12 +258,16 @@ namespace SessyWeb.Pages
 
                 case PeriodsEnums.Year:
                     {
-                        ConsumptionYearData = _consumptionDataService!.GetList((set) =>
+                        var result = await _consumptionDataService!.GetList(async (set) =>
                         {
-                            return set
+                            var result = set
                                 .Where(sed => DateChosen!.Value.Year == sed.Time.Year)
                                 .ToList();
-                        }).GroupBy(cd => cd.Time.Month)
+
+                            return await Task.FromResult(result);
+                        });
+
+                        ConsumptionYearData = result.GroupBy(cd => cd.Time.Month)
                             .Select(gr => new ConsumptionDisplayYearData
                             {
                                 Month = gr.Key,
@@ -269,11 +283,14 @@ namespace SessyWeb.Pages
 
                 case PeriodsEnums.All:
                     {
-                        ConsumptionAllData = _consumptionDataService!.GetList((set) =>
+                        var result = await _consumptionDataService!.GetList(async (set) =>
                         {
-                            return set
+                            var result = set
                                 .ToList();
-                        }).GroupBy(cd => cd.Time.Year)
+
+                            return await Task.FromResult(result);
+                        });
+                        ConsumptionAllData = result.GroupBy(cd => cd.Time.Year)
                             .Select(gr => new ConsumptionDisplayAllData
                             {
                                 Year = gr.Key.ToString(),

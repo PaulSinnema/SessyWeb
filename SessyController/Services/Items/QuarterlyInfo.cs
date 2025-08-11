@@ -9,13 +9,16 @@ namespace SessyController.Services.Items
     {
         private const double minSolarPower = 0.0;
 
-        public QuarterlyInfo(DateTime time,
-                          double marketPrice,
-                          SettingsConfig settingsConfig,
-                          BatteryContainer batteryContainer,
-                          SolarEdgeInverterService solarEdgeService,
-                          TimeZoneService timeZoneService,
-                          CalculationService calculationService)
+        private QuarterlyInfo(
+    DateTime time,
+    double marketPrice,
+    double buyingPrice,
+    double sellingPrice,
+    SettingsConfig settingsConfig,
+    BatteryContainer batteryContainer,
+    SolarEdgeInverterService solarEdgeService,
+    TimeZoneService timeZoneService,
+    CalculationService calculationService)
         {
             Time = time;
 
@@ -26,8 +29,8 @@ namespace SessyController.Services.Items
             _calculationService = calculationService;
 
             MarketPrice = marketPrice;
-            BuyingPrice = _calculationService.CalculateEnergyPrice(time, true) ?? 0.0;
-            SellingPrice = _calculationService.CalculateEnergyPrice(time, false) ?? 0.0;
+            BuyingPrice = buyingPrice;
+            SellingPrice = sellingPrice;
 
             TotalCapacityInWatts = _batteryContainer.GetTotalCapacity();
             ChargingCapacityInWatts = _batteryContainer.GetChargingCapacityInWatts();
@@ -35,6 +38,38 @@ namespace SessyController.Services.Items
 
             if (!(TotalCapacityInWatts > 0.0))
                 throw new InvalidOperationException("The total capacity should not be 0.0");
+        }
+
+        // Factory that does the awaiting
+        public static async Task<QuarterlyInfo> CreateAsync(
+            DateTime time,
+            double marketPrice,
+            SettingsConfig settingsConfig,
+            BatteryContainer batteryContainer,
+            SolarEdgeInverterService solarEdgeService,
+            TimeZoneService timeZoneService,
+            CalculationService calculationService)
+        {
+            // Fetch both prices concurrently
+            // NOTE: CalculateEnergyPrice likely returns Task<double?>
+            var buyingTask = calculationService.CalculateEnergyPrice(time, true);
+            var sellingTask = calculationService.CalculateEnergyPrice(time, false);
+
+            await Task.WhenAll(buyingTask, sellingTask).ConfigureAwait(false);
+
+            double buying = buyingTask.Result ?? 0.0;
+            double selling = sellingTask.Result ?? 0.0;
+
+            return new QuarterlyInfo(
+                time,
+                marketPrice,
+                buying,
+                selling,
+                settingsConfig,
+                batteryContainer,
+                solarEdgeService,
+                timeZoneService,
+                calculationService);
         }
 
         private SettingsConfig _settingsConfig { get; set; }
@@ -90,6 +125,8 @@ namespace SessyController.Services.Items
                 }
             }
         }
+
+        public double EstimatedConsumptionPerQuarterHour { get; set; }
 
         /// <summary>
         /// This is the profit if Net Zero Home were enabled. It is used

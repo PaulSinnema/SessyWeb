@@ -108,40 +108,58 @@ namespace SessyWeb.Pages
         {
             DateChosen ??= DateChosen?.Date ?? _timeZoneService!.Now.Date;
 
-            SolarInverterData = _solarEdgeDataService!.GetList((set) =>
+            var result = await _solarEdgeDataService!.GetList(async (set) =>
             {
                 switch (PeriodChosen)
                 {
                     case PeriodsEnums.Day:
-                        return set
-                            .Where(sed => sed.Time.Date == DateChosen)
-                            .ToList();
+                        {
+                            var result = set
+                                .Where(sed => sed.Time.Date == DateChosen)
+                                .ToList();
+
+                            return await Task.FromResult(result);
+                        }
 
                     case PeriodsEnums.Week:
-                        return set
-                            .Where(sed => DateChosen!.Value.StartOfWeek() <= sed.Time && DateChosen!.Value.EndOfWeek().AddDays(1).AddSeconds(-1) >= sed.Time)
-                            .ToList();
+                        {
+                            var result = set
+                                .Where(sed => DateChosen!.Value.StartOfWeek() <= sed.Time && DateChosen!.Value.EndOfWeek().AddDays(1).AddSeconds(-1) >= sed.Time)
+                                .ToList();
+
+                            return await Task.FromResult(result);
+                        }
 
                     case PeriodsEnums.Month:
-                        return set
-                            .Where(sed => DateChosen!.Value.StartOfMonth() <= sed.Time && DateChosen!.Value.EndOfMonth().AddDays(1).AddSeconds(-1) >= sed.Time)
-                            .ToList();
+                        {
+                            var result = set
+                                .Where(sed => DateChosen!.Value.StartOfMonth() <= sed.Time && DateChosen!.Value.EndOfMonth().AddDays(1).AddSeconds(-1) >= sed.Time)
+                                .ToList();
+
+                            return await Task.FromResult(result);
+                        }
 
                     case PeriodsEnums.Year:
-                        return set
-                            .Where(sed => DateChosen!.Value.Year == sed.Time.Year)
-                            .ToList();
+                        {
+                            var result = set
+                                .Where(sed => DateChosen!.Value.Year == sed.Time.Year)
+                                .ToList();
+
+                            return await Task.FromResult(result);
+                        }
 
                     case PeriodsEnums.All:
-                        return set.ToList();
+                        return await Task.FromResult(set.ToList());
 
                     default:
                         throw new InvalidOperationException($"Wrong period type {PeriodChosen}");
                 }
-            }).OrderBy(sed => sed.Time)
+            });
+
+            SolarInverterData = result.OrderBy(sed => sed.Time)
               .ToList(); ;
 
-            SolarPower = GetSolarPower(DateChosen!.Value);
+            SolarPower = await GetSolarPower(DateChosen!.Value);
 
             GroupedData = SolarInverterData
                     .GroupBy(d => d.ProviderName)
@@ -214,7 +232,7 @@ namespace SessyWeb.Pages
             }
         }
 
-        private double GetSolarPower(DateTime date)
+        private async Task<double> GetSolarPower(DateTime date)
         {
             DateTime start;
             DateTime end;
@@ -250,7 +268,7 @@ namespace SessyWeb.Pages
                     throw new InvalidOperationException($"Wrong period chosen {PeriodChosen}");
             }
 
-            return _solarService!.GetRealizedSolarPower(start, end);
+            return await _solarService!.GetRealizedSolarPower(start, end);
         }
     }
 }

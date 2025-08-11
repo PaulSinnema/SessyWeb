@@ -90,7 +90,7 @@ namespace SessyWeb.Pages
             });
         }
 
-        void LoadData(LoadDataArgs args)
+        async Task LoadData(LoadDataArgs args)
         {
             if (financialResultsGrid == null) throw new InvalidOperationException($"{nameof(financialResultsGrid)} can not be null here, did you forget a @ref?");
 
@@ -135,7 +135,7 @@ namespace SessyWeb.Pages
 
             var filter = financialResultsGrid.ColumnsCollection;
 
-            var query = _financialResultsService!.GetFinancialMonthResults(start, end).AsQueryable();
+            var query = await _financialResultsService!.GetFinancialMonthResults(start, end);
 
             if (!string.IsNullOrEmpty(args.Filter))
             {

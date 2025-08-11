@@ -1,6 +1,7 @@
 ﻿using SessyController.Services.Items;
 using SessyData.Model;
 using SessyData.Services;
+using System.Linq;
 
 namespace SessyController.Services
 {
@@ -18,14 +19,16 @@ namespace SessyController.Services
             _calculationService = calculationService;
         }
 
-        public List<FinancialMonthResult> GetFinancialMonthResults(DateTime start, DateTime end)
+        public async Task<IQueryable<FinancialMonthResult>> GetFinancialMonthResults(DateTime start, DateTime end)
         {
-            var histories = _energyHistoryService.GetList((hist) =>
+            var histories = await _energyHistoryService.GetList(async (hist) =>
             {
-                return hist
+                var result = hist
                     .Where(eh => eh.Time >= start && eh.Time <= end)
                     .OrderBy(eh => eh.Time)
                     .ToList();
+
+                return await Task.FromResult(result);
             });
 
             EnergyHistory? lastHistory = null;
@@ -48,7 +51,7 @@ namespace SessyController.Services
 
                     var netUsage = gridPower.TotalInversed;
 
-                    var price = _calculationService.CalculateEnergyPrice(history.Time, gridPower.IsConsumer);
+                    var price = await _calculationService.CalculateEnergyPrice(history.Time, gridPower.IsConsumer);
                     var cost = (decimal)(netUsage * (price ?? 0.0) / 1000);
 
                     monthResult.FinancialResultsList.Add(new FinancialResult
@@ -64,15 +67,15 @@ namespace SessyController.Services
                 lastHistory = history;
             }
 
-            return monthResults;
+            return monthResults.AsQueryable();
         }
 
         /// <summary>
         /// Returns the taxed price.
         /// </summary>
-        private decimal GetTaxedPrice(EnergyHistory history, GridPower gridPower)
+        private async Task<decimal> GetTaxedPrice(EnergyHistory history, GridPower gridPower)
         {
-            var price = _calculationService.CalculateEnergyPrice(history.Time, gridPower.IsConsumer);
+            var price = await _calculationService.CalculateEnergyPrice(history.Time, gridPower.IsConsumer);
 
             if(price != null)
             {

@@ -103,8 +103,8 @@ namespace SessyController.Services
                 if (GetEnergyHistory(selectTime) == null)
                 {
                     var p1Details = await _p1MeterContainer.GetDetails(p1Meter.Id!);
-                    var weatherData = _weatherService.GetWeatherData();
-                    var prices = _dayAheadMarketService.GetPrices();
+                    var weatherData = await _weatherService.GetWeatherData();
+                    var prices = await _dayAheadMarketService.GetPrices();
 
                     var weatherHourData = weatherData.UurVerwachting
                         .FirstOrDefault(uv => uv.TimeStamp == selectTime.DateHour());
@@ -140,13 +140,15 @@ namespace SessyController.Services
                 throw new InvalidOperationException("Day ahead service or weather service not initialized");
         }
         
-        private EnergyHistory? GetEnergyHistory(DateTime selectTime)
+        private async Task<EnergyHistory?> GetEnergyHistory(DateTime selectTime)
         {
-            var energyHistory = _energyHistoryService.Get((set) =>
+            var energyHistory = await _energyHistoryService.Get(async (set) =>
             {
-                return set
+                var result = set
                     .Where(eh => eh.Time == selectTime)
                     .FirstOrDefault();
+
+                return await Task.FromResult(result);
             });
 
             return energyHistory;

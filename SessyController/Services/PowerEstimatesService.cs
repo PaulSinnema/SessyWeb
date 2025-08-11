@@ -53,43 +53,49 @@ namespace SessyController.Services
         /// <summary>
         /// Gets the power consumed on a period in the week from history.
         /// </summary>
-        public double GetPowerEstimate(DateTime date, double temperature, double tempTolerance = 0)
+        public async Task<double> GetPowerEstimate(DateTime date, double temperature, double tempTolerance = 0)
         {
             var tempFrom = temperature - tempTolerance;
             var tempTo = temperature + tempTolerance;
             var dayOfWeek = date.DayOfWeek;
 
             // Find power for temperature and day of week.
-            var histories = _energyHistoryService.GetList((set) =>
+            var histories = await _energyHistoryService.GetList(async (set) =>
             {
-                return set
+                var result = set
                     .Where(eh => eh.Temperature >= tempFrom &&
                                  eh.Temperature <= tempTo &&
                                  eh.Time.DayOfWeek == dayOfWeek)
                     .OrderByDescending(eh => eh.Time)
                     .ToList();
+
+                return await Task.FromResult(result);   
             });
 
             if(histories.Count == 0)
             {
                 // Find power for temperature.
-                histories = _energyHistoryService.GetList((set) =>
+                histories = await _energyHistoryService.GetList(async (set) =>
                 {
-                    return set
+                    var result = set
                         .Where(eh => eh.Temperature >= tempFrom &&
                                      eh.Temperature <= tempTo)
                         .OrderByDescending(eh => eh.Time)
                         .ToList();
+
+                    return await Task.FromResult(result);
                 });
             }
 
             foreach (var history in histories)
             {
-                var previous = _energyHistoryService.Get((set) =>
+                var previous = await _energyHistoryService.Get(async (set) =>
                 {
-                    return set
+                    var result = set
                         .Where(eh => eh.Time == history.Time.AddHours(-1))
                         .SingleOrDefault();
+
+                    return await Task.FromResult(result);
                 });
 
                 if(previous != null)

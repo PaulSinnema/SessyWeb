@@ -32,18 +32,20 @@ namespace SessyWeb.Pages
                 await energyGrid!.FirstPage();
         }
 
-        void LoadData(LoadDataArgs args)
+        async Task LoadData(LoadDataArgs args)
         {
             EnsureEnergyGrid();
 
             var now = _timeZoneService!.Now;
             var filter = energyGrid!.ColumnsCollection;
 
-            EnergyHistoryList = _energyHistoryService!.GetList((set) =>
+            EnergyHistoryList = await _energyHistoryService!.GetList(async (set) =>
             {
-                var query = set
+                var result = set
                     .OrderBy(eh => eh.Time)
                     .AsQueryable();
+
+                var query = await Task.FromResult(result);
 
                 if (!string.IsNullOrEmpty(args.Filter))
                 {
@@ -85,7 +87,7 @@ namespace SessyWeb.Pages
         {
             List<EnergyHistory> list = new List<EnergyHistory> { energyHistory };
 
-            _energyHistoryService!.AddOrUpdate(list, (item, set) => set.Where(eh => eh.Id == energyHistory.Id).FirstOrDefault());
+            await _energyHistoryService!.AddOrUpdate(list, (item, set) => set.Where(eh => eh.Id == energyHistory.Id).FirstOrDefault());
 
             await energyGrid!.UpdateRow(energyHistory);
         }
@@ -99,7 +101,7 @@ namespace SessyWeb.Pages
 
         async Task DeleteRow(EnergyHistory energyHistory)
         {
-            _energyHistoryService!.Remove(new List<EnergyHistory> { energyHistory }, (item, set) => set.Where(eh => eh.Id == item.Id).FirstOrDefault());
+            await _energyHistoryService!.Remove(new List<EnergyHistory> { energyHistory }, (item, set) => set.Where(eh => eh.Id == item.Id).FirstOrDefault());
 
             await energyGrid!.Reload();
         }
