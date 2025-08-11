@@ -161,12 +161,12 @@ namespace SessyWeb.Pages
             await InvokeAsync(async () =>
             {
                 IsBeating = true;
-                StateHasChanged();
+                await InvokeAsync(StateHasChanged);
 
-                await Task.Delay(3000).ContinueWith(_ =>
+                await Task.Delay(3000).ContinueWith(async _ =>
                 {
                     IsBeating = false;
-                    InvokeAsync(StateHasChanged);
+                    await InvokeAsync(StateHasChanged);
                 });
             });
         }

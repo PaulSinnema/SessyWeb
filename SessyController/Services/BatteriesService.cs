@@ -733,10 +733,10 @@ namespace SessyController.Services
 
             hourlyInfoList.ForEach(hi => hi.ChargeLeft = charge);
 
-            foreach (var quarterlyInfo in hourlyInfoList.Where(hi => hi.Time >= now.DateFloorQuarter()))
-            {
-                var session = _sessions.GetSession(quarterlyInfo);
+            var list = hourlyInfoList.Where(hi => hi.Time >= now.DateFloorQuarter());
 
+            foreach (var quarterlyInfo in list)
+            {
                 switch (quarterlyInfo.Mode)
                 {
                     case Modes.Charging:

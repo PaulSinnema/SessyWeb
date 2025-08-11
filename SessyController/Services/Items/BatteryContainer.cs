@@ -5,7 +5,7 @@ using SessyController.Services.InverterServices;
 namespace SessyController.Services.Items
 {
     /// <summary>
-    /// This class is a container for all betteries.
+    /// This class is a container for all batteries.
     /// </summary>
     public class BatteryContainer
     {
