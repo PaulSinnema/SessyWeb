@@ -52,7 +52,7 @@ else
                             <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Strategy overriden</RadzenText>
                             <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@powerStatus?.Sessy?.StrategyOverridden</b></RadzenText>
                             <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Strategy set</RadzenText>
-                            <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@ActivePowerStrategy?.Strategy ?? ""</b></RadzenText>
+                            <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@(ActivePowerStrategy?.Strategy ?? "??")</b></RadzenText>
                         </RadzenColumn>
 
                         <RadzenColumn SizeSM="4">

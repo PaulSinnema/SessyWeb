@@ -1,5 +1,5 @@
 ﻿using Microsoft.Extensions.Options;
-using SessyController.Configurations;
+using SessyCommon.Configurations;
 
 namespace SessyController.Services
 {
@@ -12,7 +12,7 @@ namespace SessyController.Services
             _powerSystemConfig = powerSystemsConfig.Value;
         }
 
-        public Dictionary<string, Configurations.Endpoint> GetPowerSystemEndpoints(string endpointName)
+        public Dictionary<string, SessyCommon.Configurations.Endpoint> GetPowerSystemEndpoints(string endpointName)
         {
             if (!_powerSystemConfig.Endpoints.TryGetValue(endpointName, out var endpoints))
                 throw new InvalidOperationException($"No TcpClient configuration found for endpoint: {endpointName}");

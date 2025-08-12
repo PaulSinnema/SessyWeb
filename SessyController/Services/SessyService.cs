@@ -1,10 +1,9 @@
 ﻿using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
-using SessyController.Configurations;
-using SessyController.Services.Items;
+using SessyCommon.Configurations;
+using SessyCommon.Services;
 using System.Net.Http.Headers;
 using System.Text;
-using System.Text.Json.Serialization;
 
 namespace SessyController.Services
 {

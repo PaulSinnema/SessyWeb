@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Components;
 using Radzen;
 using Radzen.Blazor;
-using SessyController.Services;
+using SessyCommon.Services;
 using SessyData.Model;
 using SessyData.Services;
 using System.Linq.Dynamic.Core;

@@ -1,6 +1,4 @@
-﻿using SessyCommon.Extensions;
-using SessyController.Configurations;
-using System.Threading.Tasks;
+﻿using SessyCommon.Configurations;
 using static SessyController.Services.ActivePowerStrategy;
 
 namespace SessyController.Services.Items

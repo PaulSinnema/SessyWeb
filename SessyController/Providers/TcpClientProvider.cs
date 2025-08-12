@@ -1,6 +1,6 @@
 ﻿using Djohnnie.SolarEdge.ModBus.TCP;
 using Microsoft.Extensions.Options;
-using SessyController.Configurations;
+using SessyCommon.Configurations;
 
 namespace SessyController.Providers
 {

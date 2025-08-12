@@ -98,6 +98,41 @@ namespace SessyData.Migrations
                     b.ToTable("EnergyHistory");
                 });
 
+            modelBuilder.Entity("SessyData.Model.Performance", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double>("BuyingPrice")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("ChargeLeft")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("ChargeNeeded")
+                        .HasColumnType("REAL");
+
+                    b.Property<bool>("Charging")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Discharging")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double>("EstimatedConsumptionPerQuarterHour")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("Profit")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("SellingPrice")
+                        .HasColumnType("REAL");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Performance");
+                });
+
             modelBuilder.Entity("SessyData.Model.SessyStatusHistory", b =>
                 {
                     b.Property<int>("Id")

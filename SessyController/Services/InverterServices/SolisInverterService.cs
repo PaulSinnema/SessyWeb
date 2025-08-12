@@ -1,6 +1,5 @@
 ﻿using Microsoft.Extensions.Options;
-using SessyController.Configurations;
-using SessyController.Interfaces;
+using SessyCommon.Configurations;
 
 namespace SessyController.Services.InverterServices
 {

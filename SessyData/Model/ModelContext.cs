@@ -37,6 +37,8 @@ namespace SessyData.Model
 
         public DbSet<Consumption> Consumption => Set<Consumption>();
 
+        public DbSet<Performance> Performance => Set<Performance>();
+
         protected override void OnConfiguring(DbContextOptionsBuilder options)
             => options.UseSqlite(_connectionString);
     }

@@ -1,6 +1,8 @@
 ﻿using Microsoft.Extensions.Options;
+using SessyCommon.Configurations;
 using SessyCommon.Extensions;
-using SessyController.Configurations;
+using SessyCommon.Services;
+using SessyCommon.Services.Items;
 using SessyController.Services.InverterServices;
 using SessyController.Services.Items;
 using SessyData.Model;
@@ -265,7 +267,7 @@ namespace SessyController.Services
             }
         }
 
-        private void CalculateSolarPerArray(SolarData solarData, QuarterlyInfo currentHourlyInfo, Dictionary<string, Configurations.Endpoint> config, string id)
+        private void CalculateSolarPerArray(SolarData solarData, QuarterlyInfo currentHourlyInfo, Dictionary<string, SessyCommon.Configurations.Endpoint> config, string id)
         {
             var endpoint = config[id];
 

@@ -1,4 +1,4 @@
-﻿using Endpoint = SessyController.Configurations.Endpoint;
+﻿using Endpoint = SessyCommon.Configurations.Endpoint;
 
 namespace SessyController.Interfaces
 {

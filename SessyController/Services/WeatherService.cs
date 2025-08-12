@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.Options;
-using SessyCommon;
+using SessyCommon.Configurations;
 using SessyCommon.Extensions;
-using SessyController.Configurations;
+using SessyCommon.Services;
 using SessyData.Model;
 using SessyData.Services;
 using System.Globalization;

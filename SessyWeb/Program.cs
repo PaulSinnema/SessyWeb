@@ -3,8 +3,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Radzen;
 using Radzen.Blazor;
+using SessyCommon.Configurations;
 using SessyCommon.Extensions;
-using SessyController.Configurations;
+using SessyCommon.Services;
 using SessyController.Interfaces;
 using SessyController.Managers;
 using SessyController.Providers;
@@ -188,6 +189,16 @@ using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     var dbContext = services.GetRequiredService<ModelContext>();
+    var pendingMigrations = dbContext.Database.GetPendingMigrations();
+
+    if (pendingMigrations.Any())
+    {
+        Console.WriteLine("Database has pending model changes, backing up database...");
+
+        var databaseScope = scope.ServiceProvider.GetRequiredService<DbHelper>();
+        
+        databaseScope.BackupDatabase().GetAwaiter().GetResult();
+    }
 
     dbContext.Database.Migrate();
 }
