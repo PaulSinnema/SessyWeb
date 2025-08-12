@@ -110,14 +110,17 @@ builder.Services.AddSingleton<SessyWebControlDataService>();
 builder.Services.AddSingleton<TaxesDataService>();
 builder.Services.AddSingleton<CalculationService>();
 builder.Services.AddSingleton<ConsumptionMonitorService>();
+builder.Services.AddSingleton<DatabaseBackupService>();
+builder.Services.AddSingleton<DatabaseBackupDataService>();
 
 // Solar inverters
 builder.Services.AddSingleton<SolarInverterManager>();
+// For now only the SolarEdge inverter is implemented (for obvious reasons :-), I don't have the other inverters.
+builder.Services.AddSingleton<ISolarInverterService, SolarEdgeInverterService>();
+// These are not implemented yet, but the interfaces are there for future use.
 builder.Services.AddSingleton<ISolarInverterService, EnphaseInverterService>();
 builder.Services.AddSingleton<ISolarInverterService, GoodWeInverterService>();
 builder.Services.AddSingleton<ISolarInverterService, HuaweiInverterService>();
-// For now only the SolarEdge inverter is implemented (for obvious reasons :-), I don't have the others.
-builder.Services.AddSingleton<ISolarInverterService, SolarEdgeInverterService>();
 builder.Services.AddSingleton<ISolarInverterService, SungrowInverterService>();
 builder.Services.AddSingleton<ISolarInverterService, VictronInverterService>();
 
@@ -129,6 +132,7 @@ builder.Services.AddHostedService(provider => provider.GetRequiredService<Energy
 builder.Services.AddHostedService(provider => provider.GetRequiredService<P1MeterService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<SolarInverterManager>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<ConsumptionMonitorService>());
+builder.Services.AddHostedService(provider => provider.GetRequiredService<DatabaseBackupService>());
 
 builder.Services.AddRazorPages(options =>
 {
