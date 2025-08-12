@@ -101,7 +101,7 @@ namespace SessyController.Services
                 var now = _timeZoneService.Now;
                 var selectTime = now.DateFloorQuarter();
 
-                if (GetEnergyHistory(selectTime) == null)
+                if (await GetEnergyHistory(selectTime) == null)
                 {
                     var p1Details = await _p1MeterContainer.GetDetails(p1Meter.Id!);
                     var weatherData = await _weatherService.GetWeatherData();
@@ -112,7 +112,7 @@ namespace SessyController.Services
                     var quarterlyInfo = prices
                         .FirstOrDefault(hi => hi.Time.DateFloorQuarter() == selectTime);
 
-                    StoreEnergyHistory(p1Meter, p1Details!, quarterlyInfo, selectTime, weatherHourData);
+                    await StoreEnergyHistory(p1Meter, p1Details!, quarterlyInfo, selectTime, weatherHourData);
 
                     DataChanged?.Invoke();
 
@@ -155,7 +155,7 @@ namespace SessyController.Services
             return energyHistory;
         }
 
-        private void StoreEnergyHistory(P1Meter p1Meter, P1Details p1Details, QuarterlyInfo? quarterlyInfo, DateTime time, UurVerwachting? hourExpectancy)
+        private async Task StoreEnergyHistory(P1Meter p1Meter, P1Details p1Details, QuarterlyInfo? quarterlyInfo, DateTime time, UurVerwachting? hourExpectancy)
         {
             var energyHistoryList = new List<EnergyHistory>();
 
@@ -173,7 +173,7 @@ namespace SessyController.Services
                 GlobalRadiation = hourExpectancy?.GlobalRadiation ?? -999
             });
 
-            _energyHistoryService.AddRange(energyHistoryList);
+            await _energyHistoryService.AddRange(energyHistoryList);
         }
     }
 }
