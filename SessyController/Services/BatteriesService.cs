@@ -41,6 +41,7 @@ namespace SessyController.Services
         private FinancialResultsService _financialResultsService { get; set; }
 
         private SessyWebControlDataService _sessyWebControlDataService { get; set; }
+        private PerformanceDataService _performanceDataService { get; set; }
 
         private ConsumptionDataService _consumptionDataService { get; set; }
         private EnergyHistoryService _energyHistoryDataService { get; set; }
@@ -101,6 +102,7 @@ namespace SessyController.Services
             _weatherService = _scope.ServiceProvider.GetRequiredService<WeatherService>();
             _financialResultsService = _scope.ServiceProvider.GetRequiredService<FinancialResultsService>();
             _sessyWebControlDataService = _scope.ServiceProvider.GetRequiredService<SessyWebControlDataService>();
+            _performanceDataService = _scope.ServiceProvider.GetRequiredService<PerformanceDataService>();
             _consumptionDataService = _scope.ServiceProvider.GetRequiredService<ConsumptionDataService>();
             _energyHistoryDataService = _scope.ServiceProvider.GetRequiredService<EnergyHistoryService>();
             _consumptionMonitorService = _scope.ServiceProvider.GetRequiredService<ConsumptionMonitorService>();

@@ -1,13 +1,16 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using Microsoft.EntityFrameworkCore;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace SessyData.Model
 {
+    [Index(nameof(Time))]
     public class Performance : IUpdatable<Performance>
     {
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)] // Auto-increment
         public int Id { get; set; }
+        public DateTime Time { get; set; }
         public double BuyingPrice { get; set; }
         public double SellingPrice { get; set; }
         public double Profit { get; set; }

@@ -92,6 +92,7 @@ builder.Services.AddScoped<PowerEstimatesService>();
 builder.Services.AddScoped<FinancialResultsService>();
 builder.Services.AddScoped<SolarEdgeDataService>();
 builder.Services.AddScoped<ConsumptionDataService>();
+builder.Services.AddScoped<PerformanceDataService>();
 
 builder.Services.AddSingleton<EnergyHistoryService>();
 builder.Services.AddSingleton<SolarEdgeInverterService>();

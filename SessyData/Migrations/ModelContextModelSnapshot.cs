@@ -40,6 +40,8 @@ namespace SessyData.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Time");
+
                     b.ToTable("Consumption");
                 });
 
@@ -56,6 +58,8 @@ namespace SessyData.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Time");
 
                     b.ToTable("EPEXPrices");
                 });
@@ -95,6 +99,8 @@ namespace SessyData.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Time");
+
                     b.ToTable("EnergyHistory");
                 });
 
@@ -128,7 +134,12 @@ namespace SessyData.Migrations
                     b.Property<double>("SellingPrice")
                         .HasColumnType("REAL");
 
+                    b.Property<DateTime>("Time")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("Time");
 
                     b.ToTable("Performance");
                 });
@@ -153,6 +164,8 @@ namespace SessyData.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Time");
+
                     b.ToTable("SessyStatusHistory");
                 });
 
@@ -170,6 +183,8 @@ namespace SessyData.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Time");
+
                     b.ToTable("SessyWebControl");
                 });
 
@@ -186,6 +201,8 @@ namespace SessyData.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Time");
 
                     b.ToTable("SolarData");
                 });
@@ -209,6 +226,8 @@ namespace SessyData.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Time");
 
                     b.ToTable("SolarInverterData");
                 });
