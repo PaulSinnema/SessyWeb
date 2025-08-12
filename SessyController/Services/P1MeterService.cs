@@ -12,7 +12,7 @@ using System.Text;
 /// </summary>
 public class P1MeterService : BackgroundService, IDisposable
 {
-    private LoggingService<DayAheadMarketService> _logger { get; set; }
+    private LoggingService<P1MeterService> _logger { get; set; }
 
     private TimeZoneService _timeZoneService { get; set; }
 
@@ -26,7 +26,7 @@ public class P1MeterService : BackgroundService, IDisposable
     /// Initializes a new instance of the <see cref="P1MeterService"/> class.
     /// </summary>
     /// <param name="httpClientFactory">The HTTP client factory for creating HTTP clients.</param>
-    public P1MeterService(LoggingService<DayAheadMarketService> logger,
+    public P1MeterService(LoggingService<P1MeterService> logger,
                           TimeZoneService timeZoneService,
                           IHttpClientFactory httpClientFactory,
                           IOptionsMonitor<SessyP1Config> p1ConfigMonitor)
