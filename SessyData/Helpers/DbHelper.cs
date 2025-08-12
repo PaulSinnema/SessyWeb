@@ -35,10 +35,8 @@ namespace SessyData.Helpers
                 var now = _timeZoneService.Now;
                 var dbContext = _scope.ServiceProvider.GetRequiredService<ModelContext>();
                 var filename = $"Sessy_{now.Year}_{now.Month}_{now.Day}_{now.Hour}_{now.Minute}_{now.Second}.bak";
-                var backupFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, filename).Replace("\\", "/");
-
-                // Ensure the backup directory exists
-                var directory = Path.GetDirectoryName(backupFilePath) ?? throw new InvalidOperationException("Backup directory path is invalid.");
+                var directory = _settingsConfig.DatabaseBackupDirectory ?? throw new InvalidOperationException("Database backup directory is not configured.");
+                var backupFilePath = Path.Combine(directory, filename).Replace("\\", "/");
 
                 Directory.CreateDirectory(directory);
 

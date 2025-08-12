@@ -56,5 +56,7 @@ namespace SessyCommon.Configurations
         public bool SolarSystemShutsDownDuringNegativePrices { get; set; }
 
         public double SolarCorrection { get; set; }
+
+        public string? DatabaseBackupDirectory { get; set; }
     }
 }
