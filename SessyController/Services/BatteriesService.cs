@@ -224,8 +224,8 @@ namespace SessyController.Services
                     new Performance
                     {
                         Time = currentQuarterlyInfo.Time,
-                        BuyingPrice = currentQuarterlyInfo.Buying,
-                        SellingPrice = currentQuarterlyInfo.Selling,
+                        BuyingPrice = currentQuarterlyInfo.Price,
+                        SellingPrice = currentQuarterlyInfo.Price,
                         Profit = currentQuarterlyInfo.Profit,
                         EstimatedConsumptionPerQuarterHour = currentQuarterlyInfo.EstimatedConsumptionPerQuarterHour,
                         ChargeLeft = await _batteryContainer.GetStateOfChargeInWatts(),
@@ -765,7 +765,7 @@ namespace SessyController.Services
                 .OrderBy(hp => hp.Time)
                 .ToList();
 
-            hourlyInfoList.ForEach(hi => hi.ChargeLeft = charge);
+            hourlyInfoList.ForEach(hi => hi.SetChargeLeft(charge));
 
             var list = hourlyInfoList.Where(hi => hi.Time >= now.DateFloorQuarter());
 
@@ -815,7 +815,7 @@ namespace SessyController.Services
                 if (charge < 0) charge = 0.0;
                 if (charge > totalCapacity) charge = totalCapacity;
 
-                quarterlyInfo.ChargeLeft = charge;
+                quarterlyInfo.SetChargeLeft(charge);
             }
         }
 
@@ -1024,7 +1024,7 @@ namespace SessyController.Services
             Session? previousSession = null;
             var totalCapacity = _batteryContainer.GetTotalCapacity();
 
-            _sessions.SessionList.ToList().ForEach(se => se.SetChargeNeeded(totalCapacity));
+            // _sessions.SessionList.ToList().ForEach(se => se.SetChargeNeeded(totalCapacity));
 
             foreach (var nextSession in _sessions.SessionList.OrderBy(se => se.FirstDateTime))
             {
@@ -1084,7 +1084,7 @@ namespace SessyController.Services
             var needed = GetEstimatePowerNeeded(hourlyInfosAfter);
 
             session.SetChargeNeeded(needed);
-            hourlyInfosAfter.ForEach(hi => hi.ChargeNeeded = needed);
+            hourlyInfosAfter.ForEach(hi => hi.SetChargeNeeded(needed));
         }
 
         private void HandleLastDischargingSession(Session previousSession)
@@ -1094,7 +1094,7 @@ namespace SessyController.Services
 
             previousSession.SetChargeNeeded(needed);
 
-            hourlyInfosAfter.ForEach(hi => hi.ChargeNeeded = needed);
+            hourlyInfosAfter.ForEach(hi => hi.SetChargeNeeded(needed));
         }
 
         /// <summary>
@@ -1145,7 +1145,7 @@ namespace SessyController.Services
             var chargeNeeded = Math.Min(estimateNeeded, _batteryContainer.GetTotalCapacity());
 
             previousSession.SetChargeNeeded(chargeNeeded);
-            infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = chargeNeeded);
+            infoObjectsBetween.ForEach(hi => hi.SetChargeNeeded(chargeNeeded));
         }
 
         /// <summary>
@@ -1160,7 +1160,7 @@ namespace SessyController.Services
             var totalNeed = GetEstimatePowerNeeded(infoObjectsBetween);
 
             previousSession.SetChargeNeeded(totalNeed);
-            infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = totalNeed);
+            infoObjectsBetween.ForEach(hi => hi.SetChargeNeeded(totalNeed));
         }
 
         private double ChargeNeededForObjectsBetween(List<QuarterlyInfo> infoObjectsBetween)
@@ -1188,13 +1188,12 @@ namespace SessyController.Services
 
             var solarPower = infoObjectsBetween.Sum(io => io.SolarPowerInWatts);
 
-            chargeNeeded += quarterNeed * infoObjectsBetween.Count;
             chargeNeeded -= solarPower;
 
             chargeNeeded = EnsureBoundaries(chargeNeeded);
 
             previousSession.SetChargeNeeded(chargeNeeded);
-            infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = chargeNeeded);
+            infoObjectsBetween.ForEach(hi => hi.SetChargeNeeded(chargeNeeded));
         }
 
         /// <summary>
@@ -1223,7 +1222,7 @@ namespace SessyController.Services
             {
                 var needed = GetEstimatePowerNeeded(infoObjectsBetween);
 
-                infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = needed);
+                infoObjectsBetween.ForEach(hi => hi.SetChargeNeeded(needed));
                 previousSession.SetChargeNeeded(needed);
             }
             else
@@ -1232,7 +1231,7 @@ namespace SessyController.Services
                 {
                     var needed = GetEstimatePowerNeeded(infoObjectsBetween);
 
-                    infoObjectsBetween.ForEach(hi => hi.ChargeNeeded = needed);
+                    infoObjectsBetween.ForEach(hi => hi.SetChargeNeeded(needed));
                     previousSession.SetChargeNeeded(needed);
                 }
                 else
@@ -1244,18 +1243,18 @@ namespace SessyController.Services
 
         private double GetEstimatePowerNeeded(List<QuarterlyInfo> infoObjectsBetween)
         {
-            var endOfToday = _timeZoneService.Now.Date.AddHours(24).AddSeconds(-1);
             double power = 0.0;
 
-            foreach (var infoObject in infoObjectsBetween
-                                        .Where(io => io.Mode == Modes.ZeroNetHome))
+            foreach (var infoObject in infoObjectsBetween)
             {
                 var requiredEnergyPerQuarter = infoObject.EstimatedConsumptionPerQuarterHour;
 
-                if (infoObject.SolarPowerInWatts < requiredEnergyPerQuarter)
-                {
-                    power += requiredEnergyPerQuarter;
-                }
+                power += requiredEnergyPerQuarter - infoObject.SolarPowerInWatts;
+
+                //if (infoObject.SolarPowerInWatts < requiredEnergyPerQuarter)
+                //{
+                //    power += requiredEnergyPerQuarter;
+                //}
             }
 
             return EnsureBoundaries(power);
@@ -1321,7 +1320,7 @@ namespace SessyController.Services
                 // Skipping the last element.
             }
             else
-                _logger.LogWarning("HourlyInfos is empty!!");
+                _logger.LogWarning("QuarterlyInfos is empty!!");
         }
 
         private bool _isDisposed = false;

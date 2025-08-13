@@ -174,7 +174,7 @@ namespace SessyController.Services.Items
         /// </summary>
         public void SetChargeNeeded(double charge)
         {
-            SessionHourlyInfos.ForEach(hi => hi.ChargeNeeded = charge);
+            SessionHourlyInfos.ForEach(hi => hi.SetChargeNeeded(charge));
         }
 
         /// <summary>

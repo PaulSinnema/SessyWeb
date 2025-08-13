@@ -154,11 +154,16 @@ namespace SessyController.Services.Items
 
                 return _chargeLeft;
             }
-            set
+            private set
             {
                 _chargeLeft = value;
                 // _chargeLeftSet = true;
             }
+        }
+
+        public void SetChargeLeft(double chargeLeft)
+        {
+            ChargeLeft = chargeLeft;
         }
 
         private double _chargeNeeded;
@@ -174,11 +179,16 @@ namespace SessyController.Services.Items
 
                 return _chargeNeeded;
             }
-            set
+            private set
             {
                 _chargeNeeded = value;
                 // _chargeNeededSet = true;
             }
+        }
+
+        public void SetChargeNeeded(double chargeNeeded)
+        {
+            ChargeNeeded = chargeNeeded;
         }
 
         public double ToChargeInWatts => Math.Max(0.0, Math.Min(ChargingCapacityInWatts, _chargeNeeded - _chargeLeft - SolarPowerInWatts));

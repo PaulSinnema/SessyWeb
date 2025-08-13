@@ -220,58 +220,57 @@ namespace SessyController.Services.Items
 
             var localTime = timeZoneService.Now;
             var localTimeHour = localTime.Date.AddHours(localTime.Hour);
-            QuarterlyInfo? previousHour = null;
+            QuarterlyInfo? previousQuarter = null;
 
-            foreach (var quarterlyInfo in _quarterlyInfos
-                .OrderBy(hi => hi.Time))
+            foreach (var nextQuarter in _quarterlyInfos.OrderBy(hi => hi.Time))
             {
-                switch (quarterlyInfo.Mode)
+                switch (nextQuarter.Mode)
                 {
                     case Modes.Charging:
-                        CalculateChargingProfits(lastChargingSession, previousHour, quarterlyInfo);
+                        CalculateChargingProfits(lastChargingSession, previousQuarter, nextQuarter);
                         break;
 
                     case Modes.Discharging:
-                        CalculateDischargingProfits(quarterlyInfo);
+                        CalculateDischargingProfits(nextQuarter);
                         break;
 
                     case Modes.ZeroNetHome:
-                        CalculateZeroNetHomeProfits(lastChargingSession, quarterlyInfo, true);
+                        CalculateZeroNetHomeProfits(lastChargingSession, nextQuarter, true);
                         break;
 
                     case Modes.Disabled:
-                        CalculateDisabledProfits(quarterlyInfo);
+                        CalculateDisabledProfits(nextQuarter);
                         break;
 
                     case Modes.Unknown:
                     default:
-                        throw new InvalidOperationException($"Wrong mode {quarterlyInfo.Mode}"); ;
+                        throw new InvalidOperationException($"Wrong mode {nextQuarter.Mode}"); ;
                 }
 
-                CalculateZeroNetHomeProfits(lastChargingSession, quarterlyInfo, false);
+                CalculateZeroNetHomeProfits(lastChargingSession, nextQuarter, false);
 
-                previousHour = quarterlyInfo;
+                previousQuarter = nextQuarter;
             }
         }
 
-        private void CalculateChargingProfits(List<QuarterlyInfo> lastChargingSession, QuarterlyInfo? previousQuarter, QuarterlyInfo quarterlyInfo)
+        private void CalculateChargingProfits(List<QuarterlyInfo> lastChargingSession, QuarterlyInfo? previousQuarter, QuarterlyInfo nextQuarter)
         {
             double kWh = GetChargingCapacityInKWh(previousQuarter);
 
-            quarterlyInfo.Selling = 0.00;
-            quarterlyInfo.Buying = kWh * quarterlyInfo.Price;
+            nextQuarter.Selling = 0.00;
+            nextQuarter.Buying = kWh * nextQuarter.Price;
 
             if (lastChargingSession.Count > 0)
             {
                 var lastDateCharging = lastChargingSession.Max(hi => hi.Time);
 
-                if ((quarterlyInfo.Time - lastDateCharging).Hours > 1)
+                if ((nextQuarter.Time - lastDateCharging).Hours > 1)
                 {
                     lastChargingSession.Clear();
                 }
             }
 
-            lastChargingSession.Add(quarterlyInfo);
+            lastChargingSession.Add(nextQuarter);
         }
 
         private double GetChargingCapacityInKWh(QuarterlyInfo? previousHour)
@@ -561,42 +560,53 @@ namespace SessyController.Services.Items
         {
             var changed = false;
             Session? previousSession = null;
+            List<Session> sessionsToRemove = new List<Session>();
 
-            foreach (var session in SessionList.OrderBy(se => se.FirstDateTime).ToList())
+            foreach (var nextSession in SessionList.OrderBy(se => se.FirstDateTime))
             {
                 if (previousSession != null)
                 {
-                    if (previousSession.Mode == Modes.Charging && session.Mode == Modes.Charging)
+                    if (previousSession.Mode == Modes.Charging && nextSession.Mode == Modes.Charging)
                     {
-                        if (session.IsMoreProfitable(previousSession))
+                        if (nextSession.IsMoreProfitable(previousSession))
                         {
-                            RemoveSession(previousSession);
-                            changed = true;
+                            AddToSessionsToRemove(previousSession, sessionsToRemove);
                         }
-                    } else if(previousSession.Mode == Modes.Discharging && session.Mode == Modes.Discharging)
-                    {
-                        if(session.IsMoreProfitable(previousSession))
+                        else
                         {
-                            RemoveSession(session);
-                            changed = true;
+                            AddToSessionsToRemove(nextSession, sessionsToRemove);
                         }
-                    } else if(previousSession.Mode == Modes.Charging && session.Mode == Modes.Discharging)
+                    } else if(previousSession.Mode == Modes.Discharging && nextSession.Mode == Modes.Discharging)
                     {
-                        var chargeCost = previousSession.GetTotalCost();
-                        var dischargeCost = session.GetTotalCost();
-
-                        if(chargeCost > dischargeCost)
+                        if (nextSession.IsMoreProfitable(previousSession))
                         {
-                            RemoveSession(session);
-                            changed = true;
+                            AddToSessionsToRemove(previousSession, sessionsToRemove);
+                        }
+                        else
+                        {
+                            AddToSessionsToRemove(nextSession, sessionsToRemove);
                         }
                     }
                 }
 
-                previousSession = session;
+                previousSession = nextSession;
             }
 
+            sessionsToRemove.ForEach(se =>
+            {
+                RemoveSession(se);
+                changed = true;
+            });
+
             return changed;
+        }
+
+        private static void AddToSessionsToRemove(Session previousSession, List<Session> sessionsToRemove)
+        {
+            if (!sessionsToRemove.Contains(previousSession))
+            {
+                sessionsToRemove.Add(previousSession);
+            }
         }
     }
 }
