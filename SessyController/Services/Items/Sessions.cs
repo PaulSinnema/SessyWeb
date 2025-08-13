@@ -83,7 +83,7 @@ namespace SessyController.Services.Items
             return 0;
         }
 
-        public QuarterlyInfo? GetCurrentHourlyInfo()
+        public QuarterlyInfo? GetCurrentQuarterlyInfo()
         {
             var localTime = _timeZoneService.Now.DateFloorQuarter();
 

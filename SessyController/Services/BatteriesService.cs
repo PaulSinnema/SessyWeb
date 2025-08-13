@@ -181,11 +181,13 @@ namespace SessyController.Services
 
                         await EvaluateSessions();
 
-                        if (await WeControlTheBatteries())
-                        {
-                            QuarterlyInfo? currentHourlyInfo = _sessions.GetCurrentHourlyInfo();
+                        QuarterlyInfo? currentHourlyInfo = _sessions.GetCurrentQuarterlyInfo();
 
-                            if (currentHourlyInfo != null)
+                        if (currentHourlyInfo != null)
+                        {
+                            await StorePerformance(currentHourlyInfo);
+
+                            if (await WeControlTheBatteries())
                             {
                                 var batteryStates = await GetBatteryStates(currentHourlyInfo);
 
@@ -205,6 +207,35 @@ namespace SessyController.Services
 
                     DataChanged?.Invoke();
                 }
+            }
+        }
+
+        private async Task StorePerformance(QuarterlyInfo currentQuarterlyInfo)
+        {
+            if (!await _performanceDataService.Exists((set) =>
+            {
+                return set.Any(pd => pd.Time == currentQuarterlyInfo.Time);
+            }))
+            {
+                var time = currentQuarterlyInfo.Time;
+
+                var performanceData = new List<Performance>
+                {
+                    new Performance
+                    {
+                        Time = currentQuarterlyInfo.Time,
+                        BuyingPrice = currentQuarterlyInfo.Buying,
+                        SellingPrice = currentQuarterlyInfo.Selling,
+                        Profit = currentQuarterlyInfo.Profit,
+                        EstimatedConsumptionPerQuarterHour = currentQuarterlyInfo.EstimatedConsumptionPerQuarterHour,
+                        ChargeLeft = await _batteryContainer.GetStateOfChargeInWatts(),
+                        ChargeNeeded = currentQuarterlyInfo.ChargeNeeded,
+                        Charging = currentQuarterlyInfo.Charging,
+                        Discharging = currentQuarterlyInfo.Discharging
+                    }
+                };
+
+                await _performanceDataService.Add(performanceData);
             }
         }
 
@@ -1327,7 +1358,7 @@ namespace SessyController.Services
 
         public string GetBatteryMode()
         {
-            var quarterlyInfo = _sessions.GetCurrentHourlyInfo();
+            var quarterlyInfo = _sessions.GetCurrentQuarterlyInfo();
 
             switch (quarterlyInfo.Mode)
             {
