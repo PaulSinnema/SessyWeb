@@ -103,13 +103,13 @@ namespace SessyController.Services.Items
         {
             if (session != null)
             {
-                foreach (var hourlyItem in session.GetHourlyInfoList())
+                foreach (var hourlyItem in session.GetQuarterlyInfoList())
                 {
                     hourlyItem.DisableCharging();
                     hourlyItem.DisableDischarging();
                 }
 
-                if(!_sessionList.Remove(session))
+                if (!_sessionList.Remove(session))
                 {
                     throw new InvalidOperationException($"Could not remove session {session}");
                 }
@@ -371,12 +371,12 @@ namespace SessyController.Services.Items
         /// </summary>
         public void CompleteSession(Session session, List<QuarterlyInfo> hourlyInfos, int maxQuarters, double cycleCost)
         {
-            if (session.GetHourlyInfoList().Count != 1)
+            if (session.GetQuarterlyInfoList().Count != 1)
                 throw new InvalidOperationException($"Session has zero or more than 1 hourly price.");
 
             var now = _timeZoneService.Now;
             var selectDateHour = now.Date.AddHours(now.Hour).AddMinutes(-15);
-            var list = session.GetHourlyInfoList();
+            var list = session.GetQuarterlyInfoList();
             var index = hourlyInfos.IndexOf(list.First());
             var prev = index - 1;
             var next = index + 1;
@@ -467,22 +467,30 @@ namespace SessyController.Services.Items
         }
 
         /// <summary>
-        /// Returns the hourly info objects between 2 sessions.
+        /// Returns the quarterly info objects between 2 sessions 
+        /// including the objects of the previous session and excluding the objects of the next session.
         /// </summary>
-        public List<QuarterlyInfo> GetInfoObjectsBetween(Session previousSession, Session nextSession)
+        private List<QuarterlyInfo> GetInfoObjectsUntilNextSession(Session previousSession, Session? nextSession)
         {
+            if (nextSession == null)
+            {
+                return GetInfoObjectsAfter(previousSession);
+
+            }
+
             return _quarterlyInfos!
-                .Where(hi => hi.Time < nextSession.FirstDateTime && hi.Time > previousSession.LastDateTime)
+                .Where(hi => hi.Time >= previousSession.FirstDateTime && hi.Time < nextSession.FirstDateTime)
+                .OrderBy(io => io.Time)
                 .ToList();
         }
 
         /// <summary>
         /// Returns the hourly info objects after the session and before the date.
         /// </summary>
-        public List<QuarterlyInfo> GetInfoObjectsAfter(Session session)
+        private List<QuarterlyInfo> GetInfoObjectsAfter(Session session)
         {
             return _quarterlyInfos!
-                .Where(hi => hi.Time > session.LastDateTime)
+                .Where(hi => hi.Time >= session.FirstDateTime)
                 .ToList();
         }
 
@@ -531,7 +539,7 @@ namespace SessyController.Services.Items
         /// </summary>
         public void MergeSessions(Session session1, Session session2)
         {
-            foreach (var quarterlyInfo in session2.GetHourlyInfoList())
+            foreach (var quarterlyInfo in session2.GetQuarterlyInfoList())
             {
                 session1.AddHourlyInfo(quarterlyInfo);
             }
@@ -576,7 +584,8 @@ namespace SessyController.Services.Items
                         {
                             AddToSessionsToRemove(nextSession, sessionsToRemove);
                         }
-                    } else if(previousSession.Mode == Modes.Discharging && nextSession.Mode == Modes.Discharging)
+                    }
+                    else if (previousSession.Mode == Modes.Discharging && nextSession.Mode == Modes.Discharging)
                     {
                         if (nextSession.IsMoreProfitable(previousSession))
                         {
@@ -608,5 +617,44 @@ namespace SessyController.Services.Items
                 sessionsToRemove.Add(previousSession);
             }
         }
+
+        public void SetEstimateChargeNeededUntilNextSession(Session previousSession, Session? nextSession = null)
+        {
+            var infoObjects = GetInfoObjectsUntilNextSession(previousSession, nextSession);
+
+            double chargeNeeded = previousSession.Mode == Modes.Charging ? _batteryContainer.GetTotalCapacity() : 0.0;
+
+            foreach (var infoObject in infoObjects)
+            {
+                chargeNeeded += infoObject.EstimatedConsumptionPerQuarterHour;
+            }
+
+            var solarPower = infoObjects
+                                .Where(io => io.Mode == Modes.ZeroNetHome)
+                                .Sum(io => io.SolarPowerInWatts);
+
+            chargeNeeded -= solarPower;
+
+            chargeNeeded = EnsureBoundaries(chargeNeeded);
+
+            foreach (var quarterlyInfo in infoObjects)
+            {
+                quarterlyInfo.SetChargeNeeded(chargeNeeded);
+            }
+        }
+
+        /// <summary>
+        /// Ensure the power is positive and less or equal to the total capacity.
+        /// </summary>
+        private double EnsureBoundaries(double charge)
+        {
+            var totalCapacity = _batteryContainer.GetTotalCapacity();
+
+            charge = Math.Max(0.0, charge); // Prevent negative power
+            charge = Math.Min(charge, totalCapacity); // Prevent charge to be bigger than capacity.
+
+            return charge;
+        }
+
     }
 }

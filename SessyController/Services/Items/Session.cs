@@ -180,7 +180,7 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Gets the hourlyInofos list sorted by Time as a readonly collection.
         /// </summary>
-        public IReadOnlyCollection<QuarterlyInfo> GetHourlyInfoList() => SessionHourlyInfos.OrderBy(hi => hi.Time).ToList().AsReadOnly();
+        public IReadOnlyCollection<QuarterlyInfo> GetQuarterlyInfoList() => SessionHourlyInfos.OrderBy(hi => hi.Time).ToList().AsReadOnly();
 
         /// <summary>
         /// Add a hourly info object to the list if not already in the list.

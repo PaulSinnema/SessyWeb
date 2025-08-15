@@ -645,7 +645,7 @@ namespace SessyController.Services
         {
             foreach (var session in _sessions.SessionList)
             {
-                if (session.GetHourlyInfoList().Count() == 0)
+                if (session.GetQuarterlyInfoList().Count() == 0)
                     throw new InvalidOperationException($"Session without HourlyInfos");
             }
 
@@ -654,13 +654,13 @@ namespace SessyController.Services
                 switch (session.Mode)
                 {
                     case Modes.Charging:
-                        if (!session.GetHourlyInfoList().All(hi => hi.Mode == Modes.Charging))
+                        if (!session.GetQuarterlyInfoList().All(hi => hi.Mode == Modes.Charging))
                             throw new InvalidOperationException($"Charging session has hourlyinfo objects without charging mode {session}");
 
                         break;
 
                     case Modes.Discharging:
-                        if (!session.GetHourlyInfoList().All(hi => hi.Mode == Modes.Discharging))
+                        if (!session.GetQuarterlyInfoList().All(hi => hi.Mode == Modes.Discharging))
                             throw new InvalidOperationException($"Discharging session has hourlyinfo objects without discharging mode {session}");
 
                         break;
@@ -720,7 +720,7 @@ namespace SessyController.Services
         {
             var session = sessions.FindSession(quarterlyInfo);
 
-            if (session.GetHourlyInfoList().Count < 1)
+            if (session.GetQuarterlyInfoList().Count < 1)
                 throw new InvalidOperationException($"Empty charging session {session}");
 
             return session;
@@ -895,8 +895,8 @@ namespace SessyController.Services
                 {
                     if (lastSession.Mode == Modes.Charging && session.Mode == Modes.Discharging)
                     {
-                        using var chargeEnumerator = lastSession.GetHourlyInfoList().OrderBy(hi => hi.Price).ToList().GetEnumerator();
-                        using var dischargeEnumerator = session.GetHourlyInfoList().OrderByDescending(hi => hi.Price).ToList().GetEnumerator();
+                        using var chargeEnumerator = lastSession.GetQuarterlyInfoList().OrderBy(hi => hi.Price).ToList().GetEnumerator();
+                        using var dischargeEnumerator = session.GetQuarterlyInfoList().OrderByDescending(hi => hi.Price).ToList().GetEnumerator();
 
                         var hasCharging = chargeEnumerator.MoveNext();
                         var hasDischarging = dischargeEnumerator.MoveNext();
@@ -942,7 +942,7 @@ namespace SessyController.Services
                 {
                     case Modes.Charging:
                         {
-                            listToLimit = session.GetHourlyInfoList()
+                            listToLimit = session.GetQuarterlyInfoList()
                                 .OrderByDescending(hp => hp.Price)
                                 .ThenBy(hp => hp.Time)
                                 .ToList();
@@ -952,7 +952,7 @@ namespace SessyController.Services
 
                     case Modes.Discharging:
                         {
-                            listToLimit = session.GetHourlyInfoList()
+                            listToLimit = session.GetQuarterlyInfoList()
                                 .OrderBy(hp => hp.Price)
                                 .ThenBy(hp => hp.Time)
                                 .ToList();
@@ -983,7 +983,7 @@ namespace SessyController.Services
 
             foreach (var session in _sessions.SessionList.ToList())
             {
-                if (session.GetHourlyInfoList().Count() == 0)
+                if (session.GetQuarterlyInfoList().Count() == 0)
                 {
                     _sessions.RemoveSession(session);
                     changed = true;
@@ -1043,8 +1043,6 @@ namespace SessyController.Services
                         default:
                             throw new InvalidOperationException($"Wrong mode: {previousSession}");
                     }
-
-                    HandleHoursBetweenSessions(previousSession, nextSession);
                 }
 
                 previousSession = nextSession;
@@ -1054,11 +1052,6 @@ namespace SessyController.Services
             {
                 HandleLastSession(previousSession);
             }
-        }
-
-        private void HandleHoursBetweenSessions(Session previousSession, Session nextSession)
-        {
-            var hourlyInfosBetween = _sessions.GetInfoObjectsBetween(previousSession, nextSession);
         }
 
         private void HandleLastSession(Session previousSession)
@@ -1080,21 +1073,12 @@ namespace SessyController.Services
 
         private void HandleLastChargingSession(Session session)
         {
-            var hourlyInfosAfter = _sessions.GetInfoObjectsAfter(session);
-            var needed = GetEstimatePowerNeeded(hourlyInfosAfter);
-
-            session.SetChargeNeeded(needed);
-            hourlyInfosAfter.ForEach(hi => hi.SetChargeNeeded(needed));
+            _sessions.SetEstimateChargeNeededUntilNextSession(session);
         }
 
         private void HandleLastDischargingSession(Session previousSession)
         {
-            var hourlyInfosAfter = _sessions.GetInfoObjectsAfter(previousSession);
-            var needed = GetEstimatePowerNeeded(hourlyInfosAfter);
-
-            previousSession.SetChargeNeeded(needed);
-
-            hourlyInfosAfter.ForEach(hi => hi.SetChargeNeeded(needed));
+           _sessions.SetEstimateChargeNeededUntilNextSession(previousSession);
         }
 
         /// <summary>
@@ -1139,13 +1123,7 @@ namespace SessyController.Services
 
         private void HandleDischargingDischarging(Session previousSession, Session nextSession)
         {
-            List<QuarterlyInfo> infoObjectsBetween = _sessions.GetInfoObjectsBetween(previousSession, nextSession);
-            var estimateNeeded = GetEstimatePowerNeeded(infoObjectsBetween);
-
-            var chargeNeeded = Math.Min(estimateNeeded, _batteryContainer.GetTotalCapacity());
-
-            previousSession.SetChargeNeeded(chargeNeeded);
-            infoObjectsBetween.ForEach(hi => hi.SetChargeNeeded(chargeNeeded));
+            _sessions.SetEstimateChargeNeededUntilNextSession(previousSession, nextSession);
         }
 
         /// <summary>
@@ -1153,26 +1131,7 @@ namespace SessyController.Services
         /// </summary>
         private void HandleDischargingChargingCalculation(Session previousSession, Session nextSession)
         {
-            List<QuarterlyInfo> infoObjectsBetween = _sessions.GetInfoObjectsBetween(previousSession, nextSession)
-                                                        .OrderBy(io => io.Time)
-                                                        .ToList();
-
-            var totalNeed = GetEstimatePowerNeeded(infoObjectsBetween);
-
-            previousSession.SetChargeNeeded(totalNeed);
-            infoObjectsBetween.ForEach(hi => hi.SetChargeNeeded(totalNeed));
-        }
-
-        private double ChargeNeededForObjectsBetween(List<QuarterlyInfo> infoObjectsBetween)
-        {
-            double chargeNeeded = 0.0;
-
-            foreach (var infoObject in infoObjectsBetween)
-            {
-                chargeNeeded += infoObject.EstimatedConsumptionPerQuarterHour;
-            }
-
-            return EnsureBoundaries(chargeNeeded);
+            _sessions.SetEstimateChargeNeededUntilNextSession(previousSession, nextSession);
         }
 
         /// <summary>
@@ -1180,33 +1139,7 @@ namespace SessyController.Services
         /// </summary>
         private void HandleChargingDischargingSessions(Session previousSession, Session nextSession)
         {
-            var chargeNeeded = _batteryContainer.GetTotalCapacity();
-
-            List<QuarterlyInfo> infoObjectsBetween = _sessions.GetInfoObjectsBetween(previousSession, nextSession);
-
-            double quarterNeed = ChargeNeededForObjectsBetween(infoObjectsBetween);
-
-            var solarPower = infoObjectsBetween.Sum(io => io.SolarPowerInWatts);
-
-            chargeNeeded -= solarPower;
-
-            chargeNeeded = EnsureBoundaries(chargeNeeded);
-
-            previousSession.SetChargeNeeded(chargeNeeded);
-            infoObjectsBetween.ForEach(hi => hi.SetChargeNeeded(chargeNeeded));
-        }
-
-        /// <summary>
-        /// Ensure the power is positive and less or equal to the total capacity.
-        /// </summary>
-        private double EnsureBoundaries(double charge)
-        {
-            var totalCapacity = _batteryContainer.GetTotalCapacity();
-
-            charge = Math.Max(0.0, charge); // Prevent negative power
-            charge = Math.Min(charge, totalCapacity); // Prevent charge to be bigger than capacity.
-
-            return charge;
+            _sessions.SetEstimateChargeNeededUntilNextSession(previousSession, nextSession);
         }
 
         /// <summary>
@@ -1214,50 +1147,7 @@ namespace SessyController.Services
         /// </summary>
         private void HandleChargingChargingSessions(Session previousSession, Session nextSession)
         {
-            var totalCapacity = _batteryContainer.GetTotalCapacity();
-            List<QuarterlyInfo> infoObjectsBetween = _sessions.GetInfoObjectsBetween(previousSession, nextSession);
-
-
-            if (previousSession.IsMoreProfitable(nextSession))
-            {
-                var needed = GetEstimatePowerNeeded(infoObjectsBetween);
-
-                infoObjectsBetween.ForEach(hi => hi.SetChargeNeeded(needed));
-                previousSession.SetChargeNeeded(needed);
-            }
-            else
-            {
-                if (infoObjectsBetween.Any())
-                {
-                    var needed = GetEstimatePowerNeeded(infoObjectsBetween);
-
-                    infoObjectsBetween.ForEach(hi => hi.SetChargeNeeded(needed));
-                    previousSession.SetChargeNeeded(needed);
-                }
-                else
-                {
-                    previousSession.SetChargeNeeded(0.0);
-                }
-            }
-        }
-
-        private double GetEstimatePowerNeeded(List<QuarterlyInfo> infoObjectsBetween)
-        {
-            double power = 0.0;
-
-            foreach (var infoObject in infoObjectsBetween)
-            {
-                var requiredEnergyPerQuarter = infoObject.EstimatedConsumptionPerQuarterHour;
-
-                power += requiredEnergyPerQuarter - infoObject.SolarPowerInWatts;
-
-                //if (infoObject.SolarPowerInWatts < requiredEnergyPerQuarter)
-                //{
-                //    power += requiredEnergyPerQuarter;
-                //}
-            }
-
-            return EnsureBoundaries(power);
+            _sessions.SetEstimateChargeNeededUntilNextSession(previousSession, nextSession);
         }
 
         /// <summary>
