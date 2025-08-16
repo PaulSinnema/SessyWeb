@@ -191,9 +191,9 @@ namespace SessyController.Services.Items
             ChargeNeeded = chargeNeeded;
         }
 
-        public double ToChargeInWatts => Math.Max(0.0, Math.Min(ChargingCapacityInWatts, _chargeNeeded - _chargeLeft - SolarPowerInWatts));
+        public double ToChargeInWatts => Math.Max(0.0, Math.Min(ChargingCapacityInWatts, _chargeNeeded - _chargeLeft - SolarPowerPerQuarterInWatts));
 
-        public double ToDischargeInWatts => Math.Max(0.0, Math.Min(DischargingCapacityInWatts, _chargeLeft - _chargeNeeded - SolarPowerInWatts));
+        public double ToDischargeInWatts => Math.Max(0.0, Math.Min(DischargingCapacityInWatts, _chargeLeft - _chargeNeeded - SolarPowerPerQuarterInWatts));
 
         public double ChargingCost => ToChargeInWatts / 1000 / 4.0 * BuyingPrice;
 
@@ -213,7 +213,7 @@ namespace SessyController.Services.Items
 
         public double SolarPowerPerQuarterHour { get; set; }
 
-        public double SolarPowerInWatts => SolarPowerPerQuarterHour * 1000;
+        public double SolarPowerPerQuarterInWatts => SolarPowerPerQuarterHour * 1000;
 
         public double SolarPowerVisual => SmoothedSolarPower / 2.5 / _settingsConfig.SolarCorrection;
 
@@ -352,8 +352,10 @@ namespace SessyController.Services.Items
                     return 0.2;
                 else if (NetZeroHomeWithSolar)
                     return 0.03;
+                else if (Disabled)
+                    return 0.0;
 
-                return 0.0;
+                    return 1.0;
             }
         }
 
@@ -386,7 +388,7 @@ namespace SessyController.Services.Items
             get
             {
                 if (Mode == Modes.ZeroNetHome)
-                    if(SolarPowerInWatts <= minSolarPower)
+                    if(SolarPowerPerQuarterInWatts <= minSolarPower)
                         return true;
 
                 return false;
@@ -401,7 +403,7 @@ namespace SessyController.Services.Items
             get => (!(Charging || Discharging)) &&
                 (
                     NetZeroHomeProfit >= _settingsConfig.NetZeroHomeMinProfit ||
-                    SolarPowerInWatts > minSolarPower ||
+                    SolarPowerPerQuarterInWatts > minSolarPower ||
                     SolarPowerIsActive
                 );
         }

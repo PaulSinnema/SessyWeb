@@ -32,7 +32,7 @@ namespace SessyController.Services.Items
             {
                 _mode = value;
 
-                foreach (var hourlyPrice in SessionHourlyInfos)
+                foreach (var hourlyPrice in QuarterlyInfos)
                 {
                     hourlyPrice.SetModes(_mode);
                 }
@@ -104,13 +104,13 @@ namespace SessyController.Services.Items
         /// </summary>
         public bool Contains(QuarterlyInfo quarterlyInfo)
         {
-            return SessionHourlyInfos.Any(hi => hi.Time.DateFloorQuarter() == quarterlyInfo.Time.DateFloorQuarter());
+            return QuarterlyInfos.Any(hi => hi.Time.DateFloorQuarter() == quarterlyInfo.Time.DateFloorQuarter());
         }
 
         /// <summary>
         /// All prices in the session
         /// </summary>
-        private List<QuarterlyInfo> SessionHourlyInfos { get; set; }
+        private List<QuarterlyInfo> QuarterlyInfos { get; set; }
 
         private Sessions _sessions { get; set; }
 
@@ -124,17 +124,17 @@ namespace SessyController.Services.Items
         /// <summary>
         /// The average price of all hourly prices in the session.
         /// </summary>
-        public double AveragePrice => SessionHourlyInfos.Count > 0 ? SessionHourlyInfos.Average(hp => hp.Price) : 0.0;
+        public double AveragePrice => QuarterlyInfos.Count > 0 ? QuarterlyInfos.Average(hp => hp.Price) : 0.0;
 
         /// <summary>
         /// First quarterlyInfo object in the session.
         /// </summary>
-        public QuarterlyInfo? First => SessionHourlyInfos.OrderBy(hi => hi.Time).FirstOrDefault();
+        public QuarterlyInfo? First => QuarterlyInfos.OrderBy(hi => hi.Time).FirstOrDefault();
 
         /// <summary>
         /// Last hourlyinfo object in the session.
         /// </summary>
-        public QuarterlyInfo? Last => SessionHourlyInfos.OrderByDescending(hi => hi.Time).FirstOrDefault();
+        public QuarterlyInfo? Last => QuarterlyInfos.OrderByDescending(hi => hi.Time).FirstOrDefault();
 
         /// <summary>
         /// The first date in the session
@@ -144,9 +144,9 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Returns true if any of the prices is negative.
         /// </summary>
-        public bool PricesAnyNegative => SessionHourlyInfos.Any(hi => hi.Price < 0.0);
+        public bool PricesAnyNegative => QuarterlyInfos.Any(hi => hi.Price < 0.0);
 
-        public bool PricesAllPositive => SessionHourlyInfos.All(hi => hi.Price >= 0.0);
+        public bool PricesAllPositive => QuarterlyInfos.All(hi => hi.Price >= 0.0);
 
         /// <summary>
         /// The last date in the session
@@ -160,7 +160,7 @@ namespace SessyController.Services.Items
                        BatteryContainer batteryContainer,
                        SettingsConfig settingsConfig)
         {
-            SessionHourlyInfos = new List<QuarterlyInfo>();
+            QuarterlyInfos = new List<QuarterlyInfo>();
             _sessions = sessions;
             _timeZoneService = timeZoneService;
             MaxQuarters = maxQuarters;
@@ -174,13 +174,13 @@ namespace SessyController.Services.Items
         /// </summary>
         public void SetChargeNeeded(double charge)
         {
-            SessionHourlyInfos.ForEach(hi => hi.SetChargeNeeded(charge));
+            QuarterlyInfos.ForEach(hi => hi.SetChargeNeeded(charge));
         }
 
         /// <summary>
         /// Gets the hourlyInofos list sorted by Time as a readonly collection.
         /// </summary>
-        public IReadOnlyCollection<QuarterlyInfo> GetQuarterlyInfoList() => SessionHourlyInfos.OrderBy(hi => hi.Time).ToList().AsReadOnly();
+        public IReadOnlyCollection<QuarterlyInfo> GetQuarterlyInfoList() => QuarterlyInfos.OrderBy(hi => hi.Time).ToList().AsReadOnly();
 
         /// <summary>
         /// Add a hourly info object to the list if not already in the list.
@@ -191,7 +191,7 @@ namespace SessyController.Services.Items
             {
                 quarterlyInfo.SetModes(_mode);
 
-                SessionHourlyInfos.Add(quarterlyInfo);
+                QuarterlyInfos.Add(quarterlyInfo);
             }
         }
 
@@ -201,7 +201,7 @@ namespace SessyController.Services.Items
             {
                 DisableChargingAndDischarging(quarterlyInfo);
 
-                SessionHourlyInfos.Remove(quarterlyInfo);
+                QuarterlyInfos.Remove(quarterlyInfo);
             }
         }
 
@@ -219,13 +219,16 @@ namespace SessyController.Services.Items
             if (session.Mode != Mode)
                 throw new InvalidOperationException($"Modes should be the same of both sessions {Mode} != {session.Mode}");
 
+            var myAveragePrice = QuarterlyInfos.Average(hi => hi.Price);
+            var theirAveragePrice = session.QuarterlyInfos.Average(hi => hi.Price);
+
             switch (Mode)
             {
                 case Modes.Charging:
-                    return SessionHourlyInfos.Average(hi => hi.Price) < session.SessionHourlyInfos.Average(hi => hi.Price);
+                    return myAveragePrice <= theirAveragePrice;
 
                 case Modes.Discharging:
-                    return SessionHourlyInfos.Average(hi => hi.Price) > session.SessionHourlyInfos.Average(hi => hi.Price);
+                    return myAveragePrice >= theirAveragePrice;
 
                 default:
                     throw new InvalidOperationException($"Wrong mode: {Mode}");
@@ -240,10 +243,10 @@ namespace SessyController.Services.Items
             switch (Mode)
             {
                 case Modes.Charging:
-                    return SessionHourlyInfos.Sum(hi => hi.ChargingCost);
+                    return QuarterlyInfos.Sum(hi => hi.ChargingCost);
 
                 case Modes.Discharging:
-                    return SessionHourlyInfos.Sum(hi => hi.DischargingCost);
+                    return QuarterlyInfos.Sum(hi => hi.DischargingCost);
 
                 default:
                     throw new InvalidOperationException($"Wrong mode: {Mode}");
@@ -260,13 +263,13 @@ namespace SessyController.Services.Items
         {
             if (setModes)
             {
-                foreach (var quarterlyInfo in SessionHourlyInfos)
+                foreach (var quarterlyInfo in QuarterlyInfos)
                 {
                     DisableChargingAndDischarging(quarterlyInfo);
                 }
             }
 
-            SessionHourlyInfos.Clear();
+            QuarterlyInfos.Clear();
         }
 
         public bool RemoveAllAfter(int maxQuarters)
@@ -275,12 +278,13 @@ namespace SessyController.Services.Items
 
             // Once the session has started don't remove anything before now.
             var now = _timeZoneService.Now.DateFloorQuarter();
-            var hourlyInfos = SessionHourlyInfos.Where(hi => hi.Time > now).ToList();
+            var hourlyInfos = QuarterlyInfos.Where(hi => hi.Time > now).ToList();
 
             switch (Mode)
             {
                 case Modes.Charging:
                     {
+                        // Remove the highest prices
                         var list = hourlyInfos
                             .OrderByDescending(hi => hi.Price)
                             .ThenBy(hi => hi.Time)
@@ -293,6 +297,7 @@ namespace SessyController.Services.Items
 
                 case Modes.Discharging:
                     {
+                        // Remove the lowest prices
                         var list = hourlyInfos
                             .OrderBy(hi => hi.Price)
                             .ThenBy(hi => hi.Time)
@@ -401,12 +406,12 @@ namespace SessyController.Services.Items
             {
                 case Modes.Charging:
                     {
-                        return SessionHourlyInfos.Count;
+                        return QuarterlyInfos.Count;
                     }
 
                 case Modes.Discharging:
                     {
-                        return SessionHourlyInfos.Count;
+                        return QuarterlyInfos.Count;
                     }
 
                 default:
@@ -417,13 +422,13 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Are there quarterlyInfo items in the session?
         /// </summary>
-        public bool IsEmpty() => !SessionHourlyInfos.Any();
+        public bool IsEmpty() => !QuarterlyInfos.Any();
 
         public override string ToString()
         {
             var empty = IsEmpty() ? "!!!" : string.Empty;
 
-            return $"{empty}Session: {Mode}, FirstDate: {FirstDateTime}, LastDate {LastDateTime}, Count: {SessionHourlyInfos.Count}, MaxHours: {MaxQuarters}";
+            return $"{empty}Session: {Mode}, FirstDate: {FirstDateTime}, LastDate {LastDateTime}, Count: {QuarterlyInfos.Count}, MaxHours: {MaxQuarters}";
         }
 
         private bool _isDisposed = false;
@@ -434,6 +439,11 @@ namespace SessyController.Services.Items
             {
                 _isDisposed = true;
             }
+        }
+
+        internal void Merge(Session nextSession)
+        {
+            QuarterlyInfos.AddRange(nextSession.QuarterlyInfos);
         }
     }
 }

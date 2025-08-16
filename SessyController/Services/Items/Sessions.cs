@@ -470,7 +470,7 @@ namespace SessyController.Services.Items
         /// Returns the quarterly info objects between 2 sessions 
         /// including the objects of the previous session and excluding the objects of the next session.
         /// </summary>
-        private List<QuarterlyInfo> GetInfoObjectsUntilNextSession(Session previousSession, Session? nextSession)
+        private List<QuarterlyInfo> GetInfoObjectsUntilNextSession(Session previousSession, Session? nextSession = null)
         {
             if (nextSession == null)
             {
@@ -622,18 +622,38 @@ namespace SessyController.Services.Items
         {
             var infoObjects = GetInfoObjectsUntilNextSession(previousSession, nextSession);
 
-            double chargeNeeded = previousSession.Mode == Modes.Charging ? _batteryContainer.GetTotalCapacity() : 0.0;
+            double chargeNeeded = 0.0;
 
-            foreach (var infoObject in infoObjects)
+            switch (previousSession.Mode)
             {
-                chargeNeeded += infoObject.EstimatedConsumptionPerQuarterHour;
+                case Modes.Charging:
+                    chargeNeeded = _batteryContainer.GetTotalCapacity();
+
+                    var subset = infoObjects
+                                        .Where(io => io.Mode == Modes.ZeroNetHome)
+                                        .ToList();
+
+                    var solarPower = subset.Sum(io => io.SolarPowerPerQuarterInWatts);
+                    var consumption = subset.Sum(io => io.EstimatedConsumptionPerQuarterHour);
+
+                    chargeNeeded += consumption;
+                    chargeNeeded -= solarPower;
+
+                    break;
+
+                case Modes.Discharging:
+                    chargeNeeded = 0.0;
+                    foreach (var infoObject in infoObjects
+                        .Where(io => io.Mode == Modes.ZeroNetHome &&
+                                     io.EstimatedConsumptionPerQuarterHour > io.SolarPowerPerQuarterInWatts))
+                    {
+                        chargeNeeded += infoObject.EstimatedConsumptionPerQuarterHour;
+                    }
+                    break;
+
+                default:
+                    throw new InvalidOperationException($"Invalid mode: {previousSession.Mode}");
             }
-
-            var solarPower = infoObjects
-                                .Where(io => io.Mode == Modes.ZeroNetHome)
-                                .Sum(io => io.SolarPowerInWatts);
-
-            chargeNeeded -= solarPower;
 
             chargeNeeded = EnsureBoundaries(chargeNeeded);
 

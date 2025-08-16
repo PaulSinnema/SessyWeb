@@ -326,7 +326,7 @@ namespace SessyController.Services
 
             double altitudeFactor = (solarAltitude > 10) ? 1.0 : Math.Max(0, solarAltitude / 10.0);
 
-            double powerkWatt = globalRadiation * (totalPeakPower / 1000) * solarFactor * altitudeFactor / 1000 / 4; // kW per quarter hour
+            double powerkWatt = globalRadiation * (totalPeakPower / 1000.0) * solarFactor * altitudeFactor / 1000.0 / 4.0; // kW per quarter hour
 
             return powerkWatt;
         }

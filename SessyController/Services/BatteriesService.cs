@@ -258,7 +258,7 @@ namespace SessyController.Services
 
             if (last == null || last.Status != status)
             {
-                StoreStatus(status);
+                await StoreStatus(status);
             }
 
             return WeAreInControl;
@@ -267,7 +267,7 @@ namespace SessyController.Services
         /// <summary>
         /// Store a new control record to the database.
         /// </summary>
-        private void StoreStatus(SessyWebControlStatus status)
+        private async Task StoreStatus(SessyWebControlStatus status)
         {
             var controlList = new List<SessyWebControl>
             {
@@ -278,7 +278,7 @@ namespace SessyController.Services
                 }
             };
 
-            _sessyWebControlDataService.Add(controlList);
+            await _sessyWebControlDataService.Add(controlList);
         }
 
         /// <summary>
@@ -624,6 +624,8 @@ namespace SessyController.Services
 
                 CreateSessions();
 
+                MergeNeighbouringSessions();
+
                 if (_sessions != null)
                 {
                     RemoveExtraChargingSessions();
@@ -634,6 +636,29 @@ namespace SessyController.Services
             catch (Exception ex)
             {
                 _logger.LogException(ex, $"Unhandled exception in GetChargingHours {ex.ToDetailedString()}");
+            }
+        }
+
+        /// <summary>
+        /// Merge sesseion that have no info objects between them.
+        /// </summary>
+        private void MergeNeighbouringSessions()
+        {
+            Session? previousSession = null;
+
+            foreach (var nextSession in _sessions.SessionList.OrderBy(se => se.FirstDateTime).ToList())
+            {
+                if (previousSession != null)
+                {
+                    if (previousSession.Last.Time.AddMinutes(15) == nextSession.FirstDateTime)
+                    {
+                        previousSession.Merge(nextSession);
+                        _sessions.RemoveSession(nextSession);
+                        continue;
+                    }
+                }
+
+                previousSession = nextSession;
             }
         }
 
@@ -800,7 +825,7 @@ namespace SessyController.Services
                     case Modes.ZeroNetHome:
                         {
                             charge -= quarterlyInfo.EstimatedConsumptionPerQuarterHour;
-                            charge += quarterlyInfo.SolarPowerInWatts;
+                            charge += quarterlyInfo.SolarPowerPerQuarterInWatts;
 
                             break;
                         }
@@ -1002,7 +1027,7 @@ namespace SessyController.Services
 
             foreach (var session in _sessions.SessionList)
             {
-                var maxQuarters = session.GetQuartersForMode(); // Per quarter hour
+                var maxQuarters = session.GetQuartersForMode();
 
                 if (session.RemoveAllAfter(maxQuarters))
                 {
@@ -1010,7 +1035,7 @@ namespace SessyController.Services
                 }
             }
 
-            RemoveEmptySessions();
+            changed |= RemoveEmptySessions();
 
             return changed;
         }
@@ -1024,25 +1049,11 @@ namespace SessyController.Services
             Session? previousSession = null;
             var totalCapacity = _batteryContainer.GetTotalCapacity();
 
-            // _sessions.SessionList.ToList().ForEach(se => se.SetChargeNeeded(totalCapacity));
-
             foreach (var nextSession in _sessions.SessionList.OrderBy(se => se.FirstDateTime))
             {
                 if (previousSession != null)
                 {
-                    switch (previousSession.Mode)
-                    {
-                        case Modes.Charging:
-                            HandleChargingCalculation(previousSession, nextSession);
-                            break;
-
-                        case Modes.Discharging:
-                            HandleDischargingCalculation(previousSession, nextSession);
-                            break;
-
-                        default:
-                            throw new InvalidOperationException($"Wrong mode: {previousSession}");
-                    }
+                    _sessions.SetEstimateChargeNeededUntilNextSession(previousSession, nextSession);
                 }
 
                 previousSession = nextSession;
@@ -1078,76 +1089,7 @@ namespace SessyController.Services
 
         private void HandleLastDischargingSession(Session previousSession)
         {
-           _sessions.SetEstimateChargeNeededUntilNextSession(previousSession);
-        }
-
-        /// <summary>
-        /// The previous session is a charging session, handle it.
-        /// </summary>
-        private void HandleChargingCalculation(Session previousSession, Session nextSession)
-        {
-            switch (nextSession.Mode)
-            {
-                case Modes.Charging:
-                    HandleChargingChargingSessions(previousSession, nextSession);
-                    break;
-
-                case Modes.Discharging:
-                    HandleChargingDischargingSessions(previousSession, nextSession);
-                    break;
-
-                default:
-                    throw new InvalidOperationException($"Wrong mode: {previousSession}");
-            }
-        }
-
-        /// <summary>
-        /// The previous session is a discharging session. Handle it.
-        /// </summary>
-        private void HandleDischargingCalculation(Session previousSession, Session nextSession)
-        {
-            switch (nextSession.Mode)
-            {
-                case Modes.Charging:
-                    HandleDischargingChargingCalculation(previousSession, nextSession);
-                    break;
-
-                case Modes.Discharging:
-                    HandleDischargingDischarging(previousSession, nextSession);
-                    break;
-
-                default:
-                    throw new InvalidOperationException($"Wrong mode: {previousSession}");
-            }
-        }
-
-        private void HandleDischargingDischarging(Session previousSession, Session nextSession)
-        {
-            _sessions.SetEstimateChargeNeededUntilNextSession(previousSession, nextSession);
-        }
-
-        /// <summary>
-        /// The previous session is a discharging session. The next is a charging session. Handle it.
-        /// </summary>
-        private void HandleDischargingChargingCalculation(Session previousSession, Session nextSession)
-        {
-            _sessions.SetEstimateChargeNeededUntilNextSession(previousSession, nextSession);
-        }
-
-        /// <summary>
-        /// The previous session is a charging session. The next a discharging session. Handle it.
-        /// </summary>
-        private void HandleChargingDischargingSessions(Session previousSession, Session nextSession)
-        {
-            _sessions.SetEstimateChargeNeededUntilNextSession(previousSession, nextSession);
-        }
-
-        /// <summary>
-        /// Both sessions are charging sessions. Determine the charge needed for the previous session.
-        /// </summary>
-        private void HandleChargingChargingSessions(Session previousSession, Session nextSession)
-        {
-            _sessions.SetEstimateChargeNeededUntilNextSession(previousSession, nextSession);
+            _sessions.SetEstimateChargeNeededUntilNextSession(previousSession);
         }
 
         /// <summary>
