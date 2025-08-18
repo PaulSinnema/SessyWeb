@@ -4,6 +4,8 @@
 @inject RadzenTheme RadzenTheme
 @inject IJSRuntime JSRuntime
 
+<AntiforgeryToken />  
+
 <CascadingValue Value=@ScreenInfo Name="ScreenInfo" IsFixed=false>
     @{
         var show = ((ScreenInfo.IsMobile && ScreenInfo.IsLandscape) || !ScreenInfo.IsMobile);

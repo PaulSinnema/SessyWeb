@@ -1,4 +1,5 @@
 ﻿using BlazorPro.BlazorSize;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Radzen;
@@ -27,6 +28,9 @@ AppDomain.CurrentDomain.UnhandledException += (sender, eventArgs) =>
 };
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddDataProtection()
+    .PersistKeysToDbContext<ModelContext>();
 
 builder.Logging.ClearProviders(); // Verwijder alle standaard logging providers
 builder.Logging.AddConsole(); // Voeg alleen de console logger toe

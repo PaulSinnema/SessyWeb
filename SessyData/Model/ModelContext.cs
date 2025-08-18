@@ -1,9 +1,10 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Sqlite.Infrastructure.Internal;
 
 namespace SessyData.Model
 {
-    public partial class ModelContext : DbContext
+    public partial class ModelContext : DbContext, IDataProtectionKeyContext
     {
         private string? _connectionString { get; set; }
 
@@ -38,6 +39,8 @@ namespace SessyData.Model
         public DbSet<Consumption> Consumption => Set<Consumption>();
 
         public DbSet<Performance> Performance => Set<Performance>();
+
+        public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
         protected override void OnConfiguring(DbContextOptionsBuilder options)
             => options.UseSqlite(_connectionString);

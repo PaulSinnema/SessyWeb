@@ -626,6 +626,8 @@ namespace SessyController.Services
 
                 MergeNeighbouringSessions();
 
+                CheckSessions();
+
                 if (_sessions != null)
                 {
                     RemoveExtraChargingSessions();
@@ -650,10 +652,11 @@ namespace SessyController.Services
             {
                 if (previousSession != null)
                 {
-                    if (previousSession.Last.Time.AddMinutes(15) == nextSession.FirstDateTime)
+                    if (previousSession.Mode == nextSession.Mode &&
+                        previousSession.Last.Time.AddMinutes(15) == nextSession.FirstDateTime)
                     {
                         previousSession.Merge(nextSession);
-                        _sessions.RemoveSession(nextSession);
+                        _sessions.RemoveSession(nextSession, false);
                         continue;
                     }
                 }

@@ -45,7 +45,7 @@ namespace SessyController.Services.Items
 
             return powerStatus?.Sessy?.Power ?? 0.0;
         }
-        
+
         public async Task<PowerStatus?> GetPowerStatus()
         {
             var tries = 0;
@@ -145,11 +145,7 @@ namespace SessyController.Services.Items
 
             if (powerStatus.Sessy.PowerSetpoint != powerSetpoint.Setpoint)
             {
-                if (powerStatus.Sessy.SystemState == Sessy.SystemStates.SYSTEM_STATE_RUNNING_SAFE ||
-                    powerStatus.Sessy.SystemState == Sessy.SystemStates.SYSTEM_STATE_STANDBY)
-                {
-                    await _sessyService.SetPowerSetpointAsync(Id, powerSetpoint).ConfigureAwait(false);
-                }
+                await _sessyService.SetPowerSetpointAsync(Id, powerSetpoint).ConfigureAwait(false);
             }
         }
 
