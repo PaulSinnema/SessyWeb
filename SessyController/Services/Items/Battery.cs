@@ -100,7 +100,7 @@ namespace SessyController.Services.Items
             throw new InvalidOperationException($"Could not get active power strategy after 10 retries for battery {Id}", exception);
         }
 
-        public async Task SetActivePowerStrategy(ActivePowerStrategy strategy)
+        private async Task SetActivePowerStrategy(ActivePowerStrategy strategy)
         {
             EnsureInitialized();
 
