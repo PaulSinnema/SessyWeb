@@ -10,16 +10,15 @@ namespace SessyController.Services.Items
     {
         private const double minSolarPower = 0.0;
 
-        private QuarterlyInfo(
-    DateTime time,
-    double marketPrice,
-    double buyingPrice,
-    double sellingPrice,
-    SettingsConfig settingsConfig,
-    BatteryContainer batteryContainer,
-    SolarEdgeInverterService solarEdgeService,
-    TimeZoneService timeZoneService,
-    CalculationService calculationService)
+        private QuarterlyInfo(DateTime time,
+                              double marketPrice,
+                                double buyingPrice,
+                                double sellingPrice,
+                                SettingsConfig settingsConfig,
+                                BatteryContainer batteryContainer,
+                                SolarEdgeInverterService solarEdgeService,
+                                TimeZoneService timeZoneService,
+                                CalculationService calculationService)
         {
             Time = time;
 
@@ -51,15 +50,8 @@ namespace SessyController.Services.Items
             TimeZoneService timeZoneService,
             CalculationService calculationService)
         {
-            // Fetch both prices concurrently
-            // NOTE: CalculateEnergyPrice likely returns Task<double?>
-            var buyingTask = calculationService.CalculateEnergyPrice(time, true);
-            var sellingTask = calculationService.CalculateEnergyPrice(time, false);
-
-            await Task.WhenAll(buyingTask, sellingTask).ConfigureAwait(false);
-
-            double buying = buyingTask.Result ?? 0.0;
-            double selling = sellingTask.Result ?? 0.0;
+            double buying = await calculationService.CalculateEnergyPrice(time, true) ?? 0.0;
+            double selling = await calculationService.CalculateEnergyPrice(time, false) ?? 0.0;
 
             return new QuarterlyInfo(
                 time,

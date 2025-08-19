@@ -55,17 +55,18 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Calculate the overhead cost per hour for the date .
+        /// Calculate the overhead cost per quarter for the date.
+        /// To determine if prices become negative these costs should NOT be included.
         /// </summary>
         private double? GetOverheadCost(DateTime date, Taxes taxRecord)
         {
-            var hours = (new DateTime(date.Year, 12, 31) - new DateTime(date.Year, 1, 1)).Days * 24;
+            var quarters = (new DateTime(date.Year + 1, 1, 1) - new DateTime(date.Year, 1, 1)).Days * 24 * 4;
 
             var totalCost = taxRecord.NetManagementCost + taxRecord.FixedTransportFee + taxRecord.CapacityTransportFee;
 
             totalCost -= taxRecord.TaxReduction;
 
-            return totalCost / hours;
+            return totalCost / quarters;
         }
     }
 }

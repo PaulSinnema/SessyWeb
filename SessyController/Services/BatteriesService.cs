@@ -637,7 +637,7 @@ namespace SessyController.Services
             }
             catch (Exception ex)
             {
-                _logger.LogException(ex, $"Unhandled exception in GetChargingHours {ex.ToDetailedString()}");
+                _logger.LogError($"Unhandled exception in GetChargingHours{ex.ToDetailedString()}");
             }
         }
 
@@ -1123,7 +1123,10 @@ namespace SessyController.Services
                 // Check the first element
                 if (list.Count > 1)
                 {
-                    if (list[0].SmoothedPrice <= list[1].SmoothedPrice)
+                    var currentPrice = list[0].SmoothedPrice;
+                    var nextPrice = list[1].SmoothedPrice;
+
+                    if (currentPrice <= nextPrice)
                     {
                         if (!_sessions.InAnySession(list[0]))
                             _sessions.AddNewSession(Modes.Charging, list[0]);
@@ -1139,13 +1142,17 @@ namespace SessyController.Services
                 // Check the elements in between.
                 for (var index = 1; index < list.Count - 2; index++)
                 {
-                    if (list[index].SmoothedPrice < list[index - 1].SmoothedPrice && list[index].SmoothedPrice <= list[index + 1].SmoothedPrice)
+                    var currentPrice = list[index].SmoothedPrice;
+                    var previousPrice = list[index - 1].SmoothedPrice;
+                    var nextPrice = list[index + 1].SmoothedPrice;
+
+                    if (currentPrice <= previousPrice && currentPrice <= nextPrice)
                     {
                         if (!_sessions.InAnySession(list[index]))
                             _sessions.AddNewSession(Modes.Charging, list[index]);
                     }
 
-                    if (list[index].SmoothedPrice > list[index - 1].SmoothedPrice && list[index].SmoothedPrice >= list[index + 1].SmoothedPrice)
+                    if (currentPrice >= previousPrice && currentPrice >= nextPrice)
                     {
                         if (!_sessions.InAnySession(list[index]))
                             _sessions.AddNewSession(Modes.Discharging, list[index]);

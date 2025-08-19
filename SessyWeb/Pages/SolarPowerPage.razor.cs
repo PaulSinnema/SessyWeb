@@ -44,7 +44,7 @@ namespace SessyWeb.Pages
         protected override async Task OnInitializedAsync()
         {
             DateChosen = _timeZoneService!.Now.Date;
-            PeriodChosen = PeriodsEnums.Month;
+            PeriodChosen = PeriodsEnums.Day;
 
             await base.OnInitializedAsync();
         }
