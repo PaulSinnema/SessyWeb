@@ -43,12 +43,26 @@ namespace SessyController.Services
                 var compensation = buying ? _taxes.PurchaseCompensation : _taxes.ReturnDeliveryCompensation;
                 var valueAddedTaxFactor = _taxes.ValueAddedTax / 100 + 1;
 
-                var overheadCost = 0.0; 
-                
+                var overheadCost = 0.0;
+
                 if (includeOverheadCosts)
                     overheadCost = GetOverheadCost(time, _taxes) ?? 0.0;
 
-                return (_epexPrice.Price + overheadCost + _taxes.EnergyTax + compensation) * valueAddedTaxFactor;
+                var energyTax = 0.0;
+
+                if (_taxes.Netting)
+                {
+                    energyTax = _taxes.EnergyTax;
+                }
+                else
+                {
+                    if (buying) // Selling
+                    {
+                        energyTax = _taxes.EnergyTax;
+                    }
+                }
+
+                return (_epexPrice.Price + overheadCost + energyTax + compensation) * valueAddedTaxFactor;
             }
 
             return null;

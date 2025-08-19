@@ -41,6 +41,10 @@ namespace SessyData.Model
         /// Fee for transport depending on the capacity of the connection (Capaciteitstarief transport).
         /// </summary>
         public double CapacityTransportFee { get; set; }
+        /// <summary>
+        /// Is Netting (Saldering) enabled?
+        /// </summary>
+        public bool Netting { get; set; } = true;
 
         public override string ToString()
         {
@@ -58,6 +62,7 @@ namespace SessyData.Model
             NetManagementCost = updateInfo.NetManagementCost;
             FixedTransportFee = updateInfo.FixedTransportFee;
             CapacityTransportFee = updateInfo.CapacityTransportFee;
+            Netting = updateInfo.Netting;
         }
     }
 }

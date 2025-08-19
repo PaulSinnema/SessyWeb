@@ -4,7 +4,16 @@
     <RadzenChart Style=@GraphStyle>
         <RadzenLegend Position="@((ScreenInfo?.IsMobile ?? false) ? LegendPosition.Right: LegendPosition.Top)" Visible="true" />
         <RadzenChartTooltipOptions Shared="false" Visible="true" />
-        <RadzenColumnSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Price" LineType="LineType.Dashed" ValueProperty="BuyingPrice">
+        <RadzenColumnSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Buying price" LineType="LineType.Dashed" ValueProperty="BuyingPrice">
+            <TooltipTemplate Context="data">
+                <ChargingHoursTooltip HourlyInfo=@data />
+            </TooltipTemplate>
+            <ChildContent>
+                <RadzenMarkers Visible="false" />
+                <RadzenSeriesDataLabels Visible="true" />
+            </ChildContent>
+        </RadzenColumnSeries>
+        <RadzenColumnSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Selling price" LineType="LineType.Dashed" ValueProperty="SellingPrice">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip HourlyInfo=@data />
             </TooltipTemplate>
@@ -32,7 +41,16 @@
                 <RadzenSeriesDataLabels Visible="false" />
             </ChildContent>
         </RadzenColumnSeries>
-        <RadzenLineSeries Data="@HourlyInfos" Smooth="true" CategoryProperty="Time" Title="Smoothed price" LineType="LineType.Dotted" ValueProperty="SmoothedPrice">
+        <RadzenLineSeries Data="@HourlyInfos" Smooth="true" CategoryProperty="Time" Title="Smoothed buying price" LineType="LineType.Dotted" ValueProperty="SmoothedBuyingPrice">
+            <TooltipTemplate Context="data">
+                <ChargingHoursTooltip HourlyInfo=@data />
+            </TooltipTemplate>
+            <ChildContent>
+                <RadzenMarkers Visible="false" />
+                <RadzenSeriesDataLabels Visible="false" />
+            </ChildContent>
+        </RadzenLineSeries>
+        <RadzenLineSeries Data="@HourlyInfos" Smooth="true" CategoryProperty="Time" Title="Smoothed selling price" LineType="LineType.Dotted" ValueProperty="SmoothedSellingPrice">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip HourlyInfo=@data />
             </TooltipTemplate>

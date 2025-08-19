@@ -62,7 +62,7 @@ namespace SessyController.Services.InverterServices
             {
                 try
                 {
-                    await Process(cancelationToken);
+                    await Process(cancelationToken).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
@@ -73,7 +73,7 @@ namespace SessyController.Services.InverterServices
                 {
                     int delayTime = 1; // Check again every seconds
 
-                    await Task.Delay(TimeSpan.FromSeconds(delayTime), cancelationToken);
+                    await Task.Delay(TimeSpan.FromSeconds(delayTime), cancelationToken).ConfigureAwait(false);
                 }
                 catch (TaskCanceledException)
                 {
@@ -138,7 +138,7 @@ namespace SessyController.Services.InverterServices
 
             foreach (var endpoint in Endpoints)
             {
-                power += await GetACPowerInWatts(endpoint.Key);
+                power += await GetACPowerInWatts(endpoint.Key).ConfigureAwait(false);
             }
 
             return power;
@@ -151,21 +151,21 @@ namespace SessyController.Services.InverterServices
             foreach (var endpoint in Endpoints)
             {
                 var id = endpoint.Key;
-                var isEnabled = await IsDynamicPowerEnabled(id);
+                var isEnabled = await IsDynamicPowerEnabled(id).ConfigureAwait(false);
 
 #if DEBUG
                 _logger.LogWarning($"IsDynamicPowerEnabled({id}) => {isEnabled}");
                 _logger.LogWarning($"DEBUG: {ProviderName}: SetActivePowerLimit({endpoint.Key}, {percentage})");
-                await Task.Delay(1); // To prevent a warning for the keyword 'async'.
+                await Task.Delay(1).ConfigureAwait(false); // To prevent a warning for the keyword 'async'.
 #else
                 _logger.LogInformation($"DEBUG: {ProviderName}: SetActivePowerLimit({endpoint.Key}, {percentage})");
 
                 if (!isEnabled)
                 {
-                    await EnableDynamicPower(id); // One time initialization.
+                    await EnableDynamicPower(id).ConfigureAwait(false); // One time initialization.
                 }
 
-                await SetActivePowerLimit(id, percentage);
+                await SetActivePowerLimit(id, percentage).ConfigureAwait(false);
 #endif
             }
         }
@@ -239,7 +239,7 @@ namespace SessyController.Services.InverterServices
             {
                 try
                 {
-                    return await _tcpClientProvider.GetModbusClient(ProviderName, id);
+                    return await _tcpClientProvider.GetModbusClient(ProviderName, id).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
@@ -258,9 +258,9 @@ namespace SessyController.Services.InverterServices
         /// <returns>Unscaled AC Power output</returns>
         public async Task<ushort> GetACPower(string id)
         {
-            using var client = await GetModbusClient(id);
+            using var client = await GetModbusClient(id).ConfigureAwait(false);
 
-            var result = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.UInt16>(SunspecConsts.I_AC_Power);
+            var result = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.UInt16>(SunspecConsts.I_AC_Power).ConfigureAwait(false);
 
             return result.Value;
         }
@@ -271,9 +271,9 @@ namespace SessyController.Services.InverterServices
         /// <returns>Scaling factor</returns>
         public async Task<short> GetACPowerScaleFactor(string id)
         {
-            using var client = await GetModbusClient(id);
+            using var client = await GetModbusClient(id).ConfigureAwait(false);
 
-            var result = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.Int16>(SunspecConsts.I_AC_Power_SF);
+            var result = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.Int16>(SunspecConsts.I_AC_Power_SF).ConfigureAwait(false);
 
             return result.Value;
         }
@@ -283,8 +283,8 @@ namespace SessyController.Services.InverterServices
         /// </summary>
         public async Task<double> GetACPowerInWatts(string id)
         {
-            var powerOutput = await GetACPower(id);
-            var scaleFactor = await GetACPowerScaleFactor(id);
+            var powerOutput = await GetACPower(id).ConfigureAwait(false);
+            var scaleFactor = await GetACPowerScaleFactor(id).ConfigureAwait(false);
 
             return powerOutput * Math.Pow(10, scaleFactor);
         }
@@ -294,9 +294,9 @@ namespace SessyController.Services.InverterServices
         /// </summary>
         public async Task<ushort> GetStatus(string id)
         {
-            using var client = await GetModbusClient(id);
+            using var client = await GetModbusClient(id).ConfigureAwait(false);
 
-            var result = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.UInt16>(SunspecConsts.I_Status);
+            var result = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.UInt16>(SunspecConsts.I_Status).ConfigureAwait(false);
 
             return result.Value;
         }
@@ -305,9 +305,9 @@ namespace SessyController.Services.InverterServices
         {
             uint reactivePwrConfigValue = 4;
 
-            using var client = await GetModbusClient(id);
+            using var client = await GetModbusClient(id).ConfigureAwait(false);
             
-            var enableDynamicPowerControlRead = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.Int32>(SunspecConsts.ReactivePwrConfig);
+            var enableDynamicPowerControlRead = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.Int32>(SunspecConsts.ReactivePwrConfig).ConfigureAwait(false);
 
             return enableDynamicPowerControlRead.Value == reactivePwrConfigValue;
         }
@@ -323,15 +323,15 @@ namespace SessyController.Services.InverterServices
 
             try
             {
-                using var client = await GetModbusClient(id);
+                using var client = await GetModbusClient(id).ConfigureAwait(false);
 
-                await client.WriteSingleRegister(SunspecConsts.AdvancedPwrControlEn, advancedPwrControlEnValue);
-                await client.WriteSingleRegister(SunspecConsts.ReactivePwrConfig, reactivePwrConfigValue);
+                await client.WriteSingleRegister(SunspecConsts.AdvancedPwrControlEn, advancedPwrControlEnValue).ConfigureAwait(false);
+                await client.WriteSingleRegister(SunspecConsts.ReactivePwrConfig, reactivePwrConfigValue).ConfigureAwait(false);
 
-                await CommitValues(client);
+                await CommitValues(client).ConfigureAwait(false);
 
-                var enableDynamicPowerControlRead = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.Int32>(SunspecConsts.AdvancedPwrControlEn);
-                var reactivePwrConfigRead = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.Int32>(SunspecConsts.ReactivePwrConfig);
+                var enableDynamicPowerControlRead = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.Int32>(SunspecConsts.AdvancedPwrControlEn).ConfigureAwait(false);
+                var reactivePwrConfigRead = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.Int32>(SunspecConsts.ReactivePwrConfig).ConfigureAwait(false);
 
                 if (enableDynamicPowerControlRead.Value != advancedPwrControlEnValue ||
                     reactivePwrConfigRead.Value != reactivePwrConfigValue)
@@ -350,11 +350,11 @@ namespace SessyController.Services.InverterServices
         {
             ushort result = 0;
 
-            await client.WriteSingleRegister(SunspecConsts.CommitPowerControlSettings, 1);
+            await client.WriteSingleRegister(SunspecConsts.CommitPowerControlSettings, 1).ConfigureAwait(false);
 
             for (int i = 0; i < 30; i++)
             {
-                var read = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.UInt16>(SunspecConsts.CommitPowerControlSettings);
+                var read = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.UInt16>(SunspecConsts.CommitPowerControlSettings).ConfigureAwait(false);
 
                 if (read.Value == 0x00)
                 {
@@ -364,7 +364,7 @@ namespace SessyController.Services.InverterServices
 
                 result = read.Value;
 
-                await Task.Delay(TimeSpan.FromMilliseconds(500));
+                await Task.Delay(TimeSpan.FromMilliseconds(500)).ConfigureAwait(false);
             }
 
             throw new InvalidOperationException($"Failed to commit values, last error code: {result}");
@@ -383,14 +383,14 @@ namespace SessyController.Services.InverterServices
 
             try
             {
-                using var client = await GetModbusClient(id);
+                using var client = await GetModbusClient(id).ConfigureAwait(false);
 
-                await client.WriteSingleRegister(SunspecConsts.RestorePowerControlDefaultSettings, restorePowerControlDefaultSettingsValue);
+                await client.WriteSingleRegister(SunspecConsts.RestorePowerControlDefaultSettings, restorePowerControlDefaultSettingsValue).ConfigureAwait(false);
 
-                await CommitValues(client);
+                await CommitValues(client).ConfigureAwait(false);
 
-                var enableDynamicPowerControlRead = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.Int32>(SunspecConsts.AdvancedPwrControlEn);
-                var reactivePwrConfigRead = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.Int32>(SunspecConsts.ReactivePwrConfig);
+                var enableDynamicPowerControlRead = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.Int32>(SunspecConsts.AdvancedPwrControlEn).ConfigureAwait(false);
+                var reactivePwrConfigRead = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.Int32>(SunspecConsts.ReactivePwrConfig).ConfigureAwait(false);
 
                 if (enableDynamicPowerControlRead.Value != advancedPwrControlEnValue ||
                     reactivePwrConfigRead.Value != reactivePwrConfigValue)
@@ -407,9 +407,9 @@ namespace SessyController.Services.InverterServices
         /// </summary>
         public async Task<float> GetActivePowerLimit(string id)
         {
-            using var client = await GetModbusClient(id);
+            using var client = await GetModbusClient(id).ConfigureAwait(false);
 
-            var powerSet = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.UInt16>(SunspecConsts.ActivePowerLimit);
+            var powerSet = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.UInt16>(SunspecConsts.ActivePowerLimit).ConfigureAwait(false);
 
             return powerSet.Value;
         }
@@ -423,9 +423,9 @@ namespace SessyController.Services.InverterServices
         {
             if (power < 0 || power > 100) throw new ArgumentOutOfRangeException(nameof(power));
 
-            using var client = await GetModbusClient(id);
+            using var client = await GetModbusClient(id).ConfigureAwait(false);
 
-            await client.WriteSingleRegister(0xF001, power);
+            await client.WriteSingleRegister(0xF001, power).ConfigureAwait(false);
         }
     }
 }

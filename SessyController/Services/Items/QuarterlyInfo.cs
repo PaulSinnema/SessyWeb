@@ -36,7 +36,7 @@ namespace SessyController.Services.Items
             ChargingCapacityInWatts = _batteryContainer.GetChargingCapacityInWatts();
             DischargingCapacityInWatts = _batteryContainer.GetDischargingCapacityInWatts();
 
-            if (!(TotalCapacityInWatts > 0.0))
+            if (TotalCapacityInWatts <= 0.0)
                 throw new InvalidOperationException("The total capacity should not be 0.0");
         }
 
@@ -425,7 +425,7 @@ namespace SessyController.Services.Items
         /// </summary>
         public override string ToString()
         {
-            return $"{Time}: Charging: {Charging}, Discharging: {Discharging}, Zero Net Home: {NetZeroHomeWithSolar}, Price: {BuyingPrice}, Charge left: {_chargeLeft}, Charge needed: {_chargeNeeded}, Solar power {SolarPowerPerQuarterHour}";
+            return $"{Time}: Charging: {Charging}, Discharging: {Discharging}, Zero Net Home: {NetZeroHomeWithSolar}, Price: {BuyingPrice}, Profit: {Profit}, NZH profit: {NetZeroHomeProfit} Charge left: {_chargeLeft}, Charge needed: {_chargeNeeded}, Solar power {SolarPowerPerQuarterHour}";
         }
     }
 }

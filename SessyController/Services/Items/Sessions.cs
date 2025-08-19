@@ -235,6 +235,7 @@ namespace SessyController.Services.Items
 
                     case Modes.Discharging:
                         CalculateDischargingProfits(nextQuarter);
+                        lastChargingSession.Clear();
                         break;
 
                     case Modes.ZeroNetHome:
@@ -309,16 +310,34 @@ namespace SessyController.Services.Items
         /// </summary>
         private void CalculateZeroNetHomeProfits(List<QuarterlyInfo> lastChargingSession, QuarterlyInfo quarterlyInfo, bool save)
         {
-            var quarterlyNeed = quarterlyInfo.EstimatedConsumptionPerQuarterHour;
-            var kWh = (Math.Min(quarterlyNeed, quarterlyInfo.ChargeLeft) / 1000); // Per quarter hour.
-            var selling = quarterlyInfo.Price * kWh;
-            var buying = lastChargingSession.Count > 0 ? lastChargingSession.Average(lcs => lcs.Price) * kWh : 0.0;
-            quarterlyInfo.NetZeroHomeProfit = selling - buying;
+            if (lastChargingSession.Count > 0)
+            {
+                var lastChargingTime = lastChargingSession.Max(lc => lc.Time);
+                var hours = (quarterlyInfo.Time - lastChargingTime).Hours;
+
+                if (hours < 10)
+                {
+                    var quarterlyNeed = quarterlyInfo.EstimatedConsumptionPerQuarterHour;
+                    var kWh = (Math.Min(quarterlyNeed, quarterlyInfo.ChargeLeft) / 1000); // Per quarter hour.
+                    var selling = quarterlyInfo.Price * kWh;
+                    var buying = lastChargingSession.Count > 0 ? lastChargingSession.Average(lcs => lcs.Price) * kWh : 0.0;
+                    quarterlyInfo.NetZeroHomeProfit = selling - buying;
+
+                    if (save)
+                    {
+                        quarterlyInfo.Selling = selling;
+                        quarterlyInfo.Buying = buying;
+                    }
+
+                    return;
+                }
+            }
+            quarterlyInfo.NetZeroHomeProfit = 0.0;
 
             if (save)
             {
-                quarterlyInfo.Selling = selling;
-                quarterlyInfo.Buying = buying;
+                quarterlyInfo.Selling = 0.0;
+                quarterlyInfo.Buying = 0.0;
             }
         }
 

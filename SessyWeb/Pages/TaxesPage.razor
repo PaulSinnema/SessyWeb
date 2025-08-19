@@ -69,6 +69,11 @@
                 <RadzenNumeric @bind-Value="fr.CapacityTransportFee" Style="width:100%" />
             </EditTemplate>
         </RadzenDataGridColumn>
+        <RadzenDataGridColumn Property="@nameof(Taxes.Netting)" Title="Netting">
+            <EditTemplate Context="fr">
+                <RadzenCheckBox @bind-Value="fr.Netting" Style="width:10%" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
         <RadzenDataGridColumn Context="order" Filterable="false" Sortable="false" TextAlign="TextAlign.Right" Frozen="true" FrozenPosition="FrozenColumnPosition.Right">
             <Template Context="fr">
                 <RadzenButton Icon="add_circle"

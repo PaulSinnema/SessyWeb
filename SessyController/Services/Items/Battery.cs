@@ -11,6 +11,7 @@ namespace SessyController.Services.Items
         private SessyBatteryEndpoint? _endpoint { get; set; }
         public string Id { get; private set; }
         private bool _initialized = false;
+        public double Setpoint { get; set; }
 
         public Battery(LoggingService<Battery> logger, SessyService sessyService)
         {
@@ -146,6 +147,8 @@ namespace SessyController.Services.Items
             if (powerStatus.Sessy.PowerSetpoint != powerSetpoint.Setpoint)
             {
                 await _sessyService.SetPowerSetpointAsync(Id, powerSetpoint).ConfigureAwait(false);
+
+                Setpoint = powerSetpoint.Setpoint;
             }
         }
 
