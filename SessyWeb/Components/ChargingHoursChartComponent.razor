@@ -95,6 +95,15 @@
                 <RadzenSeriesDataLabels Visible="false" />
             </ChildContent>
         </RadzenLineSeries>
+        <RadzenLineSeries Data="@HourlyInfos" Smooth="true" CategoryProperty="Time" Title="Estimate consumption" LineType="LineType.Dashed" ValueProperty="EstimatedConsumptionPerQuarterHourVisual">
+            <TooltipTemplate Context="data">
+                <ChargingHoursTooltip HourlyInfo=@data />
+            </TooltipTemplate>
+            <ChildContent>
+                <RadzenMarkers Visible="false" />
+                <RadzenSeriesDataLabels Visible="false" />
+            </ChildContent>
+        </RadzenLineSeries>
         <RadzenCategoryAxis Padding="40" Formatter="@Formatters.FormatAsDayHour" TickDistance="152">
             <RadzenGridLines Visible="true" />
             <RadzenAxisTitle Text="Time" />

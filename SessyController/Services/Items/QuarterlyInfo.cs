@@ -121,6 +121,8 @@ namespace SessyController.Services.Items
 
         public double EstimatedConsumptionPerQuarterHour { get; set; }
 
+        public double EstimatedConsumptionPerQuarterHourVisual => EstimatedConsumptionPerQuarterHour / 10000;
+
         /// <summary>
         /// This is the profit if Net Zero Home were enabled. It is used
         /// to determine if NetZeroHome should be enabled or not.

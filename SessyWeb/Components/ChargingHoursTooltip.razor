@@ -86,3 +86,12 @@
         <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.ChargeNeeded disabled Style=@fixedWidthStyle />
     </RadzenColumn>
 </RadzenRow>
+
+<RadzenRow>
+    <RadzenColumn Size="8">
+        <RadzenTextBox Value="Est. consumption" disabled Style=@fixedWidthStyle />
+    </RadzenColumn>
+    <RadzenColumn Size="2">
+        <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.EstimatedConsumptionPerQuarterHour disabled Style=@fixedWidthStyle />
+    </RadzenColumn>
+</RadzenRow>
