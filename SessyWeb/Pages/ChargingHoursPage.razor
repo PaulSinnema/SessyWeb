@@ -9,7 +9,7 @@
 
 @using SessyController.Services.Items
 
-@if (HourlyInfos != null && HourlyInfos.Count() != 0)
+@if (QuarterlyInfos != null && QuarterlyInfos.Count() != 0)
 {
     var show = ((ScreenInfo?.IsMobile ?? false) && (ScreenInfo?.IsLandscape ?? false)) || !(ScreenInfo?.IsMobile ?? false);
 
@@ -125,7 +125,7 @@
         </RadzenStack>
     </RadzenCard>
 
-    <ChargingHoursChartComponent HourlyInfos=@HourlyInfos GraphStyle=@GraphStyle />
+    <ChargingHoursChartComponent HourlyInfos=@QuarterlyInfos GraphStyle=@GraphStyle />
 }
 else
 {

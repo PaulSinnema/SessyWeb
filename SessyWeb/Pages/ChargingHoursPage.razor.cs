@@ -1,9 +1,12 @@
 ﻿using Microsoft.AspNetCore.Components;
 using Radzen;
+using SessyCommon.Configurations;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
 using SessyController.Services;
 using SessyController.Services.Items;
+using SessyData.Model;
+using SessyData.Services;
 using SessyWeb.Helpers;
 
 namespace SessyWeb.Pages
@@ -15,11 +18,13 @@ namespace SessyWeb.Pages
         [Inject]
         public BatteriesService? _batteriesService { get; set; }
         [Inject]
+        public PerformanceDataService? _performanceDataService { get; set; }
+        [Inject]
         public SolarService? _solarService { get; set; }
         [Inject]
         public TimeZoneService? _timeZoneService { get; set; }
 
-        public List<QuarterlyInfo>? HourlyInfos { get; set; } = new List<QuarterlyInfo>();
+        public List<QuarterlyInfoView>? QuarterlyInfos { get; set; } = new List<QuarterlyInfoView>();
 
         public double TotalSolarPowerExpectedToday { get; private set; }
         public double TotalSolarPowerExpectedTomorrow { get; private set; }
@@ -52,7 +57,9 @@ namespace SessyWeb.Pages
             {
                 _showAll = value;
 
-                GetOnlyCurrentHourlyInfos();
+                Task task = GetOnlyCurrentHourlyInfos();
+
+                Task.WhenAll(task);
 
                 HandleScreenHeight();
             }
@@ -62,7 +69,7 @@ namespace SessyWeb.Pages
         {
             await base.OnInitializedAsync();
 
-            GetOnlyCurrentHourlyInfos();
+            await GetOnlyCurrentHourlyInfos();
 
             try
             {
@@ -197,8 +204,8 @@ namespace SessyWeb.Pages
 
                     BatteryMode = _batteriesService.GetBatteryMode();
 
-                    GetOnlyCurrentHourlyInfos();
-
+                    await GetOnlyCurrentHourlyInfos();
+                    
                     StateHasChanged();
                 }
             });
@@ -215,24 +222,124 @@ namespace SessyWeb.Pages
         /// <summary>
         /// Retrieve all the quarterlyInfo objects but only the current and future ones.
         /// </summary>
-        private void GetOnlyCurrentHourlyInfos()
+        private async Task GetOnlyCurrentHourlyInfos()
         {
             var now = _timeZoneService!.Now;
 
+            QuarterlyInfos?.Clear();
+
             if (ShowAll)
             {
-                HourlyInfos = _batteriesService?.GetQuarterlyInfos()?
-                    .Where(hi => hi.Time.Date == now.Date)
+                var quarterTime = now.DateFloorQuarter();
+
+                var QuarterlyInfoList = _batteriesService?.GetQuarterlyInfos()?
+                    .Where(hi => hi.Time >= quarterTime)
                     .ToList();
+
+                var performanceList = await _performanceDataService!
+                    .GetList(async (set) =>
+                    {
+                        var result = set.Where(c => c.Time >= now.Date &&
+                                                    c.Time < quarterTime)
+                                        .ToList();
+                        return await Task.FromResult(result);
+                    });
+
+                foreach (var quarterlyInfo in QuarterlyInfoList ?? new List<QuarterlyInfo>())
+                {
+                    QuarterlyInfos?.Add(FillQuarterlyInfoView(quarterlyInfo));
+                }
+
+                foreach (var performance in performanceList)
+                {
+                    QuarterlyInfos?.Add(FillQuarterlyInfoView(performance));
+                }
             }
             else
             {
-                HourlyInfos = _batteriesService?.GetQuarterlyInfos()?
+                var quarterlyInfoList = _batteriesService?.GetQuarterlyInfos()?
                     .Where(hi => hi.Time >= now.DateFloorQuarter())
                     .ToList();
+
+                foreach (var quarterlyInfo in quarterlyInfoList!)
+                {
+                    QuarterlyInfos?.Add(FillQuarterlyInfoView(quarterlyInfo));
+                }
             }
 
             ChangeChartStyle(ScreenInfo!.Height - 300);
+        }
+
+        public class QuarterlyInfoView
+        {
+            public DateTime Time { get; set; }
+            public string DisplayState { get; set; } = string.Empty;
+            public double Price { get; set; }
+            public double BuyingPrice { get; set; }
+            public double SellingPrice { get; set; }
+            public double MarketPrice { get; set; }
+            public double Profit { get; set; }
+            public double SmoothedBuyingPrice { get; set; }
+            public double VisualizeInChart { get; set; }
+            public double SmoothedSellingPrice { get; set; }
+            public double ChargeNeeded { get; set; }
+            public double ChargeLeft { get; set; }
+            public double EstimatedConsumptionPerQuarterHour { get; set; }
+            public double SolarPowerPerQuarterHour { get; set; }
+            public double SolarGlobalRadiation { get; set; }
+            public double ChargeLeftPercentage { get; set; }
+
+            public double ProfitVisual => Profit / 10;
+            public double EstimatedConsumptionPerQuarterHourVisual => EstimatedConsumptionPerQuarterHour / 10000;
+            public double ChargeNeededVisual => ChargeNeeded / 100000;
+            public double ChargeLeftVisual => ChargeLeft / 100000;
+            public double SolarPowerVisual => SolarPowerPerQuarterHour / 2.5;
+
+        }
+
+        public QuarterlyInfoView FillQuarterlyInfoView(QuarterlyInfo quarterlyInfo)
+        {
+            return new QuarterlyInfoView
+            {
+                Time = quarterlyInfo.Time,
+                BuyingPrice = quarterlyInfo.BuyingPrice,
+                SellingPrice = quarterlyInfo.SellingPrice,
+                MarketPrice = quarterlyInfo.MarketPrice,
+                Profit = quarterlyInfo.Profit,
+                SmoothedBuyingPrice = quarterlyInfo.SmoothedBuyingPrice,
+                VisualizeInChart = quarterlyInfo.VisualizeInChart,
+                SmoothedSellingPrice = quarterlyInfo.SmoothedSellingPrice,
+                ChargeLeft = quarterlyInfo.ChargeLeft,
+                EstimatedConsumptionPerQuarterHour = quarterlyInfo.EstimatedConsumptionPerQuarterHour,
+                SolarPowerPerQuarterHour = quarterlyInfo.SolarPowerPerQuarterHour,
+                SolarGlobalRadiation = quarterlyInfo.SolarGlobalRadiation,
+                ChargeLeftPercentage = quarterlyInfo.ChargeLeftPercentage,
+                DisplayState = quarterlyInfo.DisplayState ?? string.Empty,
+                Price = quarterlyInfo.Price,
+                ChargeNeeded = quarterlyInfo.ChargeNeeded
+            };
+        }
+
+        public QuarterlyInfoView FillQuarterlyInfoView(Performance performance)
+        {
+            return new QuarterlyInfoView
+            {
+                Time = performance.Time,
+                BuyingPrice = performance.BuyingPrice,
+                SellingPrice = performance.SellingPrice,
+                MarketPrice = performance.Price,
+                Profit = performance.Profit,
+                SmoothedBuyingPrice = performance.BuyingPrice,
+                VisualizeInChart = performance.VisualizeInChart,
+                SmoothedSellingPrice = performance.SellingPrice,
+                ChargeLeft = performance.ChargeLeft,
+                SolarPowerPerQuarterHour = performance.SolarPowerPerQuarterHour,
+                SolarGlobalRadiation = performance.SolarGlobalRadiation,
+                ChargeLeftPercentage = performance.ChargeLeftPercentage,
+                DisplayState = performance.DisplayState ?? string.Empty,
+                Price = performance.Price,
+                ChargeNeeded = performance.ChargeNeeded,
+            };
         }
 
         public bool IsManualOverride => _batteriesService!.IsManualOverride;
@@ -245,11 +352,13 @@ namespace SessyWeb.Pages
         private void ChangeChartStyle(int height)
         {
             // 13 pixels per data row (3)
-            var width = HourlyInfos?.Count * 3 * 13;
+            var width = QuarterlyInfos?.Count * 3 * 13;
 
             GraphStyle = $"min-height: {height}px; width: {width}px; visibility: initial;";
 
-            StateHasChanged();
+            Task task = InvokeAsync(StateHasChanged);
+
+            Task.WhenAll(task);
         }
 
         /// <summary>

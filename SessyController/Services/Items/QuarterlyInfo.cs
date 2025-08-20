@@ -80,12 +80,12 @@ namespace SessyController.Services.Items
         /// </summary>
         public double MarketPrice { get; private set; }
 
-        private double BuyingPrice { get; set; }
-        private double SellingPrice { get; set; }
+        public double BuyingPrice { get; private set; }
+        public double SellingPrice { get; private set; }
         public double Price => Charging ? BuyingPrice : SellingPrice;
 
-        private double SmoothedBuyingPrice { get; set; }
-        private double SmoothedSellingPrice { get; set; }
+        public double SmoothedBuyingPrice { get; private set; }
+        public double SmoothedSellingPrice { get; private set; }
         public double SmoothedPrice => Charging ? SmoothedBuyingPrice : SmoothedSellingPrice;
 
 
@@ -121,15 +121,11 @@ namespace SessyController.Services.Items
 
         public double EstimatedConsumptionPerQuarterHour { get; set; }
 
-        public double EstimatedConsumptionPerQuarterHourVisual => EstimatedConsumptionPerQuarterHour / 10000;
-
         /// <summary>
         /// This is the profit if Net Zero Home were enabled. It is used
         /// to determine if NetZeroHome should be enabled or not.
         /// </summary>
         public double NetZeroHomeProfit { get; set; }
-
-        public double ProfitVisual => Profit / 10;
 
         public double Buying { get; set; }
 
@@ -193,23 +189,17 @@ namespace SessyController.Services.Items
 
         public double DischargingCost => ToDischargeInWatts / 1000 / 4.0 * SellingPrice;
 
-        public double ChargeNeededVisual => _chargeNeeded / 100000;
-
         private double TotalCapacityInWatts { get; }
         public double ChargingCapacityInWatts { get; }
         public double DischargingCapacityInWatts { get; }
 
         public double ChargeLeftPercentage => _chargeLeft / (TotalCapacityInWatts / 100.0);
 
-        public double ChargeLeftVisual => _chargeLeft / 100000;
-
         public double SolarGlobalRadiation { get; set; }
 
         public double SolarPowerPerQuarterHour { get; set; }
 
         public double SolarPowerPerQuarterInWatts => SolarPowerPerQuarterHour * 1000;
-
-        public double SolarPowerVisual => SmoothedSolarPower / 2.5 / _settingsConfig.SolarCorrection;
 
         private bool _charging = false;
 

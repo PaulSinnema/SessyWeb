@@ -1,12 +1,12 @@
 ﻿using Microsoft.AspNetCore.Components;
-using SessyController.Services.Items;
+using static SessyWeb.Pages.ChargingHoursPage;
 
 namespace SessyWeb.Components
 {
     public partial class ChargingHoursChartComponent : BaseComponent
     {
         [Parameter]
-        public List<QuarterlyInfo>? HourlyInfos { get; set; }
+        public List<QuarterlyInfoView>? HourlyInfos { get; set; }
 
         public string _graphStyle = "min-width: 250px; visibility: hidden;";
 

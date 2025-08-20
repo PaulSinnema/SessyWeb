@@ -20,6 +20,11 @@ namespace SessyData.Model
         public bool Charging { get; set; }
         public bool Discharging { get; set; }
         public double Price => Charging ? BuyingPrice : SellingPrice;
+        public double SolarPowerPerQuarterHour { get; set; }
+        public double SolarGlobalRadiation { get; set; }
+        public double ChargeLeftPercentage { get; set; }
+        public string? DisplayState { get; set; }
+        public double VisualizeInChart { get; set; }
 
         public void Update(Performance updateInfo)
         {
@@ -31,6 +36,11 @@ namespace SessyData.Model
             ChargeNeeded = updateInfo.ChargeNeeded;
             Charging = updateInfo.Charging;
             Discharging = updateInfo.Discharging;
+            SolarPowerPerQuarterHour = updateInfo.SolarPowerPerQuarterHour;
+            SolarGlobalRadiation = updateInfo.SolarGlobalRadiation;
+            ChargeLeftPercentage = updateInfo.ChargeLeftPercentage;
+            DisplayState = updateInfo.DisplayState;
+            VisualizeInChart = updateInfo.VisualizeInChart;
         }
         public override string ToString()
         {

@@ -167,19 +167,19 @@ namespace SessyController.Services
             if (_dayAheadMarketService != null && _dayAheadMarketService.PricesInitialized)
             {
                 // Prevent race conditions.
-                await HourlyInfoSemaphore.WaitAsync();
+                await HourlyInfoSemaphore.WaitAsync().ConfigureAwait(false);
 
                 try
                 {
-                    await DetermineChargingHours();
+                    await DetermineChargingHours().ConfigureAwait(false);
 
                     if (_sessions != null)
                     {
-                        await _consumptionMonitorService.EstimateConsumptionInWattsPerQuarter(quarterlyInfos!);
+                        await _consumptionMonitorService.EstimateConsumptionInWattsPerQuarter(quarterlyInfos!).ConfigureAwait(false);
 
-                        await _solarService.GetExpectedSolarPower(quarterlyInfos!);
+                        await _solarService.GetExpectedSolarPower(quarterlyInfos!).ConfigureAwait(false);
 
-                        await EvaluateSessions();
+                        await EvaluateSessions().ConfigureAwait(false);
 
                         QuarterlyInfo? currentHourlyInfo = _sessions.GetCurrentQuarterlyInfo();
 
@@ -187,11 +187,11 @@ namespace SessyController.Services
                         {
                             await StorePerformance(currentHourlyInfo);
 
-                            if (await WeControlTheBatteries())
+                            if (await WeControlTheBatteries().ConfigureAwait(false))
                             {
                                 var batteryStates = await GetBatteryStates(currentHourlyInfo);
 
-                                await HandleChargingAndDischarging(batteryStates, currentHourlyInfo);
+                                await HandleChargingAndDischarging(batteryStates, currentHourlyInfo).ConfigureAwait(false);
                             }
                         }
                     }
@@ -212,10 +212,11 @@ namespace SessyController.Services
 
         private async Task StorePerformance(QuarterlyInfo currentQuarterlyInfo)
         {
-            if (!await _performanceDataService.Exists((set) =>
+            if (!await _performanceDataService.Exists(async (set) =>
             {
-                return set.Any(pd => pd.Time == currentQuarterlyInfo.Time);
-            }))
+                var result = set.Any(pd => pd.Time == currentQuarterlyInfo.Time);
+                return await Task.FromResult(result).ConfigureAwait(false);
+            }).ConfigureAwait(false))
             {
                 var time = currentQuarterlyInfo.Time;
 
@@ -224,18 +225,23 @@ namespace SessyController.Services
                     new Performance
                     {
                         Time = currentQuarterlyInfo.Time,
-                        BuyingPrice = currentQuarterlyInfo.Price,
-                        SellingPrice = currentQuarterlyInfo.Price,
+                        BuyingPrice = currentQuarterlyInfo.BuyingPrice,
+                        SellingPrice = currentQuarterlyInfo.SellingPrice,
                         Profit = currentQuarterlyInfo.Profit,
                         EstimatedConsumptionPerQuarterHour = currentQuarterlyInfo.EstimatedConsumptionPerQuarterHour,
                         ChargeLeft = await _batteryContainer.GetStateOfChargeInWatts(),
                         ChargeNeeded = currentQuarterlyInfo.ChargeNeeded,
                         Charging = currentQuarterlyInfo.Charging,
-                        Discharging = currentQuarterlyInfo.Discharging
+                        Discharging = currentQuarterlyInfo.Discharging,
+                        SolarPowerPerQuarterHour = currentQuarterlyInfo.SolarPowerPerQuarterHour,
+                        SolarGlobalRadiation = currentQuarterlyInfo.SolarGlobalRadiation,
+                        ChargeLeftPercentage = currentQuarterlyInfo.ChargeLeftPercentage,
+                        DisplayState = currentQuarterlyInfo.DisplayState,
+                        VisualizeInChart = currentQuarterlyInfo.VisualizeInChart,
                     }
                 };
 
-                await _performanceDataService.Add(performanceData);
+                await _performanceDataService.Add(performanceData).ConfigureAwait(false);
             }
         }
 
