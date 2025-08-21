@@ -326,7 +326,8 @@ namespace SessyWeb.Pages
                 ChargeLeftPercentage = quarterlyInfo.ChargeLeftPercentage,
                 DisplayState = quarterlyInfo.DisplayState ?? string.Empty,
                 Price = quarterlyInfo.Price,
-                ChargeNeeded = quarterlyInfo.ChargeNeeded
+                ChargeNeeded = quarterlyInfo.ChargeNeeded,
+                SmoothedSolarPower = quarterlyInfo.SmoothedSolarPower
             };
         }
 
@@ -349,6 +350,7 @@ namespace SessyWeb.Pages
                 DisplayState = performance.DisplayState ?? string.Empty,
                 Price = performance.Price,
                 ChargeNeeded = performance.ChargeNeeded,
+                SmoothedSolarPower = performance.SmoothedSolarPower
             };
         }
 

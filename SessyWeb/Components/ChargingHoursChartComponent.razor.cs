@@ -15,10 +15,5 @@ namespace SessyWeb.Components
         public string? GraphStyle { get; set; }
 
         public RadzenChart? QuarterlyHourChart { get; set; }
-
-        protected override void OnParametersSet()
-        {
-            StateHasChanged();
-        }
     }
 }
