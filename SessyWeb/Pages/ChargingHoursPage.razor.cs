@@ -344,6 +344,7 @@ namespace SessyWeb.Pages
                 VisualizeInChart = performance.VisualizeInChart,
                 SmoothedSellingPrice = performance.SellingPrice,
                 ChargeLeft = performance.ChargeLeft,
+                EstimatedConsumptionPerQuarterHour = performance.EstimatedConsumptionPerQuarterHour,
                 SolarPowerPerQuarterHour = performance.SolarPowerPerQuarterHour,
                 SolarGlobalRadiation = performance.SolarGlobalRadiation,
                 ChargeLeftPercentage = performance.ChargeLeftPercentage,
