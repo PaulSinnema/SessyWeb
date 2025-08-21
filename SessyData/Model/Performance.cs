@@ -11,8 +11,11 @@ namespace SessyData.Model
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)] // Auto-increment
         public int Id { get; set; }
         public DateTime Time { get; set; }
+        public double MarketPrice { get; set; }
         public double BuyingPrice { get; set; }
+        public double SmoothedBuyingPrice { get; set; }
         public double SellingPrice { get; set; }
+        public double SmoothedSellingPrice { get; set; }
         public double Profit { get; set; }
         public double EstimatedConsumptionPerQuarterHour { get; set; }
         public double ChargeLeft { get; set; }
@@ -25,11 +28,15 @@ namespace SessyData.Model
         public double ChargeLeftPercentage { get; set; }
         public string? DisplayState { get; set; }
         public double VisualizeInChart { get; set; }
+        public double SmoothedSolarPower { get; set; }
 
         public void Update(Performance updateInfo)
         {
+            MarketPrice = updateInfo.MarketPrice;
             BuyingPrice = updateInfo.BuyingPrice;
+            SmoothedBuyingPrice = updateInfo.SmoothedBuyingPrice;
             SellingPrice = updateInfo.SellingPrice;
+            SmoothedSellingPrice = updateInfo.SmoothedSellingPrice;
             Profit = updateInfo.Profit;
             EstimatedConsumptionPerQuarterHour = updateInfo.EstimatedConsumptionPerQuarterHour;
             ChargeLeft = updateInfo.ChargeLeft;
@@ -37,6 +44,7 @@ namespace SessyData.Model
             Charging = updateInfo.Charging;
             Discharging = updateInfo.Discharging;
             SolarPowerPerQuarterHour = updateInfo.SolarPowerPerQuarterHour;
+            SmoothedSolarPower = updateInfo.SmoothedSolarPower;
             SolarGlobalRadiation = updateInfo.SolarGlobalRadiation;
             ChargeLeftPercentage = updateInfo.ChargeLeftPercentage;
             DisplayState = updateInfo.DisplayState;

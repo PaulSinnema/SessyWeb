@@ -225,8 +225,11 @@ namespace SessyController.Services
                     new Performance
                     {
                         Time = currentQuarterlyInfo.Time,
+                        MarketPrice = currentQuarterlyInfo.MarketPrice,
                         BuyingPrice = currentQuarterlyInfo.BuyingPrice,
+                        SmoothedBuyingPrice = currentQuarterlyInfo.SmoothedBuyingPrice,
                         SellingPrice = currentQuarterlyInfo.SellingPrice,
+                        SmoothedSellingPrice = currentQuarterlyInfo.SmoothedSellingPrice,
                         Profit = currentQuarterlyInfo.Profit,
                         EstimatedConsumptionPerQuarterHour = currentQuarterlyInfo.EstimatedConsumptionPerQuarterHour,
                         ChargeLeft = await _batteryContainer.GetStateOfChargeInWatts(),
@@ -234,6 +237,7 @@ namespace SessyController.Services
                         Charging = currentQuarterlyInfo.Charging,
                         Discharging = currentQuarterlyInfo.Discharging,
                         SolarPowerPerQuarterHour = currentQuarterlyInfo.SolarPowerPerQuarterHour,
+                        SmoothedSolarPower = currentQuarterlyInfo.SmoothedSolarPower,
                         SolarGlobalRadiation = currentQuarterlyInfo.SolarGlobalRadiation,
                         ChargeLeftPercentage = currentQuarterlyInfo.ChargeLeftPercentage,
                         DisplayState = currentQuarterlyInfo.DisplayState,

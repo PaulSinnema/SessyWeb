@@ -286,6 +286,7 @@ namespace SessyWeb.Pages
             public double ChargeLeft { get; set; }
             public double EstimatedConsumptionPerQuarterHour { get; set; }
             public double SolarPowerPerQuarterHour { get; set; }
+            public double SmoothedSolarPower { get; set; }
             public double SolarGlobalRadiation { get; set; }
             public double ChargeLeftPercentage { get; set; }
 
@@ -293,7 +294,7 @@ namespace SessyWeb.Pages
             public double EstimatedConsumptionPerQuarterHourVisual => EstimatedConsumptionPerQuarterHour / 10000;
             public double ChargeNeededVisual => ChargeNeeded / 100000;
             public double ChargeLeftVisual => ChargeLeft / 100000;
-            public double SolarPowerVisual => SolarPowerPerQuarterHour / 2.5;
+            public double SolarPowerVisual => SmoothedSolarPower / 2.5;
 
         }
 
@@ -327,7 +328,7 @@ namespace SessyWeb.Pages
                 Time = performance.Time,
                 BuyingPrice = performance.BuyingPrice,
                 SellingPrice = performance.SellingPrice,
-                MarketPrice = performance.Price,
+                MarketPrice = performance.MarketPrice,
                 Profit = performance.Profit,
                 SmoothedBuyingPrice = performance.BuyingPrice,
                 VisualizeInChart = performance.VisualizeInChart,
