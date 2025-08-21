@@ -9,16 +9,25 @@ namespace SessyController.Services.Items
     /// </summary>
     public class BatteryContainer
     {
+        private IOptionsMonitor<SessyBatteryConfig> _sessyBatteryConfigMonitor;
         private SessyBatteryConfig _sessyBatteryConfig;
         private SolarEdgeInverterService _solarEdgeService;
 
         public List<Battery>? Batteries { get; set; }
 
         public BatteryContainer(IServiceScopeFactory serviceScopeFactory,
-                                IOptions<SessyBatteryConfig> sessyBatteryConfig,
+                                IOptionsMonitor<SessyBatteryConfig> sessyBatteryConfigMonitor,
                                 SolarEdgeInverterService solarEdgeService)
         {
-            _sessyBatteryConfig = sessyBatteryConfig.Value;
+            _sessyBatteryConfigMonitor = sessyBatteryConfigMonitor;
+
+            _sessyBatteryConfigMonitor.OnChange(config =>
+            {
+                _sessyBatteryConfig = config;
+                Batteries = GetBatteries(serviceScopeFactory.CreateScope().ServiceProvider);
+            });
+            
+            _sessyBatteryConfig = _sessyBatteryConfigMonitor.CurrentValue;
             _solarEdgeService = solarEdgeService;
 
             using var scope = serviceScopeFactory.CreateScope();

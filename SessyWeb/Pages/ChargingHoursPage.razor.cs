@@ -205,8 +205,8 @@ namespace SessyWeb.Pages
                     BatteryMode = _batteriesService.GetBatteryMode();
 
                     await GetOnlyCurrentHourlyInfos();
-                    
-                    StateHasChanged();
+
+                    await InvokeAsync(StateHasChanged);
                 }
             });
         }
@@ -226,7 +226,7 @@ namespace SessyWeb.Pages
         {
             var now = _timeZoneService!.Now;
 
-            QuarterlyInfos?.Clear();
+            QuarterlyInfos = new List<QuarterlyInfoView>();
 
             if (ShowAll)
             {
@@ -295,6 +295,15 @@ namespace SessyWeb.Pages
             public double ChargeNeededVisual => ChargeNeeded / 100000;
             public double ChargeLeftVisual => ChargeLeft / 100000;
             public double SolarPowerVisual => SmoothedSolarPower / 2.5;
+
+            public override string ToString()
+            {
+                return $"Time: {Time}, VisualizeInChart: {VisualizeInChart}, Buying Price: {BuyingPrice}, Selling Price: {SellingPrice}, " +
+                       $"Market Price: {MarketPrice}, Profit: {Profit}, Charge Left: {ChargeLeft}, " +
+                       $"Estimated Consumption Per Quarter Hour: {EstimatedConsumptionPerQuarterHour}, " +
+                       $"Solar Power Per Quarter Hour: {SolarPowerPerQuarterHour}, " +
+                       $"Charge Left Percentage: {ChargeLeftPercentage}";
+            }
 
         }
 

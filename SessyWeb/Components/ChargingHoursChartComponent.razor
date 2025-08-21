@@ -1,7 +1,7 @@
 ﻿@using SessyWeb.Helpers
 @inherits BaseComponent
 <div style="width: 100%; overflow: auto;">
-    <RadzenChart Style=@GraphStyle>
+    <RadzenChart Style=@GraphStyle @ref=@QuarterlyHourChart>
         <RadzenLegend Position="@((ScreenInfo?.IsMobile ?? false) ? LegendPosition.Right: LegendPosition.Top)" Visible="true" />
         <RadzenChartTooltipOptions Shared="false" Visible="true" />
         <RadzenAreaSeries Data="@HourlyInfos" Smooth="true" CategoryProperty="Time" Fill="#708090" Stroke="#708090" Title="Charging mode" ValueProperty="VisualizeInChart">

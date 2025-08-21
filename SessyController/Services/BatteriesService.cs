@@ -205,7 +205,7 @@ namespace SessyController.Services
                 {
                     HourlyInfoSemaphore.Release();
 
-                    DataChanged?.Invoke();
+                    await DataChanged?.Invoke();
                 }
             }
         }

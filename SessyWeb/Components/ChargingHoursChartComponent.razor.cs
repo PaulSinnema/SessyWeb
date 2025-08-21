@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Components;
+using Radzen.Blazor;
 using static SessyWeb.Pages.ChargingHoursPage;
 
 namespace SessyWeb.Components
@@ -12,6 +13,8 @@ namespace SessyWeb.Components
 
         [Parameter]
         public string? GraphStyle { get; set; }
+
+        public RadzenChart? QuarterlyHourChart { get; set; }
 
         protected override void OnParametersSet()
         {
