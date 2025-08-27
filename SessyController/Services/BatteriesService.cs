@@ -637,12 +637,12 @@ namespace SessyController.Services
 
                 CreateSessions();
 
-                MergeNeighbouringSessions();
-
-                CheckSessions();
-
                 if (_sessions != null)
                 {
+                    MergeNeighbouringSessions();
+
+                    CheckSessions();
+
                     RemoveExtraChargingSessions();
 
                     CheckSessions();
@@ -870,25 +870,17 @@ namespace SessyController.Services
         {
             bool changed1;
             bool changed2;
-            bool changed3;
-            bool changed4;
 
             do
             {
                 changed1 = false;
                 changed2 = false;
-                changed3 = false;
-                changed4 = false;
 
-                changed1 = RemoveExtraQuarters();
+                changed1 = CheckProfitability();
 
                 changed2 = RemoveEmptySessions();
 
-                changed3 = CheckProfitability();
-
-                changed4 = RemoveEmptySessions();
-
-            } while (changed1 || changed2 || changed3 || changed4);
+            } while (changed1 || changed2);
         }
 
         private bool RemoveDoubleDischargingSessions() // TODO: Remove 
@@ -967,54 +959,6 @@ namespace SessyController.Services
             return changed;
         }
 
-
-        /// <summary>
-        /// Remove quarters outside the max quarters.
-        /// </summary>
-        private bool RemoveExtraQuarters()
-        {
-            var changed = false;
-
-            List<QuarterlyInfo> listToLimit;
-
-            foreach (var session in _sessions.SessionList.ToList())
-            {
-                switch (session.Mode)
-                {
-                    case Modes.Charging:
-                        {
-                            listToLimit = session.GetQuarterlyInfoList()
-                                .OrderByDescending(hp => hp.Price)
-                                .ThenBy(hp => hp.Time)
-                                .ToList();
-
-                            break;
-                        }
-
-                    case Modes.Discharging:
-                        {
-                            listToLimit = session.GetQuarterlyInfoList()
-                                .OrderBy(hp => hp.Price)
-                                .ThenBy(hp => hp.Time)
-                                .ToList();
-
-                            break;
-                        }
-
-                    default:
-                        throw new InvalidOperationException($"Unknown mode {session.Mode}");
-                }
-
-                for (int i = session.MaxQuarters; i < listToLimit.Count; i++)
-                {
-                    session.RemoveQuarterlyInfo(listToLimit[i]);
-                    changed = true;
-                }
-            }
-
-            return changed;
-        }
-
         /// <summary>
         /// Remove sessions without (dis)charging hours.
         /// </summary>
@@ -1077,35 +1021,8 @@ namespace SessyController.Services
 
             if (previousSession != null)
             {
-                HandleLastSession(previousSession);
+                _sessions.SetEstimateChargeNeededUntilNextSession(previousSession);
             }
-        }
-
-        private void HandleLastSession(Session previousSession)
-        {
-            switch (previousSession.Mode)
-            {
-                case Modes.Charging:
-                    HandleLastChargingSession(previousSession);
-                    break;
-
-                case Modes.Discharging:
-                    HandleLastDischargingSession(previousSession);
-                    break;
-
-                default:
-                    throw new InvalidOperationException($"Wrong mode: {previousSession}");
-            }
-        }
-
-        private void HandleLastChargingSession(Session session)
-        {
-            _sessions.SetEstimateChargeNeededUntilNextSession(session);
-        }
-
-        private void HandleLastDischargingSession(Session previousSession)
-        {
-            _sessions.SetEstimateChargeNeededUntilNextSession(previousSession);
         }
 
         /// <summary>

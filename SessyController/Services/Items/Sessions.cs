@@ -496,7 +496,7 @@ namespace SessyController.Services.Items
         {
             if (nextSession == null)
             {
-                return GetInfoObjectsAfter(previousSession);
+                return GetInfoObjectsFromStartToEnd(previousSession);
 
             }
 
@@ -507,9 +507,9 @@ namespace SessyController.Services.Items
         }
 
         /// <summary>
-        /// Returns the hourly info objects after the session and before the date.
+        /// Returns the all quarterly info objects from the start of the session to the end.
         /// </summary>
-        private List<QuarterlyInfo> GetInfoObjectsAfter(Session session)
+        private List<QuarterlyInfo> GetInfoObjectsFromStartToEnd(Session session)
         {
             return _quarterlyInfos!
                 .Where(hi => hi.Time >= session.FirstDateTime)
@@ -649,7 +649,7 @@ namespace SessyController.Services.Items
             switch (previousSession.Mode)
             {
                 case Modes.Charging:
-                    chargeNeeded = _batteryContainer.GetTotalCapacity();
+                    chargeNeeded = nextSession == null ? 0.0 : _batteryContainer.GetTotalCapacity();
 
                     var subset = infoObjects
                                         .Where(io => io.Mode == Modes.ZeroNetHome)
