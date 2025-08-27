@@ -396,7 +396,6 @@ namespace SessyController.Services
                         break;
                     }
 
-                case Modes.Disabled:
                 case Modes.Unknown:
                 default:
                     {
@@ -708,7 +707,6 @@ namespace SessyController.Services
 
                     case Modes.Unknown:
                     case Modes.ZeroNetHome:
-                    case Modes.Disabled:
                     default:
                         throw new InvalidOperationException($"Session has wrong mode {session}");
                 }
@@ -745,7 +743,6 @@ namespace SessyController.Services
                         }
 
                     case Modes.ZeroNetHome:
-                    case Modes.Disabled:
                     default:
                         if (_sessions.InAnySession(quarterlyInfo))
                         {
@@ -845,9 +842,6 @@ namespace SessyController.Services
 
                             break;
                         }
-
-                    case Modes.Disabled:
-                        break;
 
                     default:
                         throw new InvalidOperationException($"Invalid mode for quarterlyInfo: {quarterlyInfo}");
@@ -1141,8 +1135,6 @@ namespace SessyController.Services
                     return "Discharging";
                 case Modes.ZeroNetHome:
                     return "Zero net home";
-                case Modes.Disabled:
-                    return "Disabled";
                 default:
                     return "?";
             }

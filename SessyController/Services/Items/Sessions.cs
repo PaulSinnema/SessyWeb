@@ -242,10 +242,6 @@ namespace SessyController.Services.Items
                         CalculateZeroNetHomeProfits(lastChargingSession, nextQuarter, true);
                         break;
 
-                    case Modes.Disabled:
-                        CalculateDisabledProfits(nextQuarter);
-                        break;
-
                     case Modes.Unknown:
                     default:
                         throw new InvalidOperationException($"Wrong mode {nextQuarter.Mode}"); ;
@@ -380,7 +376,7 @@ namespace SessyController.Services.Items
 
                     hours++;
 
-                    if (quarterlyInfo.NetZeroHomeWithSolar)
+                    if (quarterlyInfo.NetZeroHome)
                         currentCharge -= homeNeeds;
                 }
             }
@@ -649,27 +645,24 @@ namespace SessyController.Services.Items
             switch (previousSession.Mode)
             {
                 case Modes.Charging:
-                    chargeNeeded = nextSession == null ? 0.0 : _batteryContainer.GetTotalCapacity();
+                    {
+                        chargeNeeded = nextSession == null ? 0.0 : _batteryContainer.GetTotalCapacity();
 
-                    var subset = infoObjects
-                                        .Where(io => io.Mode == Modes.ZeroNetHome)
-                                        .ToList();
+                        var solarPower = infoObjects.Sum(io => io.SolarPowerPerQuarterInWatts);
+                        var consumption = infoObjects.Sum(io => io.EstimatedConsumptionPerQuarterHour);
 
-                    var solarPower = subset.Sum(io => io.SolarPowerPerQuarterInWatts);
-                    var consumption = subset.Sum(io => io.EstimatedConsumptionPerQuarterHour);
-
-                    chargeNeeded += consumption;
-                    chargeNeeded -= solarPower;
-
+                        chargeNeeded += consumption;
+                        chargeNeeded -= solarPower;
+                    }
                     break;
 
                 case Modes.Discharging:
-                    chargeNeeded = 0.0;
-                    foreach (var infoObject in infoObjects
-                        .Where(io => io.Mode == Modes.ZeroNetHome &&
-                                     io.EstimatedConsumptionPerQuarterHour > io.SolarPowerPerQuarterInWatts))
                     {
-                        chargeNeeded += infoObject.EstimatedConsumptionPerQuarterHour;
+                        var solarPower = infoObjects.Sum(io => io.SolarPowerPerQuarterInWatts);
+                        var consumption = infoObjects.Sum(io => io.EstimatedConsumptionPerQuarterHour);
+
+                        chargeNeeded += consumption;
+                        chargeNeeded -= solarPower;
                     }
                     break;
 

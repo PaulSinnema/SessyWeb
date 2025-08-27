@@ -14,8 +14,7 @@ namespace SessyController.Services.Items
             Unknown,
             Charging,
             Discharging,
-            ZeroNetHome,
-            Disabled
+            ZeroNetHome
         };
 
         private Modes _mode { get; set; }
@@ -356,17 +355,20 @@ namespace SessyController.Services.Items
                 case Modes.Charging:
                     {
                         var capacity = _batteryContainer.GetChargingCapacityInWatts() / 4.0; // Per quarter hour.
-                        var previousHourlyInfo = _sessions.GetPreviousHourlyInfo(First!);
 
-                        if (previousHourlyInfo != null)
+                        var totalCapacity = _batteryContainer.GetTotalCapacity();
+
+                        if (nextSession != null)
                         {
-                            power = _batteryContainer.GetTotalCapacity() - previousHourlyInfo.ChargeLeft;
-                            power = power < 0 ? 0 : power;
+                            power = totalCapacity - First.ChargeLeft;
                         }
                         else
                         {
-                            power = _batteryContainer.GetTotalCapacity();
+                            // This session is the last session
+                            power = First.ChargeNeeded - First.ChargeLeft;
                         }
+
+                        power = power < 0 ? 0 : power;
 
                         quarters = (int)Math.Ceiling(power / capacity);
 
@@ -376,13 +378,9 @@ namespace SessyController.Services.Items
                 case Modes.Discharging:
                     {
                         var capacity = _batteryContainer.GetDischargingCapacityInWatts() / 4.0; // Per quarter hour.
-                        var previousHourlyInfo = _sessions.GetPreviousHourlyInfo(First!);
 
-                        if (previousHourlyInfo != null)
-                        {
-                            power = previousHourlyInfo.ChargeLeft - First.ChargeNeeded;
-                            power = power < 0 ? 0 : power;
-                        }
+                        power = First.ChargeLeft - First.ChargeNeeded;
+                        power = power < 0 ? 0 : power;
 
                         quarters = (int)Math.Ceiling(power / capacity);
 

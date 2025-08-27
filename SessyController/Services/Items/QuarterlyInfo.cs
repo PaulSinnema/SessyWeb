@@ -112,7 +112,6 @@ namespace SessyController.Services.Items
                         return DischargingCost;
 
                     case Modes.ZeroNetHome:
-                    case Modes.Disabled:
                     default:
                         return 0.0;
                 }
@@ -223,8 +222,7 @@ namespace SessyController.Services.Items
             {
                 if (Charging) return Modes.Charging;
                 if (Discharging) return Modes.Discharging;
-                if (NetZeroHomeWithSolar) return Modes.ZeroNetHome;
-                if (Disabled) return Modes.Disabled;
+                if (NetZeroHome) return Modes.ZeroNetHome;
                 return Modes.Unknown;
             }
         }
@@ -334,10 +332,8 @@ namespace SessyController.Services.Items
                     return -0.2;
                 else if (Discharging)
                     return 0.2;
-                else if (NetZeroHomeWithSolar)
+                else if (NetZeroHome)
                     return 0.03;
-                else if (Disabled)
-                    return 0.0;
 
                     return 1.0;
             }
@@ -349,8 +345,7 @@ namespace SessyController.Services.Items
             {
                 return Charging ? "Charging" :
                           Discharging ? "Discharging" :
-                          NetZeroHomeWithSolar ? "Net zero home" :
-                          Disabled ? "Disabled" : "Wrong state";
+                          NetZeroHome ? "Net zero home" : "Wrong state";
             }
         }
 
@@ -367,35 +362,13 @@ namespace SessyController.Services.Items
             }
         }
 
-        public bool NetZeroHomeWithoutSolar
-        {
-            get
-            {
-                if (Mode == Modes.ZeroNetHome)
-                    if(SolarPowerPerQuarterInWatts <= minSolarPower)
-                        return true;
-
-                return false;
-            }
-        }
-
         /// <summary>
         /// If no (dis)charging is in progress Net Zero Home is requested.
         /// </summary>
-        public bool NetZeroHomeWithSolar
+        public bool NetZeroHome
         {
-            get => (!(Charging || Discharging)) &&
-                (
-                    NetZeroHomeProfit >= _settingsConfig.NetZeroHomeMinProfit ||
-                    SolarPowerPerQuarterInWatts > minSolarPower ||
-                    SolarPowerIsActive
-                );
+            get => (!(Charging || Discharging));
         }
-
-        /// <summary>
-        /// If no (dis)charging or Zero net home is in progress Sessy's are requested to disable.
-        /// </summary>
-        public bool Disabled => !(Charging || Discharging || NetZeroHomeWithSolar);
 
         /// <summary>
         /// The price of energy is negative.
@@ -417,7 +390,7 @@ namespace SessyController.Services.Items
         /// </summary>
         public override string ToString()
         {
-            return $"{Time}: Charging: {Charging}, Discharging: {Discharging}, Zero Net Home: {NetZeroHomeWithSolar}, Price: {BuyingPrice}, Profit: {Profit}, NZH profit: {NetZeroHomeProfit} Charge left: {_chargeLeft}, Charge needed: {_chargeNeeded}, Solar power {SolarPowerPerQuarterHour}";
+            return $"{Time}: Charging: {Charging}, Discharging: {Discharging}, Zero Net Home: {NetZeroHome}, Price: {BuyingPrice}, Profit: {Profit}, NZH profit: {NetZeroHomeProfit} Charge left: {_chargeLeft}, Charge needed: {_chargeNeeded}, Solar power {SolarPowerPerQuarterHour}";
         }
     }
 }
