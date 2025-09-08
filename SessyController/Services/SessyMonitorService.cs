@@ -80,62 +80,85 @@ namespace SessyController.Services
 
                 var status = powerStatus.Sessy.SystemState;
 
-                MonitorStatus(battery, powerStatus);
+                await MonitorStatus(battery, powerStatus);
             }
         }
 
         private Dictionary<string, PreviousStatus> StatusList = new Dictionary<string, PreviousStatus>();
 
-        private void MonitorStatus(Battery battery, PowerStatus powerStatus)
+        private async Task MonitorStatus(Battery battery, PowerStatus powerStatus)
         {
-            if(!StatusList.ContainsKey(battery.Id))
+            if (!StatusList.ContainsKey(battery.Id))
             {
-                StatusList.Add(battery.Id, new PreviousStatus(_timeZoneService, _sessyStatusHistoryService, battery, powerStatus));
+                var history = await _sessyStatusHistoryService.Get(async (set) =>
+                {
+                    var result = set.OrderByDescending(sh => sh.Time)
+                              .FirstOrDefault();
+
+                    return await Task.FromResult(result);
+                });
+
+                if (history != null)
+                {
+                    if(!Enum.TryParse(typeof(Sessy.SystemStates), history.Status, out var systemState))
+                    {
+                        throw new InvalidOperationException($"Unable to parse enum Sessy.SystemStates with value '{history.Status}'");
+                    }
+
+                    StatusList.Add(battery.Id, new PreviousStatus(_timeZoneService,
+                                                                  _sessyStatusHistoryService,
+                                                                  battery,
+                                                                  (Sessy.SystemStates)systemState,
+                                                                  history.StatusDetails));
+                }
+                else
+                {
+                    StatusList.Add(battery.Id, new PreviousStatus(_timeZoneService,
+                                                                  _sessyStatusHistoryService,
+                                                                  battery,
+                                                                  null,
+                                                                  string.Empty));
+                }
             }
 
-            StatusList[battery.Id].PowerStatus = powerStatus;
+            await StatusList[battery.Id].SetPowerStatus(powerStatus);
         }
 
         private class PreviousStatus
         {
             public PreviousStatus(TimeZoneService timeZoneService,
                                    SessyStatusHistoryService sessyStatusHistoryService,
-                                   Battery battery, 
-                                   PowerStatus powerStatus)
+                                   Battery battery,
+                                   Sessy.SystemStates? systemState,
+                                   string? systemStateDetails)
             {
                 _timeZoneService = timeZoneService;
                 _sessyStatusHistoryService = sessyStatusHistoryService;
                 Battery = battery;
-                PowerStatus = powerStatus;
+                SystemState = systemState;
+                SystemStateDetails = systemStateDetails;
             }
 
-            private PowerStatus? _powerStatus;
+            private Sessy.SystemStates? SystemState { get; set; }
+            private string? SystemStateDetails { get; set; }
             private TimeZoneService _timeZoneService { get; set; }
             private SessyStatusHistoryService _sessyStatusHistoryService { get; set; }
 
             public Battery? Battery { get; set; }
 
-            public PowerStatus? PowerStatus
+            public async Task SetPowerStatus(PowerStatus powerStatus)
             {
-                get => _powerStatus;
-                set
+                if (SystemState != powerStatus.Sessy.SystemState ||
+                   SystemStateDetails != powerStatus.Sessy.SystemStateDetails)
                 {
-                    if(_powerStatus == null ||
-                       _powerStatus.Sessy.SystemState != value.Sessy.SystemState ||
-                       _powerStatus.Sessy.SystemStateDetails != value.Sessy.SystemStateDetails)
-                    {
-                        _powerStatus = value;
+                    SystemState = powerStatus.Sessy.SystemState;
+                    SystemStateDetails = powerStatus.Sessy.SystemStateDetails!;
 
-                        var task = StoreStatus(Battery!, PowerStatus!);
-
-                        if(task != null)
-                        {
-                            Task.WhenAll(task);
-                        }
-                    }
+                    await StoreStatus(Battery!, SystemState, SystemStateDetails);
                 }
             }
-            private async Task StoreStatus(Battery battery, PowerStatus powerStatus)
+
+            private async Task StoreStatus(Battery battery, Sessy.SystemStates? systemState, string systemStateDetails)
             {
                 var statusList = new List<SessyStatusHistory>();
 
@@ -143,8 +166,8 @@ namespace SessyController.Services
                 {
                     Time = _timeZoneService.Now,
                     Name = battery.Id,
-                    Status = powerStatus.Sessy?.SystemStateString,
-                    StatusDetails = powerStatus.Sessy?.SystemStateDetails
+                    Status = systemState.ToString(),
+                    StatusDetails = systemStateDetails
                 });
 
                 await _sessyStatusHistoryService.AddRange(statusList);

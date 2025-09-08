@@ -61,8 +61,8 @@ namespace SessyWeb.Pages
         public IQueryable<GroupedSessyStatus> GetGroupedList(ModelContext modelContext)
         {
             return modelContext.SessyStatusHistory
-                .OrderBy(x => x.Name)
-                .ThenByDescending(x => x.Time)
+                .OrderByDescending(x => x.Time)
+                .ThenBy(x => x.Name)
                 .AsEnumerable() // Stap over naar LINQ-to-Objects
                 .GroupBy(x => new { x.Name, x.Status, x.StatusDetails }) // Groeperen op Name, Status, StatusDetails
                 .SelectMany(group =>
