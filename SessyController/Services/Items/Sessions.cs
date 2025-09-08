@@ -385,7 +385,7 @@ namespace SessyController.Services.Items
         }
 
         /// <summary>
-        /// Adds neighboring hours to the Session
+        /// Adds neighboring quarters to the Session
         /// </summary>
         public void CompleteSession(Session session, List<QuarterlyInfo> hourlyInfos, int maxQuarters, double cycleCost)
         {
@@ -645,31 +645,22 @@ namespace SessyController.Services.Items
             switch (previousSession.Mode)
             {
                 case Modes.Charging:
-                    {
-                        chargeNeeded = nextSession == null ? 0.0 : _batteryContainer.GetTotalCapacity();
-
-                        var solarPower = infoObjects.Sum(io => io.SolarPowerPerQuarterInWatts);
-                        var consumption = infoObjects.Sum(io => io.EstimatedConsumptionPerQuarterHour);
-
-                        chargeNeeded += consumption;
-                        chargeNeeded -= solarPower;
-                    }
+                    chargeNeeded = _batteryContainer.GetTotalCapacity();
                     break;
 
                 case Modes.Discharging:
-                    {
-                        var solarPower = infoObjects.Sum(io => io.SolarPowerPerQuarterInWatts);
-                        var consumption = infoObjects.Sum(io => io.EstimatedConsumptionPerQuarterHour);
-
-                        chargeNeeded += consumption;
-                        chargeNeeded -= solarPower;
-                    }
+                    chargeNeeded = 0.0;
                     break;
 
                 default:
                     throw new InvalidOperationException($"Invalid mode: {previousSession.Mode}");
             }
 
+            var solarPower = infoObjects.Sum(io => io.SolarPowerPerQuarterInWatts);
+            var consumption = infoObjects.Sum(io => io.EstimatedConsumptionPerQuarterHour);
+
+            chargeNeeded += consumption;
+            chargeNeeded -= solarPower;
             chargeNeeded = EnsureBoundaries(chargeNeeded);
 
             foreach (var quarterlyInfo in infoObjects)

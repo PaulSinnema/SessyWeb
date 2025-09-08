@@ -139,7 +139,7 @@ namespace SessyController.Services
 
             await ApplyPerformanceFactor(hourlyInfos, _timeZoneService.Now);
 
-            AddSmoothedSolarPower(hourlyInfos, 8);
+             AddSmoothedSolarPower(hourlyInfos, 8);
         }
 
         private void AddSmoothedSolarPower(List<QuarterlyInfo> hourlyInfos, int windowSize = 6)

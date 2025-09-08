@@ -4,7 +4,6 @@ using SessyCommon.Services;
 using SessyController.Services.Items;
 using SessyData.Model;
 using SessyData.Services;
-using static SessyController.Services.Sessy;
 
 namespace SessyController.Services
 {
@@ -62,7 +61,7 @@ namespace SessyController.Services
 
                 try
                 {
-                    await Task.Delay(TimeSpan.FromMinutes(1), cancelationToken);
+                    await Task.Delay(TimeSpan.FromSeconds(10), cancelationToken);
                 }
                 catch (TaskCanceledException)
                 {
@@ -81,33 +80,75 @@ namespace SessyController.Services
 
                 var status = powerStatus.Sessy.SystemState;
 
-                switch (status)
-                {
-                    case SystemStates.SYSTEM_STATE_WAITING_FOR_SAFE_SITUATION:
-                    case SystemStates.SYSTEM_STATE_WAITING_IN_SAFE_SITUATION:
-                    case SystemStates.SYSTEM_STATE_ERROR:
-                        StoreStatus(battery, powerStatus);
-                        break;
-
-                    default:
-                        break;
-                }
+                MonitorStatus(battery, powerStatus);
             }
         }
 
-        private void StoreStatus(Battery battery, PowerStatus powerStatus)
+        private Dictionary<string, PreviousStatus> StatusList = new Dictionary<string, PreviousStatus>();
+
+        private void MonitorStatus(Battery battery, PowerStatus powerStatus)
         {
-            var statusList = new List<SessyStatusHistory>();
-
-            statusList.Add(new SessyStatusHistory
+            if(!StatusList.ContainsKey(battery.Id))
             {
-                Time = _timeZoneService.Now,
-                Name = battery.Id,
-                Status = powerStatus.Sessy?.SystemStateString,
-                StatusDetails = powerStatus.Sessy?.SystemStateDetails
-            });
+                StatusList.Add(battery.Id, new PreviousStatus(_timeZoneService, _sessyStatusHistoryService, battery, powerStatus));
+            }
 
-            _sessyStatusHistoryService.AddRange(statusList);
+            StatusList[battery.Id].PowerStatus = powerStatus;
+        }
+
+        private class PreviousStatus
+        {
+            public PreviousStatus(TimeZoneService timeZoneService,
+                                   SessyStatusHistoryService sessyStatusHistoryService,
+                                   Battery battery, 
+                                   PowerStatus powerStatus)
+            {
+                _timeZoneService = timeZoneService;
+                _sessyStatusHistoryService = sessyStatusHistoryService;
+                Battery = battery;
+                PowerStatus = powerStatus;
+            }
+
+            private PowerStatus? _powerStatus;
+            private TimeZoneService _timeZoneService { get; set; }
+            private SessyStatusHistoryService _sessyStatusHistoryService { get; set; }
+
+            public Battery? Battery { get; set; }
+
+            public PowerStatus? PowerStatus
+            {
+                get => _powerStatus;
+                set
+                {
+                    if(_powerStatus == null ||
+                       _powerStatus.Sessy.SystemState != value.Sessy.SystemState ||
+                       _powerStatus.Sessy.SystemStateDetails != value.Sessy.SystemStateDetails)
+                    {
+                        _powerStatus = value;
+
+                        var task = StoreStatus(Battery!, PowerStatus!);
+
+                        if(task != null)
+                        {
+                            Task.WhenAll(task);
+                        }
+                    }
+                }
+            }
+            private async Task StoreStatus(Battery battery, PowerStatus powerStatus)
+            {
+                var statusList = new List<SessyStatusHistory>();
+
+                statusList.Add(new SessyStatusHistory
+                {
+                    Time = _timeZoneService.Now,
+                    Name = battery.Id,
+                    Status = powerStatus.Sessy?.SystemStateString,
+                    StatusDetails = powerStatus.Sessy?.SystemStateDetails
+                });
+
+                await _sessyStatusHistoryService.AddRange(statusList);
+            }
         }
 
         private bool _isDisposed = false;

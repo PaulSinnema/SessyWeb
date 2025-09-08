@@ -2,7 +2,6 @@
 using Radzen;
 using Radzen.Blazor;
 using SessyCommon.Services;
-using SessyController.Services;
 using SessyData.Model;
 using SessyData.Services;
 using System.Linq.Dynamic.Core;
@@ -63,7 +62,7 @@ namespace SessyWeb.Pages
         {
             return modelContext.SessyStatusHistory
                 .OrderBy(x => x.Name)
-                .ThenBy(x => x.Time)
+                .ThenByDescending(x => x.Time)
                 .AsEnumerable() // Stap over naar LINQ-to-Objects
                 .GroupBy(x => new { x.Name, x.Status, x.StatusDetails }) // Groeperen op Name, Status, StatusDetails
                 .SelectMany(group =>

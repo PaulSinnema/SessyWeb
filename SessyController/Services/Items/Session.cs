@@ -277,14 +277,14 @@ namespace SessyController.Services.Items
 
             // Once the session has started don't remove anything before now.
             var now = _timeZoneService.Now.DateFloorQuarter();
-            var hourlyInfos = QuarterlyInfos.Where(hi => hi.Time > now).ToList();
+            var quarterlyInfos = QuarterlyInfos.Where(hi => hi.Time > now).ToList();
 
             switch (Mode)
             {
                 case Modes.Charging:
                     {
                         // Remove the highest prices
-                        var list = hourlyInfos
+                        var list = quarterlyInfos
                             .OrderByDescending(hi => hi.Price)
                             .ThenBy(hi => hi.Time)
                             .ToList();
@@ -297,7 +297,7 @@ namespace SessyController.Services.Items
                 case Modes.Discharging:
                     {
                         // Remove the lowest prices
-                        var list = hourlyInfos
+                        var list = quarterlyInfos
                             .OrderBy(hi => hi.Price)
                             .ThenBy(hi => hi.Time)
                             .ToList();
