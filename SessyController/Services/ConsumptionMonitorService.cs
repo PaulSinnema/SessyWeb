@@ -13,9 +13,9 @@ namespace SessyController.Services
 {
     public class ConsumptionMonitorService : BackgroundService
     {
-        private const int _hourDelta = 5;
+        private const int _hourDelta = 2;
         private const double _humidityDelta = 10.0;
-        private const double _temperatureDelta = 10.0;
+        private const double _temperatureDelta = 4.0;
         private const double _globalRadiationDelta = 100.0;
 
         private IServiceScopeFactory _serviceScopeFactory { get; set; }

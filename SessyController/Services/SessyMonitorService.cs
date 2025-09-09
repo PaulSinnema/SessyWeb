@@ -78,22 +78,21 @@ namespace SessyController.Services
             {
                 var powerStatus = await battery.GetPowerStatus();
 
-                var status = powerStatus.Sessy.SystemState;
-
                 await MonitorStatus(battery, powerStatus);
             }
         }
 
         private Dictionary<string, PreviousStatus> StatusList = new Dictionary<string, PreviousStatus>();
 
-        private async Task MonitorStatus(Battery battery, PowerStatus powerStatus)
+        private async Task MonitorStatus(Battery battery, PowerStatus? powerStatus)
         {
             if (!StatusList.ContainsKey(battery.Id))
             {
                 var history = await _sessyStatusHistoryService.Get(async (set) =>
                 {
-                    var result = set.OrderByDescending(sh => sh.Time)
-                              .FirstOrDefault();
+                    var result = set.Where(sh => sh.Name == battery.Id)
+                                    .OrderByDescending(sh => sh.Time)
+                                    .FirstOrDefault();
 
                     return await Task.FromResult(result);
                 });
@@ -146,19 +145,22 @@ namespace SessyController.Services
 
             public Battery? Battery { get; set; }
 
-            public async Task SetPowerStatus(PowerStatus powerStatus)
+            public async Task SetPowerStatus(PowerStatus? powerStatus)
             {
-                if (SystemState != powerStatus.Sessy.SystemState ||
-                   SystemStateDetails != powerStatus.Sessy.SystemStateDetails)
+                if (powerStatus != null)
                 {
-                    SystemState = powerStatus.Sessy.SystemState;
-                    SystemStateDetails = powerStatus.Sessy.SystemStateDetails!;
+                    if (SystemState != powerStatus.Sessy.SystemState ||
+                    SystemStateDetails != powerStatus.Sessy.SystemStateDetails)
+                    {
+                        SystemState = powerStatus.Sessy.SystemState;
+                        SystemStateDetails = powerStatus.Sessy.SystemStateDetails;
 
-                    await StoreStatus(Battery!, SystemState, SystemStateDetails);
+                        await StoreStatus(Battery!, SystemState, SystemStateDetails);
+                    }
                 }
             }
 
-            private async Task StoreStatus(Battery battery, Sessy.SystemStates? systemState, string systemStateDetails)
+            private async Task StoreStatus(Battery battery, Sessy.SystemStates? systemState, string? systemStateDetails)
             {
                 var statusList = new List<SessyStatusHistory>();
 
