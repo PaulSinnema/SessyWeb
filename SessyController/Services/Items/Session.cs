@@ -356,19 +356,8 @@ namespace SessyController.Services.Items
                     {
                         var capacity = _batteryContainer.GetChargingCapacityInWatts() / 4.0; // Per quarter hour.
 
-                        var totalCapacity = _batteryContainer.GetTotalCapacity();
-
-                        if (nextSession != null)
-                        {
-                            power = totalCapacity - First.ChargeLeft;
-                        }
-                        else
-                        {
-                            // This session is the last session
-                            power = First.ChargeNeeded - First.ChargeLeft;
-                        }
-
-                        power = power < 0 ? 0 : power;
+                        power = First.ChargeNeeded - First.ChargeLeft;
+                        power = power < 0.0 ? 0.0 : power;
 
                         quarters = (int)Math.Ceiling(power / capacity);
 
