@@ -1,10 +1,12 @@
 ﻿using Microsoft.AspNetCore.Components;
 using Radzen;
 using Radzen.Blazor;
+using Radzen.Blazor.Rendering;
 using SessyCommon.Services;
 using SessyData.Model;
 using SessyData.Services;
 using System.Linq.Dynamic.Core;
+using static SessyWeb.Components.DateChooserComponent;
 
 namespace SessyWeb.Pages
 {
@@ -16,16 +18,39 @@ namespace SessyWeb.Pages
         [Inject]
         private TimeZoneService? _timeZoneService { get; set; }
 
-        private List<GroupedSessyStatus>? StatusHistoryList { get; set; }
+        public DateTime? DateChosen { get; set; }
+        
+        public PeriodsEnums PeriodChosen { get; set; }
+
+        private List<GroupedSessyStatus>? StatusHistoryList { get; set; } = new List<GroupedSessyStatus>();
 
         RadzenDataGrid<GroupedSessyStatus>? historyGrid { get; set; }
 
         int count { get; set; }
 
 
+        public async Task DateChosenChanged(DateTime date)
+        {
+            DateChosen = date;
+
+            await SelectionChanged();
+        }
+
+        public async Task PeriodChosenChanged(PeriodsEnums period)
+        {
+            PeriodChosen = period;
+
+            await SelectionChanged();
+        }
+
+        private async Task SelectionChanged()
+        {
+            await historyGrid.Reload();
+        }
+
         protected override async Task OnAfterRenderAsync(bool firstRender)
         {
-            if (historyGrid == null) throw new InvalidOperationException($"{nameof(historyGrid)} can not be null here, did you forget a @ref?");
+            EnsureDataGridRef();
 
             if (firstRender)
                 await historyGrid.FirstPage();
@@ -33,8 +58,8 @@ namespace SessyWeb.Pages
 
         void LoadData(LoadDataArgs args)
         {
-            if (historyGrid == null) throw new InvalidOperationException($"{nameof(historyGrid)} can not be null here, did you forget a @ref?");
-            
+            EnsureDataGridRef();
+
             var now = _timeZoneService!.Now;
             var filter = historyGrid.ColumnsCollection;
 
@@ -58,9 +83,50 @@ namespace SessyWeb.Pages
             });
         }
 
+        private void EnsureDataGridRef()
+        {
+            if (historyGrid == null) throw new InvalidOperationException($"{nameof(historyGrid)} can not be null here, did you forget a @ref?");
+        }
+
         public IQueryable<GroupedSessyStatus> GetGroupedList(ModelContext modelContext)
         {
+            var dateChosen = DateChosen!.Value;
+            DateTime start;
+            DateTime end;
+
+            switch (PeriodChosen)
+            {
+                case PeriodsEnums.Day:
+                    start = dateChosen.Date;
+                    end = dateChosen.Date.AddDays(1).AddSeconds(-1);
+                    break;
+
+                case PeriodsEnums.Week:
+                    start = dateChosen.StartOfWeek();
+                    end = dateChosen.EndOfWeek(); ;
+                    break;
+
+                case PeriodsEnums.Month:
+                    start = dateChosen.StartOfMonth();
+                    end = start.EndOfMonth();
+                    break;
+
+                case PeriodsEnums.Year:
+                    start = new DateTime(dateChosen.Year, 1, 1);
+                    end = start.AddYears(1).AddDays(-1);
+                    break;
+
+                case PeriodsEnums.All:
+                    start = DateTime.MinValue;
+                    end = DateTime.MaxValue;
+                    break;
+
+                default:
+                    throw new InvalidOperationException($"Wrong period {PeriodChosen}");
+            }
+
             return modelContext.SessyStatusHistory
+                .Where(sh => sh.Time >= start && sh.Time <= end)    
                 .OrderByDescending(x => x.Time)
                 .ThenBy(x => x.Name)
                 .AsEnumerable() // Stap over naar LINQ-to-Objects

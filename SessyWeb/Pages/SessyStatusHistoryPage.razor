@@ -2,26 +2,38 @@
 @inherits PageBase
 @using SessyData.Model
 @using Radzen
+@using static SessyWeb.Components.DateChooserComponent
 
-<a>History</a>
+<RadzenLayout>
+    <RadzenHeader Style="height: 100%;margin: 0px; padding: 0px;">
+        <RadzenStack Orientation=Orientation.Horizontal AlignItems="AlignItems.Center" Style="height:100%;margin: 0px; padding: 0px;">
+            <RadzenLabel Text="History" class="h4 m-2" />
 
-<RadzenDataGrid @ref="historyGrid" 
-    Data="@StatusHistoryList"
-    Context="data"
-    Count="@count"
-    LoadData="@LoadData"
-    AllowSorting="true"
-    AllowFiltering="true"
-    AllowPaging="true"
-    Responsive="true"
-    PageSize="20"
-    PagerHorizontalAlign="HorizontalAlign.Center">
-    <Columns>
-        <RadzenDataGridColumn Property="@nameof(GroupedSessyStatus.Name)" Title="Name" SortOrder="SortOrder.Ascending" />
-        <RadzenDataGridColumn Property="@nameof(GroupedSessyStatus.StartTime)" Title="Start time" SortOrder="SortOrder.Descending" />
-        <RadzenDataGridColumn Property="@nameof(GroupedSessyStatus.EndTime)" Title="End time" />
-        <RadzenDataGridColumn Property="@nameof(GroupedSessyStatus.DurationVisual)" Title="Duration" />
-        <RadzenDataGridColumn Property="@nameof(GroupedSessyStatus.Status)" Title="Status" />
-        <RadzenDataGridColumn Property="@nameof(GroupedSessyStatus.StatusDetails)" Title="Details" />
-    </Columns>
-</RadzenDataGrid>
+            <DateChooserComponent DateChosenChanged="@((DateTime d) => DateChosenChanged(d))"
+                                  PeriodChosenChanged="@((PeriodsEnums p) => PeriodChosenChanged(p))" />
+        </RadzenStack>
+    </RadzenHeader>
+
+    <RadzenBody>
+        <RadzenDataGrid @ref="historyGrid"
+                        Data="@StatusHistoryList"
+                        Context="data"
+                        Count="@count"
+                        LoadData="@LoadData"
+                        AllowSorting="true"
+                        AllowFiltering="true"
+                        AllowPaging="true"
+                        Responsive="true"
+                        PageSize="20"
+                        PagerHorizontalAlign="HorizontalAlign.Center">
+            <Columns>
+                <RadzenDataGridColumn Property="@nameof(GroupedSessyStatus.Name)" Title="Name" SortOrder="SortOrder.Ascending" />
+                <RadzenDataGridColumn Property="@nameof(GroupedSessyStatus.StartTime)" Title="Start time" SortOrder="SortOrder.Descending" />
+                <RadzenDataGridColumn Property="@nameof(GroupedSessyStatus.EndTime)" Title="End time" />
+                <RadzenDataGridColumn Property="@nameof(GroupedSessyStatus.DurationVisual)" Title="Duration" />
+                <RadzenDataGridColumn Property="@nameof(GroupedSessyStatus.Status)" Title="Status" />
+                <RadzenDataGridColumn Property="@nameof(GroupedSessyStatus.StatusDetails)" Title="Details" />
+            </Columns>
+        </RadzenDataGrid>
+    </RadzenBody>
+</RadzenLayout>
