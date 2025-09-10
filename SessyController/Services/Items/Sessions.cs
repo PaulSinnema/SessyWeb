@@ -488,7 +488,7 @@ namespace SessyController.Services.Items
         /// Returns the quarterly info objects between 2 sessions 
         /// including the objects of the previous session and excluding the objects of the next session.
         /// </summary>
-        private List<QuarterlyInfo> GetInfoObjectsUntilNextSession(Session previousSession, Session? nextSession = null)
+        private List<QuarterlyInfo> GetInfoObjectsFromStartUntilNextSession(Session previousSession, Session? nextSession = null)
         {
             if (nextSession == null)
             {
@@ -537,7 +537,7 @@ namespace SessyController.Services.Items
         }
 
         /// <summary>
-        /// Returns the single session the hourly info object is in.
+        /// Returns the single session the quarterly info object is in.
         /// </summary>
         public Session FindSession(QuarterlyInfo quarterlyInfo)
         {
@@ -636,31 +636,29 @@ namespace SessyController.Services.Items
             }
         }
 
+        /// <summary>
+        /// Estimates how much charge is needed in the batteries.
+        /// When charging the chargeNeeded is the maximum charge needed.
+        /// When discharging the chargeNeeded is the minimum charge needed.
+        /// </summary>
         public void SetEstimateChargeNeededUntilNextSession(Session previousSession, Session? nextSession = null)
         {
-            var infoObjects = GetInfoObjectsUntilNextSession(previousSession, nextSession);
+            var infoObjects = GetInfoObjectsFromStartUntilNextSession(previousSession, nextSession);
 
-            double chargeNeeded = 0.0;
+            double chargeNeeded = previousSession.Mode == Modes.Charging ? _batteryContainer.GetTotalCapacity() : 0.0;
 
-            switch (previousSession.Mode)
+            if (previousSession.Mode == Modes.Charging || previousSession.Mode == Modes.Discharging)
             {
-                case Modes.Charging:
-                    chargeNeeded = _batteryContainer.GetTotalCapacity();
-                    break;
-
-                case Modes.Discharging:
-                    chargeNeeded = 0.0;
-                    break;
-
-                default:
-                    throw new InvalidOperationException($"Invalid mode: {previousSession.Mode}");
+                foreach (var infoObject in infoObjects)
+                {
+                    if (infoObject.Mode == Modes.ZeroNetHome)
+                    {
+                        chargeNeeded += infoObject.EstimatedConsumptionPerQuarterHour;
+                        chargeNeeded -= infoObject.SolarPowerPerQuarterInWatts;
+                    }
+                }
             }
 
-            var solarPower = infoObjects.Sum(io => io.SolarPowerPerQuarterInWatts);
-            var consumption = infoObjects.Sum(io => io.EstimatedConsumptionPerQuarterHour);
-
-            chargeNeeded += consumption;
-            chargeNeeded -= solarPower;
             chargeNeeded = EnsureBoundaries(chargeNeeded);
 
             foreach (var quarterlyInfo in infoObjects)
