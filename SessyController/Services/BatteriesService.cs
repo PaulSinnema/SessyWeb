@@ -171,7 +171,7 @@ namespace SessyController.Services
 
                 try
                 {
-                    await DetermineChargingHours().ConfigureAwait(false);
+                    await DetermineChargingQuarters().ConfigureAwait(false);
 
                     if (_sessions != null)
                     {
@@ -587,7 +587,7 @@ namespace SessyController.Services
         /// <summary>
         /// Determine when to charge the batteries.
         /// </summary>
-        public async Task DetermineChargingHours()
+        public async Task DetermineChargingQuarters()
         {
             DateTime localTime = _timeZoneService.Now;
 

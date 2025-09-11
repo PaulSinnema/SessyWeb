@@ -174,47 +174,61 @@ namespace SessyController.Services
         }
 
         private List<ConsumptionData> _consumptionData = new List<ConsumptionData>();
+        private DateTime? nextQuarter = null;
 
         private async Task StoreConsumption(P1Meter p1Meter)
         {
-            var now = _timeZoneService.Now.DateFloorQuarter();
+            var startQuarter = _timeZoneService.Now.DateFloorQuarter();
 
-            if (_consumptionData.Count >= 900) // 15 minutes of data
+            if (nextQuarter == null)
             {
-                var averageConsumptionWh = _consumptionData
-                                            .Where(c => !double.IsNaN(c.ConsumptionWh) && !double.IsInfinity(c.ConsumptionWh))
-                                            .Average(c => c.ConsumptionWh);
+                // Initialize first time
+                nextQuarter = _timeZoneService.Now.DateCeilingQuarter();
+            }
 
-                var p1Details = await _p1MeterContainer.GetDetails(p1Meter.Id!);
-                var weatherData = await _weatherService.GetWeatherData();
+            if (_timeZoneService.Now >= nextQuarter)
+            {
+                var test = nextQuarter;
+                nextQuarter = _timeZoneService.Now.DateCeilingQuarter();
 
-                var liveWeer = weatherData?.LiveWeer?.FirstOrDefault();
-
-                _consumptionData.Clear();
-
-                var consumptionList = new List<Consumption>();
-
-                consumptionList.Add(new Consumption
+                if (_consumptionData.Count > 0)
                 {
-                    Time = now,
-                    ConsumptionWh = averageConsumptionWh,
-                    // In case no weather data is present we store a large negative number.
-                    Humidity = liveWeer?.Luchtvochtigheid ?? -999,
-                    Temperature = liveWeer?.Temp ?? -999,
-                    GlobalRadiation = liveWeer?.GlobalRadiation ?? -999
-                });
+                    var averageConsumptionWh = _consumptionData
+                                                .Where(c => !double.IsNaN(c.ConsumptionWh) && !double.IsInfinity(c.ConsumptionWh))
+                                                .Average(c => c.ConsumptionWh);
 
-                await _consumptionDataService.AddRange(consumptionList);
+                    var p1Details = await _p1MeterContainer.GetDetails(p1Meter.Id!);
+                    var weatherData = await _weatherService.GetWeatherData();
 
-                DataChanged?.Invoke();
+                    var liveWeer = weatherData?.LiveWeer?.FirstOrDefault();
 
-                _logger.LogInformation($"Consumption data stored for {now}");
+                    _consumptionData.Clear();
+
+                    var consumptionList = new List<Consumption>();
+
+                    consumptionList.Add(new Consumption
+                    {
+                        Time = startQuarter,
+                        ConsumptionWh = averageConsumptionWh,
+                        // In case no weather data is present we store a large negative number.
+                        Humidity = liveWeer?.Luchtvochtigheid ?? -999,
+                        Temperature = liveWeer?.Temp ?? -999,
+                        GlobalRadiation = liveWeer?.GlobalRadiation ?? -999
+                    });
+
+                    await _consumptionDataService.AddRange(consumptionList);
+
+                    DataChanged?.Invoke();
+
+                    _logger.LogInformation($"Consumption data stored for {startQuarter}");
+
+                }
             }
             else
             {
                 _consumptionData.Add(new ConsumptionData
                 {
-                    Time = now,
+                    Time = startQuarter,
                     ConsumptionWh = await CalculateConsumption()
                 });
             }

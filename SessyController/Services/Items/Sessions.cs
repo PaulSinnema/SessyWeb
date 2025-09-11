@@ -279,7 +279,7 @@ namespace SessyController.Services.Items
             {
                 var time = previousHour!.Time;
 
-                var home = _consumptionDataService.GetConsumptionBetween(time.AddMinutes(-15), time);
+                var home = _consumptionDataService.GetConsumptionBetween(time, time.AddMinutes(15));
                 var net = _energyHistoryService.GetNetPowerBetween(time, time.AddMinutes(15));
 
                 if (!home.noData && !net.noData)
