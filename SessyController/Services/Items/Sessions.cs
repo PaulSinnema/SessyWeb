@@ -647,14 +647,26 @@ namespace SessyController.Services.Items
 
             double chargeNeeded = previousSession.Mode == Modes.Charging ? _batteryContainer.GetTotalCapacity() : 0.0;
 
-            if (previousSession.Mode == Modes.Charging || previousSession.Mode == Modes.Discharging)
+            foreach (var infoObject in infoObjects)
             {
-                foreach (var infoObject in infoObjects)
+                if (infoObject.Mode == Modes.ZeroNetHome)
                 {
-                    if (infoObject.Mode == Modes.ZeroNetHome)
+                    switch (previousSession.Mode)
                     {
-                        chargeNeeded += infoObject.EstimatedConsumptionPerQuarterHour;
-                        chargeNeeded -= infoObject.SolarPowerPerQuarterInWatts;
+                        case Modes.Charging:
+                            chargeNeeded += infoObject.EstimatedConsumptionPerQuarterHour;
+                            chargeNeeded -= infoObject.SolarPowerPerQuarterInWatts;
+
+                            break;
+
+                        case Modes.Discharging:
+                            if (infoObject.SolarPowerPerQuarterInWatts <= 0.0)
+                            {
+                                chargeNeeded += infoObject.EstimatedConsumptionPerQuarterHour;
+                                chargeNeeded -= infoObject.SolarPowerPerQuarterInWatts;
+                            }
+
+                            break;
                     }
                 }
             }
