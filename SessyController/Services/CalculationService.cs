@@ -18,7 +18,6 @@ namespace SessyController.Services
             _energyHistoryService = energyHistoryService;
         }
 
-        private static Taxes? _taxes { get; set; } = null;
         private static EPEXPrices? _epexPrice { get; set; } = null;
 
         /// <summary>
@@ -35,30 +34,29 @@ namespace SessyController.Services
                     return await Task.FromResult(result);
                 });
 
-            if (_taxes == null || _taxes.Time != time)
-                _taxes = await _taxesDataService.GetTaxesForDate(time);
+            var taxes = await _taxesDataService.GetTaxesForDate(time);
 
-            if (_epexPrice != null && _taxes != null && _epexPrice.Price.HasValue)
+            if (_epexPrice != null && taxes != null && _epexPrice.Price.HasValue)
             {
-                var compensation = buying ? _taxes.PurchaseCompensation : _taxes.ReturnDeliveryCompensation;
-                var valueAddedTaxFactor = _taxes.ValueAddedTax / 100 + 1;
+                var compensation = buying ? taxes.PurchaseCompensation : -taxes.ReturnDeliveryCompensation;
+                var valueAddedTaxFactor = taxes.ValueAddedTax / 100 + 1;
 
                 var overheadCost = 0.0;
 
                 if (includeOverheadCosts)
-                    overheadCost = GetOverheadCost(time, _taxes) ?? 0.0;
+                    overheadCost = GetOverheadCost(time, taxes) ?? 0.0;
 
                 var energyTax = 0.0;
 
-                if (_taxes.Netting)
+                if (taxes.Netting)
                 {
-                    energyTax = _taxes.EnergyTax;
+                    energyTax = taxes.EnergyTax;
                 }
                 else
                 {
-                    if (buying) // Selling
+                    if (buying)
                     {
-                        energyTax = _taxes.EnergyTax;
+                        energyTax = taxes.EnergyTax;
                     }
                 }
 

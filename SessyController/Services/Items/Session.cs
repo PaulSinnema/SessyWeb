@@ -184,7 +184,7 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Add a hourly info object to the list if not already in the list.
         /// </summary>
-        public void AddHourlyInfo(QuarterlyInfo quarterlyInfo)
+        public void AddQuarterlyInfo(QuarterlyInfo quarterlyInfo)
         {
             if (!Contains(quarterlyInfo))
             {

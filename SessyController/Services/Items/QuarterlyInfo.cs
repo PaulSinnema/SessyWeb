@@ -37,7 +37,7 @@ namespace SessyController.Services.Items
             DischargingCapacityInWatts = _batteryContainer.GetDischargingCapacityInWatts();
 
             if (TotalCapacityInWatts <= 0.0)
-                throw new InvalidOperationException("The total capacity should not be 0.0");
+                throw new InvalidOperationException($"The total capacity should not be <= 0.0 (is {TotalCapacityInWatts})");
         }
 
         // Factory that does the awaiting

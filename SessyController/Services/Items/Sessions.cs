@@ -179,6 +179,14 @@ namespace SessyController.Services.Items
                     .FirstOrDefault();
         }
 
+        public void CompleteAllSessions()
+        {
+            foreach(var session in _sessionList)
+            {
+                CompleteSession(session, _quarterlyInfos, _maxChargingQuarters, _cycleCost);
+            }
+        }
+
         /// <summary>
         /// Adds a new session to the sessions hourly info list and initializes it.
         /// </summary>
@@ -192,8 +200,7 @@ namespace SessyController.Services.Items
                         {
                             Session session = new Session(this, _timeZoneService!, mode, _maxChargingQuarters, _batteryContainer, _settingsConfig);
                             _sessionList.Add(session);
-                            session.AddHourlyInfo(quarterlyInfo);
-                            CompleteSession(session, _quarterlyInfos, _maxChargingQuarters, _cycleCost);
+                            session.AddQuarterlyInfo(quarterlyInfo);
                             break;
                         }
 
@@ -201,8 +208,7 @@ namespace SessyController.Services.Items
                         {
                             Session session = new Session(this, _timeZoneService!, mode, _maxDischargingQuarters, _batteryContainer, _settingsConfig);
                             _sessionList.Add(session);
-                            session.AddHourlyInfo(quarterlyInfo);
-                            CompleteSession(session, _quarterlyInfos, _maxDischargingQuarters, _cycleCost);
+                            session.AddQuarterlyInfo(quarterlyInfo);
                             break;
                         }
 
@@ -350,7 +356,7 @@ namespace SessyController.Services.Items
         public void AddHourlyInfo(Session session, QuarterlyInfo quarterlyInfo)
         {
             if (!InAnySession(quarterlyInfo))
-                session.AddHourlyInfo(quarterlyInfo);
+                session.AddQuarterlyInfo(quarterlyInfo);
         }
 
         public double GetMaxZeroNetHomeHours(Session previousSession, Session session)
@@ -559,7 +565,7 @@ namespace SessyController.Services.Items
         {
             foreach (var quarterlyInfo in session2.GetQuarterlyInfoList())
             {
-                session1.AddHourlyInfo(quarterlyInfo);
+                session1.AddQuarterlyInfo(quarterlyInfo);
             }
 
             session2.ClearHourlyInfoList();

@@ -1047,8 +1047,8 @@ namespace SessyController.Services
                 // Check the first element
                 if (list.Count > 1)
                 {
-                    var currentPrice = list[0].SmoothedPrice;
-                    var nextPrice = list[1].SmoothedPrice;
+                    var currentPrice = list[0].SmoothedBuyingPrice;
+                    var nextPrice = list[1].SmoothedBuyingPrice;
 
                     if (currentPrice <= nextPrice)
                     {
@@ -1056,7 +1056,10 @@ namespace SessyController.Services
                             _sessions.AddNewSession(Modes.Charging, list[0]);
                     }
 
-                    if (list[0].SmoothedPrice >= list[1].SmoothedPrice)
+                    currentPrice = list[0].SmoothedSellingPrice;
+                    nextPrice = list[1].SmoothedSellingPrice;
+
+                    if (currentPrice >= nextPrice)
                     {
                         if (!_sessions.InAnySession(list[0]))
                             _sessions.AddNewSession(Modes.Discharging, list[0]);
@@ -1064,17 +1067,21 @@ namespace SessyController.Services
                 }
 
                 // Check the elements in between.
-                for (var index = 1; index < list.Count - 2; index++)
+                for (var index = 1; index < list.Count - 1; index++)
                 {
-                    var currentPrice = list[index].SmoothedPrice;
-                    var previousPrice = list[index - 1].SmoothedPrice;
-                    var nextPrice = list[index + 1].SmoothedPrice;
+                    var currentPrice = list[index].SmoothedBuyingPrice;
+                    var previousPrice = list[index - 1].SmoothedBuyingPrice;
+                    var nextPrice = list[index + 1].SmoothedBuyingPrice;
 
                     if (currentPrice <= previousPrice && currentPrice <= nextPrice)
                     {
                         if (!_sessions.InAnySession(list[index]))
                             _sessions.AddNewSession(Modes.Charging, list[index]);
                     }
+
+                    currentPrice = list[index].SmoothedSellingPrice;
+                    previousPrice = list[index - 1].SmoothedSellingPrice;
+                    nextPrice = list[index + 1].SmoothedSellingPrice;
 
                     if (currentPrice >= previousPrice && currentPrice >= nextPrice)
                     {
@@ -1084,6 +1091,8 @@ namespace SessyController.Services
                 }
 
                 // Skipping the last element.
+
+                _sessions.CompleteAllSessions();
             }
             else
                 _logger.LogWarning("QuarterlyInfos is empty!!");
