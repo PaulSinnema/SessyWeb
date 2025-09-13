@@ -65,7 +65,19 @@ namespace SessyWeb.Helpers
 
         public static string FormatAsMonth(object value)
         {
-            int month = Convert.ToInt16(value);
+            int month = 1;
+
+            if (value is Int16)
+            {
+                month = Convert.ToInt32(value);
+            }
+            else if (value is DateTime)
+            {
+                var dateTime = (DateTime)value;
+                month = dateTime.Month;
+            }
+            else
+                throw new InvalidOperationException($"Object type not supported {value}");
 
             if (month >= 1 && month <= 13)
             {
@@ -74,7 +86,7 @@ namespace SessyWeb.Helpers
                 return culture.DateTimeFormat.GetAbbreviatedMonthName(month);
             }
 
-            return $"Wrong {month}";
+            return $"Wrong {value}";
         }
 
         public static string FormatAsYear(object value)

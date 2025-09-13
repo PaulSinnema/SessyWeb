@@ -27,10 +27,6 @@ namespace SessyWeb.Pages
 
         public string selectedProvider { get; set; } = "All";
 
-        public DateTime? DateChosen { get; set; }
-
-        public PeriodsEnums PeriodChosen { get; set; }
-
         public double SolarPower { get; set; }
 
         private string GraphStyle { get; set; } = "width: 100%; height: 60vh";
@@ -43,8 +39,7 @@ namespace SessyWeb.Pages
 
         protected override async Task OnInitializedAsync()
         {
-            DateChosen = _timeZoneService!.Now.Date;
-            PeriodChosen = PeriodsEnums.Day;
+            DateSelectionChosen = new DateArgs(PeriodsEnums.Day, _timeZoneService!.Now.Date);
 
             await base.OnInitializedAsync();
         }
@@ -59,25 +54,19 @@ namespace SessyWeb.Pages
             await base.OnAfterRenderAsync(firstRender);
         }
 
-        public async Task PeriodChosenChanged(PeriodsEnums period)
+        public async Task DateSelectionChanged(DateArgs dateArgs)
         {
-            PeriodChosen = period;
-
-            await SelectionChanged();
-        }
-
-        public async Task DateChosenChanged(DateTime date)
-        {
-            DateChosen = date;
+            DateSelectionChosen = dateArgs;
 
             await SelectionChanged();
         }
 
         private Func<object, string>? Formatter { get; set; } = null;
+        public DateArgs? DateSelectionChosen { get; private set; }
 
         public void FillFormatter()
         {
-            switch (PeriodChosen)
+            switch (DateSelectionChosen!.PeriodChosen)
             {
                 case PeriodsEnums.Day:
                     Formatter = Formatters.FormatAsDayHour;
@@ -94,7 +83,7 @@ namespace SessyWeb.Pages
                     break;
 
                 default:
-                    throw new InvalidOperationException($"Invalid PeriodChosen: {PeriodChosen}");
+                    throw new InvalidOperationException($"Invalid PeriodChosen: {DateSelectionChosen!.PeriodChosen}");
             }
         }
 
@@ -107,11 +96,11 @@ namespace SessyWeb.Pages
 
         private async Task SelectionChanged()
         {
-            DateChosen ??= DateChosen?.Date ?? _timeZoneService!.Now.Date;
+            var DateChosen = DateSelectionChosen!.DateChosen?.Date ?? _timeZoneService!.Now.Date;
 
             var result = await _solarEdgeDataService!.GetList(async (set) =>
             {
-                switch (PeriodChosen)
+                switch (DateSelectionChosen!.PeriodChosen)
                 {
                     case PeriodsEnums.Day:
                         {
@@ -125,7 +114,7 @@ namespace SessyWeb.Pages
                     case PeriodsEnums.Week:
                         {
                             var result = set
-                                .Where(sed => DateChosen!.Value.StartOfWeek() <= sed.Time && DateChosen!.Value.EndOfWeek().AddDays(1).AddSeconds(-1) >= sed.Time)
+                                .Where(sed => DateChosen.StartOfWeek() <= sed.Time && DateChosen!.EndOfWeek().AddDays(1).AddSeconds(-1) >= sed.Time)
                                 .ToList();
 
                             return await Task.FromResult(result);
@@ -134,7 +123,7 @@ namespace SessyWeb.Pages
                     case PeriodsEnums.Month:
                         {
                             var result = set
-                                .Where(sed => DateChosen!.Value.StartOfMonth() <= sed.Time && DateChosen!.Value.EndOfMonth().AddDays(1).AddSeconds(-1) >= sed.Time)
+                                .Where(sed => DateChosen.StartOfMonth() <= sed.Time && DateChosen!.EndOfMonth().AddDays(1).AddSeconds(-1) >= sed.Time)
                                 .ToList();
 
                             return await Task.FromResult(result);
@@ -143,7 +132,7 @@ namespace SessyWeb.Pages
                     case PeriodsEnums.Year:
                         {
                             var result = set
-                                .Where(sed => DateChosen!.Value.Year == sed.Time.Year)
+                                .Where(sed => DateChosen!.Year == sed.Time.Year)
                                 .ToList();
 
                             return await Task.FromResult(result);
@@ -153,14 +142,14 @@ namespace SessyWeb.Pages
                         return await Task.FromResult(set.ToList());
 
                     default:
-                        throw new InvalidOperationException($"Wrong period type {PeriodChosen}");
+                        throw new InvalidOperationException($"Wrong period type {DateSelectionChosen!.PeriodChosen}");
                 }
             });
 
             SolarInverterData = result.OrderBy(sed => sed.Time)
               .ToList(); ;
 
-            SolarPower = await GetSolarPower(DateChosen!.Value);
+            SolarPower = await GetSolarPower(DateSelectionChosen!.DateChosen!.Value);
 
             GroupedData = SolarInverterData
                     .GroupBy(d => d.ProviderName)
@@ -189,7 +178,7 @@ namespace SessyWeb.Pages
                 var start = groupedData.Values.Min(list => list.Min(sid => sid.Time));
                 var end = groupedData.Values.Max(list => list.Max(sid => sid.Time)).AddDays(1);
 
-                switch (PeriodChosen)
+                switch (DateSelectionChosen!.PeriodChosen)
                 {
                     case PeriodsEnums.Day:
                         {
@@ -228,7 +217,7 @@ namespace SessyWeb.Pages
                         }
 
                     default:
-                        throw new InvalidOperationException($"Invalid period: {PeriodChosen}");
+                        throw new InvalidOperationException($"Invalid period: {DateSelectionChosen!.PeriodChosen}");
                 }
             }
         }
@@ -238,7 +227,7 @@ namespace SessyWeb.Pages
             DateTime start;
             DateTime end;
 
-            switch (PeriodChosen)
+            switch (DateSelectionChosen!.PeriodChosen)
             {
                 case PeriodsEnums.Day:
                     start = date.Date;
@@ -266,7 +255,7 @@ namespace SessyWeb.Pages
                     break;
 
                 default:
-                    throw new InvalidOperationException($"Wrong period chosen {PeriodChosen}");
+                    throw new InvalidOperationException($"Wrong period chosen {DateSelectionChosen!.PeriodChosen}");
             }
 
             return await _solarService!.GetRealizedSolarPower(start, end);

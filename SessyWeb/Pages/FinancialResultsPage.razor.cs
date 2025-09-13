@@ -30,33 +30,22 @@ namespace SessyWeb.Pages
 
         public decimal TotalCost { get; set; } = 0;
 
-        public DateTime? DateChosen { get; set; }
 
         public bool ExpandAllGroups { get; set; } = true;
 
-        public PeriodsEnums PeriodChosen { get; set; } = PeriodsEnums.Day;
-
+        public DateArgs? DateSelectionChosen { get; private set; }
 
         protected override async Task OnAfterRenderAsync(bool firstRender)
         {
             if (firstRender)
             {
-                DateChosen = _timeZoneService!.Now.Date;
-
                 await financialResultsGrid!.FirstPage();
             }
         }
 
-        public async Task PeriodChosenChanged(PeriodsEnums period)
+        public async Task SelectionChanged(DateArgs dateArgs)
         {
-            PeriodChosen = period;
-
-            await financialResultsGrid!.Reload();
-        }
-
-        public async Task DateChosenChanged(DateTime date)
-        {
-            DateChosen = date;
+            DateSelectionChosen = dateArgs;
 
             await financialResultsGrid!.Reload();
         }
@@ -95,13 +84,13 @@ namespace SessyWeb.Pages
         {
             if (financialResultsGrid == null) throw new InvalidOperationException($"{nameof(financialResultsGrid)} can not be null here, did you forget a @ref?");
 
-            var chosen = DateChosen!.Value.DateFloorQuarter();
+            var chosen = DateSelectionChosen!.DateChosen!.Value.DateFloorQuarter();
             DateTime start;
             DateTime end;
 
             ExpandAllGroups = true;
 
-            switch (PeriodChosen)
+            switch (DateSelectionChosen!.PeriodChosen)
             {
                 case PeriodsEnums.Day:
                     start = chosen.Date;
@@ -131,7 +120,7 @@ namespace SessyWeb.Pages
                     break;
 
                 default:
-                    throw new InvalidOperationException($"Invalid period {PeriodChosen}");
+                    throw new InvalidOperationException($"Invalid period {DateSelectionChosen!.PeriodChosen}");
             }
 
             var filter = financialResultsGrid.ColumnsCollection;
@@ -150,6 +139,12 @@ namespace SessyWeb.Pages
 
             TotalCost = query.Sum(fr => fr.TotalCost);
             Count = query.Count();
+
+            if(args.Skip > Count)
+            {
+                args.Skip = 0;
+                financialResultsGrid.CurrentPage = 0;
+            }
 
             FinancialMonthResultsList = query.Skip(args.Skip!.Value).Take(args.Top!.Value).ToList();
 

@@ -4,6 +4,7 @@ using Radzen.Blazor;
 using SessyCommon.Services;
 using SessyData.Model;
 using SessyData.Services;
+using static SessyWeb.Components.DateChooserComponent;
 
 namespace SessyWeb.Pages
 {
@@ -19,8 +20,9 @@ namespace SessyWeb.Pages
 
         RadzenDataGrid<EPEXPrices>? epexPricesGrid { get; set; }
 
-        int count { get; set; }
+        private int Count { get; set; }
 
+        private DateArgs? DateSelectionChosen { get; set; }
 
         protected override async Task OnAfterRenderAsync(bool firstRender)
         {
@@ -32,31 +34,42 @@ namespace SessyWeb.Pages
         {
             EnsureEnergyGrid();
 
-            var now = _timeZoneService!.Now;
-            var filter = epexPricesGrid!.ColumnsCollection;
-
-            EPEXPricesList = await _epexPricesDataService!.GetList(async (set) =>
+            if (DateSelectionChosen != null)
             {
-                var result = set
-                    .OrderBy(eh => eh.Time)
-                    .AsQueryable();
+                var now = _timeZoneService!.Now;
 
-                var query = await Task.FromResult(result);
+                var filter = epexPricesGrid!.ColumnsCollection;
 
-                if (!string.IsNullOrEmpty(args.Filter))
+                EPEXPricesList = await _epexPricesDataService!.GetList(async (set) =>
                 {
-                    query = query.Where(epexPricesGrid.ColumnsCollection);
-                }
+                    var result = set
+                        .Where(eh => eh.Time >= DateSelectionChosen!.Start && eh.Time < DateSelectionChosen.End)
+                        .OrderBy(eh => eh.Time)
+                        .AsQueryable();
 
-                if (!string.IsNullOrEmpty(args.OrderBy))
-                {
-                    query = query.OrderBy(args.OrderBy);
-                }
+                    var query = await Task.FromResult(result);
 
-                count = query.Count();
+                    if (!string.IsNullOrEmpty(args.Filter))
+                    {
+                        query = query.Where(epexPricesGrid.ColumnsCollection);
+                    }
 
-                return query.Skip(args.Skip!.Value).Take(args.Top!.Value).ToList();
-            });
+                    if (!string.IsNullOrEmpty(args.OrderBy))
+                    {
+                        query = query.OrderBy(args.OrderBy);
+                    }
+
+                    Count = query.Count();
+
+                    if (args.Skip > Count)
+                    {
+                        args.Skip = 0;
+                        epexPricesGrid.CurrentPage = 0;
+                    }
+
+                    return query.Skip(args.Skip!.Value).Take(args.Top!.Value).ToList();
+                });
+            }
         }
 
         private void EnsureEnergyGrid()
@@ -64,6 +77,12 @@ namespace SessyWeb.Pages
             if (epexPricesGrid == null) throw new InvalidOperationException($"{nameof(epexPricesGrid)} can not be null here, did you forget a @ref?");
         }
 
+        public async Task SelectionChanged(DateArgs dateArgs)
+        {
+            DateSelectionChosen = dateArgs;
+
+            await epexPricesGrid!.Reload();
+        }
 
         async Task EditRow(EPEXPrices history)
         {
@@ -72,11 +91,11 @@ namespace SessyWeb.Pages
             await epexPricesGrid!.EditRow(history);
         }
 
-        void OnUpdateRow(EPEXPrices EPEXPrices)
+        private async Task OnUpdateRow(EPEXPrices EPEXPrices)
         {
             List<EPEXPrices> list = new List<EPEXPrices> { EPEXPrices };
 
-            _epexPricesDataService!.Update(list, (item, set) => set.Where(eh => eh.Id == EPEXPrices.Id).FirstOrDefault());
+            await _epexPricesDataService!.Update(list, (item, set) => set.Where(eh => eh.Id == EPEXPrices.Id).FirstOrDefault());
         }
 
         async Task SaveRow(EPEXPrices EPEXPrices)
@@ -118,9 +137,9 @@ namespace SessyWeb.Pages
             await epexPricesGrid.InsertAfterRow(EPEXPrices, row);
         }
 
-        void OnCreateRow(EPEXPrices epexPrices)
+        private async Task OnCreateRow(EPEXPrices epexPrices)
         {
-            _epexPricesDataService!.Add(new List<EPEXPrices> { epexPrices }, (item, set) => set.Where(eh => eh.Id == item.Id).FirstOrDefault());
+            await _epexPricesDataService!.Add(new List<EPEXPrices> { epexPrices }, (item, set) => set.Where(eh => eh.Id == item.Id).FirstOrDefault());
         }
     }
 }

@@ -13,21 +13,17 @@
 
 <PageTitle>Consumption</PageTitle>
 
-<h3>Consumption</h3>
 <RadzenLayout Style="height: 80vh;">
     <RadzenHeader Style="height: 100%;margin: 0px; padding: 0px;">
         <RadzenStack Orientation=Orientation.Horizontal AlignItems="AlignItems.Center" Style="height:100%;margin: 0px; padding: 0px;">
             @* TickDistance: <p>@TickDistance</p> *@
 
-
-            <DateChooserComponent PeriodChosen=@PeriodChosen
-                                  DateChosenChanged=@((DateTime d) => DateChosenChanged(d))
-                                  PeriodChosenChanged=@((PeriodsEnums p) => PeriodChosenChanged(p)) />
+            <DateChooserComponent SelectionChanged="@((DateArgs d) => DateSelectionChanged(d))" />
 
             <RadzenLabel Text="Show labels" Component="ShowDataLabels" />
             <RadzenCheckBox @bind-Value="@ShowDataLabels" Name="ShowDataLabels" />
 
-            @if (PeriodChosen == PeriodsEnums.Day)
+            @if (DateSelectionChosen!.PeriodChosen == PeriodsEnums.Day)
             {
                 <RadzenLabel Text="Show markers" Component="ShowMarkers" />
                 <RadzenCheckBox @bind-Value="@ShowMarkers" Name="ShowMarkers" />
@@ -37,7 +33,7 @@
     </RadzenHeader>
 
     <RadzenBody>
-        @if (PeriodChosen == PeriodsEnums.Day)
+        @if (DateSelectionChosen!.PeriodChosen == PeriodsEnums.Day)
         {
             <RadzenCard Style="width: auto;">
                 <RadzenLabel Text="Consumption" Component="RadzenDropDownBindValue" class="h4 m-2" />
@@ -164,7 +160,7 @@
                 </RadzenChart>
             </RadzenCard>
         }
-        else if(PeriodChosen == PeriodsEnums.Week)
+        else if (DateSelectionChosen!.PeriodChosen == PeriodsEnums.Week)
         {
             <RadzenCard Style="width: auto;">
                 <RadzenChart Style="@GraphStyle" @ref=ConsumptionWeekChart >
@@ -194,7 +190,7 @@
                 </RadzenChart>
             </RadzenCard>
         }
-        else if (PeriodChosen == PeriodsEnums.Month)
+        else if (DateSelectionChosen!.PeriodChosen == PeriodsEnums.Month)
         {
             <RadzenCard Style="width: auto;">
                 <RadzenChart Style="@GraphStyle" @ref=ConsumptionMonthChart>
@@ -225,7 +221,7 @@
             </RadzenCard>
 
         }
-        else if (PeriodChosen == PeriodsEnums.Year)
+        else if (DateSelectionChosen!.PeriodChosen == PeriodsEnums.Year)
         {
             <RadzenCard Style="width: auto;">
                 <RadzenChart Style="@GraphStyle" @ref=ConsumptionYearChart>
@@ -255,7 +251,7 @@
                 </RadzenChart>
             </RadzenCard>
 
-        } else if(PeriodChosen == PeriodsEnums.All)
+        } else if(DateSelectionChosen!.PeriodChosen == PeriodsEnums.All)
         {
             <RadzenCard Style="width: auto;">
                 <RadzenChart Style="@GraphStyle" @ref=ConsumptionAllChart>

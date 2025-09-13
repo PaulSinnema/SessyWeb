@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Components;
+using Radzen.Blazor.Rendering;
 using SessyCommon.Services;
-using SessyController.Services;
 
 namespace SessyWeb.Components
 {
@@ -10,14 +10,15 @@ namespace SessyWeb.Components
         public TimeZoneService? TimeZoneService { get; set; }
 
         [Parameter]
-        public EventCallback<DateTime> DateChosenChanged { get; set; }
-        [Parameter]
-        public EventCallback<PeriodsEnums> PeriodChosenChanged { get; set; }
+        public EventCallback<DateArgs> SelectionChanged { get; set; }
 
         [Parameter]
         public DateTime? DateChosen { get; set; }
         [Parameter]
         public PeriodsEnums PeriodChosen { get; set; }
+
+        public DateTime Start { get; set; }
+        public DateTime End { get; set; }
 
         public bool DatePickerVisible { get; set; } = true;
 
@@ -118,16 +119,71 @@ namespace SessyWeb.Components
         {
             var period = (PeriodsEnums)obj;
 
-            await PeriodChosenChanged.InvokeAsync(period);
+            var args = new DateArgs(PeriodChosen, DateChosen!.Value);
+
+            await SelectionChanged.InvokeAsync(args);
 
             SetDatePickerParameters(period);
+        }
+
+        public class DateArgs
+        {
+            public DateArgs(PeriodsEnums periodChosen, DateTime dateChosen)
+            {
+                PeriodChosen = periodChosen;
+                DateChosen = dateChosen;
+
+                FillStartAndEndDates();
+            }
+
+            public PeriodsEnums PeriodChosen { get; set; }
+            public DateTime? DateChosen { get; set; }
+            public DateTime? Start { get; set; }
+            public DateTime? End { get; set; }
+
+            private void FillStartAndEndDates()
+            {
+                if (DateChosen != null)
+                {
+                    switch (PeriodChosen)
+                    {
+                        case PeriodsEnums.Day:
+                            Start = DateChosen.Value.Date;
+                            End = DateChosen.Value.Date.AddDays(1).AddSeconds(-1);
+                            break;
+
+                        case PeriodsEnums.Week:
+                            Start = DateChosen.Value.StartOfWeek();
+                            End = DateChosen.Value.EndOfWeek();
+                            break;
+
+                        case PeriodsEnums.Month:
+                            Start = DateChosen.Value.StartOfMonth();
+                            End = DateChosen.Value.EndOfMonth();
+                            break;
+
+                        case PeriodsEnums.Year:
+                            Start = new DateTime(DateChosen.Value.Year, 1, 1).Date;
+                            End = Start.Value.AddYears(1).AddSeconds(-1);
+                            break;
+
+                        case PeriodsEnums.All:
+                            Start = DateTime.MinValue;
+                            End = DateTime.MaxValue;
+                            break;
+
+                        default:
+                            throw new InvalidOperationException($"Invalid period {PeriodChosen}");
+                    }
+                }
+            }
         }
 
         private async Task DateSelectionChanged()
         {
             if (DateChosen != null)
             {
-                await DateChosenChanged.InvokeAsync(DateChosen.Value);
+                await SelectionChanged.InvokeAsync(new DateArgs(PeriodChosen, DateChosen.Value));
             }
         }
     }

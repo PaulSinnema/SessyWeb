@@ -19,8 +19,7 @@ namespace SessyWeb.Pages
         [Inject]
         private ConsumptionMonitorService? _consumptionMonitorService { get; set; }
 
-        public DateTime? DateChosen { get; set; }
-        public PeriodsEnums PeriodChosen { get; set; }
+        private DateArgs? DateSelectionChosen { get; set; } = new DateArgs(PeriodsEnums.Day, DateTime.Now);
 
         private RadzenChart? ConsumptionDayChart { get; set; }
         private RadzenChart? ConsumptionWeekChart { get; set; }
@@ -42,12 +41,17 @@ namespace SessyWeb.Pages
         public List<ConsumptionDisplayYearData> ConsumptionYearData { get; set; } = new();
         public List<ConsumptionDisplayAllData> ConsumptionAllData { get; set; } = new();
 
+        protected override void OnParametersSet()
+        {
+            DateSelectionChosen = new DateArgs(PeriodsEnums.Day, _timeZoneService!.Now);
+
+            base.OnParametersSet();
+        }
+
         protected override async Task OnAfterRenderAsync(bool firstRender)
         {
             if (firstRender)
             {
-                DateChosen = _timeZoneService!.Now.Date;
-                PeriodChosen = PeriodsEnums.Month;
                 _consumptionMonitorService!.DataChanged += SelectionChanged;
             }
 
@@ -91,7 +95,7 @@ namespace SessyWeb.Pages
             // 25 pixels per data row
             var width = 1000;
 
-            switch (PeriodChosen)
+            switch (DateSelectionChosen!.PeriodChosen)
             {
                 case PeriodsEnums.Day:
                     width = ConsumptionDayData.Count * 35;
@@ -114,7 +118,7 @@ namespace SessyWeb.Pages
                     break;
 
                 default:
-                    throw new InvalidOperationException($"Invalid period: {PeriodChosen}");
+                    throw new InvalidOperationException($"Invalid period: {DateSelectionChosen!.PeriodChosen}");
             }
 
             GraphStyle = $"min-height: {height}px; width: {width}px; visibility: initial;";
@@ -122,17 +126,9 @@ namespace SessyWeb.Pages
             StateHasChanged();
         }
 
-
-        public async Task PeriodChosenChanged(PeriodsEnums period)
+        public async Task DateSelectionChanged(DateArgs dateArgs)
         {
-            PeriodChosen = period;
-
-            await SelectionChanged();
-        }
-
-        public async Task DateChosenChanged(DateTime date)
-        {
-            DateChosen = date;
+            DateSelectionChosen = dateArgs;
 
             await SelectionChanged();
         }
@@ -175,14 +171,14 @@ namespace SessyWeb.Pages
 
         private async Task SelectionChanged()
         {
-            switch (PeriodChosen)
+            switch (DateSelectionChosen!.PeriodChosen)
             {
                 case PeriodsEnums.Day:
                     {
                         var list = await _consumptionDataService!.GetList(async (set) =>
                         {
                             var result = set
-                                .Where(sed => sed.Time.Date == DateChosen)
+                                .Where(sed => sed.Time.Date == DateSelectionChosen!.DateChosen)
                                 .ToList();
 
                             return await Task.FromResult(result);
@@ -208,8 +204,8 @@ namespace SessyWeb.Pages
                         var result = await _consumptionDataService!.GetList(async (set) =>
                         {
                             var result = set
-                                .Where(sed => DateChosen!.Value.StartOfWeek() <= sed.Time &&
-                                              DateChosen!.Value.EndOfWeek().AddDays(1).AddSeconds(-1) >= sed.Time)
+                                .Where(sed => DateSelectionChosen!.DateChosen!.Value.StartOfWeek() <= sed.Time &&
+                                              DateSelectionChosen!.DateChosen!.Value.EndOfWeek().AddDays(1).AddSeconds(-1) >= sed.Time)
                                 .ToList();
 
                             return await Task.FromResult(result);
@@ -235,13 +231,13 @@ namespace SessyWeb.Pages
                         var result = await _consumptionDataService!.GetList(async (set) =>
                         {
                             var result = set
-                                .Where(sed => DateChosen!.Value.StartOfMonth() <= sed.Time &&
-                                              DateChosen!.Value.EndOfMonth().AddDays(1).AddSeconds(-1) >= sed.Time)
+                                .Where(sed => DateSelectionChosen.DateChosen!.Value.StartOfMonth() <= sed.Time &&
+                                              DateSelectionChosen.DateChosen!.Value.EndOfMonth().AddDays(1).AddSeconds(-1) >= sed.Time)
                                 .ToList();
 
                             return await Task.FromResult(result);
                         });
-                        
+
                         ConsumptionMonthData = result.GroupBy(cd => cd.Time.Date)
                             .Select(gr => new ConsumptionDisplayMonthData
                             {
@@ -262,7 +258,7 @@ namespace SessyWeb.Pages
                         var result = await _consumptionDataService!.GetList(async (set) =>
                         {
                             var result = set
-                                .Where(sed => DateChosen!.Value.Year == sed.Time.Year)
+                                .Where(sed => DateSelectionChosen!.DateChosen!.Value.Year == sed.Time.Year)
                                 .ToList();
 
                             return await Task.FromResult(result);
@@ -305,7 +301,7 @@ namespace SessyWeb.Pages
                     }
 
                 default:
-                    throw new InvalidOperationException($"Invalid period: {PeriodChosen}");
+                    throw new InvalidOperationException($"Invalid period: {DateSelectionChosen!.PeriodChosen}");
             }
         }
 
@@ -317,7 +313,7 @@ namespace SessyWeb.Pages
 
             FillFormatter();
 
-            switch (PeriodChosen)
+            switch (DateSelectionChosen!.PeriodChosen)
             {
                 case PeriodsEnums.Day:
                     await ConsumptionDayChart!.Reload();
@@ -343,7 +339,7 @@ namespace SessyWeb.Pages
                     break;
 
                 default:
-                    throw new InvalidOperationException($"Invalid period: {PeriodChosen}");
+                    throw new InvalidOperationException($"Invalid period: {DateSelectionChosen!.PeriodChosen}");
             }
 
             StateHasChanged();
@@ -353,7 +349,7 @@ namespace SessyWeb.Pages
         {
             TickDistance = ConsumptionChartWidth;
 
-            switch (PeriodChosen)
+            switch (DateSelectionChosen!.PeriodChosen)
             {
                 case PeriodsEnums.Day:
                     {
@@ -406,7 +402,7 @@ namespace SessyWeb.Pages
                     }
 
                 default:
-                    throw new InvalidOperationException($"Invalid period: {PeriodChosen}");
+                    throw new InvalidOperationException($"Invalid period: {DateSelectionChosen!.PeriodChosen}");
             }
 
             StateHasChanged();
@@ -417,7 +413,7 @@ namespace SessyWeb.Pages
 
         public void FillFormatter()
         {
-            switch (PeriodChosen)
+            switch (DateSelectionChosen!.PeriodChosen)
             {
                 case PeriodsEnums.Day:
                     Formatter = Formatters.FormatAsDayHourMinutes;
@@ -434,7 +430,7 @@ namespace SessyWeb.Pages
                     break;
 
                 default:
-                    throw new InvalidOperationException($"Invalid PeriodChosen: {PeriodChosen}");
+                    throw new InvalidOperationException($"Invalid PeriodChosen: {DateSelectionChosen!.PeriodChosen}");
             }
         }
     }

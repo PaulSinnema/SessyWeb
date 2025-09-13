@@ -18,34 +18,24 @@ namespace SessyWeb.Pages
         [Inject]
         private TimeZoneService? _timeZoneService { get; set; }
 
-        public DateTime? DateChosen { get; set; }
+        public DateArgs? DateSelectionChosen { get; set; }
         
-        public PeriodsEnums PeriodChosen { get; set; }
-
         private List<GroupedSessyStatus>? StatusHistoryList { get; set; } = new List<GroupedSessyStatus>();
 
         RadzenDataGrid<GroupedSessyStatus>? historyGrid { get; set; }
 
         int count { get; set; }
 
-
-        public async Task DateChosenChanged(DateTime date)
+        public async Task DateSelectionChanged(DateArgs dateArgs)
         {
-            DateChosen = date;
-
-            await SelectionChanged();
-        }
-
-        public async Task PeriodChosenChanged(PeriodsEnums period)
-        {
-            PeriodChosen = period;
+            DateSelectionChosen = dateArgs;
 
             await SelectionChanged();
         }
 
         private async Task SelectionChanged()
         {
-            await historyGrid.Reload();
+            await historyGrid!.Reload();
         }
 
         protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -53,7 +43,7 @@ namespace SessyWeb.Pages
             EnsureDataGridRef();
 
             if (firstRender)
-                await historyGrid.FirstPage();
+                await historyGrid!.FirstPage();
         }
 
         void LoadData(LoadDataArgs args)
@@ -61,7 +51,7 @@ namespace SessyWeb.Pages
             EnsureDataGridRef();
 
             var now = _timeZoneService!.Now;
-            var filter = historyGrid.ColumnsCollection;
+            var filter = historyGrid!.ColumnsCollection;
 
             StatusHistoryList = _sessyStatusHistoryService!.GetSessyStatusHistory((ModelContext modelContext) =>
             {
@@ -79,6 +69,12 @@ namespace SessyWeb.Pages
 
                 count = query.Count();
 
+                if(args.Skip > count)
+                {
+                    args.Skip = 0;
+                    historyGrid.CurrentPage = 0;
+                }
+
                 return query.Skip(args.Skip!.Value).Take(args.Top!.Value).ToList();
             });
         }
@@ -90,11 +86,11 @@ namespace SessyWeb.Pages
 
         public IQueryable<GroupedSessyStatus> GetGroupedList(ModelContext modelContext)
         {
-            var dateChosen = DateChosen!.Value;
+            var dateChosen = DateSelectionChosen!.DateChosen!.Value;
             DateTime start;
             DateTime end;
 
-            switch (PeriodChosen)
+            switch (DateSelectionChosen!.PeriodChosen)
             {
                 case PeriodsEnums.Day:
                     start = dateChosen.Date;
@@ -122,7 +118,7 @@ namespace SessyWeb.Pages
                     break;
 
                 default:
-                    throw new InvalidOperationException($"Wrong period {PeriodChosen}");
+                    throw new InvalidOperationException($"Wrong period {DateSelectionChosen!.PeriodChosen}");
             }
 
             return modelContext.SessyStatusHistory
