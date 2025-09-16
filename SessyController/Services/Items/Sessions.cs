@@ -644,14 +644,12 @@ namespace SessyController.Services.Items
 
         /// <summary>
         /// Estimates how much charge is needed in the batteries.
-        /// When charging the chargeNeeded is the maximum charge needed.
-        /// When discharging the chargeNeeded is the minimum charge needed.
         /// </summary>
         public void SetEstimateChargeNeededUntilNextSession(Session previousSession, Session? nextSession = null)
         {
             var infoObjects = GetInfoObjectsFromStartUntilNextSession(previousSession, nextSession);
 
-            double chargeNeeded = previousSession.Mode == Modes.Charging ? _batteryContainer.GetTotalCapacity() : 0.0;
+            double chargeNeeded = GetChargeNeeded(previousSession, nextSession);
 
             foreach (var infoObject in infoObjects)
             {
@@ -683,6 +681,21 @@ namespace SessyController.Services.Items
             {
                 quarterlyInfo.SetChargeNeeded(chargeNeeded);
             }
+        }
+
+        /// <summary>
+        /// Gets the start value for charge needed.
+        /// </summary>
+        private double GetChargeNeeded(Session previousSession, Session? nextSession)
+        {
+            double chargeNeeded = 0.0;
+
+            var limitCharge = previousSession.Mode == Modes.Charging && (nextSession == null || nextSession.Mode == Modes.Charging);
+
+            if (!limitCharge)
+                chargeNeeded = previousSession.Mode == Modes.Charging ? _batteryContainer.GetTotalCapacity() : 0.0;
+
+            return chargeNeeded;
         }
 
         /// <summary>
