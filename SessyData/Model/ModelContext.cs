@@ -1,6 +1,8 @@
 ﻿using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Sqlite.Infrastructure.Internal;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace SessyData.Model
 {
@@ -8,7 +10,7 @@ namespace SessyData.Model
     {
         private string? _connectionString { get; set; }
 
-        public ModelContext(DbContextOptions<ModelContext> options) : base (options)
+        public ModelContext(DbContextOptions<ModelContext> options) : base(options)
         {
 #pragma warning disable EF1001 // Internal EF Core API usage.
             var extension = options.FindExtension<SqliteOptionsExtension>();
@@ -43,7 +45,19 @@ namespace SessyData.Model
         public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
         protected override void OnConfiguring(DbContextOptionsBuilder options)
-            => options.UseSqlite(_connectionString);
+        {
+            options
+                .UseSqlite(_connectionString);
+                //.LogTo(log =>
+                //{
+                //    if (log.Contains("EPEXPrices", StringComparison.OrdinalIgnoreCase) &&
+                //        log.Contains("UPDATE", StringComparison.OrdinalIgnoreCase))
+                //    {
+                //        Console.WriteLine(log);
+                //    }
+                //})  // log SQL
+                //.EnableSensitiveDataLogging();                   // ook parameterwaarden
+        }
     }
 }
 

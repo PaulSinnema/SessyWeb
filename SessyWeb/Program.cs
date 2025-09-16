@@ -65,7 +65,9 @@ else
 }
 
 builder.Services.AddDbContext<ModelContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("SQLiteConnection")));
+{
+    options.UseSqlite(builder.Configuration.GetConnectionString("SQLiteConnection"));
+});
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();

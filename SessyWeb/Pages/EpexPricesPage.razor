@@ -30,10 +30,17 @@
                 <RadzenButton ButtonStyle="ButtonStyle.Success" Icon="add_circle" Text="Add energy data" Click="@InsertRow" />
             </HeaderTemplate>
             <Columns>
+                @if(!HideId)
+                {
+                    <RadzenDataGridColumn Property="@nameof(EPEXPrices.Id)" Title="Id"/>
+                }
                 <RadzenDataGridColumn Property="@nameof(EPEXPrices.Time)" Title="Time" SortOrder="SortOrder.Ascending" />
-                <RadzenDataGridColumn Property="@nameof(EPEXPrices.Price)" Title="Price">
+                <RadzenDataGridColumn Property="@nameof(EPEXPrices.Price)" Title="Price" FormatString="{0:F6}">
                     <EditTemplate Context="fr">
-                        <RadzenNumeric @bind-Value="fr.Price" Style="width:100%" InputAttributes="@(new Dictionary<string, object>() { { "aria-label", "Select freight" } })" />
+                        <RadzenNumeric @bind-Value="fr.Price" 
+                                       Style="width:100%"
+                                       Format="F6"
+                                       InputAttributes="@(new Dictionary<string, object>() { { "aria-label", "Select freight" } })"/>
                     </EditTemplate>
                 </RadzenDataGridColumn>
                 <RadzenDataGridColumn Context="order" Filterable="false" Sortable="false" TextAlign="TextAlign.Right" Frozen="true" FrozenPosition="FrozenColumnPosition.Right">

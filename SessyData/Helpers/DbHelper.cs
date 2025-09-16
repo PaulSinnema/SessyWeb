@@ -1,6 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using SessyCommon.Configurations;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
@@ -12,18 +11,11 @@ namespace SessyData.Helpers
     public class DbHelper : IDisposable
     {
         private readonly IServiceScopeFactory _serviceScopeFactory;
-        private IServiceScope _scope { get; set; }
-
-        private TimeZoneService _timeZoneService { get; set; }
-        private SettingsConfig _settingsConfig { get; set; }
 
         public DbHelper(IServiceScopeFactory serviceScopeFactory)
         {
             _serviceScopeFactory = serviceScopeFactory;
-            _scope = _serviceScopeFactory.CreateScope();
-
-            _timeZoneService = _scope.ServiceProvider.GetRequiredService<TimeZoneService>();
-            _settingsConfig = _scope.ServiceProvider.GetRequiredService<IOptions<SettingsConfig>>().Value;
+            using var scope = _serviceScopeFactory.CreateScope();
         }
 
         private SemaphoreSlim dbHelperSemaphore = new SemaphoreSlim(1);
@@ -32,10 +24,15 @@ namespace SessyData.Helpers
         {
             try
             {
-                var now = _timeZoneService.Now;
-                var dbContext = _scope.ServiceProvider.GetRequiredService<ModelContext>();
+                using var scope = _serviceScopeFactory.CreateScope();
+                var timeZoneService = scope.ServiceProvider.GetRequiredService<TimeZoneService>();
+                var settingsConfig = scope.ServiceProvider.GetRequiredService<SettingsConfig>();
+
+                var now = timeZoneService.Now;
+
+                var dbContext = scope.ServiceProvider.GetRequiredService<ModelContext>();
                 var filename = $"Sessy_{now.Year}_{now.Month}_{now.Day}_{now.Hour}_{now.Minute}_{now.Second}.bak";
-                var directory = _settingsConfig.DatabaseBackupDirectory ?? throw new InvalidOperationException("Database backup directory is not configured.");
+                var directory = settingsConfig.DatabaseBackupDirectory ?? throw new InvalidOperationException("Database backup directory is not configured.");
                 var backupFilePath = Path.Combine(directory, filename).Replace("\\", "/");
 
                 Directory.CreateDirectory(directory);
@@ -46,7 +43,7 @@ namespace SessyData.Helpers
                 // Perform the backup operation
                 await ExecuteQuery(async (db) =>
                 {
-                    FormattableString sql = @$"VACUUM INTO {backupFilePath}";
+                    FormattableString sql = @$"VACUUM INTO '{backupFilePath}'";
 
                     Console.WriteLine("Issuing SQL Command: " + sql);
 
@@ -61,24 +58,33 @@ namespace SessyData.Helpers
             }
         }
 
-        public async Task ExecuteTransaction(Action<ModelContext> action)
+        public async Task ExecuteTransaction(Func<ModelContext, Task> func)
         {
             await dbHelperSemaphore.WaitAsync();
 
             try
             {
-                var dbContext = _scope.ServiceProvider.GetRequiredService<ModelContext>();
-                using var transaction = dbContext.Database.BeginTransaction();
+                using var scope = _serviceScopeFactory.CreateScope();
+                var dbContext = scope.ServiceProvider.GetRequiredService<ModelContext>();
+                await using var transaction = await dbContext.Database.BeginTransactionAsync();
 
                 try
                 {
-                    action(dbContext);
-                    dbContext.SaveChanges();
-                    transaction.Commit();
+                    await func(dbContext);
+
+                    if (dbContext.ChangeTracker.HasChanges())
+                    {
+                        var rows = await dbContext.SaveChangesAsync();
+
+                        if (rows == 0)
+                            throw new InvalidOperationException($"No rows written to the DB");
+
+                        await transaction.CommitAsync();
+                    }
                 }
                 catch (Exception ex)
                 {
-                    transaction.Rollback();
+                    await transaction.RollbackAsync();
                     throw new InvalidOperationException($"Database transaction failed: {ex.ToDetailedString()}", ex);
                 }
             }
@@ -98,7 +104,8 @@ namespace SessyData.Helpers
 
             try
             {
-                var dbContext = _scope.ServiceProvider.GetRequiredService<ModelContext>();
+                using var scope = _serviceScopeFactory.CreateScope();
+                var dbContext = scope.ServiceProvider.GetRequiredService<ModelContext>();
 
                 return queryFunc(dbContext);
             }
@@ -118,7 +125,7 @@ namespace SessyData.Helpers
         {
             if (!_isDisposed)
             {
-                _scope.Dispose();
+                _isDisposed = true;
             }
         }
     }

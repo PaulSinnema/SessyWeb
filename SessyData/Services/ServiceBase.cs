@@ -21,15 +21,17 @@ namespace SessyData.Services
 
         public async Task AddRange(List<T> list)
         {
-            await _dbHelper.ExecuteTransaction(db =>
+            await _dbHelper.ExecuteTransaction(async db =>
             {
                 db.Set<T>().AddRange(list);
+
+                await Task.FromResult<bool>(true);
             });
         }
 
         public async Task Add(List<T> list, Func<T, DbSet<T>, bool>? contains = null)
         {
-            await _dbHelper.ExecuteTransaction(db =>
+            await _dbHelper.ExecuteTransaction(async db =>
             {
                 foreach (var item in list)
                 {
@@ -37,6 +39,8 @@ namespace SessyData.Services
                     {
                         db.Set<T>().Add(item);
                     }
+
+                    await Task.FromResult<bool>(true);
                 }
             });
         }
@@ -49,11 +53,11 @@ namespace SessyData.Services
 
         public async Task Add(List<T> list, Func<T, DbSet<T>, T?> contains, bool checkDuplicate = true)
         {
-            await _dbHelper.ExecuteTransaction(db =>
+            await _dbHelper.ExecuteTransaction(async db =>
             {
                 foreach (var item in list)
                 {
-                    var containedItem = contains(item, db.Set<T>());
+                    var containedItem = await GetContainedItem(contains, db, item);
 
                     if (containedItem != null)
                     {
@@ -62,9 +66,13 @@ namespace SessyData.Services
                     }
                     else
                     {
+                        db.Attach(item);
+
                         db.Set<T>().Add(item);
                     }
                 }
+
+                await Task.FromResult<bool>(true);
             });
         }
 
@@ -86,32 +94,23 @@ namespace SessyData.Services
             {
                 foreach (T item in list)
                 {
-                    T? containedItem = null;
-
-                    if (contains != null)
-                    {
-                        containedItem = contains(item, db.Set<T>());
-                    }
-                    else
-                    {
-                        containedItem = db.Set<T>()
-                                            .Where(setItem => ((IUpdatable<T>)setItem).Id == ((IUpdatable<T>)item).Id)
-                                            .SingleOrDefault();
-                    }
+                    var containedItem = await GetContainedItem(contains, db, item, false);
 
                     if (containedItem != null)
                     {
-                        var itemToUpdate = await GetByKeyAsync(db, ((IUpdatable<T>)containedItem).Id);
+                        ((IUpdatable<T>)containedItem!).Update(item);
 
-                        ((IUpdatable<T>)itemToUpdate!).Update(item);
+                        var state = db.Entry(containedItem).State;
 
-                        db.Set<T>().Update(containedItem);
+                        var entry = db.Set<T>().Update(containedItem);
                     }
                     else
                     {
                         db.Set<T>().Add(item);
                     }
                 }
+
+                await Task.FromResult<bool>(true);
             });
         }
 
@@ -123,13 +122,13 @@ namespace SessyData.Services
             {
                 foreach (var item in list)
                 {
-                    var containedItem = contains(item, db.Set<T>());
+                    var containedItem = await GetContainedItem(contains, db, item);
 
                     if (containedItem != null)
                     {
-                        var itemToUpdate = await GetByKeyAsync(db, ((IUpdatable<T>)containedItem).Id);
+                        ((IUpdatable<T>)containedItem!).Update(item);
 
-                        ((IUpdatable<T>)itemToUpdate!).Update(item);
+                        var state = db.Entry(containedItem).State;
 
                         db.Set<T>().Update(containedItem);
                     }
@@ -138,6 +137,8 @@ namespace SessyData.Services
                         throw new InvalidOperationException($"Item to update was not found {item}");
                     }
                 }
+
+                await Task.FromResult<bool>(true);
             });
         }
 
@@ -149,7 +150,7 @@ namespace SessyData.Services
             {
                 foreach (var item in list)
                 {
-                    var containedItem = contains(item, db.Set<T>());
+                    var containedItem = await GetContainedItem(contains, db, item);
 
                     if (containedItem != null)
                     {
@@ -163,6 +164,25 @@ namespace SessyData.Services
                     }
                 }
             });
+        }
+
+        private async Task<T?> GetContainedItem(Func<T, DbSet<T>, T?>? contains, ModelContext db, T item, bool shouldExist = true)
+        {
+            T? containedItem;
+
+            if (contains != null)
+            {
+                containedItem = contains(item, db.Set<T>());
+            }
+            else
+            {
+                containedItem = await db.Set<T>().FindAsync(((IUpdatable<T>)item).Id);
+            }
+
+            if (containedItem == null && shouldExist)
+                throw new InvalidOperationException($"Not found {((IUpdatable<T>)item).Id}");
+
+            return containedItem;
         }
 
         private async Task<T?> GetByKeyAsync(ModelContext db, int key)

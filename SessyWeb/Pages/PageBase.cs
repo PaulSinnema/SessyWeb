@@ -9,6 +9,12 @@ namespace SessyWeb.Pages
         [Inject]
         public BatteryContainer? batteryContainer { get; set; }
 
+#if DEBUG
+        public bool HideId = false;
+#else
+        public bool HideId = true;
+#endif
+
         private ScreenInfo? _screenInfo;
 
         [CascadingParameter(Name = "ScreenInfo")]

@@ -9,7 +9,7 @@ namespace SessyData.Services
 
         public async Task RemoveWrongData(string providerName)
         {
-            await _dbHelper.ExecuteTransaction((db) =>
+            await _dbHelper.ExecuteTransaction(async db =>
             {
                 var itemsToRemove = db.Set<SolarInverterData>().Where(x => x.ProviderName == providerName && x.Power > 1000000).ToList();
 
@@ -17,6 +17,8 @@ namespace SessyData.Services
                 {
                     db.Set<SolarInverterData>().RemoveRange(itemsToRemove);
                 }
+
+                await Task.FromResult<bool>(true);
             });
         }
     }

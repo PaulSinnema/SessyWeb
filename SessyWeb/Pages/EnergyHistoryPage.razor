@@ -21,6 +21,10 @@
         <RadzenButton ButtonStyle="ButtonStyle.Success" Icon="add_circle" Text="Add energy data" Click="@InsertRow" />
     </HeaderTemplate>
     <Columns>
+        @if(!HideId)
+        {
+            <RadzenDataGridColumn Property="@nameof(EnergyHistory.Id)" Title="Id" />
+        }
         <RadzenDataGridColumn Property="@nameof(EnergyHistory.Time)" Title="Time" SortOrder="SortOrder.Ascending" />
         <RadzenDataGridColumn Property="@nameof(EnergyHistory.ConsumedTariff1)" Title="Consumed tariff 1" />
         <RadzenDataGridColumn Property="@nameof(EnergyHistory.ProducedTariff1)" Title="Produced tariff 1" />
