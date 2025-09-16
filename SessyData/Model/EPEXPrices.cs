@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using SessyCommon.Extensions;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -15,8 +16,7 @@ namespace SessyData.Model
 
         public void Update(EPEXPrices updateInfo)
         {
-            Time = updateInfo.Time;
-            Price = updateInfo.Price;
+            this.Copy(updateInfo);
         }
 
         public override string ToString()

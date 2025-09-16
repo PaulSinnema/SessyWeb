@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using SessyCommon.Extensions;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -21,8 +22,7 @@ namespace SessyData.Model
 
         public void Update(SessyWebControl updateInfo)
         {
-            Time = updateInfo.Time;
-            Status = updateInfo.Status;
+            this.Copy(updateInfo);
         }
     }
 }

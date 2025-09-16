@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using SessyCommon.Extensions;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace SessyData.Model
@@ -48,21 +49,12 @@ namespace SessyData.Model
 
         public override string ToString()
         {
-            return $"Time: {Time}, Energy tax: {EnergyTax}, Value added tax: {ValueAddedTax}, PurchaseCompensation: {PurchaseCompensation}, ReturnDeliveryCompensation: {ReturnDeliveryCompensation}, TaxReduction: {TaxReduction}, NetManagementCost: {NetManagementCost}, FixedTransportFee: {FixedTransportFee}, CapacityTransportFee: {CapacityTransportFee}";
+            return $"Time: {Time}, Energy tax: {EnergyTax}, Netting: {Netting}, Value added tax: {ValueAddedTax}, PurchaseCompensation: {PurchaseCompensation}, ReturnDeliveryCompensation: {ReturnDeliveryCompensation}, TaxReduction: {TaxReduction}, NetManagementCost: {NetManagementCost}, FixedTransportFee: {FixedTransportFee}, CapacityTransportFee: {CapacityTransportFee}";
         }
 
         public void Update(Taxes updateInfo)
         {
-            Time = updateInfo.Time;
-            EnergyTax = updateInfo.EnergyTax;
-            ValueAddedTax = updateInfo.ValueAddedTax;
-            PurchaseCompensation = updateInfo.PurchaseCompensation;
-            ReturnDeliveryCompensation = updateInfo.ReturnDeliveryCompensation;
-            TaxReduction = updateInfo.TaxReduction;
-            NetManagementCost = updateInfo.NetManagementCost;
-            FixedTransportFee = updateInfo.FixedTransportFee;
-            CapacityTransportFee = updateInfo.CapacityTransportFee;
-            Netting = updateInfo.Netting;
+            this.Copy(updateInfo);
         }
     }
 }

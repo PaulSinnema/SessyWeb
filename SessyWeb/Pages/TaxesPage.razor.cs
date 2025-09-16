@@ -109,11 +109,11 @@ namespace SessyWeb.Pages
             await taxesGrid!.EditRow(taxes);
         }
 
-        void OnUpdateRow(Taxes taxes)
+        async Task OnUpdateRow(Taxes taxes)
         {
             List<Taxes> list = new List<Taxes> { taxes };
 
-            _taxesService!.Update(list, (item, set) => set.Where(eh => eh.Id == taxes.Id).FirstOrDefault());
+            await _taxesService!.Update(list, (item, set) => set.Where(eh => eh.Id == taxes.Id).FirstOrDefault());
         }
 
         async Task SaveRow(Taxes taxes)

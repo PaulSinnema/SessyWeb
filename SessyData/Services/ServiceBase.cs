@@ -15,7 +15,7 @@ namespace SessyData.Services
 
         public ServiceBase(IServiceScopeFactory serviceScopeFactory)
         {
-             _scope = serviceScopeFactory.CreateScope();
+            _scope = serviceScopeFactory.CreateScope();
             _dbHelper = _scope.ServiceProvider.GetRequiredService<DbHelper>();
         }
 
@@ -33,7 +33,7 @@ namespace SessyData.Services
             {
                 foreach (var item in list)
                 {
-                    if(contains == null || !contains(item, db.Set<T>()))
+                    if (contains == null || !contains(item, db.Set<T>()))
                     {
                         db.Set<T>().Add(item);
                     }
@@ -57,7 +57,7 @@ namespace SessyData.Services
 
                     if (containedItem != null)
                     {
-                        if(checkDuplicate)
+                        if (checkDuplicate)
                             throw new InvalidOperationException($"Item to add is duplicate {item}");
                     }
                     else
@@ -67,7 +67,7 @@ namespace SessyData.Services
                 }
             });
         }
-        
+
         /// <summary>
         /// Adds or updates an item in the set 'T'.
         /// 'T' Must be of type IUpdatable<T> and you must provide the Update() code in class 'T'.
@@ -186,22 +186,21 @@ namespace SessyData.Services
             });
         }
 
-        public async Task<T?> Get(Func<DbSet<T>, Task<T?>> func)
+        public async Task<T?> Get(Func<IQueryable<T>, Task<T?>> func)
         {
             return await _dbHelper.ExecuteQuery(async (ModelContext db) =>
             {
-                return await func(db.Set<T>());
+                return await func(db.Set<T>().AsNoTracking());
             });
         }
 
-        public async Task<List<T>> GetList(Func<DbSet<T>, Task<List<T>>> func)
+        public async Task<List<T>> GetList(Func<IQueryable<T>, Task<List<T>>> func)
         {
             return await _dbHelper.ExecuteQuery(async (ModelContext db) =>
             {
-                return await func(db.Set<T>());
+                return await func(db.Set<T>().AsNoTracking());
             });
         }
-
         private bool _isDisposed = false;
 
         public void Dispose()

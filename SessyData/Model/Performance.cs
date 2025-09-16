@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using SessyCommon.Extensions;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -32,23 +33,7 @@ namespace SessyData.Model
 
         public void Update(Performance updateInfo)
         {
-            MarketPrice = updateInfo.MarketPrice;
-            BuyingPrice = updateInfo.BuyingPrice;
-            SmoothedBuyingPrice = updateInfo.SmoothedBuyingPrice;
-            SellingPrice = updateInfo.SellingPrice;
-            SmoothedSellingPrice = updateInfo.SmoothedSellingPrice;
-            Profit = updateInfo.Profit;
-            EstimatedConsumptionPerQuarterHour = updateInfo.EstimatedConsumptionPerQuarterHour;
-            ChargeLeft = updateInfo.ChargeLeft;
-            ChargeNeeded = updateInfo.ChargeNeeded;
-            Charging = updateInfo.Charging;
-            Discharging = updateInfo.Discharging;
-            SolarPowerPerQuarterHour = updateInfo.SolarPowerPerQuarterHour;
-            SmoothedSolarPower = updateInfo.SmoothedSolarPower;
-            SolarGlobalRadiation = updateInfo.SolarGlobalRadiation;
-            ChargeLeftPercentage = updateInfo.ChargeLeftPercentage;
-            DisplayState = updateInfo.DisplayState;
-            VisualizeInChart = updateInfo.VisualizeInChart;
+            this.Copy(updateInfo);
         }
         public override string ToString()
         {

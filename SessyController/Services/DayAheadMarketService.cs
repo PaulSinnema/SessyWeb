@@ -178,7 +178,7 @@ namespace SessyController.Services
             {
                 TransformPricesResolution();
 
-                StorePrices();
+                await StorePrices();
             }
 
             PricesInitialized = true;
@@ -468,7 +468,7 @@ namespace SessyController.Services
         /// <summary>
         /// Store the prices in the database if not present.
         /// </summary>
-        private void StorePrices()
+        private async Task StorePrices()
         {
             var pricesList = new List<EPEXPrices>();
 
@@ -482,7 +482,7 @@ namespace SessyController.Services
             }
 
             // Items already in the DB are updated!
-            _epexPricesDataService.AddOrUpdate(pricesList, (item, set) =>
+            await _epexPricesDataService.AddOrUpdate(pricesList, (item, set) =>
             {
                 return set.Where(sd => sd.Time == item.Time).SingleOrDefault(); // Contains
             });

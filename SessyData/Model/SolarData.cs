@@ -1,4 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using SessyCommon.Attributes;
+using SessyCommon.Extensions;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -10,6 +12,7 @@ namespace SessyData.Model
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)] // Auto-increment
         public int Id { get; set; }
+        [SkipCopy]
         public DateTime? Time { get; set; }
         public double GlobalRadiation { get; set; }
 
@@ -20,7 +23,7 @@ namespace SessyData.Model
 
         public void Update(SolarData updateInfo)
         {
-            GlobalRadiation = updateInfo.GlobalRadiation;
+            this.Copy(updateInfo);
         }
     }
 }

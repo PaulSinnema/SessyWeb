@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using SessyCommon.Extensions;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -24,11 +25,7 @@ namespace SessyData.Model
 
         public void Update(Consumption updateInfo)
         {
-            Time = updateInfo.Time;
-            ConsumptionWh = updateInfo.ConsumptionWh;
-            Temperature = updateInfo.Temperature;
-            GlobalRadiation = updateInfo.GlobalRadiation;
-            Humidity = updateInfo.Humidity;
+            this.Copy(updateInfo);
         }
 
         public override string ToString()
