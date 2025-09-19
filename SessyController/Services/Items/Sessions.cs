@@ -57,8 +57,8 @@ namespace SessyController.Services.Items
             _totalChargingCapacityPerQuarter = batteryContainer.GetChargingCapacityInWatts() / 4.0; // Per quarter hour.
             _totalDischargingCapacityPerQuarter = batteryContainer.GetDischargingCapacityInWatts() / 4.0; // Per quarter hour.
             _totalBatteryCapacity = batteryContainer.GetTotalCapacity();
-            _maxChargingQuarters = (int)Math.Ceiling(_totalBatteryCapacity / _totalChargingCapacityPerQuarter);
-            _maxDischargingQuarters = (int)Math.Ceiling(_totalBatteryCapacity / _totalDischargingCapacityPerQuarter);
+            _maxChargingQuarters = (int)Math.Ceiling(_totalBatteryCapacity / _totalChargingCapacityPerQuarter) + 3; // 3 Quarters marging
+            _maxDischargingQuarters = (int)Math.Ceiling(_totalBatteryCapacity / _totalDischargingCapacityPerQuarter) + 3; // 3 Quarters marging
             _cycleCost = settingsConfig.CycleCost;
             _logger = loggerFactory.CreateLogger<Sessions>();
         }
@@ -419,20 +419,20 @@ namespace SessyController.Services.Items
                                 {
                                     if (next < quarterlyInfos.Count)
                                     {
-                                        if (quarterlyInfos[next].SmoothedPrice < quarterlyInfos[prev].SmoothedPrice)
+                                        if (quarterlyInfos[next].Price < quarterlyInfos[prev].Price)
                                         {
-                                            if (quarterlyInfos[next].SmoothedPrice < averagePrice)
+                                            if (quarterlyInfos[next].Price < averagePrice)
                                                 AddQuarterlyInfo(session, quarterlyInfos[next++]);
                                         }
                                         else
                                         {
-                                            if (quarterlyInfos[prev].SmoothedPrice < averagePrice)
+                                            if (quarterlyInfos[prev].Price < averagePrice)
                                                 AddQuarterlyInfo(session, quarterlyInfos[prev--]);
                                         }
                                     }
                                     else
                                     {
-                                        if (quarterlyInfos[prev].SmoothedPrice < averagePrice)
+                                        if (quarterlyInfos[prev].Price < averagePrice)
                                             AddQuarterlyInfo(session, quarterlyInfos[prev--]);
                                     }
                                 }
@@ -440,7 +440,7 @@ namespace SessyController.Services.Items
                                 {
                                     if (next < quarterlyInfos.Count)
                                     {
-                                        if (quarterlyInfos[next].SmoothedPrice < averagePrice)
+                                        if (quarterlyInfos[next].Price < averagePrice)
                                             AddQuarterlyInfo(session, quarterlyInfos[next++]);
                                     }
                                 }
@@ -454,20 +454,20 @@ namespace SessyController.Services.Items
                                 {
                                     if (next < quarterlyInfos.Count)
                                     {
-                                        if (quarterlyInfos[next].SmoothedPrice > quarterlyInfos[prev].SmoothedPrice)
+                                        if (quarterlyInfos[next].Price > quarterlyInfos[prev].Price)
                                         {
-                                            if (quarterlyInfos[next].SmoothedPrice > averagePrice)
+                                            if (quarterlyInfos[next].Price > averagePrice)
                                                 AddQuarterlyInfo(session, quarterlyInfos[next++]);
                                         }
                                         else
                                         {
-                                            if (quarterlyInfos[prev].SmoothedPrice > averagePrice)
+                                            if (quarterlyInfos[prev].Price > averagePrice)
                                                 AddQuarterlyInfo(session, quarterlyInfos[prev--]);
                                         }
                                     }
                                     else
                                     {
-                                        if (quarterlyInfos[prev].SmoothedPrice > averagePrice)
+                                        if (quarterlyInfos[prev].Price > averagePrice)
                                             AddQuarterlyInfo(session, quarterlyInfos[prev--]);
                                     }
                                 }
@@ -475,7 +475,7 @@ namespace SessyController.Services.Items
                                 {
                                     if (next < quarterlyInfos.Count)
                                     {
-                                        if (quarterlyInfos[next].SmoothedPrice > averagePrice)
+                                        if (quarterlyInfos[next].Price > averagePrice)
                                             AddQuarterlyInfo(session, quarterlyInfos[next++]);
                                     }
                                 }
@@ -688,12 +688,12 @@ namespace SessyController.Services.Items
         /// </summary>
         private double GetChargeNeeded(Session previousSession, Session? nextSession)
         {
-            double chargeNeeded = 0.0;
+            double chargeNeeded = previousSession.Mode == Modes.Charging ? 1000.0 : 500.0; // Margins to compensate for uncertanties. 
 
             var limitCharge = previousSession.Mode == Modes.Charging && (nextSession == null || nextSession.Mode == Modes.Charging);
 
             if (!limitCharge)
-                chargeNeeded = previousSession.Mode == Modes.Charging ? _batteryContainer.GetTotalCapacity() : 0.0;
+                chargeNeeded += previousSession.Mode == Modes.Charging ? _batteryContainer.GetTotalCapacity() : 0.0;
 
             return chargeNeeded;
         }

@@ -1001,7 +1001,6 @@ namespace SessyController.Services
         private void CalculateChargeNeeded()
         {
             Session? previousSession = null;
-            var totalCapacity = _batteryContainer.GetTotalCapacity();
 
             foreach (var nextSession in _sessions.SessionList.OrderBy(se => se.FirstDateTime))
             {
