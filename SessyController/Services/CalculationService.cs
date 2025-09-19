@@ -38,7 +38,7 @@ namespace SessyController.Services
 
             if (_epexPrice != null && taxes != null && _epexPrice.Price.HasValue)
             {
-                var compensation = buying ? taxes.PurchaseCompensation : -taxes.ReturnDeliveryCompensation;
+                var compensation = buying ? taxes.PurchaseCompensation : taxes.ReturnDeliveryCompensation;
                 var valueAddedTaxFactor = taxes.ValueAddedTax / 100 + 1;
 
                 var overheadCost = 0.0;

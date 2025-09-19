@@ -353,7 +353,7 @@ namespace SessyController.Services.Items
         /// Adds an hourly info object to the sessions hourly info list if it is not contained in
         /// any other session.
         /// </summary>
-        public void AddHourlyInfo(Session session, QuarterlyInfo quarterlyInfo)
+        public void AddQuarterlyInfo(Session session, QuarterlyInfo quarterlyInfo)
         {
             if (!InAnySession(quarterlyInfo))
                 session.AddQuarterlyInfo(quarterlyInfo);
@@ -393,7 +393,7 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Adds neighboring quarters to the Session
         /// </summary>
-        public void CompleteSession(Session session, List<QuarterlyInfo> hourlyInfos, int maxQuarters, double cycleCost)
+        public void CompleteSession(Session session, List<QuarterlyInfo> quarterlyInfos, int maxQuarters, double cycleCost)
         {
             if (session.GetQuarterlyInfoList().Count != 1)
                 throw new InvalidOperationException($"Session has zero or more than 1 hourly price.");
@@ -401,15 +401,15 @@ namespace SessyController.Services.Items
             var now = _timeZoneService.Now;
             var selectDateHour = now.Date.AddHours(now.Hour).AddMinutes(-15);
             var list = session.GetQuarterlyInfoList();
-            var index = hourlyInfos.IndexOf(list.First());
+            var index = quarterlyInfos.IndexOf(list.First());
             var prev = index - 1;
             var next = index + 1;
 
             if (index >= 0)
             {
-                for (var i = 0; i < maxQuarters - 1; i++)
+                for (var i = 0; i < maxQuarters; i++)
                 {
-                    var averagePrice = GetAveragePriceInWindow(hourlyInfos, index, 20);
+                    var averagePrice = GetAveragePriceInWindow(quarterlyInfos, index, 20);
 
                     switch (session.Mode)
                     {
@@ -417,31 +417,31 @@ namespace SessyController.Services.Items
                             {
                                 if (prev >= 0)
                                 {
-                                    if (next < hourlyInfos.Count)
+                                    if (next < quarterlyInfos.Count)
                                     {
-                                        if (hourlyInfos[next].SmoothedPrice < hourlyInfos[prev].SmoothedPrice)
+                                        if (quarterlyInfos[next].SmoothedPrice < quarterlyInfos[prev].SmoothedPrice)
                                         {
-                                            if (hourlyInfos[next].SmoothedPrice < averagePrice)
-                                                AddHourlyInfo(session, hourlyInfos[next++]);
+                                            if (quarterlyInfos[next].SmoothedPrice < averagePrice)
+                                                AddQuarterlyInfo(session, quarterlyInfos[next++]);
                                         }
                                         else
                                         {
-                                            if (hourlyInfos[prev].SmoothedPrice < averagePrice)
-                                                AddHourlyInfo(session, hourlyInfos[prev--]);
+                                            if (quarterlyInfos[prev].SmoothedPrice < averagePrice)
+                                                AddQuarterlyInfo(session, quarterlyInfos[prev--]);
                                         }
                                     }
                                     else
                                     {
-                                        if (hourlyInfos[prev].SmoothedPrice < averagePrice)
-                                            AddHourlyInfo(session, hourlyInfos[prev--]);
+                                        if (quarterlyInfos[prev].SmoothedPrice < averagePrice)
+                                            AddQuarterlyInfo(session, quarterlyInfos[prev--]);
                                     }
                                 }
                                 else
                                 {
-                                    if (next < hourlyInfos.Count)
+                                    if (next < quarterlyInfos.Count)
                                     {
-                                        if (hourlyInfos[next].SmoothedPrice < averagePrice)
-                                            AddHourlyInfo(session, hourlyInfos[next++]);
+                                        if (quarterlyInfos[next].SmoothedPrice < averagePrice)
+                                            AddQuarterlyInfo(session, quarterlyInfos[next++]);
                                     }
                                 }
 
@@ -452,31 +452,31 @@ namespace SessyController.Services.Items
                             {
                                 if (prev >= 0)
                                 {
-                                    if (next < hourlyInfos.Count)
+                                    if (next < quarterlyInfos.Count)
                                     {
-                                        if (hourlyInfos[next].SmoothedPrice > hourlyInfos[prev].SmoothedPrice)
+                                        if (quarterlyInfos[next].SmoothedPrice > quarterlyInfos[prev].SmoothedPrice)
                                         {
-                                            if (hourlyInfos[next].SmoothedPrice > averagePrice)
-                                                AddHourlyInfo(session, hourlyInfos[next++]);
+                                            if (quarterlyInfos[next].SmoothedPrice > averagePrice)
+                                                AddQuarterlyInfo(session, quarterlyInfos[next++]);
                                         }
                                         else
                                         {
-                                            if (hourlyInfos[prev].SmoothedPrice > averagePrice)
-                                                AddHourlyInfo(session, hourlyInfos[prev--]);
+                                            if (quarterlyInfos[prev].SmoothedPrice > averagePrice)
+                                                AddQuarterlyInfo(session, quarterlyInfos[prev--]);
                                         }
                                     }
                                     else
                                     {
-                                        if (hourlyInfos[prev].SmoothedPrice > averagePrice)
-                                            AddHourlyInfo(session, hourlyInfos[prev--]);
+                                        if (quarterlyInfos[prev].SmoothedPrice > averagePrice)
+                                            AddQuarterlyInfo(session, quarterlyInfos[prev--]);
                                     }
                                 }
                                 else
                                 {
-                                    if (next < hourlyInfos.Count)
+                                    if (next < quarterlyInfos.Count)
                                     {
-                                        if (hourlyInfos[next].SmoothedPrice > averagePrice)
-                                            AddHourlyInfo(session, hourlyInfos[next++]);
+                                        if (quarterlyInfos[next].SmoothedPrice > averagePrice)
+                                            AddQuarterlyInfo(session, quarterlyInfos[next++]);
                                     }
                                 }
 

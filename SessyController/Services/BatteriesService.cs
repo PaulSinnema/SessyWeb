@@ -467,7 +467,7 @@ namespace SessyController.Services
                     }
                 }
 
-                if (currentHourlyInfo.Charging)
+                if (session.Mode == Modes.Charging)
                 {
                     if (batteryStates.BatteriesAreFull || batteryStates.ChargeAtMaximum)
                     {
@@ -476,7 +476,7 @@ namespace SessyController.Services
                         _logger.LogWarning($"Warning: Charging session stopped because batteries are full (enough). {session}, batteries are full: {batteryStates.BatteriesAreFull}, charge at maximum: {batteryStates.ChargeAtMaximum}");
                     }
                 }
-                else if (currentHourlyInfo.Discharging)
+                else if (session.Mode == Modes.Discharging)
                 {
                     bool batteriesAreEmpty = await AreAllBatteriesEmpty();
                     bool chargeAtMinimum = await IsMinChargeNeededReached(currentHourlyInfo);
@@ -1067,7 +1067,7 @@ namespace SessyController.Services
                 }
 
                 // Check the elements in between.
-                for (var index = 1; index < list.Count - 1; index++)
+                for (var index = 1; index < list.Count - 2; index++)
                 {
                     var currentPrice = list[index].SmoothedBuyingPrice;
                     var previousPrice = list[index - 1].SmoothedBuyingPrice;
