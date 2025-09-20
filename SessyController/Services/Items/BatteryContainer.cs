@@ -97,19 +97,35 @@ namespace SessyController.Services.Items
         }
 
         /// <summary>
-        /// Get the total charging capacity for all batteries.
+        /// Get the total charging capacity for all batteries per hour.
         /// </summary>
-        public double GetChargingCapacityInWatts()
+        public double GetChargingCapacityInWattsPerHour()
         {
             return Batteries!.Sum(bat => bat.GetMaxCharge());
         }
 
         /// <summary>
-        /// Get the total discharging capacity for all batteries.
+        /// Get the total charging capacity for all batteries per quarter.
         /// </summary>
-        public double GetDischargingCapacityInWatts()
+        public double GetChargingCapacityInWattsPerQuarter()
+        {
+            return Batteries!.Sum(bat => bat.GetMaxCharge()) / 4.0;
+        }
+
+        /// <summary>
+        /// Get the total discharging capacity for all batteries per hour.
+        /// </summary>
+        public double GetDischargingCapacityInWattsPerHour()
         {
             return Batteries!.Sum(bat => bat.GetMaxDischarge());
+        }
+
+        /// <summary>
+        /// Get the total discharging capacity for all batteries per quarter.
+        /// </summary>
+        public double GetDischargingCapacityInWattsPerQuarter()
+        {
+            return Batteries!.Sum(bat => bat.GetMaxDischarge()) / 4.0;
         }
 
         /// <summary>
@@ -131,7 +147,7 @@ namespace SessyController.Services.Items
             foreach (var bat in Batteries)
             {
                 var maxChargingPower = bat.GetMaxCharge();
-                var totalCapacity = GetChargingCapacityInWatts();
+                var totalCapacity = GetChargingCapacityInWattsPerHour();
                 var powerToUse = (maxChargingPower / totalCapacity) * chargingPower;
 
                 await bat.SetActivePowerStrategyToOpenAPI();
@@ -147,7 +163,7 @@ namespace SessyController.Services.Items
             foreach (var bat in Batteries)
             {
                 var maxDischargingPower = bat.GetMaxDischarge();
-                var totalCapacity = GetDischargingCapacityInWatts();
+                var totalCapacity = GetDischargingCapacityInWattsPerHour();
                 var powerToUse = (maxDischargingPower / totalCapacity) * dischargingPower;
 
                 await bat.SetActivePowerStrategyToOpenAPI();

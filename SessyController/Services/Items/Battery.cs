@@ -58,7 +58,13 @@ namespace SessyController.Services.Items
             {
                 try
                 {
-                    return await _sessyService.GetPowerStatusAsync(Id).ConfigureAwait(false);
+                    var result = await _sessyService.GetPowerStatusAsync(Id).ConfigureAwait(false);
+
+#if DEBUG
+                    // result.Sessy.StateOfCharge = 0.10;
+#endif
+
+                    return result;
                 }
                 catch (Exception ex)
                 {

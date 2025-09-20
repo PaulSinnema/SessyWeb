@@ -33,8 +33,8 @@ namespace SessyController.Services.Items
             SellingPrice = sellingPrice;
 
             TotalCapacityInWatts = _batteryContainer.GetTotalCapacity();
-            ChargingCapacityInWatts = _batteryContainer.GetChargingCapacityInWatts();
-            DischargingCapacityInWatts = _batteryContainer.GetDischargingCapacityInWatts();
+            ChargingCapacityInWatts = _batteryContainer.GetChargingCapacityInWattsPerHour();
+            DischargingCapacityInWatts = _batteryContainer.GetDischargingCapacityInWattsPerHour();
 
             if (TotalCapacityInWatts <= 0.0)
                 throw new InvalidOperationException($"The total capacity should not be <= 0.0 (is {TotalCapacityInWatts})");
