@@ -408,15 +408,15 @@ namespace SessyController.Services
             }
         }
 
-        private async Task HandleManualCharging(QuarterlyInfo currentHourlyInfo)
+        private async Task HandleManualCharging(QuarterlyInfo currentQuarterlyInfo)
         {
 #if !DEBUG
             var localTime = _timeZoneService.Now;
 
             if (_settingsConfig.ManualChargingHours != null && _settingsConfig.ManualChargingHours.Contains(localTime.Hour))
-                await _batteryContainer.StartCharging(_batteryContainer.GetChargingCapacityInWatts());
+                await _batteryContainer.StartCharging(_batteryContainer.GetChargingCapacityInWattsPerHour());
             else if (_settingsConfig.ManualDischargingHours != null && _settingsConfig.ManualDischargingHours.Contains(localTime.Hour))
-                await _batteryContainer.StartDisharging(_batteryContainer.GetDischargingCapacityInWatts());
+                await _batteryContainer.StartDisharging(_batteryContainer.GetDischargingCapacityInWattsPerHour());
             else if (_settingsConfig.ManualNetZeroHomeHours != null && _settingsConfig.ManualNetZeroHomeHours.Contains(localTime.Hour))
                 await _batteryContainer.StartNetZeroHome();
             else
