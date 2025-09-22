@@ -50,9 +50,9 @@ namespace SessyController.Services
             }
         }
 
-        private ConcurrentDictionary<DateTime, EPEXPrices> _epexPricesCache = new();
         private ConcurrentDictionary<DateTime, Taxes> _taxesCache = new();
         private DateTime _invalidateTaxesCacheDateTime { get; set; }
+
         private SemaphoreSlim _calcuculateEnergyPriceSemaphore = new SemaphoreSlim(1);
 
         /// <summary>
@@ -67,29 +67,7 @@ namespace SessyController.Services
             {
                 await FillTaxesCache().ConfigureAwait(false);
 
-                EPEXPrices? epexPrice;
-
-                if (_epexPricesCache.ContainsKey(time))
-                {
-                    epexPrice = _epexPricesCache[time];
-                }
-                else
-                {
-                    epexPrice = await _epexPricesDataService.Get(async (set) =>
-                        {
-                            var result = set.FirstOrDefault(ep => ep.Time == time);
-
-                            return await Task.FromResult(result);
-                        });
-
-                    _epexPricesCache.TryAdd(time, epexPrice!);
-                }
-
-                var cache = _taxesCache.Where(tx => tx.Key <= time)
-                        .OrderByDescending(tx => tx.Key)
-                        .FirstOrDefault();
-
-                var taxes = cache.Value;
+                (EPEXPrices? epexPrice, Taxes taxes) = await GetEpexPriceFromCache(time);
 
                 if (epexPrice != null && taxes != null && epexPrice.Price.HasValue)
                 {
@@ -124,6 +102,49 @@ namespace SessyController.Services
             {
                 _calcuculateEnergyPriceSemaphore.Release();
             }
+        }
+
+        private ConcurrentDictionary<DateTime, EPEXPrices> _epexPricesCache = new();
+        private DateTime _invalidateEpexPricesCacheDateTime { get; set; } = DateTime.MinValue;
+
+        /// <summary>
+        /// Retrieves the EPEXPrice from cache if present.
+        /// If not present in the cache it is fetched from the table and added to the cache.
+        /// The cache is invalidated every 24 hours.
+        /// </summary>
+        private async Task<(EPEXPrices? epexPrice, Taxes taxes)> GetEpexPriceFromCache(DateTime time)
+        {
+            EPEXPrices? epexPrice;
+
+            if (_invalidateEpexPricesCacheDateTime < _timezoneService.Now)
+            {
+                _epexPricesCache.Clear();
+
+                _invalidateEpexPricesCacheDateTime = _timezoneService.Now.AddHours(24);
+            }
+
+            if (_epexPricesCache.ContainsKey(time))
+            {
+                epexPrice = _epexPricesCache[time];
+            }
+            else
+            {
+                epexPrice = await _epexPricesDataService.Get(async (set) =>
+                {
+                    var result = set.FirstOrDefault(ep => ep.Time == time);
+
+                    return await Task.FromResult(result);
+                });
+
+                _epexPricesCache.TryAdd(time, epexPrice!);
+            }
+
+            var cache = _taxesCache.Where(tx => tx.Key <= time)
+                                   .OrderByDescending(tx => tx.Key)
+                                   .FirstOrDefault();
+
+            var taxes = cache.Value;
+            return (epexPrice, taxes);
         }
 
         /// <summary>
