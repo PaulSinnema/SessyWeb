@@ -18,25 +18,22 @@ namespace SessyController.Services
             _energyHistoryService = energyHistoryService;
         }
 
-        private static EPEXPrices? _epexPrice { get; set; } = null;
-
         /// <summary>
         /// Calculate the price including overhead cost.
         /// Returns null if prices, taxes or overhead cost are missing.
         /// </summary>
         public async Task<double?> CalculateEnergyPrice(DateTime time, bool buying, bool includeOverheadCosts = false)
         {
-            if (_epexPrice == null || _epexPrice.Time != time)
-                _epexPrice = await _epexPricesDataService.Get(async (set) =>
-                {
-                    var result = set.FirstOrDefault(ep => ep.Time == time);
+            var epexPrice = await _epexPricesDataService.Get(async (set) =>
+            {
+                var result = set.FirstOrDefault(ep => ep.Time == time);
 
-                    return await Task.FromResult(result);
-                });
+                return await Task.FromResult(result);
+            });
 
             var taxes = await _taxesDataService.GetTaxesForDate(time);
 
-            if (_epexPrice != null && taxes != null && _epexPrice.Price.HasValue)
+            if (epexPrice != null && taxes != null && epexPrice.Price.HasValue)
             {
                 var compensation = buying ? taxes.PurchaseCompensation : taxes.ReturnDeliveryCompensation;
                 var valueAddedTaxFactor = taxes.ValueAddedTax / 100 + 1;
@@ -60,7 +57,7 @@ namespace SessyController.Services
                     }
                 }
 
-                return (_epexPrice.Price + overheadCost + energyTax + compensation) * valueAddedTaxFactor;
+                return (epexPrice.Price + overheadCost + energyTax + compensation) * valueAddedTaxFactor;
             }
 
             return null;

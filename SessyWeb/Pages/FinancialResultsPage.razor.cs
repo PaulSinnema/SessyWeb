@@ -104,7 +104,7 @@ namespace SessyWeb.Pages
 
                 case PeriodsEnums.Month:
                     start = chosen.StartOfMonth();
-                    end = chosen.EndOfMonth().AddDays(1);
+                    end = chosen.EndOfMonth().AddDays(1).AddSeconds(-1);
                     break;
 
                 case PeriodsEnums.Year:
