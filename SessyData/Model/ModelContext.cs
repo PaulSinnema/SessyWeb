@@ -42,6 +42,8 @@ namespace SessyData.Model
 
         public DbSet<Performance> Performance => Set<Performance>();
 
+        public DbSet<Settings> Settings => Set<Settings>();
+
         public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
         protected override void OnConfiguring(DbContextOptionsBuilder options)

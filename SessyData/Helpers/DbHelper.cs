@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using SessyCommon.Configurations;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
@@ -18,6 +19,11 @@ namespace SessyData.Helpers
             using var scope = _serviceScopeFactory.CreateScope();
         }
 
+        public static bool IsRunningInDocker()
+        {
+            return File.Exists("/run/.dockerenv");
+        }
+
         private SemaphoreSlim dbHelperSemaphore = new SemaphoreSlim(1);
 
         public async Task BackupDatabase()
@@ -26,13 +32,13 @@ namespace SessyData.Helpers
             {
                 using var scope = _serviceScopeFactory.CreateScope();
                 var timeZoneService = scope.ServiceProvider.GetRequiredService<TimeZoneService>();
-                var settingsConfig = scope.ServiceProvider.GetRequiredService<SettingsConfig>();
+                var settingsConfig = scope.ServiceProvider.GetRequiredService<IOptions<SettingsConfig>>().Value;
 
                 var now = timeZoneService.Now;
 
                 var dbContext = scope.ServiceProvider.GetRequiredService<ModelContext>();
-                var filename = $"Sessy_{now.Year}_{now.Month}_{now.Day}_{now.Hour}_{now.Minute}_{now.Second}.bak";
-                var directory = settingsConfig.DatabaseBackupDirectory ?? throw new InvalidOperationException("Database backup directory is not configured.");
+                var filename = $"Sessy_{now.Year:D4}_{now.Month:D2}_{now.Day:D2}_{now.Hour:D2}_{now.Minute:D2}_{now.Second:D2}.bak";
+                var directory = (IsRunningInDocker() ? "" : ".") + settingsConfig.DatabaseBackupDirectory ?? "/data/backups";
                 var backupFilePath = Path.Combine(directory, filename).Replace("\\", "/");
 
                 Directory.CreateDirectory(directory);
@@ -43,7 +49,7 @@ namespace SessyData.Helpers
                 // Perform the backup operation
                 await ExecuteQuery(async (db) =>
                 {
-                    FormattableString sql = @$"VACUUM INTO '{backupFilePath}'";
+                    FormattableString sql = @$"VACUUM INTO {backupFilePath}";
 
                     Console.WriteLine("Issuing SQL Command: " + sql);
 

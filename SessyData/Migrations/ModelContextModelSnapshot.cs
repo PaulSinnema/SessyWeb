@@ -15,7 +15,7 @@ namespace SessyData.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "9.0.8");
+            modelBuilder.HasAnnotation("ProductVersion", "9.0.9");
 
             modelBuilder.Entity("Microsoft.AspNetCore.DataProtection.EntityFrameworkCore.DataProtectionKey", b =>
                 {
@@ -230,6 +230,44 @@ namespace SessyData.Migrations
                     b.HasIndex("Time");
 
                     b.ToTable("SessyWebControl");
+                });
+
+            modelBuilder.Entity("SessyData.Model.Settings", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double?>("CycleCost")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("DatabaseBackupDirectory")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Hours")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("ManualOverride")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double?>("NetZeroHomeMinProfit")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("RequiredHomeEnergy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<double?>("SolarCorrection")
+                        .HasColumnType("REAL");
+
+                    b.Property<bool>("SolarSystemShutsDownDuringNegativePrices")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("TimeZone")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Settings");
                 });
 
             modelBuilder.Entity("SessyData.Model.SolarData", b =>

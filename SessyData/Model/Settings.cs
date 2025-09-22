@@ -5,7 +5,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace SessyData.Model
 {
-    internal class Settings : IUpdatable<Settings>
+    public class Settings : IUpdatable<Settings>
     {
         [Key]
         public int Id { get; set; }
@@ -50,15 +50,6 @@ namespace SessyData.Model
                 throw new InvalidOperationException("Hours and RequiredHomeEnergy should be null or empty, you should fill the arrays instead.");
 
             this.Copy(updateInfo);
-
-            //ManualOverride = updateInfo.ManualOverride;
-            //TimeZone = updateInfo.TimeZone;
-            //CycleCost = updateInfo.CycleCost;
-            //NetZeroHomeMinProfit = updateInfo.NetZeroHomeMinProfit;
-            //SolarCorrection = updateInfo.SolarCorrection;
-            //DatabaseBackupDirectory = updateInfo.DatabaseBackupDirectory;
-            //SolarSystemShutsDownDuringNegativePrices = updateInfo.SolarSystemShutsDownDuringNegativePrices;
-            
 
             // Serializing the arrays
             HoursArray = updateInfo.HoursArray;

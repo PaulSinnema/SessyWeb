@@ -193,9 +193,9 @@ namespace SessyController.Services
 
                 if (_consumptionData.Count > 0)
                 {
-                    var averageConsumptionWh = _consumptionData
-                                                .Where(c => !double.IsNaN(c.ConsumptionWh) && !double.IsInfinity(c.ConsumptionWh))
-                                                .Average(c => c.ConsumptionWh);
+                    var list = _consumptionData
+                                                .Where(c => !double.IsNaN(c.ConsumptionWh) && !double.IsInfinity(c.ConsumptionWh));
+                    var averageConsumptionWh = list.Count() > 0 ? list.Average(c => c.ConsumptionWh) : 0.0;
 
                     var p1Details = await _p1MeterContainer.GetDetails(p1Meter.Id!);
                     var weatherData = await _weatherService.GetWeatherData();
@@ -255,7 +255,7 @@ namespace SessyController.Services
                 return await Task.FromResult(result);
             });
 
-            return list.Average(c => c.Humidity);
+            return list.Count > 0 ? list.Average(c => c.Humidity) : 0.0;
         }
 
         private class ConsumptionCacheItem
