@@ -1,4 +1,5 @@
-﻿using SessyData.Model;
+﻿using SessyCommon.Services;
+using SessyData.Model;
 using SessyData.Services;
 using System.Collections.Concurrent;
 
@@ -7,19 +8,49 @@ namespace SessyController.Services
     public class CalculationService
     {
         private EPEXPricesDataService _epexPricesDataService { get; set; }
+
+        private TimeZoneService _timezoneService { get; set; }
+
         private TaxesDataService _taxesDataService { get; set; }
         private EnergyHistoryService _energyHistoryService { get; set; }
 
         public CalculationService(EPEXPricesDataService epexPricesDataService,
+                                  TimeZoneService timezoneService,
                                   TaxesDataService taxesDataService,
                                   EnergyHistoryService energyHistoryService)
         {
             _epexPricesDataService = epexPricesDataService;
+            _timezoneService = timezoneService;
             _taxesDataService = taxesDataService;
             _energyHistoryService = energyHistoryService;
         }
 
+        private async Task FillTaxesCache()
+        {
+            if (invalidateTaxesCacheDateTime < _timezoneService.Now)
+            {
+                taxesCache.Clear();
+
+                var taxesList = await _taxesDataService.GetList(async (set) =>
+                {
+                    var result = set.ToList();
+
+                    return await Task.FromResult(result);
+                });
+
+                foreach (var tax in taxesList)
+                {
+                    taxesCache.TryAdd(tax.Time.Value, tax);
+                }
+
+                invalidateTaxesCacheDateTime = _timezoneService.Now.AddSeconds(30);
+            }
+        }
+
         private ConcurrentDictionary<DateTime, EPEXPrices> epexPricesCache = new();
+        private ConcurrentDictionary<DateTime, Taxes> taxesCache = new();
+        private DateTime invalidateTaxesCacheDateTime { get; set; }
+        private SemaphoreSlim calcuculateEnergyPriceSemaphore = new SemaphoreSlim(1);
 
         /// <summary>
         /// Calculate the price including overhead cost if includeOverheadCosts = true.
@@ -27,54 +58,70 @@ namespace SessyController.Services
         /// </summary>
         public async Task<double?> CalculateEnergyPrice(DateTime time, bool buying, bool includeOverheadCosts = false)
         {
-            EPEXPrices? epexPrice;
+            await calcuculateEnergyPriceSemaphore.WaitAsync();
 
-            if (epexPricesCache.ContainsKey(time))
+            try
             {
-                epexPrice = epexPricesCache[time];
-            }
-            else
-            {
-                epexPrice = await _epexPricesDataService.Get(async (set) =>
-                    {
-                        var result = set.FirstOrDefault(ep => ep.Time == time);
+                await FillTaxesCache().ConfigureAwait(false);
 
-                        return await Task.FromResult(result);
-                    });
+                EPEXPrices? epexPrice;
 
-                epexPricesCache.TryAdd(time, epexPrice!);
-            }
-
-            var taxes = await _taxesDataService.GetTaxesForDate(time);
-
-            if (epexPrice != null && taxes != null && epexPrice.Price.HasValue)
-            {
-                var compensation = buying ? taxes.PurchaseCompensation : taxes.ReturnDeliveryCompensation;
-                var valueAddedTaxFactor = taxes.ValueAddedTax / 100 + 1;
-
-                var overheadCost = 0.0;
-
-                if (includeOverheadCosts)
-                    overheadCost = GetOverheadCost(time, taxes) ?? 0.0;
-
-                var energyTax = 0.0;
-
-                if (taxes.Netting)
+                if (epexPricesCache.ContainsKey(time))
                 {
-                    energyTax = taxes.EnergyTax;
+                    epexPrice = epexPricesCache[time];
                 }
                 else
                 {
-                    if (buying)
+                    epexPrice = await _epexPricesDataService.Get(async (set) =>
+                        {
+                            var result = set.FirstOrDefault(ep => ep.Time == time);
+
+                            return await Task.FromResult(result);
+                        });
+
+                    epexPricesCache.TryAdd(time, epexPrice!);
+                }
+
+                // var taxes = await _taxesDataService.GetTaxesForDate(time);
+                var cache = taxesCache.Where(tx => tx.Key <= time)
+                        .OrderByDescending(tx => tx.Key)
+                        .FirstOrDefault();
+
+                var taxes = cache.Value;
+
+                if (epexPrice != null && taxes != null && epexPrice.Price.HasValue)
+                {
+                    var compensation = buying ? taxes.PurchaseCompensation : taxes.ReturnDeliveryCompensation;
+                    var valueAddedTaxFactor = taxes.ValueAddedTax / 100 + 1;
+
+                    var overheadCost = 0.0;
+
+                    if (includeOverheadCosts)
+                        overheadCost = GetOverheadCost(time, taxes) ?? 0.0;
+
+                    var energyTax = 0.0;
+
+                    if (taxes.Netting)
                     {
                         energyTax = taxes.EnergyTax;
                     }
+                    else
+                    {
+                        if (buying)
+                        {
+                            energyTax = taxes.EnergyTax;
+                        }
+                    }
+
+                    return (epexPrice.Price + overheadCost + energyTax + compensation) * valueAddedTaxFactor;
                 }
 
-                return (epexPrice.Price + overheadCost + energyTax + compensation) * valueAddedTaxFactor;
+                return null;
             }
-
-            return null;
+            finally
+            {
+                calcuculateEnergyPriceSemaphore.Release();
+            }
         }
 
         /// <summary>
