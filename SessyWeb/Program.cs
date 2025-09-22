@@ -192,6 +192,8 @@ builder.Services.AddResizeListener();
 
 var app = builder.Build();
 
+DockerService.IsRunningInDocker(true);
+
 ServiceLocator.ServiceProvider = app.Services;
 
 Console.WriteLine("Migrating database (if needed)");
