@@ -25,11 +25,14 @@ namespace SessyController.Services
             _energyHistoryService = energyHistoryService;
         }
 
+        /// <summary>
+        /// Caches all tax records in the DB. The cache is invalidated every 30 seconds.
+        /// </summary>
         private async Task FillTaxesCache()
         {
-            if (invalidateTaxesCacheDateTime < _timezoneService.Now)
+            if (_invalidateTaxesCacheDateTime < _timezoneService.Now)
             {
-                taxesCache.Clear();
+                _taxesCache.Clear();
 
                 var taxesList = await _taxesDataService.GetList(async (set) =>
                 {
@@ -40,25 +43,25 @@ namespace SessyController.Services
 
                 foreach (var tax in taxesList)
                 {
-                    taxesCache.TryAdd(tax.Time.Value, tax);
+                    _taxesCache.TryAdd(tax!.Time!.Value, tax);
                 }
 
-                invalidateTaxesCacheDateTime = _timezoneService.Now.AddSeconds(30);
+                _invalidateTaxesCacheDateTime = _timezoneService.Now.AddSeconds(30);
             }
         }
 
-        private ConcurrentDictionary<DateTime, EPEXPrices> epexPricesCache = new();
-        private ConcurrentDictionary<DateTime, Taxes> taxesCache = new();
-        private DateTime invalidateTaxesCacheDateTime { get; set; }
-        private SemaphoreSlim calcuculateEnergyPriceSemaphore = new SemaphoreSlim(1);
+        private ConcurrentDictionary<DateTime, EPEXPrices> _epexPricesCache = new();
+        private ConcurrentDictionary<DateTime, Taxes> _taxesCache = new();
+        private DateTime _invalidateTaxesCacheDateTime { get; set; }
+        private SemaphoreSlim _calcuculateEnergyPriceSemaphore = new SemaphoreSlim(1);
 
         /// <summary>
-        /// Calculate the price including overhead cost if includeOverheadCosts = true.
+        /// Calculate the energy price. Includes overhead cost if includeOverheadCosts = true.
         /// Returns null if prices, taxes or overhead cost are missing.
         /// </summary>
         public async Task<double?> CalculateEnergyPrice(DateTime time, bool buying, bool includeOverheadCosts = false)
         {
-            await calcuculateEnergyPriceSemaphore.WaitAsync();
+            await _calcuculateEnergyPriceSemaphore.WaitAsync();
 
             try
             {
@@ -66,9 +69,9 @@ namespace SessyController.Services
 
                 EPEXPrices? epexPrice;
 
-                if (epexPricesCache.ContainsKey(time))
+                if (_epexPricesCache.ContainsKey(time))
                 {
-                    epexPrice = epexPricesCache[time];
+                    epexPrice = _epexPricesCache[time];
                 }
                 else
                 {
@@ -79,11 +82,10 @@ namespace SessyController.Services
                             return await Task.FromResult(result);
                         });
 
-                    epexPricesCache.TryAdd(time, epexPrice!);
+                    _epexPricesCache.TryAdd(time, epexPrice!);
                 }
 
-                // var taxes = await _taxesDataService.GetTaxesForDate(time);
-                var cache = taxesCache.Where(tx => tx.Key <= time)
+                var cache = _taxesCache.Where(tx => tx.Key <= time)
                         .OrderByDescending(tx => tx.Key)
                         .FirstOrDefault();
 
@@ -120,7 +122,7 @@ namespace SessyController.Services
             }
             finally
             {
-                calcuculateEnergyPriceSemaphore.Release();
+                _calcuculateEnergyPriceSemaphore.Release();
             }
         }
 
