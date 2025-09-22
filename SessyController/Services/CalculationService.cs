@@ -1,5 +1,6 @@
 ﻿using SessyData.Model;
 using SessyData.Services;
+using System.Collections.Concurrent;
 
 namespace SessyController.Services
 {
@@ -18,18 +19,31 @@ namespace SessyController.Services
             _energyHistoryService = energyHistoryService;
         }
 
+        private ConcurrentDictionary<DateTime, EPEXPrices> epexPricesCache = new();
+
         /// <summary>
-        /// Calculate the price including overhead cost.
+        /// Calculate the price including overhead cost if includeOverheadCosts = true.
         /// Returns null if prices, taxes or overhead cost are missing.
         /// </summary>
         public async Task<double?> CalculateEnergyPrice(DateTime time, bool buying, bool includeOverheadCosts = false)
         {
-            var epexPrice = await _epexPricesDataService.Get(async (set) =>
-            {
-                var result = set.FirstOrDefault(ep => ep.Time == time);
+            EPEXPrices? epexPrice;
 
-                return await Task.FromResult(result);
-            });
+            if (epexPricesCache.ContainsKey(time))
+            {
+                epexPrice = epexPricesCache[time];
+            }
+            else
+            {
+                epexPrice = await _epexPricesDataService.Get(async (set) =>
+                    {
+                        var result = set.FirstOrDefault(ep => ep.Time == time);
+
+                        return await Task.FromResult(result);
+                    });
+
+                epexPricesCache.TryAdd(time, epexPrice!);
+            }
 
             var taxes = await _taxesDataService.GetTaxesForDate(time);
 
