@@ -828,7 +828,6 @@ namespace SessyController.Services
                             if (charge > quarterlyInfo.ChargeNeeded)
                             {
                                 var toDischarge = charge - quarterlyInfo.ChargeNeeded;
-
                                 charge -= Math.Min(toDischarge, dischargingCapacity);
                             }
 
@@ -862,49 +861,17 @@ namespace SessyController.Services
         /// </summary>
         private void RemoveExtraChargingSessions()
         {
-            bool changed1;
-            bool changed2;
+            bool changed;
 
             do
             {
-                changed1 = false;
-                changed2 = false;
+                changed = false;
 
-                changed1 = CheckProfitability();
+                changed |= CheckProfitability();
 
-                changed2 = RemoveEmptySessions();
+                changed |= RemoveEmptySessions();
 
-            } while (changed1 || changed2);
-        }
-
-        private bool RemoveDoubleDischargingSessions() // TODO: Remove 
-        {
-            bool changed = false;
-            Session? previousSession = null;
-
-            foreach (var session in _sessions.SessionList.OrderBy(se => se.FirstDateTime).ToList())
-            {
-                if (previousSession != null)
-                {
-                    if (previousSession.Mode == Modes.Discharging && session.Mode == Modes.Discharging)
-                    {
-                        if (previousSession.IsMoreProfitable(session))
-                        {
-                            _sessions.RemoveSession(previousSession);
-                            changed = true;
-                        }
-                        else
-                        {
-                            _sessions.RemoveSession(session);
-                            changed = true;
-                        }
-                    }
-                }
-
-                previousSession = session;
-            }
-
-            return changed;
+            } while (changed);
         }
 
         /// <summary>
@@ -1051,7 +1018,7 @@ namespace SessyController.Services
                     var currentPrice = list[0].SmoothedBuyingPrice;
                     var nextPrice = list[1].SmoothedBuyingPrice;
 
-                    if (currentPrice < nextPrice)
+                    if (currentPrice <= nextPrice)
                     {
                         if (!_sessions.InAnySession(list[0]))
                             _sessions.AddNewSession(Modes.Charging, list[0]);
@@ -1074,7 +1041,7 @@ namespace SessyController.Services
                     var previousPrice = list[index - 1].SmoothedBuyingPrice;
                     var nextPrice = list[index + 1].SmoothedBuyingPrice;
 
-                    if (currentPrice < previousPrice && currentPrice < nextPrice)
+                    if (currentPrice <= previousPrice && currentPrice < nextPrice)
                     {
                         if (!_sessions.InAnySession(list[index]))
                             _sessions.AddNewSession(Modes.Charging, list[index]);
@@ -1084,7 +1051,7 @@ namespace SessyController.Services
                     previousPrice = list[index - 1].SmoothedSellingPrice;
                     nextPrice = list[index + 1].SmoothedSellingPrice;
 
-                    if (currentPrice > previousPrice && currentPrice > nextPrice)
+                    if (currentPrice >= previousPrice && currentPrice > nextPrice)
                     {
                         if (!_sessions.InAnySession(list[index]))
                             _sessions.AddNewSession(Modes.Discharging, list[index]);
