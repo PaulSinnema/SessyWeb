@@ -771,6 +771,48 @@ namespace SessyController.Services
                 await EvaluateChargingHoursAndProfitability();
             }
             while (ShrinkSessions());
+
+            await CheckForFutureChargingSessions();
+        }
+
+        /// <summary>
+        /// If there are no charging sessions in the future at least
+        /// create a charging session for the charge needed to get to the
+        /// next day as cheap as possible.
+        /// </summary>
+        private async Task CheckForFutureChargingSessions()
+        {
+            if (ThereAreNoFutureSessions())
+            {
+                var quarterlyInfo = FindCheapestQuarterlyInfo();
+
+                if (quarterlyInfo != null)
+                {
+                    var session = _sessions.AddNewSession(Modes.Charging, quarterlyInfo);
+
+                    _sessions.CompleteSession(session);
+
+                    CalculateChargeNeeded();
+
+                    await CalculateChargeLeft();
+                }
+            }
+        }
+
+        private bool ThereAreNoFutureSessions()
+        {
+            var now = _timeZoneService.Now;
+
+            return !_sessions.SessionList.Any(se => se.Mode == Modes.Charging && se.FirstDateTime > now);
+        }
+
+        public QuarterlyInfo? FindCheapestQuarterlyInfo()
+        {
+            var now = _timeZoneService.Now;
+
+            return quarterlyInfos!.Where(qi => qi.Time >= now)
+                                  .OrderBy(qi => qi.BuyingPrice)
+                                  .FirstOrDefault();
         }
 
         private async Task EvaluateChargingHoursAndProfitability()
