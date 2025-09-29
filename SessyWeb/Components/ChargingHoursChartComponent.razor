@@ -22,13 +22,14 @@
                 <RadzenSeriesDataLabels Visible="true" />
             </ChildContent>
         </RadzenColumnSeries>
-        <RadzenColumnSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Selling price" Fill="#00aae4" Stroke="#00aae4" LineType="LineType.Dashed" ValueProperty="SellingPrice">
-            <TooltipTemplate Context="data">
+        <RadzenColumnSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Selling price" Fill="#00aae4" Stroke="#00aae4" LineType="LineType.Dashed" ValueProperty="SellingPrice"
+                            Context="data">
+            <TooltipTemplate>
                 <ChargingHoursTooltip HourlyInfo=@data />
             </TooltipTemplate>
             <ChildContent>
                 <RadzenMarkers Visible="false" />
-                <RadzenSeriesDataLabels Visible="true" />
+                <RadzenSeriesDataLabels Visible="@ShowSellingPriceLabels" />
             </ChildContent>
         </RadzenColumnSeries>
         @*<RadzenColumnSeries Data="@HourlyInfos" CategoryProperty="Time" Title="Market price" LineType="LineType.Dashed" ValueProperty="MarketPrice">

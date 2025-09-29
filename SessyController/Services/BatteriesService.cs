@@ -185,6 +185,15 @@ namespace SessyController.Services
 
                         if (currentHourlyInfo != null)
                         {
+                            Session? currentSession = _sessions.FindSession(currentHourlyInfo);
+
+                            var changed = await EpandCurrentSessionIfNeeded(currentSession).ConfigureAwait(false);
+
+                            if (changed)
+                            {
+                                await EvaluateSessions().ConfigureAwait(false);
+                            }
+
                             await StorePerformance(currentHourlyInfo);
 
                             if (await WeControlTheBatteries().ConfigureAwait(false))
@@ -211,6 +220,67 @@ namespace SessyController.Services
                     }
                 }
             }
+        }
+
+        private async Task<bool> EpandCurrentSessionIfNeeded(Session currentSession)
+        {
+            var changed = false;
+            var failsafe = 10;
+
+            if (currentSession != null)
+            {
+                switch (currentSession.Mode)
+                {
+                    case Modes.Charging:
+                        while (currentSession.Last.ChargeLeft < currentSession.Last.ChargeNeeded && failsafe-- > 0)
+                        {
+                            var expanded = await ExpandSession(currentSession);
+
+                            if (!expanded)
+                                break;
+
+                            changed = true;
+                        }
+
+                        break;
+
+                    case Modes.Discharging:
+                        while (currentSession.Last.ChargeLeft > currentSession.Last.ChargeNeeded && failsafe-- > 0)
+                        {
+                            var expanded = await ExpandSession(currentSession);
+
+                            if (!expanded)
+                                break;
+
+                            changed = true;
+                        }
+
+                        break;
+
+                    default:
+                        break;
+                }
+            }
+
+            return changed;
+        }
+
+        private async Task<bool> ExpandSession(Session currentSession)
+        {
+            var index = quarterlyInfos.IndexOf(currentSession.Last!) + 1;
+
+            if (index < quarterlyInfos.Count)
+            {
+                currentSession.AddQuarterlyInfo(quarterlyInfos[index++]);
+
+                CalculateChargeNeeded();
+
+                await CalculateChargeLeft();
+
+                return true;
+            }
+
+            return false;
         }
 
         private async Task StorePerformance(QuarterlyInfo currentQuarterlyInfo)
@@ -790,11 +860,14 @@ namespace SessyController.Services
                 {
                     var session = _sessions.AddNewSession(Modes.Charging, quarterlyInfo);
 
-                    _sessions.CompleteSession(session);
+                    if (session != null)
+                    {
+                        _sessions.CompleteSession(session);
 
-                    CalculateChargeNeeded();
+                        CalculateChargeNeeded();
 
-                    await CalculateChargeLeft();
+                        await CalculateChargeLeft();
+                    }
                 }
             }
         }
@@ -802,15 +875,20 @@ namespace SessyController.Services
         private bool ThereAreNoFutureSessions()
         {
             var now = _timeZoneService.Now;
+            var list = _sessions.SessionList.Where(se => se.LastDateTime > now);
 
-            return !_sessions.SessionList.Any(se => se.Mode == Modes.Charging && se.FirstDateTime > now);
+            var result = !list.Any(se => se.Mode == Modes.Charging);
+
+            return result;
         }
 
         public QuarterlyInfo? FindCheapestQuarterlyInfo()
         {
             var now = _timeZoneService.Now;
 
-            return quarterlyInfos!.Where(qi => qi.Time >= now)
+            return quarterlyInfos!.Where(qi => qi.Time >= now &&
+                                               qi.Mode != Modes.Charging &&
+                                               qi.Mode != Modes.Discharging)
                                   .OrderBy(qi => qi.BuyingPrice)
                                   .FirstOrDefault();
         }

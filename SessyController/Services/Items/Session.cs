@@ -188,9 +188,12 @@ namespace SessyController.Services.Items
         {
             if (!Contains(quarterlyInfo))
             {
-                quarterlyInfo.SetModes(_mode);
+                if (!_sessions.InAnySession(quarterlyInfo))
+                {
+                    quarterlyInfo.SetModes(_mode);
 
-                QuarterlyInfos.Add(quarterlyInfo);
+                    QuarterlyInfos.Add(quarterlyInfo);
+                }
             }
         }
 

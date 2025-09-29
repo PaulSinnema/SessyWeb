@@ -182,9 +182,9 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Adds a new session to the sessions hourly info list and initializes it.
         /// </summary>
-        public Session AddNewSession(Modes mode, QuarterlyInfo quarterlyInfo)
+        public Session? AddNewSession(Modes mode, QuarterlyInfo quarterlyInfo)
         {
-            Session session;
+            Session? session = null;
 
             if (!InAnySession(quarterlyInfo))
             {
@@ -207,7 +207,6 @@ namespace SessyController.Services.Items
                         }
 
                     default:
-                        throw new InvalidOperationException($"Wrong mode {mode}");
                         break;
                 }
             }
@@ -411,7 +410,7 @@ namespace SessyController.Services.Items
                 throw new InvalidOperationException($"Session has zero or more than 1 hourly price.");
 
             var now = _timeZoneService.Now;
-            var selectDateHour = now.DateFloorQuarter(); // now.Date.AddHours(now.Hour).AddMinutes(-15);
+            var selectDateQuarter = now.DateFloorQuarter();
             var list = session.GetQuarterlyInfoList();
             var index = _quarterlyInfos.IndexOf(list.First());
             var prev = index - 1;
@@ -558,7 +557,7 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Returns the single session the quarterly info object is in.
         /// </summary>
-        public Session FindSession(QuarterlyInfo quarterlyInfo)
+        public Session? FindSession(QuarterlyInfo quarterlyInfo)
         {
             List<Session> foundSessions = new List<Session>();
 
@@ -568,7 +567,7 @@ namespace SessyController.Services.Items
                     foundSessions.Add(session);
             }
 
-            return foundSessions.Single();
+            return foundSessions.SingleOrDefault();
         }
 
         /// <summary>
