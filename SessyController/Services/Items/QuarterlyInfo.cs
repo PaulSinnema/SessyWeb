@@ -329,9 +329,9 @@ namespace SessyController.Services.Items
             get
             {
                 if (Charging)
-                    return -0.2;
+                    return -0.1;
                 else if (Discharging)
-                    return 0.2;
+                    return 0.1;
                 else if (NetZeroHome)
                     return 0.03;
 

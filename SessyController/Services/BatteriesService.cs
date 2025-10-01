@@ -1118,8 +1118,6 @@ namespace SessyController.Services
             {
                 var loggerFactory = _scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
 
-                var averagePrice = quarterlyInfos.Average(qi => qi.MarketPrice);
-
                 _sessions = new Sessions(quarterlyInfos,
                                          _settingsConfig,
                                          _batteryContainer!,
@@ -1135,8 +1133,8 @@ namespace SessyController.Services
                 // Check the first element
                 if (list.Count > 1)
                 {
-                    var currentPrice = list[0].SmoothedBuyingPrice;
-                    var nextPrice = list[1].SmoothedBuyingPrice;
+                    var currentPrice = list[0].MarketPrice;
+                    var nextPrice = list[1].MarketPrice;
 
                     if (currentPrice <= nextPrice)
                     {
@@ -1155,11 +1153,11 @@ namespace SessyController.Services
                 }
 
                 // Check the elements in between.
-                for (var index = 1; index < list.Count - 2; index++)
+                for (var index = 1; index < list.Count - 1; index++)
                 {
-                    var currentPrice = list[index].SmoothedBuyingPrice;
-                    var previousPrice = list[index - 1].SmoothedBuyingPrice;
-                    var nextPrice = list[index + 1].SmoothedBuyingPrice;
+                    var currentPrice = list[index].MarketPrice;
+                    var previousPrice = list[index - 1].MarketPrice;
+                    var nextPrice = list[index + 1].MarketPrice;
 
                     if (currentPrice <= previousPrice && currentPrice < nextPrice)
                     {
@@ -1167,18 +1165,12 @@ namespace SessyController.Services
                             _sessions.AddNewSession(Modes.Charging, list[index]);
                     }
 
-                    currentPrice = list[index].SmoothedSellingPrice;
-                    previousPrice = list[index - 1].SmoothedSellingPrice;
-                    nextPrice = list[index + 1].SmoothedSellingPrice;
-
                     if (currentPrice >= previousPrice && currentPrice > nextPrice)
                     {
                         if (!_sessions.InAnySession(list[index]))
                             _sessions.AddNewSession(Modes.Discharging, list[index]);
                     }
                 }
-
-                // Skipping the last element.
 
                 _sessions.CompleteAllSessions();
             }

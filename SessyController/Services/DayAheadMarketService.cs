@@ -7,6 +7,8 @@ using SessyController.Services.Items;
 using SessyData.Model;
 using SessyData.Services;
 using System.Collections.Concurrent;
+using System.Globalization;
+using System.Linq;
 using System.Xml;
 
 namespace SessyController.Services
@@ -30,12 +32,11 @@ namespace SessyController.Services
         private const string TagTimeSeries = "//ns:TimeSeries";
 
         private const string ConfigInDomain = "ENTSO-E:InDomain"; // EIC-code
-        private const string ConfigResolutionFormat = "ENTSO-E:ResolutionFormat";
+        private const string ConfigResolutionFormat = "ENTSO-E:ResolutionFormat"; // No longer in use
         private const string ConfigSecurityTokenKey = "ENTSO-E:SecurityToken";
 
         private static string? _securityToken;
         private static string? _inDomain;
-        private static string? _resolutionFormat;
 
         private ConcurrentDictionary<DateTime, double>? _prices { get; set; }
         private static LoggingService<DayAheadMarketService>? _logger { get; set; }
@@ -75,7 +76,6 @@ namespace SessyController.Services
         {
             _securityToken = configuration[ConfigSecurityTokenKey];
             _inDomain = configuration[ConfigInDomain];
-            _resolutionFormat = configuration[ConfigResolutionFormat];
 
             _timeZoneService = timeZoneService;
             _batteryContainer = batteryContainer;
@@ -154,12 +154,12 @@ namespace SessyController.Services
         {
             var list = await _epexPricesDataService.GetList(async (set) =>
             {
-                var result = set.ToList();
+                var october1 = new DateTime(2025, 10, 1);
+
+                var result = set.Where(ep => ep.Time >= october1).ToList();
 
                 return await Task.FromResult(result);
             });
-
-            list = list.Where(pr => pr.Time.DateHour() != pr.Time).ToList();
 
             await _epexPricesDataService.Remove(list, (item, set) =>
             {
@@ -194,36 +194,30 @@ namespace SessyController.Services
         {
             if (PricesAvailable)
             {
-                var dates = _prices!.Select(pr => pr.Key);
-
-                var resolution = dates.GetTimeResolution();
-
-                switch (resolution)
-                {
-                    case DateTimeExtension.TimeResolution.FifteenMinutes:
-                        return; // Do nothing, already correct resolution
-
-                    case DateTimeExtension.TimeResolution.SixtyMinutes:
-                        TransformPricesTo15MinuteResolution();
-                        break;
-
-                    case DateTimeExtension.TimeResolution.Unknown:
-                    default:
-                        throw new InvalidOperationException($"Wrong resolution: {resolution}");
-                }
+                TransformPricesTo15MinuteResolutionIfNeeded();
             }
         }
 
         /// <summary>
         /// Add missing 15 minutes resolution entries.
         /// </summary>
-        private void TransformPricesTo15MinuteResolution()
+        private void TransformPricesTo15MinuteResolutionIfNeeded()
         {
-            foreach (var price in _prices!.ToList())
+            var list = _prices!.ToList().OrderBy(ep => ep.Key);
+
+            foreach (var price in list)
             {
-                _prices!.AddOrUpdate(price.Key.AddMinutes(15), price.Value, Update);
-                _prices!.AddOrUpdate(price.Key.AddMinutes(30), price.Value, Update);
-                _prices!.AddOrUpdate(price.Key.AddMinutes(45), price.Value, Update);
+                CheckQuarterPrices(price.Key.AddMinutes(15), price.Value);
+                CheckQuarterPrices(price.Key.AddMinutes(30), price.Value);
+                CheckQuarterPrices(price.Key.AddMinutes(45), price.Value);
+            }
+        }
+
+        private void CheckQuarterPrices(DateTime time, double price)
+        {
+            if(!_prices.ContainsKey(time))
+            {
+                _prices.AddOrUpdate(time, price, Update);
             }
         }
 
@@ -238,20 +232,23 @@ namespace SessyController.Services
             var lastDate = now;
 
             // Fetch day-ahead market prices from Sessy
-            _prices = await FetchDayAheadPricesAsync();
+            //_prices = await FetchDayAheadPricesAsync();
 
-            if (_prices != null && _prices.Count > 0)
-            {
-                lastDate = _prices.Max(pr => pr.Key);
-            }
+            //if (_prices != null && _prices.Count > 0)
+            //{
+            //    lastDate = _prices.Max(pr => pr.Key);
+            //}
+
+            _prices = null;
 
             // It's 20:00 or later and still no prices on the Sessy.
-            if (_prices == null || (now.Hour >= 20 && (lastDate - now).Hours < 0))
+            if (_prices == null) // || (now.Hour >= 20 && (lastDate - now).Hours < 0))
             {
                 _logger.LogWarning($"It's 20:00 or later, Sessy still has no prices. Falling back on ENTSO-E.");
 
                 // Fallback on ENTSO-E for fetching the day-ahead market prices.
                 var entsoePrices = await FetchDayAheadPricesAsync(now, 2, cancellationToken);
+
                 var entsoeLastDate = lastDate;
 
                 if (entsoePrices != null && entsoePrices.Count > 0)
@@ -286,13 +283,13 @@ namespace SessyController.Services
 
             try
             {
-                List<QuarterlyInfo> hourlyInfos = new List<QuarterlyInfo>();
+                List<QuarterlyInfo> quarterlyInfos = new List<QuarterlyInfo>();
 
                 var now = _timeZoneService.Now;
                 var start = now.AddDays(-1).Date;
                 var end = now.AddDays(1).Date.AddHours(23).AddMinutes(45);
 
-                var result = await _epexPricesDataService.GetList(async (set) =>
+                var data = await _epexPricesDataService.GetList(async (set) =>
                 {
                     var result = set
                         .Where(ep => ep.Time >= start && ep.Time <= end)
@@ -301,13 +298,11 @@ namespace SessyController.Services
                     return await Task.FromResult(result);
                 });
 
-                var data = await Task.FromResult(result);
-
                 if (data != null)
                 {
-                    hourlyInfos = await BuildQuarterliesAsync(data);
+                    quarterlyInfos = await BuildQuarterliesAsync(data);
 
-                    return hourlyInfos;
+                    return quarterlyInfos;
                 }
 
                 return new List<QuarterlyInfo>();
@@ -342,7 +337,7 @@ namespace SessyController.Services
         /// <summary>
         /// Get the prices and timestamps from the XML response.
         /// </summary>
-        private static ConcurrentDictionary<DateTime, double> GetPrizes(string responseBody)
+        private static ConcurrentDictionary<DateTime, double> GetPrices(string responseBody)
         {
             var prices = new ConcurrentDictionary<DateTime, double>();
 
@@ -364,19 +359,38 @@ namespace SessyController.Services
 
                         if (period != null)
                         {
-
                             var startTime = DateTime.Parse(GetSingleNode(period, TagIntervalStart, nsmgr));
                             var resolution = GetSingleNode(period, TagResolution, nsmgr);
-                            var interval = resolution == _resolutionFormat ? TimeSpan.FromHours(1) : TimeSpan.FromMinutes(15);
+
+                            TimeSpan interval;
+
+                            switch (resolution)
+                            {
+                                case "PT15M":
+                                    interval = TimeSpan.FromMinutes(15);
+                                    break;
+
+                                case "PT60M":
+                                    interval = TimeSpan.FromHours(1);
+                                    break;
+
+                                default:
+                                    throw new InvalidOperationException($"Wrong resolution {resolution}");
+                            }
+
                             var pointNodes = period.SelectNodes(TagPoint, nsmgr);
 
                             if (pointNodes != null)
                             {
                                 foreach (XmlNode point in pointNodes)
                                 {
-                                    int position = int.Parse(GetSingleNode(point, TagPosition, nsmgr));
-                                    double price = double.Parse(GetSingleNode(point, TagPriceAmount, nsmgr));
-                                    DateTime timestamp = startTime.Add(interval * (position));
+                                    // Parse values culture-invariant
+                                    int position = int.Parse(GetSingleNode(point, TagPosition, nsmgr), CultureInfo.InvariantCulture);
+                                    var priceNode = GetSingleNode(point, TagPriceAmount, nsmgr);
+                                    double price = double.Parse(priceNode, CultureInfo.InvariantCulture);
+
+                                    // Calculate timestamp
+                                    DateTime timestamp = startTime.Add(interval * (position - 1));
 
                                     double priceWattHour = price / 1000;
 
@@ -429,7 +443,9 @@ namespace SessyController.Services
                 response.EnsureSuccessStatusCode();
                 string responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
 
-                var prices = GetPrizes(responseBody);
+                Console.WriteLine(responseBody);
+
+                var prices = GetPrices(responseBody);
 
                 var endDate = prices.Keys.Max();
 
@@ -440,6 +456,7 @@ namespace SessyController.Services
             }
 
             _logger.LogError("Unable to create HttpClient");
+
 
             return new ConcurrentDictionary<DateTime, double>();
         }
