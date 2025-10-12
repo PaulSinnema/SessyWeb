@@ -895,15 +895,15 @@ namespace SessyController.Services
 
         private async Task EvaluateChargingHoursAndProfitability()
         {
-            do
-            {
+            //do
+            //{
                 CalculateChargeNeeded();
 
                 await CalculateChargeLeft();
 
                 _sessions.CalculateProfits(_timeZoneService!);
-            }
-            while (_sessions.RemoveMoreExpensiveChargingSessions());
+            //}
+            //while (_sessions.RemoveMoreExpensiveChargingSessions());
         }
 
         /// <summary>
@@ -1118,6 +1118,8 @@ namespace SessyController.Services
             {
                 var loggerFactory = _scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
 
+                var averageMarketPrice = quarterlyInfos.Average(s => s.MarketPrice);
+
                 _sessions = new Sessions(quarterlyInfos,
                                          _settingsConfig,
                                          _batteryContainer!,
@@ -1136,19 +1138,22 @@ namespace SessyController.Services
                     var currentPrice = list[0].MarketPrice;
                     var nextPrice = list[1].MarketPrice;
 
-                    if (currentPrice <= nextPrice)
+                    if (currentPrice < averageMarketPrice)
                     {
-                        if (!_sessions.InAnySession(list[0]))
-                            _sessions.AddNewSession(Modes.Charging, list[0]);
+                        if (currentPrice <= nextPrice)
+                        {
+                            if (!_sessions.InAnySession(list[0]))
+                                _sessions.AddNewSession(Modes.Charging, list[0]);
+                        }
                     }
 
-                    currentPrice = list[0].SmoothedSellingPrice;
-                    nextPrice = list[1].SmoothedSellingPrice;
-
-                    if (currentPrice > nextPrice)
+                    if (currentPrice > averageMarketPrice)
                     {
-                        if (!_sessions.InAnySession(list[0]))
-                            _sessions.AddNewSession(Modes.Discharging, list[0]);
+                        if (currentPrice >= nextPrice)
+                        {
+                            if (!_sessions.InAnySession(list[0]))
+                                _sessions.AddNewSession(Modes.Discharging, list[0]);
+                        }
                     }
                 }
 
@@ -1159,16 +1164,22 @@ namespace SessyController.Services
                     var previousPrice = list[index - 1].MarketPrice;
                     var nextPrice = list[index + 1].MarketPrice;
 
-                    if (currentPrice <= previousPrice && currentPrice < nextPrice)
+                    if (currentPrice < averageMarketPrice)
                     {
-                        if (!_sessions.InAnySession(list[index]))
-                            _sessions.AddNewSession(Modes.Charging, list[index]);
+                        if (currentPrice <= previousPrice && currentPrice <= nextPrice)
+                        {
+                            if (!_sessions.InAnySession(list[index]))
+                                _sessions.AddNewSession(Modes.Charging, list[index]);
+                        }
                     }
 
-                    if (currentPrice >= previousPrice && currentPrice > nextPrice)
+                    if (currentPrice > averageMarketPrice)
                     {
-                        if (!_sessions.InAnySession(list[index]))
-                            _sessions.AddNewSession(Modes.Discharging, list[index]);
+                        if (currentPrice >= previousPrice && currentPrice >= nextPrice)
+                        {
+                            if (!_sessions.InAnySession(list[index]))
+                                _sessions.AddNewSession(Modes.Discharging, list[index]);
+                        }
                     }
                 }
 

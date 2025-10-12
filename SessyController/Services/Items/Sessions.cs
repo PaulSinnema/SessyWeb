@@ -702,10 +702,7 @@ namespace SessyController.Services.Items
         {
             double chargeNeeded = previousSession.Mode == Modes.Charging ? 1000.0 : 500.0; // Margins to compensate for uncertanties. 
 
-            var limitCharge = previousSession.Mode == Modes.Charging && (nextSession == null || nextSession.Mode == Modes.Charging);
-
-            if (!limitCharge)
-                chargeNeeded += previousSession.Mode == Modes.Charging ? _batteryContainer.GetTotalCapacity() : 0.0;
+            chargeNeeded += previousSession.Mode == Modes.Charging ? _batteryContainer.GetTotalCapacity() : 0.0;
 
             return chargeNeeded;
         }

@@ -13,6 +13,8 @@ namespace SessyCommon.Services
 
         private static TimeZoneInfo? _timeZone { get; set; }
 
+        public TimeZoneInfo TimeZone => _timeZone!;
+
         public TimeZoneService(IOptions<SettingsConfig> settingsConfig)
         {
             _settingsConfig = settingsConfig.Value;
@@ -28,6 +30,7 @@ namespace SessyCommon.Services
         /// </summary>
 #if DEBUG
         public DateTime Now => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _timeZone!);
+
 #else
         public DateTime Now => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _timeZone!);
 #endif

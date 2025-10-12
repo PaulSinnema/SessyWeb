@@ -337,7 +337,7 @@ namespace SessyController.Services
         /// <summary>
         /// Get the prices and timestamps from the XML response.
         /// </summary>
-        private static ConcurrentDictionary<DateTime, double> GetPrices(string responseBody)
+        private ConcurrentDictionary<DateTime, double> GetPrices(string responseBody)
         {
             var prices = new ConcurrentDictionary<DateTime, double>();
 
@@ -359,8 +359,11 @@ namespace SessyController.Services
 
                         if (period != null)
                         {
-                            var startTime = DateTime.Parse(GetSingleNode(period, TagIntervalStart, nsmgr));
+                            var startTimeNode = GetSingleNode(period, TagIntervalStart, nsmgr);
+                            var startTime = DateTime.Parse(startTimeNode);
                             var resolution = GetSingleNode(period, TagResolution, nsmgr);
+
+                            var startUtc = DateTimeOffset.Parse(startTimeNode, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal);
 
                             TimeSpan interval;
 
@@ -390,7 +393,9 @@ namespace SessyController.Services
                                     double price = double.Parse(priceNode, CultureInfo.InvariantCulture);
 
                                     // Calculate timestamp
-                                    DateTime timestamp = startTime.Add(interval * (position - 1));
+                                    DateTimeOffset timestampUtc = startUtc.AddTicks(interval.Ticks * (position - 1));
+                                    var timeZone = _timeZoneService.TimeZone;
+                                    DateTime timestamp = TimeZoneInfo.ConvertTime(timestampUtc, timeZone).DateTime;
 
                                     double priceWattHour = price / 1000;
 
@@ -442,8 +447,6 @@ namespace SessyController.Services
                 HttpResponseMessage response = await client.GetAsync(url, cancellationToken);
                 response.EnsureSuccessStatusCode();
                 string responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
-
-                Console.WriteLine(responseBody);
 
                 var prices = GetPrices(responseBody);
 
