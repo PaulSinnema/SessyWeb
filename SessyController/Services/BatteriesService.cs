@@ -897,11 +897,11 @@ namespace SessyController.Services
         {
             //do
             //{
-                CalculateChargeNeeded();
+            CalculateChargeNeeded();
 
-                await CalculateChargeLeft();
+            await CalculateChargeLeft();
 
-                _sessions.CalculateProfits(_timeZoneService!);
+            _sessions.CalculateProfits(_timeZoneService!);
             //}
             //while (_sessions.RemoveMoreExpensiveChargingSessions());
         }
@@ -1118,7 +1118,8 @@ namespace SessyController.Services
             {
                 var loggerFactory = _scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
 
-                var averageMarketPrice = quarterlyInfos.Average(s => s.MarketPrice);
+                var averageBuyingPrice = quarterlyInfos.Average(s => s.BuyingPrice);
+                var averageSellingPrice = quarterlyInfos.Average(s => s.SellingPrice);
 
                 _sessions = new Sessions(quarterlyInfos,
                                          _settingsConfig,
@@ -1135,10 +1136,10 @@ namespace SessyController.Services
                 // Check the first element
                 if (list.Count > 1)
                 {
-                    var currentPrice = list[0].MarketPrice;
-                    var nextPrice = list[1].MarketPrice;
+                    var currentPrice = list[0].BuyingPrice;
+                    var nextPrice = list[1].BuyingPrice;
 
-                    if (currentPrice < averageMarketPrice)
+                    if (currentPrice < averageBuyingPrice)
                     {
                         if (currentPrice <= nextPrice)
                         {
@@ -1147,7 +1148,10 @@ namespace SessyController.Services
                         }
                     }
 
-                    if (currentPrice > averageMarketPrice)
+                    currentPrice = list[0].SellingPrice;
+                    nextPrice = list[1].SellingPrice;
+
+                    if (currentPrice > averageSellingPrice)
                     {
                         if (currentPrice >= nextPrice)
                         {
@@ -1160,11 +1164,11 @@ namespace SessyController.Services
                 // Check the elements in between.
                 for (var index = 1; index < list.Count - 1; index++)
                 {
-                    var currentPrice = list[index].MarketPrice;
-                    var previousPrice = list[index - 1].MarketPrice;
-                    var nextPrice = list[index + 1].MarketPrice;
+                    var currentPrice = list[index].BuyingPrice;
+                    var previousPrice = list[index - 1].BuyingPrice;
+                    var nextPrice = list[index + 1].BuyingPrice;
 
-                    if (currentPrice < averageMarketPrice)
+                    if (currentPrice < averageBuyingPrice)
                     {
                         if (currentPrice <= previousPrice && currentPrice <= nextPrice)
                         {
@@ -1173,7 +1177,11 @@ namespace SessyController.Services
                         }
                     }
 
-                    if (currentPrice > averageMarketPrice)
+                    currentPrice = list[index].SellingPrice;
+                    previousPrice = list[index - 1].SellingPrice;
+                    nextPrice = list[index + 1].SellingPrice;
+
+                    if (currentPrice > averageSellingPrice)
                     {
                         if (currentPrice >= previousPrice && currentPrice >= nextPrice)
                         {

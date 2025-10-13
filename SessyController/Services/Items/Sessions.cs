@@ -421,7 +421,7 @@ namespace SessyController.Services.Items
             {
                 for (var i = 0; i < maxQuarters; i++)
                 {
-                    var averagePrice = _quarterlyInfos.Average(qi => qi.MarketPrice);
+                    var averagePrice = _quarterlyInfos.Average(qi => qi.Price);
 
                     switch (session.Mode)
                     {
@@ -431,20 +431,20 @@ namespace SessyController.Services.Items
                                 {
                                     if (next < _quarterlyInfos.Count)
                                     {
-                                        if (_quarterlyInfos[next].MarketPrice < _quarterlyInfos[prev].MarketPrice)
+                                        if (_quarterlyInfos[next].Price < _quarterlyInfos[prev].Price)
                                         {
-                                            if (_quarterlyInfos[next].MarketPrice < averagePrice)
+                                            if (_quarterlyInfos[next].Price < averagePrice)
                                                 AddQuarterlyInfo(session, _quarterlyInfos[next++]);
                                         }
                                         else
                                         {
-                                            if (_quarterlyInfos[prev].MarketPrice < averagePrice)
+                                            if (_quarterlyInfos[prev].Price < averagePrice)
                                                 AddQuarterlyInfo(session, _quarterlyInfos[prev--]);
                                         }
                                     }
                                     else
                                     {
-                                        if (_quarterlyInfos[prev].MarketPrice < averagePrice)
+                                        if (_quarterlyInfos[prev].Price < averagePrice)
                                             AddQuarterlyInfo(session, _quarterlyInfos[prev--]);
                                     }
                                 }
@@ -452,7 +452,7 @@ namespace SessyController.Services.Items
                                 {
                                     if (next < _quarterlyInfos.Count)
                                     {
-                                        if (_quarterlyInfos[next].MarketPrice < averagePrice)
+                                        if (_quarterlyInfos[next].Price < averagePrice)
                                             AddQuarterlyInfo(session, _quarterlyInfos[next++]);
                                     }
                                 }
@@ -466,20 +466,20 @@ namespace SessyController.Services.Items
                                 {
                                     if (next < _quarterlyInfos.Count)
                                     {
-                                        if (_quarterlyInfos[next].MarketPrice > _quarterlyInfos[prev].MarketPrice)
+                                        if (_quarterlyInfos[next].Price > _quarterlyInfos[prev].Price)
                                         {
-                                            if (_quarterlyInfos[next].MarketPrice > averagePrice)
+                                            if (_quarterlyInfos[next].Price > averagePrice)
                                                 AddQuarterlyInfo(session, _quarterlyInfos[next++]);
                                         }
                                         else
                                         {
-                                            if (_quarterlyInfos[prev].MarketPrice > averagePrice)
+                                            if (_quarterlyInfos[prev].Price > averagePrice)
                                                 AddQuarterlyInfo(session, _quarterlyInfos[prev--]);
                                         }
                                     }
                                     else
                                     {
-                                        if (_quarterlyInfos[prev].MarketPrice > averagePrice)
+                                        if (_quarterlyInfos[prev].Price > averagePrice)
                                             AddQuarterlyInfo(session, _quarterlyInfos[prev--]);
                                     }
                                 }
@@ -487,7 +487,7 @@ namespace SessyController.Services.Items
                                 {
                                     if (next < _quarterlyInfos.Count)
                                     {
-                                        if (_quarterlyInfos[next].MarketPrice > averagePrice)
+                                        if (_quarterlyInfos[next].Price > averagePrice)
                                             AddQuarterlyInfo(session, _quarterlyInfos[next++]);
                                     }
                                 }
