@@ -187,7 +187,7 @@ namespace SessyController.Services
                         {
                             Session? currentSession = _sessions.FindSession(currentHourlyInfo);
 
-                            var changed = await EpandCurrentSessionIfNeeded(currentSession).ConfigureAwait(false);
+                            var changed = await EpandCurrentSessionIfNeeded(currentSession!).ConfigureAwait(false);
 
                             if (changed)
                             {
@@ -1089,7 +1089,9 @@ namespace SessyController.Services
         {
             Session? previousSession = null;
 
-            foreach (var nextSession in _sessions.SessionList.OrderBy(se => se.FirstDateTime))
+            var list = _sessions.SessionList.OrderBy(se => se.FirstDateTime);
+
+            foreach (var nextSession in list)
             {
                 if (previousSession != null)
                 {
@@ -1190,6 +1192,8 @@ namespace SessyController.Services
                         }
                     }
                 }
+
+                while (_sessions.RemoveLessProfitableSessions()) { };
 
                 _sessions.CompleteAllSessions();
             }

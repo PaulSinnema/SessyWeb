@@ -3,6 +3,7 @@ using SessyCommon.Extensions;
 using SessyCommon.Services;
 using SessyData.Services;
 using System.Collections.ObjectModel;
+using System.Threading.Channels;
 using static SessyController.Services.Items.Session;
 
 namespace SessyController.Services.Items
@@ -124,13 +125,7 @@ namespace SessyController.Services.Items
         /// </summary>
         public bool InAnySession(QuarterlyInfo quarterlyInfo)
         {
-            foreach (var se in _sessionList)
-            {
-                if (se.Contains(quarterlyInfo))
-                    return true;
-            }
-
-            return false;
+            return quarterlyInfo.Charging || quarterlyInfo.Discharging;
         }
 
         /// <summary>
@@ -401,6 +396,69 @@ namespace SessyController.Services.Items
             }
         }
 
+        public bool RemoveLessProfitableSessions()
+        {
+            var changed = false;
+
+            Session? previousSession = null;
+            List<Session> sessionsToRemove = new();
+
+            foreach (var nextSession in _sessionList!.OrderBy(se => se.FirstDateTime))
+            {
+                if (previousSession != null)
+                {
+                    if (previousSession.Mode == nextSession.Mode)
+                    {
+                        var previousList = previousSession.GetQuarterlyInfoList();
+                        var nextList = nextSession.GetQuarterlyInfoList();
+
+                        switch (previousSession.Mode)
+                        {
+                            case Modes.Charging:
+                                if (previousList.First().BuyingPrice > nextList.First().BuyingPrice)
+                                {
+                                    AddToSessionsToRemove(previousSession, sessionsToRemove);
+                                }
+                                else
+                                {
+                                    AddToSessionsToRemove(nextSession, sessionsToRemove);
+                                }
+
+                                break;
+
+                            case Modes.Discharging:
+                                if (previousList.First().SellingPrice < nextList.First().SellingPrice)
+                                {
+                                    AddToSessionsToRemove(previousSession, sessionsToRemove);
+                                }
+                                else
+                                {
+                                    AddToSessionsToRemove(nextSession, sessionsToRemove);
+                                }
+
+                                break;
+
+                            default:
+                                break;
+                        }
+                    }
+                }
+
+                previousSession = nextSession;
+            }
+
+            if (sessionsToRemove.Count > 0)
+            {
+                sessionsToRemove.ForEach(se =>
+                {
+                    RemoveSession(se);
+                    changed = true;
+                });
+            }
+
+            return changed;
+        }
+
         /// <summary>
         /// Adds neighboring quarters to the Session
         /// </summary>
@@ -415,45 +473,43 @@ namespace SessyController.Services.Items
             var index = _quarterlyInfos.IndexOf(list.First());
             var prev = index - 1;
             var next = index + 1;
+
             var maxQuarters = session.Mode == Modes.Charging ? _maxChargingQuarters : _maxDischargingQuarters;
 
             if (index >= 0)
             {
+                var minIndex = GetMinIndex(prev);
+                var maxIndex = GetMaxIndex(next);
+
                 for (var i = 0; i < maxQuarters; i++)
                 {
-                    var averagePrice = _quarterlyInfos.Average(qi => qi.Price);
-
                     switch (session.Mode)
                     {
                         case Modes.Charging:
                             {
-                                if (prev >= 0)
+                                if (prev >= minIndex)
                                 {
-                                    if (next < _quarterlyInfos.Count)
+                                    if (next < maxIndex)
                                     {
                                         if (_quarterlyInfos[next].Price < _quarterlyInfos[prev].Price)
                                         {
-                                            if (_quarterlyInfos[next].Price < averagePrice)
-                                                AddQuarterlyInfo(session, _quarterlyInfos[next++]);
+                                            AddQuarterlyInfo(session, _quarterlyInfos[next++]);
                                         }
                                         else
                                         {
-                                            if (_quarterlyInfos[prev].Price < averagePrice)
-                                                AddQuarterlyInfo(session, _quarterlyInfos[prev--]);
+                                            AddQuarterlyInfo(session, _quarterlyInfos[prev--]);
                                         }
                                     }
                                     else
                                     {
-                                        if (_quarterlyInfos[prev].Price < averagePrice)
-                                            AddQuarterlyInfo(session, _quarterlyInfos[prev--]);
+                                        AddQuarterlyInfo(session, _quarterlyInfos[prev--]);
                                     }
                                 }
                                 else
                                 {
-                                    if (next < _quarterlyInfos.Count)
+                                    if (next < maxIndex)
                                     {
-                                        if (_quarterlyInfos[next].Price < averagePrice)
-                                            AddQuarterlyInfo(session, _quarterlyInfos[next++]);
+                                        AddQuarterlyInfo(session, _quarterlyInfos[next++]);
                                     }
                                 }
 
@@ -464,31 +520,27 @@ namespace SessyController.Services.Items
                             {
                                 if (prev >= 0)
                                 {
-                                    if (next < _quarterlyInfos.Count)
+                                    if (next < maxIndex)
                                     {
                                         if (_quarterlyInfos[next].Price > _quarterlyInfos[prev].Price)
                                         {
-                                            if (_quarterlyInfos[next].Price > averagePrice)
-                                                AddQuarterlyInfo(session, _quarterlyInfos[next++]);
+                                            AddQuarterlyInfo(session, _quarterlyInfos[next++]);
                                         }
                                         else
                                         {
-                                            if (_quarterlyInfos[prev].Price > averagePrice)
-                                                AddQuarterlyInfo(session, _quarterlyInfos[prev--]);
+                                            AddQuarterlyInfo(session, _quarterlyInfos[prev--]);
                                         }
                                     }
                                     else
                                     {
-                                        if (_quarterlyInfos[prev].Price > averagePrice)
-                                            AddQuarterlyInfo(session, _quarterlyInfos[prev--]);
+                                        AddQuarterlyInfo(session, _quarterlyInfos[prev--]);
                                     }
                                 }
                                 else
                                 {
-                                    if (next < _quarterlyInfos.Count)
+                                    if (next < maxIndex)
                                     {
-                                        if (_quarterlyInfos[next].Price > averagePrice)
-                                            AddQuarterlyInfo(session, _quarterlyInfos[next++]);
+                                        AddQuarterlyInfo(session, _quarterlyInfos[next++]);
                                     }
                                 }
 
@@ -500,6 +552,26 @@ namespace SessyController.Services.Items
                     }
                 }
             }
+        }
+
+        private int GetMinIndex(int index)
+        {
+            while (index >= 0 && !InAnySession(_quarterlyInfos[index]))
+            {
+                index--;
+            }
+
+            return index + 1;
+        }
+
+        private int GetMaxIndex(int index)
+        {
+            while (index < _quarterlyInfos.Count - 1 && !InAnySession(_quarterlyInfos[index]))
+            {
+                index++;
+            }
+
+            return index - 1;
         }
 
         /// <summary>
@@ -665,25 +737,19 @@ namespace SessyController.Services.Items
 
             foreach (var infoObject in infoObjects)
             {
-                if (infoObject.Mode == Modes.ZeroNetHome)
+                switch (previousSession.Mode)
                 {
-                    switch (previousSession.Mode)
-                    {
-                        case Modes.Charging:
-                            chargeNeeded += infoObject.EstimatedConsumptionPerQuarterHour;
-                            chargeNeeded -= infoObject.SolarPowerPerQuarterInWatts;
+                    case Modes.Charging:
+                        chargeNeeded += infoObject.EstimatedConsumptionPerQuarterHour;
+                        chargeNeeded -= infoObject.SolarPowerPerQuarterInWatts;
 
-                            break;
+                        break;
 
-                        case Modes.Discharging:
-                            if (infoObject.SolarPowerPerQuarterInWatts <= 0.0)
-                            {
-                                chargeNeeded += infoObject.EstimatedConsumptionPerQuarterHour;
-                                chargeNeeded -= infoObject.SolarPowerPerQuarterInWatts;
-                            }
+                    case Modes.Discharging:
+                        chargeNeeded += infoObject.EstimatedConsumptionPerQuarterHour;
+                        chargeNeeded -= infoObject.SolarPowerPerQuarterInWatts;
 
-                            break;
-                    }
+                        break;
                 }
             }
 
@@ -719,6 +785,5 @@ namespace SessyController.Services.Items
 
             return charge;
         }
-
     }
 }

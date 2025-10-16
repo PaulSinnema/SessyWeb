@@ -15,7 +15,7 @@ namespace SessyWeb.Components
         private TaxesDataService? _taxesDataService { get; set; }
 
         [Parameter]
-        public List<QuarterlyInfoView>? HourlyInfos { get; set; }
+        public List<QuarterlyInfoView>? QuarterlyInfos { get; set; }
 
         public string _graphStyle = "min-width: 250px; visibility: hidden;";
 

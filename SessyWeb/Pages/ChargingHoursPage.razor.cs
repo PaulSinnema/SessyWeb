@@ -57,7 +57,7 @@ namespace SessyWeb.Pages
             {
                 _showAll = value;
 
-                Task task = GetOnlyCurrentHourlyInfos();
+                Task task = GettHourlyInfos();
 
                 Task.WhenAll(task);
 
@@ -69,7 +69,7 @@ namespace SessyWeb.Pages
         {
             await base.OnInitializedAsync();
 
-            await GetOnlyCurrentHourlyInfos();
+            await GettHourlyInfos();
 
             try
             {
@@ -204,7 +204,7 @@ namespace SessyWeb.Pages
 
                     BatteryMode = _batteriesService.GetBatteryMode();
 
-                    await GetOnlyCurrentHourlyInfos();
+                    await GettHourlyInfos();
 
                     await InvokeAsync(StateHasChanged);
                 }
@@ -222,17 +222,27 @@ namespace SessyWeb.Pages
         /// <summary>
         /// Retrieve all the quarterlyInfo objects but only the current and future ones.
         /// </summary>
-        private async Task GetOnlyCurrentHourlyInfos()
+        private async Task GettHourlyInfos()
         {
             var now = _timeZoneService!.Now;
+            double averageSellingPrice = 0.0;
+            double averageBuyingPrice = 0.0;
+
+            var listFromBatteryService = _batteriesService?.GetQuarterlyInfos();
 
             QuarterlyInfos = new List<QuarterlyInfoView>();
+
+            if (listFromBatteryService.Count > 0)
+            {
+                averageSellingPrice = listFromBatteryService.Average(qi => qi.SellingPrice);
+                averageBuyingPrice = listFromBatteryService.Average(qi => qi.BuyingPrice);
+            }
 
             if (ShowAll)
             {
                 var quarterTime = now.DateFloorQuarter();
 
-                var QuarterlyInfoList = _batteriesService?.GetQuarterlyInfos()?
+                var QuarterlyInfoList = listFromBatteryService?
                     .Where(hi => hi.Time >= quarterTime)
                     .ToList();
 
@@ -247,7 +257,7 @@ namespace SessyWeb.Pages
 
                 foreach (var quarterlyInfo in QuarterlyInfoList ?? new List<QuarterlyInfo>())
                 {
-                    QuarterlyInfos?.Add(FillQuarterlyInfoView(quarterlyInfo));
+                    QuarterlyInfos?.Add(FillQuarterlyInfoView(quarterlyInfo, averageBuyingPrice, averageSellingPrice));
                 }
 
                 foreach (var performance in performanceList)
@@ -257,13 +267,13 @@ namespace SessyWeb.Pages
             }
             else
             {
-                var quarterlyInfoList = _batteriesService?.GetQuarterlyInfos()?
+                var quarterlyInfoList = listFromBatteryService?
                     .Where(hi => hi.Time >= now.DateFloorQuarter())
                     .ToList();
 
                 foreach (var quarterlyInfo in quarterlyInfoList!)
                 {
-                    QuarterlyInfos?.Add(FillQuarterlyInfoView(quarterlyInfo));
+                    QuarterlyInfos?.Add(FillQuarterlyInfoView(quarterlyInfo, averageBuyingPrice, averageSellingPrice));
                 }
             }
 
@@ -295,6 +305,8 @@ namespace SessyWeb.Pages
             public double ChargeNeededVisual => ChargeNeeded / 100000;
             public double ChargeLeftVisual => ChargeLeft / 100000;
             public double SolarPowerVisual => SmoothedSolarPower / 2.5;
+            public double AverageBuyingPrice { get; set; }
+            public double AverageSellingPrice { get; set; }
 
             public override string ToString()
             {
@@ -307,7 +319,7 @@ namespace SessyWeb.Pages
 
         }
 
-        public QuarterlyInfoView FillQuarterlyInfoView(QuarterlyInfo quarterlyInfo)
+        public QuarterlyInfoView FillQuarterlyInfoView(QuarterlyInfo quarterlyInfo, double averageBuyingPrice, double averageSellingPrice)
         {
             return new QuarterlyInfoView
             {
@@ -327,7 +339,9 @@ namespace SessyWeb.Pages
                 DisplayState = quarterlyInfo.DisplayState ?? string.Empty,
                 Price = quarterlyInfo.Price,
                 ChargeNeeded = quarterlyInfo.ChargeNeeded,
-                SmoothedSolarPower = quarterlyInfo.SmoothedSolarPower
+                SmoothedSolarPower = quarterlyInfo.SmoothedSolarPower,
+                AverageBuyingPrice = averageBuyingPrice,
+                AverageSellingPrice = averageSellingPrice,
             };
         }
 

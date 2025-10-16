@@ -221,16 +221,23 @@ namespace SessyController.Services.Items
             if (session.Mode != Mode)
                 throw new InvalidOperationException($"Modes should be the same of both sessions {Mode} != {session.Mode}");
 
-            var myAveragePrice = QuarterlyInfos.Average(hi => hi.Price);
-            var theirAveragePrice = session.QuarterlyInfos.Average(hi => hi.Price);
-
             switch (Mode)
             {
                 case Modes.Charging:
-                    return myAveragePrice <= theirAveragePrice;
+                    {
+                        var myCost = QuarterlyInfos.Sum(hi => hi.ChargingCost);
+                        var theirCost = session.QuarterlyInfos.Sum(hi => hi.ChargingCost);
+
+                        return myCost <= theirCost;
+                    }
 
                 case Modes.Discharging:
-                    return myAveragePrice >= theirAveragePrice;
+                    {
+                        var myCost = QuarterlyInfos.Sum(hi => hi.DischargingCost);
+                        var theirCost = session.QuarterlyInfos.Sum(hi => hi.DischargingCost);
+
+                        return myCost >= theirCost;
+                    }
 
                 default:
                     throw new InvalidOperationException($"Wrong mode: {Mode}");
@@ -384,7 +391,7 @@ namespace SessyController.Services.Items
             }
 
 
-            return quarters;
+            return quarters + 1;
         }
 
         /// <summary>
@@ -418,7 +425,7 @@ namespace SessyController.Services.Items
         {
             var empty = IsEmpty() ? "!!!" : string.Empty;
 
-            return $"{empty}Session: {Mode}, FirstDate: {FirstDateTime}, LastDate {LastDateTime}, Count: {QuarterlyInfos.Count}, MaxHours: {MaxQuarters}";
+            return $"{empty}Session: {Mode}, FirstDate: {FirstDateTime}, LastDate {LastDateTime}, Count: {QuarterlyInfos.Count}, MaxQuarters: {MaxQuarters}";
         }
 
         private bool _isDisposed = false;
