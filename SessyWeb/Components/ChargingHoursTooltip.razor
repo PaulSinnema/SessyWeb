@@ -3,7 +3,7 @@
 @{
     var style = "padding: 0px; margin: 0px; height: 20px;";
     var fixedWidthStyle = $"{style} width: 150px; height: 25px;";
-    var state = $"   {HourlyInfo?.DisplayState}";
+    var state = $"   {QuarterlyInfo?.DisplayState}";
 }
 
 <RadzenRow>
@@ -11,7 +11,7 @@
         <RadzenTextBox Value="Date and time" disabled Style=@fixedWidthStyle />
     </RadzenColumn>
     <RadzenColumn Size="2">
-        <RadzenDatePicker Value=@HourlyInfo?.Time ShowButton="false" disabled TValue="DateTime" Style=@fixedWidthStyle />
+        <RadzenDatePicker Value=@QuarterlyInfo?.Time ShowButton="false" disabled TValue="DateTime" Style=@fixedWidthStyle />
     </RadzenColumn>
 </RadzenRow>
 
@@ -20,7 +20,7 @@
         <RadzenTextBox Value="Price" disabled Style=@fixedWidthStyle />
     </RadzenColumn>
     <RadzenColumn Size="2">
-        <RadzenNumeric Format="0.0000" ShowUpDown="false" Value=@HourlyInfo?.Price disabled Style=@fixedWidthStyle />
+        <RadzenNumeric Format="0.0000" ShowUpDown="false" Value=@QuarterlyInfo?.Price disabled Style=@fixedWidthStyle />
     </RadzenColumn>
 </RadzenRow>
 
@@ -29,7 +29,7 @@
         <RadzenTextBox Value="Market price" disabled Style=@fixedWidthStyle />
     </RadzenColumn>
     <RadzenColumn Size="2">
-        <RadzenNumeric Format="0.0000" ShowUpDown="false" Value=@HourlyInfo?.MarketPrice disabled Style=@fixedWidthStyle />
+        <RadzenNumeric Format="0.0000" ShowUpDown="false" Value=@QuarterlyInfo?.MarketPrice disabled Style=@fixedWidthStyle />
     </RadzenColumn>
 </RadzenRow>
 
@@ -38,7 +38,7 @@
         <RadzenTextBox Value="Revenue" disabled Style=@fixedWidthStyle />
     </RadzenColumn>
     <RadzenColumn Size="2">
-        <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.Profit disabled Style=@fixedWidthStyle />
+        <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@QuarterlyInfo?.Profit disabled Style=@fixedWidthStyle />
     </RadzenColumn>
 </RadzenRow>
 
@@ -56,7 +56,7 @@
         <RadzenTextBox Value="Solar power" disabled Style=@fixedWidthStyle />
     </RadzenColumn>
     <RadzenColumn Size="2">
-        <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.SolarPowerPerQuarterHour disabled Style=@fixedWidthStyle />
+        <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@QuarterlyInfo?.SolarPowerPerQuarterHour disabled Style=@fixedWidthStyle />
     </RadzenColumn>
 </RadzenRow>
 
@@ -65,7 +65,7 @@
         <RadzenTextBox Value="Global radiation" disabled Style=@fixedWidthStyle />
     </RadzenColumn>
     <RadzenColumn Size="2">
-        <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.SolarGlobalRadiation disabled Style=@fixedWidthStyle />
+        <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@QuarterlyInfo?.SolarGlobalRadiation disabled Style=@fixedWidthStyle />
     </RadzenColumn>
 </RadzenRow>
 
@@ -74,7 +74,7 @@
         <RadzenTextBox Value="Charge left %" disabled Style=@fixedWidthStyle />
     </RadzenColumn>
     <RadzenColumn Size="2">
-        <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.ChargeLeftPercentage disabled Style=@fixedWidthStyle />
+        <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@QuarterlyInfo?.ChargeLeftPercentage disabled Style=@fixedWidthStyle />
     </RadzenColumn>
 </RadzenRow>
 
@@ -83,7 +83,7 @@
         <RadzenTextBox Value="Charge needed" disabled Style=@fixedWidthStyle />
     </RadzenColumn>
     <RadzenColumn Size="2">
-        <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.ChargeNeeded disabled Style=@fixedWidthStyle />
+        <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@QuarterlyInfo?.ChargeNeeded disabled Style=@fixedWidthStyle />
     </RadzenColumn>
 </RadzenRow>
 
@@ -92,6 +92,6 @@
         <RadzenTextBox Value="Est. consumption" disabled Style=@fixedWidthStyle />
     </RadzenColumn>
     <RadzenColumn Size="2">
-        <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@HourlyInfo?.EstimatedConsumptionPerQuarterHour disabled Style=@fixedWidthStyle />
+        <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@QuarterlyInfo?.EstimatedConsumptionPerQuarterHour disabled Style=@fixedWidthStyle />
     </RadzenColumn>
 </RadzenRow>

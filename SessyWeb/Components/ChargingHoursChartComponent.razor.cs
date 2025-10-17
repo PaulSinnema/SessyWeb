@@ -2,7 +2,7 @@
 using Radzen.Blazor;
 using SessyCommon.Services;
 using SessyData.Services;
-using static SessyWeb.Pages.ChargingHoursPage;
+using SessyWeb.Pages;
 
 namespace SessyWeb.Components
 {
@@ -15,7 +15,7 @@ namespace SessyWeb.Components
         private TaxesDataService? _taxesDataService { get; set; }
 
         [Parameter]
-        public List<QuarterlyInfoView>? QuarterlyInfos { get; set; }
+        public List<QuarterlyInfoView> QuarterlyInfos { get; set; } = new List<QuarterlyInfoView>();
 
         public string _graphStyle = "min-width: 250px; visibility: hidden;";
 

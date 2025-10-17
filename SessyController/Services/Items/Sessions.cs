@@ -62,6 +62,8 @@ namespace SessyController.Services.Items
             _maxDischargingQuarters = (int)Math.Ceiling(_totalBatteryCapacity / _totalDischargingCapacityPerQuarter) + 3; // 3 Quarters marging
             _cycleCost = settingsConfig.CycleCost;
             _logger = loggerFactory.CreateLogger<Sessions>();
+
+            IdCounter = 0;
         }
 
         public ReadOnlyCollection<Session> SessionList => _sessionList.AsReadOnly();
@@ -110,6 +112,7 @@ namespace SessyController.Services.Items
                     {
                         hourlyItem.DisableCharging();
                         hourlyItem.DisableDischarging();
+                        hourlyItem.ClearSession();
                     }
                 }
 
@@ -174,6 +177,8 @@ namespace SessyController.Services.Items
                     .FirstOrDefault();
         }
 
+        private static int IdCounter = 0;
+
         /// <summary>
         /// Adds a new session to the sessions hourly info list and initializes it.
         /// </summary>
@@ -188,6 +193,7 @@ namespace SessyController.Services.Items
                     case Modes.Charging:
                         {
                             session = new Session(this, _timeZoneService!, mode, _maxChargingQuarters, _batteryContainer, _settingsConfig);
+                            session.Id = IdCounter++;
                             _sessionList.Add(session);
                             session.AddQuarterlyInfo(quarterlyInfo);
                             break;
@@ -196,6 +202,7 @@ namespace SessyController.Services.Items
                     case Modes.Discharging:
                         {
                             session = new Session(this, _timeZoneService!, mode, _maxDischargingQuarters, _batteryContainer, _settingsConfig);
+                            session.Id = IdCounter++;
                             _sessionList.Add(session);
                             session.AddQuarterlyInfo(quarterlyInfo);
                             break;
@@ -398,10 +405,7 @@ namespace SessyController.Services.Items
 
         public bool RemoveLessProfitableSessions()
         {
-            var changed = false;
-
             Session? previousSession = null;
-            List<Session> sessionsToRemove = new();
 
             foreach (var nextSession in _sessionList!.OrderBy(se => se.FirstDateTime))
             {
@@ -415,28 +419,28 @@ namespace SessyController.Services.Items
                         switch (previousSession.Mode)
                         {
                             case Modes.Charging:
-                                if (previousList.First().BuyingPrice > nextList.First().BuyingPrice)
+                                if (previousList.First().MarketPrice > nextList.First().MarketPrice)
                                 {
-                                    AddToSessionsToRemove(previousSession, sessionsToRemove);
+                                    RemoveSession(previousSession);
+                                    return true;
                                 }
                                 else
                                 {
-                                    AddToSessionsToRemove(nextSession, sessionsToRemove);
+                                    RemoveSession(nextSession);
+                                    return true;
                                 }
-
-                                break;
 
                             case Modes.Discharging:
-                                if (previousList.First().SellingPrice < nextList.First().SellingPrice)
+                                if (previousList.First().MarketPrice < nextList.First().MarketPrice)
                                 {
-                                    AddToSessionsToRemove(previousSession, sessionsToRemove);
+                                    RemoveSession(previousSession);
+                                    return true;
                                 }
                                 else
                                 {
-                                    AddToSessionsToRemove(nextSession, sessionsToRemove);
+                                    RemoveSession(nextSession);
+                                    return true;
                                 }
-
-                                break;
 
                             default:
                                 break;
@@ -447,16 +451,7 @@ namespace SessyController.Services.Items
                 previousSession = nextSession;
             }
 
-            if (sessionsToRemove.Count > 0)
-            {
-                sessionsToRemove.ForEach(se =>
-                {
-                    RemoveSession(se);
-                    changed = true;
-                });
-            }
-
-            return changed;
+            return false;
         }
 
         /// <summary>

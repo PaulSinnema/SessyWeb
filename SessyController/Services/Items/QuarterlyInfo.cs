@@ -11,7 +11,8 @@ namespace SessyController.Services.Items
         private const double minSolarPower = 0.0;
 
         private QuarterlyInfo(DateTime time,
-                              double marketPrice,
+                                Session? session,
+                                double marketPrice,
                                 double buyingPrice,
                                 double sellingPrice,
                                 SettingsConfig settingsConfig,
@@ -21,6 +22,7 @@ namespace SessyController.Services.Items
                                 CalculationService calculationService)
         {
             Time = time;
+            _session = session;
 
             _settingsConfig = settingsConfig;
             _batteryContainer = batteryContainer;
@@ -55,6 +57,7 @@ namespace SessyController.Services.Items
 
             return new QuarterlyInfo(
                 time,
+                null,
                 marketPrice,
                 buying,
                 selling,
@@ -96,6 +99,10 @@ namespace SessyController.Services.Items
         /// </summary>
         public DateTime Time { get; set; }
 
+        private Session? _session { get; set; }
+
+        public int? SessionId => _session?.Id;
+
         /// <summary>
         /// How much profit does this (dis)charge give?
         /// </summary>
@@ -116,6 +123,16 @@ namespace SessyController.Services.Items
                         return 0.0;
                 }
             }
+        }
+
+        public void SetSession(Session session)
+        {
+            _session = session;
+        }
+
+        public void ClearSession()
+        {
+            _session = null; 
         }
 
         public double EstimatedConsumptionPerQuarterHour { get; set; }

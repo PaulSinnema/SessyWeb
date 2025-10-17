@@ -20,6 +20,7 @@ namespace SessyController.Services.Items
         private Modes _mode { get; set; }
         private BatteryContainer _batteryContainer { get; set; }
         private SettingsConfig _settingsConfig { get; set; }
+        public int Id { get; set; }
 
         public Modes Mode
         {
@@ -192,6 +193,8 @@ namespace SessyController.Services.Items
                 {
                     quarterlyInfo.SetModes(_mode);
 
+                    quarterlyInfo.SetSession(this);
+
                     QuarterlyInfos.Add(quarterlyInfo);
                 }
             }
@@ -203,14 +206,17 @@ namespace SessyController.Services.Items
             {
                 DisableChargingAndDischarging(quarterlyInfo);
 
+                quarterlyInfo.ClearSession();
+
                 QuarterlyInfos.Remove(quarterlyInfo);
             }
         }
 
-        private void DisableChargingAndDischarging(QuarterlyInfo quarterlyInfo)
+        public void DisableChargingAndDischarging(QuarterlyInfo quarterlyInfo)
         {
             quarterlyInfo.DisableCharging();
             quarterlyInfo.DisableDischarging();
+            quarterlyInfo.ClearSession();
         }
 
         /// <summary>
@@ -441,6 +447,8 @@ namespace SessyController.Services.Items
         internal void Merge(Session nextSession)
         {
             QuarterlyInfos.AddRange(nextSession.QuarterlyInfos);
+
+            QuarterlyInfos.ForEach(qi => qi.SetSession(nextSession));
         }
     }
 }
