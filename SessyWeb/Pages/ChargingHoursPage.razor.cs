@@ -245,7 +245,9 @@ namespace SessyWeb.Pages
 
             if (ShowAll)
             {
-                var quarterTime = selectedDate.DateFloorQuarter();
+                var now = _timeZoneService!.Now;
+
+                var quarterTime = now.DateFloorQuarter();
 
                 var QuarterlyInfoList = listFromBatteryService?
                     .Where(hi => hi.Time >= quarterTime)
