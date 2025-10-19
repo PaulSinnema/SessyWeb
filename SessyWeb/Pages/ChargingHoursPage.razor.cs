@@ -8,6 +8,7 @@ using SessyController.Services.Items;
 using SessyData.Model;
 using SessyData.Services;
 using SessyWeb.Helpers;
+using static SessyWeb.Components.DateChooserComponent;
 
 namespace SessyWeb.Pages
 {
@@ -57,7 +58,7 @@ namespace SessyWeb.Pages
             {
                 _showAll = value;
 
-                Task task = GettHourlyInfos();
+                Task task = GetQuarterlyInfos();
 
                 Task.WhenAll(task);
 
@@ -68,8 +69,6 @@ namespace SessyWeb.Pages
         protected override async Task OnInitializedAsync()
         {
             await base.OnInitializedAsync();
-
-            await GettHourlyInfos();
 
             try
             {
@@ -194,6 +193,8 @@ namespace SessyWeb.Pages
                 {
                     var now = _timeZoneService!.Now;
 
+                    await GetQuarterlyInfos();
+
                     TotalSolarPowerExpectedToday = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(now);
                     TotalSolarPowerExpectedTomorrow = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(now.AddDays(1));
 
@@ -203,8 +204,6 @@ namespace SessyWeb.Pages
                     BatteryPercentage = await _batteriesService.getBatteryPercentage();
 
                     BatteryMode = _batteriesService.GetBatteryMode();
-
-                    await GettHourlyInfos();
 
                     await InvokeAsync(StateHasChanged);
                 }
@@ -222,13 +221,19 @@ namespace SessyWeb.Pages
         /// <summary>
         /// Retrieve all the quarterlyInfo objects but only the current and future ones.
         /// </summary>
-        private async Task GettHourlyInfos()
+        private async Task GetQuarterlyInfos()
         {
-            var now = _timeZoneService!.Now;
+            DateTime selectedDate;
+
+            if (!ShowAll || DateSelectionChosen == null)
+                selectedDate = _timeZoneService!.Now;
+            else
+                selectedDate = DateSelectionChosen.Start!.Value;
+
             double averageSellingPrice = 0.0;
             double averageBuyingPrice = 0.0;
 
-            var listFromBatteryService = _batteriesService?.GetQuarterlyInfos();
+            var listFromBatteryService = _batteriesService?.GetQuarterlyInfos() ?? new();
 
             QuarterlyInfos = new List<QuarterlyInfoView>();
 
@@ -240,7 +245,7 @@ namespace SessyWeb.Pages
 
             if (ShowAll)
             {
-                var quarterTime = now.DateFloorQuarter();
+                var quarterTime = selectedDate.DateFloorQuarter();
 
                 var QuarterlyInfoList = listFromBatteryService?
                     .Where(hi => hi.Time >= quarterTime)
@@ -249,8 +254,7 @@ namespace SessyWeb.Pages
                 var performanceList = await _performanceDataService!
                     .GetList(async (set) =>
                     {
-                        var result = set.Where(c => c.Time >= now.Date &&
-                                                    c.Time < quarterTime)
+                        var result = set.Where(c => c.Time >= selectedDate.Date && c.Time < quarterTime)
                                         .ToList();
                         return await Task.FromResult(result);
                     });
@@ -268,7 +272,7 @@ namespace SessyWeb.Pages
             else
             {
                 var quarterlyInfoList = listFromBatteryService?
-                    .Where(hi => hi.Time >= now.DateFloorQuarter())
+                    .Where(hi => hi.Time >= selectedDate.DateFloorQuarter())
                     .ToList();
 
                 foreach (var quarterlyInfo in quarterlyInfoList!)
@@ -278,6 +282,8 @@ namespace SessyWeb.Pages
             }
 
             ChangeChartStyle(ScreenInfo!.Height - 300);
+
+            await InvokeAsync(() => StateHasChanged());
         }
 
         public QuarterlyInfoView FillQuarterlyInfoView(QuarterlyInfo quarterlyInfo, double averageBuyingPrice, double averageSellingPrice)
@@ -332,9 +338,19 @@ namespace SessyWeb.Pages
             };
         }
 
+        public async Task SelectionChanged(DateArgs dateArgs)
+        {
+            DateSelectionChosen = dateArgs;
+
+            await GetQuarterlyInfos();
+        }
+
+
         public bool IsManualOverride => _batteriesService!.IsManualOverride;
 
         public bool WeAreInControl => _batteriesService!.WeAreInControl;
+
+        public DateArgs DateSelectionChosen { get; private set; }
 
         /// <summary>
         /// Change the width of the chart depending on the number of quarterlyInfo objects.
@@ -345,10 +361,6 @@ namespace SessyWeb.Pages
             var width = QuarterlyInfos?.Count * 3 * 13;
 
             GraphStyle = $"min-height: {height}px; width: {width}px; visibility: initial;";
-
-            Task task = InvokeAsync(StateHasChanged);
-
-            Task.WhenAll(task);
         }
 
         /// <summary>

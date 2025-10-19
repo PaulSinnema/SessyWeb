@@ -50,7 +50,7 @@ namespace SessyController.Services
 
         private LoggingService<BatteriesService> _logger { get; set; }
 
-        private static List<QuarterlyInfo>? quarterlyInfos { get; set; } = new List<QuarterlyInfo>();
+        private static List<QuarterlyInfo>? _quarterlyInfos { get; set; } = new List<QuarterlyInfo>();
 
         public bool IsManualOverride => _settingsConfig.ManualOverride;
 
@@ -175,9 +175,9 @@ namespace SessyController.Services
 
                     if (_sessions != null)
                     {
-                        await _consumptionMonitorService.EstimateConsumptionInWattsPerQuarter(quarterlyInfos!).ConfigureAwait(false);
+                        await _consumptionMonitorService.EstimateConsumptionInWattsPerQuarter(_quarterlyInfos!).ConfigureAwait(false);
 
-                        await _solarService.GetExpectedSolarPower(quarterlyInfos!).ConfigureAwait(false);
+                        await _solarService.GetExpectedSolarPower(_quarterlyInfos!).ConfigureAwait(false);
 
                         await EvaluateSessions().ConfigureAwait(false);
 
@@ -267,11 +267,11 @@ namespace SessyController.Services
 
         private async Task<bool> ExpandSession(Session currentSession)
         {
-            var index = quarterlyInfos.IndexOf(currentSession.Last!) + 1;
+            var index = _quarterlyInfos.IndexOf(currentSession.Last!) + 1;
 
-            if (index < quarterlyInfos.Count)
+            if (index < _quarterlyInfos.Count)
             {
-                currentSession.AddQuarterlyInfo(quarterlyInfos[index++]);
+                currentSession.AddQuarterlyInfo(_quarterlyInfos[index++]);
 
                 CalculateChargeNeeded();
 
@@ -419,7 +419,7 @@ namespace SessyController.Services
 
             try
             {
-                return quarterlyInfos;
+                return _quarterlyInfos;
             }
             finally
             {
@@ -675,13 +675,13 @@ namespace SessyController.Services
             // Get the available hourly prices.
             var prices = await _dayAheadMarketService.GetPrices();
 
-            quarterlyInfos = prices
+            _quarterlyInfos = prices
                 .OrderBy(hp => hp.Time)
                 .ToList();
 
-            QuarterlyInfo.AddSmoothedPrices(quarterlyInfos, 6);
+            QuarterlyInfo.AddSmoothedPrices(_quarterlyInfos, 6);
 
-            return quarterlyInfos != null && quarterlyInfos.Count > 0;
+            return _quarterlyInfos != null && _quarterlyInfos.Count > 0;
         }
 
         private DateTime? lastSessionCreationDate { get; set; } = null;
@@ -700,7 +700,7 @@ namespace SessyController.Services
                 DateTime now = _timeZoneService.Now;
                 DateTime nowHour = now.Date.AddHours(now.Hour);
 
-                quarterlyInfos = quarterlyInfos!
+                _quarterlyInfos = _quarterlyInfos!
                     .OrderBy(hp => hp.Time)
                     .ToList();
 
@@ -782,7 +782,7 @@ namespace SessyController.Services
                 }
             }
 
-            foreach (var quarterlyInfo in quarterlyInfos)
+            foreach (var quarterlyInfo in _quarterlyInfos)
             {
                 switch (quarterlyInfo.Mode)
                 {
@@ -886,7 +886,7 @@ namespace SessyController.Services
         {
             var now = _timeZoneService.Now;
 
-            return quarterlyInfos!.Where(qi => qi.Time >= now &&
+            return _quarterlyInfos!.Where(qi => qi.Time >= now &&
                                                qi.Mode != Modes.Charging &&
                                                qi.Mode != Modes.Discharging)
                                   .OrderBy(qi => qi.BuyingPrice)
@@ -919,7 +919,7 @@ namespace SessyController.Services
             var localTimeHour = now.Date.AddHours(now.Hour);
             charge = await _batteryContainer.GetStateOfChargeInWatts();
 
-            var hourlyInfoList = quarterlyInfos!
+            var hourlyInfoList = _quarterlyInfos!
                 .OrderBy(hp => hp.Time)
                 .ToList();
 
@@ -1107,99 +1107,240 @@ namespace SessyController.Services
             }
         }
 
-        /// <summary>
-        /// Determine when the prices are the highest en the lowest.
-        /// </summary>
+        // Helpers: signal smoothing + prominence-based peak/trough detection
+        static class SignalExtrema
+        {
+            // Compute median sampling interval in minutes (robust to outliers)
+            public static int DetectSamplingMinutes(IReadOnlyList<DateTime> times)
+            {
+                if (times.Count < 2) return 15;
+                var deltas = new List<double>(times.Count - 1);
+                for (int i = 1; i < times.Count; i++)
+                    deltas.Add((times[i] - times[i - 1]).TotalMinutes);
+                deltas.Sort();
+                double median = deltas[deltas.Count / 2];
+                return (int)Math.Max(1, Math.Round(median));
+            }
+
+            // Simple centered moving average (odd window preferred). Edges use partial windows.
+            public static double[] MovingAverage(IList<double> values, int window)
+            {
+                if (values.Count == 0 || window <= 1) return values.ToArray();
+                int half = window / 2;
+                var outv = new double[values.Count];
+
+                for (int i = 0; i < values.Count; i++)
+                {
+                    int s = Math.Max(0, i - half);
+                    int e = Math.Min(values.Count - 1, i + half);
+                    double sum = 0; int n = 0;
+                    for (int j = s; j <= e; j++) { sum += values[j]; n++; }
+                    outv[i] = sum / n;
+                }
+                return outv;
+            }
+
+            // Robust scale estimate using IQR (Q75 - Q25)
+            public static (double mean, double iqr, double stdLike) Stats(IList<double> values)
+            {
+                if (values.Count == 0) return (0, 0, 0);
+                var sorted = values.OrderBy(v => v).ToArray();
+                double q25 = Quantile(sorted, 0.25);
+                double q75 = Quantile(sorted, 0.75);
+                double iqr = q75 - q25;
+
+                double mean = values.Average();
+                // Approximate robust sigma from IQR for normal-ish data
+                double stdLike = iqr / 1.349; // ≈ sigma
+                return (mean, iqr, stdLike);
+
+                static double Quantile(double[] arr, double p)
+                {
+                    if (arr.Length == 1) return arr[0];
+                    double pos = p * (arr.Length - 1);
+                    int i = (int)Math.Floor(pos);
+                    double frac = pos - i;
+                    if (i >= arr.Length - 1) return arr[^1];
+                    return arr[i] * (1 - frac) + arr[i + 1] * frac;
+                }
+            }
+
+            // Find local maxima indices with prominence and minDistance
+            public static List<int> FindPeaks(
+                IList<double> x,
+                double minProminence,
+                int minDistance)
+            {
+                var candidates = new List<int>();
+                for (int i = 1; i < x.Count - 1; i++)
+                {
+                    if (x[i] > x[i - 1] && x[i] >= x[i + 1]) candidates.Add(i);
+                }
+                if (candidates.Count == 0) return candidates;
+
+                var accepted = new List<(int idx, double prom)>();
+
+                foreach (var i in candidates)
+                {
+                    double peak = x[i];
+
+                    // Walk left to first higher point; track lowest saddle
+                    double leftMin = peak;
+                    for (int j = i - 1; j >= 0; j--)
+                    {
+                        if (x[j] > peak) break;
+                        leftMin = Math.Min(leftMin, x[j]);
+                    }
+                    // Walk right to first higher point; track lowest saddle
+                    double rightMin = peak;
+                    for (int j = i + 1; j < x.Count; j++)
+                    {
+                        if (x[j] > peak) break;
+                        rightMin = Math.Min(rightMin, x[j]);
+                    }
+                    double saddle = Math.Max(leftMin, rightMin);
+                    double prom = peak - saddle;
+
+                    if (prom >= minProminence) accepted.Add((i, prom));
+                }
+
+                // Enforce minDistance by keeping the most prominent first
+                var result = new List<int>();
+                foreach (var (idx, _) in accepted.OrderByDescending(p => p.prom))
+                {
+                    if (result.All(r => Math.Abs(r - idx) >= minDistance))
+                        result.Add(idx);
+                }
+                result.Sort();
+                return result;
+            }
+
+            // Find local minima by inverting the signal and reusing peak logic
+            public static List<int> FindTroughs(
+                IList<double> x,
+                double minProminence,
+                int minDistance)
+            {
+                var inv = x.Select(v => -v).ToArray();
+                return FindPeaks(inv, minProminence, minDistance);
+            }
+        }
+
+        // ====== Your method rewritten ======
         private void CreateSessions()
         {
             _sessions?.Dispose();
-
             _sessions = null;
 
-            if (quarterlyInfos != null && quarterlyInfos.Count > 0)
+            if (_quarterlyInfos == null || _quarterlyInfos.Count == 0)
             {
-                var loggerFactory = _scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
-
-                var averageBuyingPrice = quarterlyInfos.Average(s => s.BuyingPrice);
-                var averageSellingPrice = quarterlyInfos.Average(s => s.SellingPrice);
-
-                _sessions = new Sessions(quarterlyInfos,
-                                         _settingsConfig,
-                                         _batteryContainer!,
-                                         _timeZoneService,
-                                         _financialResultsService,
-                                         _consumptionDataService,
-                                         _consumptionMonitorService,
-                                         _energyHistoryDataService,
-                                         loggerFactory);
-
-                var list = quarterlyInfos.OrderBy(hi => hi.Time).ToList();
-
-                // Check the first element
-                if (list.Count > 1)
-                {
-                    var currentPrice = list[0].BuyingPrice;
-                    var nextPrice = list[1].BuyingPrice;
-
-                    if (currentPrice < averageBuyingPrice)
-                    {
-                        if (currentPrice <= nextPrice)
-                        {
-                            if (!_sessions.InAnySession(list[0]))
-                                _sessions.AddNewSession(Modes.Charging, list[0]);
-                        }
-                    }
-
-                    currentPrice = list[0].SellingPrice;
-                    nextPrice = list[1].SellingPrice;
-
-                    if (currentPrice > averageSellingPrice)
-                    {
-                        if (currentPrice >= nextPrice)
-                        {
-                            if (!_sessions.InAnySession(list[0]))
-                                _sessions.AddNewSession(Modes.Discharging, list[0]);
-                        }
-                    }
-                }
-
-                // Check the elements in between.
-                for (var index = 1; index < list.Count - 1; index++)
-                {
-                    var currentPrice = list[index].BuyingPrice;
-                    var previousPrice = list[index - 1].BuyingPrice;
-                    var nextPrice = list[index + 1].BuyingPrice;
-
-                    if (currentPrice < averageBuyingPrice)
-                    {
-                        if (currentPrice <= previousPrice && currentPrice <= nextPrice)
-                        {
-                            if (!_sessions.InAnySession(list[index]))
-                                _sessions.AddNewSession(Modes.Charging, list[index]);
-                        }
-                    }
-
-                    currentPrice = list[index].SellingPrice;
-                    previousPrice = list[index - 1].SellingPrice;
-                    nextPrice = list[index + 1].SellingPrice;
-
-                    if (currentPrice > averageSellingPrice)
-                    {
-                        if (currentPrice >= previousPrice && currentPrice >= nextPrice)
-                        {
-                            if (!_sessions.InAnySession(list[index]))
-                                _sessions.AddNewSession(Modes.Discharging, list[index]);
-                        }
-                    }
-                }
-
-                while (_sessions.RemoveLessProfitableSessions()) { };
-
-                _sessions.CompleteAllSessions();
-            }
-            else
                 _logger.LogWarning("QuarterlyInfos is empty!!");
+                return;
+            }
+
+            var loggerFactory = _scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
+
+            // Sort consistently
+            var list = _quarterlyInfos.OrderBy(hi => hi.Time).ToList();
+
+            // Prepare arrays
+            var times = list.Select(x => x.Time).ToList();
+            var buy = list.Select(x => x.BuyingPrice).ToList();
+            var sell = list.Select(x => x.SellingPrice).ToList();
+
+            // Detect sampling cadence (min)
+            int stepMin = SignalExtrema.DetectSamplingMinutes(times);
+
+            // Choose smoothing window ~ 1 hour (odd number)
+            int targetSmoothMinutes = 60; // TODO: make configurable (_settingsConfig?)
+            int smoothWindow = Math.Max(3, (int)Math.Round((double)targetSmoothMinutes / stepMin));
+            if (smoothWindow % 2 == 0) smoothWindow++; // prefer odd
+
+            // Smooth the series (light smoothing to kill tiny bumps)
+            var buySmooth = SignalExtrema.MovingAverage(buy, smoothWindow);
+            var sellSmooth = SignalExtrema.MovingAverage(sell, smoothWindow);
+
+            // Robust scale to set default prominence thresholds
+            var (_, buyIqr, buySigma) = SignalExtrema.Stats(buySmooth);
+            var (_, sellIqr, sellSigma) = SignalExtrema.Stats(sellSmooth);
+
+            // Default: require at least ~0.75 * sigma prominence (tune as needed)
+            // For very flat series, fall back to IQR fraction.
+            double minPromBuy = Math.Max(0.0, 0.75 * (buySigma > 0 ? buySigma : buyIqr / 1.349));
+            double minPromSell = Math.Max(0.0, 0.75 * (sellSigma > 0 ? sellSigma : sellIqr / 1.349));
+
+            // Minimal spacing between major extrema ~ 1 hour
+            int minDistance = Math.Max(2, (int)Math.Round(60.0 / stepMin));
+
+            // Detect major troughs in Buying (Charging) and peaks in Selling (Discharging)
+            var buyTroughIdx = SignalExtrema.FindTroughs(buySmooth, minPromBuy, minDistance);
+            var sellPeakIdx = SignalExtrema.FindPeaks(sellSmooth, minPromSell, minDistance);
+
+            // Create sessions object
+            _sessions = new Sessions(_quarterlyInfos,
+                                     _settingsConfig,
+                                     _batteryContainer!,
+                                     _timeZoneService,
+                                     _financialResultsService,
+                                     _consumptionDataService,
+                                     _consumptionMonitorService,
+                                     _energyHistoryDataService,
+                                     loggerFactory);
+
+            // Seed sessions from detected extrema
+            // Safety: still honor InAnySession (your existing logic)
+            foreach (var i in buyTroughIdx)
+            {
+                var q = list[i];
+                if (!_sessions.InAnySession(q))
+                    _sessions.AddNewSession(Modes.Charging, q);
+            }
+            foreach (var i in sellPeakIdx)
+            {
+                var q = list[i];
+                if (!_sessions.InAnySession(q))
+                    _sessions.AddNewSession(Modes.Discharging, q);
+            }
+
+            // Optional: also consider endpoints if they are extreme w.r.t. neighbors (edge handling)
+            if (list.Count > 1)
+            {
+                // Left edge
+                if (buySmooth[0] <= buySmooth[1] - minPromBuy)
+                {
+                    var q0 = list[0];
+                    if (!_sessions.InAnySession(q0))
+                        _sessions.AddNewSession(Modes.Charging, q0);
+                }
+                if (sellSmooth[0] >= sellSmooth[1] + minPromSell)
+                {
+                    var q0 = list[0];
+                    if (!_sessions.InAnySession(q0))
+                        _sessions.AddNewSession(Modes.Discharging, q0);
+                }
+
+                // Right edge
+                int last = list.Count - 1;
+                if (buySmooth[last] <= buySmooth[last - 1] - minPromBuy)
+                {
+                    var qn = list[last];
+                    if (!_sessions.InAnySession(qn))
+                        _sessions.AddNewSession(Modes.Charging, qn);
+                }
+                if (sellSmooth[last] >= sellSmooth[last - 1] + minPromSell)
+                {
+                    var qn = list[last];
+                    if (!_sessions.InAnySession(qn))
+                        _sessions.AddNewSession(Modes.Discharging, qn);
+                }
+            }
+
+            // Let the profitability pruning & completion logic do its work
+            while (_sessions.RemoveLessProfitableSessions()) { /* keep pruning */ }
+
+            _sessions.CompleteAllSessions();
         }
+
 
         private bool _isDisposed = false;
 
@@ -1210,8 +1351,8 @@ namespace SessyController.Services
                 _settingsConfigSubscription.Dispose();
                 _sessyBatteryConfigSubscription.Dispose();
 
-                quarterlyInfos.Clear();
-                quarterlyInfos = null;
+                _quarterlyInfos.Clear();
+                _quarterlyInfos = null;
                 _sessyService = null;
                 _p1MeterService = null;
                 _dayAheadMarketService = null;
