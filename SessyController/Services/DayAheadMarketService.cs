@@ -215,7 +215,7 @@ namespace SessyController.Services
 
         private void CheckQuarterPrices(DateTime time, double price)
         {
-            if(!_prices.ContainsKey(time))
+            if (!_prices.ContainsKey(time))
             {
                 _prices.AddOrUpdate(time, price, Update);
             }
@@ -232,42 +232,40 @@ namespace SessyController.Services
             var lastDate = now;
 
             // Fetch day-ahead market prices from Sessy
-            //_prices = await FetchDayAheadPricesAsync();
+            _prices = await FetchDayAheadPricesAsync();
 
-            //if (_prices != null && _prices.Count > 0)
-            //{
-            //    lastDate = _prices.Max(pr => pr.Key);
-            //}
-
-            _prices = null;
+            if (_prices != null && _prices.Count > 0)
+            {
+                lastDate = _prices.Max(pr => pr.Key);
+            }
 
             // It's 20:00 or later and still no prices on the Sessy.
-            if (_prices == null) // || (now.Hour >= 20 && (lastDate - now).Hours < 0))
+            // if (_prices == null || (now.Hour >= 20 && (lastDate - now).Hours < 0))
+            // {
+            // _logger.LogWarning($"It's 20:00 or later, Sessy still has no prices. Falling back on ENTSO-E.");
+
+            // Fallback on ENTSO-E for fetching the day-ahead market prices.
+            var entsoePrices = await FetchDayAheadPricesAsync(now, 1, cancellationToken);
+
+            var entsoeLastDate = lastDate;
+
+            if (entsoePrices != null && entsoePrices.Count > 0)
             {
-                _logger.LogWarning($"It's 20:00 or later, Sessy still has no prices. Falling back on ENTSO-E.");
-
-                // Fallback on ENTSO-E for fetching the day-ahead market prices.
-                var entsoePrices = await FetchDayAheadPricesAsync(now, 2, cancellationToken);
-
-                var entsoeLastDate = lastDate;
-
-                if (entsoePrices != null && entsoePrices.Count > 0)
-                {
-                    entsoeLastDate = entsoePrices.Max(pr => pr.Key);
-                }
-
-                _logger.LogWarning($"Fallback on ENTSO-E Last date: {entsoeLastDate}, Sessy last date {lastDate}");
-
-                if (entsoeLastDate > lastDate)
-                {
-                    _logger.LogWarning($"ENTSO-E has more actual prices than Sessy, we take those prices.");
-                    _prices = entsoePrices;
-                }
-                else
-                {
-                    _logger.LogWarning($"ENTSO-E prices are not more actual than Sessy, keep Sessy prices");
-                }
+                entsoeLastDate = entsoePrices.Max(pr => pr.Key);
             }
+
+            _logger.LogWarning($"Fallback on ENTSO-E Last date: {entsoeLastDate}, Sessy last date {lastDate}");
+
+            if (entsoeLastDate > lastDate)
+            {
+                _logger.LogWarning($"ENTSO-E has more actual prices than Sessy, we take those prices.");
+                _prices = entsoePrices;
+            }
+            else
+            {
+                _logger.LogWarning($"ENTSO-E prices are not more actual than Sessy, keep Sessy prices");
+            }
+            // }
 
             PricesAvailable = _prices != null && _prices.Count > 0;
         }
@@ -433,10 +431,10 @@ namespace SessyController.Services
         /// </summary>
         private async Task<ConcurrentDictionary<DateTime, double>> FetchDayAheadPricesAsync(DateTime date, int futureDays, CancellationToken cancellationToken)
         {
-            date = date.AddDays(-1);
+            // date = date.AddDays(-1);
             var pastDate = date.Date; // new DateTime(date.Year, date.Month, date.Day, 0, 0, 0);
             string periodStartString = pastDate.ToString(FormatDate) + FormatTime;
-            var futureDate = date.AddDays(futureDays + 1);
+            var futureDate = date.AddDays(futureDays);
             string periodEndString = futureDate.ToString(FormatDate) + FormatTime;
             string url = $"{ApiUrl}?documentType=A44&in_Domain={_inDomain}&out_Domain={_inDomain}&periodStart={periodStartString}&periodEnd={periodEndString}&securityToken={_securityToken}";
 

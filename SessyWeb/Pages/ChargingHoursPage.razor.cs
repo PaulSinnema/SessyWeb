@@ -219,7 +219,7 @@ namespace SessyWeb.Pages
         }
 
         /// <summary>
-        /// Retrieve all the quarterlyInfo objects but only the current and future ones.
+        /// Retrieve all the quarterlyInfo objects within the selected date time and period.
         /// </summary>
         private async Task GetQuarterlyInfos()
         {
