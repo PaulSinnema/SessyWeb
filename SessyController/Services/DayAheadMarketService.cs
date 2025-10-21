@@ -429,7 +429,7 @@ namespace SessyController.Services
         /// <summary>
         /// Get the day-ahead-prices from ENTSO-E Api.
         /// </summary>
-        private async Task<ConcurrentDictionary<DateTime, double>> FetchDayAheadPricesAsync(DateTime date, int futureDays, CancellationToken cancellationToken)
+        private async Task<ConcurrentDictionary<DateTime, double>?> FetchDayAheadPricesAsync(DateTime date, int futureDays, CancellationToken cancellationToken)
         {
             // date = date.AddDays(-1);
             var pastDate = date.Date; // new DateTime(date.Year, date.Month, date.Day, 0, 0, 0);
@@ -448,12 +448,17 @@ namespace SessyController.Services
 
                 var prices = GetPrices(responseBody);
 
-                var endDate = prices.Keys.Max();
+                if (prices.Count > 0)
+                {
+                    var endDate = prices.Keys.Max();
 
-                // Detect and fill gaps in the prices with average prices.
-                FillMissingPoints(prices, date.Date, endDate, TimeSpan.FromHours(1));
+                    // Detect and fill gaps in the prices with average prices.
+                    FillMissingPoints(prices, date.Date, endDate, TimeSpan.FromHours(1));
 
-                return prices;
+                    return prices;
+                }
+
+                return null;
             }
 
             _logger.LogError("Unable to create HttpClient");
