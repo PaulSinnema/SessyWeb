@@ -396,8 +396,7 @@ namespace SessyController.Services.Items
                     throw new InvalidOperationException($"Wrong mode for session {this}");
             }
 
-
-            return quarters + 1;
+            return quarters;
         }
 
         /// <summary>

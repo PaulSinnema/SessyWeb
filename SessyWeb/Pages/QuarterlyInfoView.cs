@@ -21,7 +21,6 @@
         public double SolarGlobalRadiation { get; set; }
         public double ChargeLeftPercentage { get; set; }
 
-        public double ProfitVisual => Profit / 10;
         public double EstimatedConsumptionPerQuarterHourVisual => EstimatedConsumptionPerQuarterHour / 2500;
         public double ChargeNeededVisual => ChargeNeeded / 100000;
         public double ChargeLeftVisual => ChargeLeft / 100000;

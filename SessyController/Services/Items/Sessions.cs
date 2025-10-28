@@ -741,8 +741,11 @@ namespace SessyController.Services.Items
                         break;
 
                     case Modes.Discharging:
-                        chargeNeeded += infoObject.EstimatedConsumptionPerQuarterHour;
-                        chargeNeeded -= infoObject.SolarPowerPerQuarterInWatts;
+                        if (!infoObject.Discharging)
+                        {
+                            chargeNeeded += infoObject.EstimatedConsumptionPerQuarterHour;
+                            chargeNeeded -= infoObject.SolarPowerPerQuarterInWatts;
+                        }
 
                         break;
                 }

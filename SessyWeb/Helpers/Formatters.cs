@@ -53,40 +53,54 @@ namespace SessyWeb.Helpers
 
         public static string FormatAsDay(object value)
         {
-            if (value is DateTime)
+            try
             {
-                var dateTime = (DateTime)value;
+                if (value is DateTime)
+                {
+                    var dateTime = (DateTime)value;
 
-                return $"{dateTime:dd MMM}";
+                    return $"{dateTime:dd MMM}";
+                }
+
+                return "No DateTime";
             }
-
-            return "No DateTime";
+            catch (Exception)
+            {
+                throw;
+            }
         }
 
         public static string FormatAsMonth(object value)
         {
-            int month = 1;
-
-            if (value is Int16)
+            try
             {
-                month = Convert.ToInt32(value);
+                int month = 1;
+
+                if (value is Int16 || value is Int32)
+                {
+                    month = (Int32)value;
+                }
+                else if (value is DateTime)
+                {
+                    var dateTime = (DateTime)value;
+                    month = dateTime.Month;
+                }
+                else
+                    throw new InvalidOperationException($"Object type not supported {value}");
+
+                if (month >= 1 && month <= 12)
+                {
+                    var culture = new CultureInfo(CultureInfo.CurrentCulture.Name);
+
+                    return culture.DateTimeFormat.GetAbbreviatedMonthName(month);
+                }
+
+                return $"Wrong value {value}";
             }
-            else if (value is DateTime)
+            catch (Exception)
             {
-                var dateTime = (DateTime)value;
-                month = dateTime.Month;
+                throw;
             }
-            else
-                throw new InvalidOperationException($"Object type not supported {value}");
-
-            if (month >= 1 && month <= 13)
-            {
-                var culture = new CultureInfo(CultureInfo.CurrentCulture.Name);
-
-                return culture.DateTimeFormat.GetAbbreviatedMonthName(month);
-            }
-
-            return $"Wrong {value}";
         }
 
         public static string FormatAsYear(object value)
