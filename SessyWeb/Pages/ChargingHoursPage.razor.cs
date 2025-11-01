@@ -191,7 +191,7 @@ namespace SessyWeb.Pages
 
                 if (sessions != null)
                 {
-                    var now = _timeZoneService!.Now;
+                    var now = _timeZoneService!.Now.Date;
 
                     await GetQuarterlyInfos();
 

@@ -24,7 +24,7 @@ namespace SessyController.Services
             var histories = await _energyHistoryService.GetList(async (hist) =>
             {
                 var result = hist
-                    .Where(eh => eh.Time >= start && eh.Time <= end)
+                    .Where(eh => eh.Time >= start && eh.Time < end)
                     .OrderBy(eh => eh.Time)
                     .ToList();
 
