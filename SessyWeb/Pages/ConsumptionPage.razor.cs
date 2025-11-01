@@ -147,6 +147,7 @@ namespace SessyWeb.Pages
             public int Day { get; set; }
             public string DayOfWeek { get; set; } = string.Empty;
             public double ConsumptionKWh { get; set; }
+            public int Position { get; internal set; }
         }
 
         public class ConsumptionDisplayMonthData
@@ -203,9 +204,12 @@ namespace SessyWeb.Pages
                     {
                         var result = await _consumptionDataService!.GetList(async (set) =>
                         {
+                            var start = DateSelectionChosen!.DateChosen!.Value.StartOfWeek();
+                            var end = DateSelectionChosen!.DateChosen!.Value.EndOfWeek().AddDays(1).AddSeconds(-1);
+
                             var result = set
-                                .Where(sed => DateSelectionChosen!.DateChosen!.Value.StartOfWeek() <= sed.Time &&
-                                              DateSelectionChosen!.DateChosen!.Value.EndOfWeek().AddDays(1).AddSeconds(-1) >= sed.Time)
+                                .Where(sed => start <= sed.Time &&
+                                              end >= sed.Time)
                                 .ToList();
 
                             return await Task.FromResult(result);
@@ -216,9 +220,10 @@ namespace SessyWeb.Pages
                             {
                                 Day = gr.Key.Day,
                                 DayOfWeek = $"{gr.Key.DayOfWeek.ToString().Substring(0, 2)} {gr.Key.Day}",
+                                Position = (int)gr.Key.DayOfWeek,
                                 ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4
                             })
-                            .OrderBy(item => item.Day)
+                            .OrderBy(item => item.Position)
                             .ToList();
 
                         await ReloadCharts();

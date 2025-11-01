@@ -105,6 +105,8 @@ namespace SessyController.Services
         {
             _logger.LogWarning("Consumption monitor service started ...");
 
+            await RemoveNegativeConsumptionData();
+
             while (!cancelationToken.IsCancellationRequested)
             {
                 try
@@ -115,6 +117,7 @@ namespace SessyController.Services
                 {
                     _logger.LogException(ex, "An error occurred while monitoring p1 meters.");
                 }
+
                 try
                 {
                     await Task.Delay(TimeSpan.FromSeconds(1), cancelationToken);
@@ -127,6 +130,28 @@ namespace SessyController.Services
             }
 
             _logger.LogWarning("Consumption monitor service stopped");
+        }
+
+        private async Task RemoveNegativeConsumptionData()
+        {
+            var list = await _consumptionDataService.GetList(async (set) =>
+            {
+                var result = set.Where(cd => cd.ConsumptionWh < 0).ToList();
+
+                return await Task.FromResult(result);
+            });
+
+            if (list.Any())
+            {
+                list.ForEach(cd => _logger.LogWarning($"Removing consumption data: {cd}"));
+
+                await _consumptionDataService.Remove(list, (item, set) =>
+                {
+                    return set.Where(cd => cd.Id == item.Id).FirstOrDefault();
+                });
+
+                _logger.LogWarning($"Removed {list.Count} negative consumption data rows.");
+            }
         }
 
         private async Task Process(CancellationToken cancelationToken)
@@ -197,31 +222,39 @@ namespace SessyController.Services
                                                 .Where(c => !double.IsNaN(c.ConsumptionWh) && !double.IsInfinity(c.ConsumptionWh));
                     var averageConsumptionWh = list.Count() > 0 ? list.Average(c => c.ConsumptionWh) : 0.0;
 
-                    var p1Details = await _p1MeterContainer.GetDetails(p1Meter.Id!);
-                    var weatherData = await _weatherService.GetWeatherData();
-
-                    var liveWeer = weatherData?.LiveWeer?.FirstOrDefault();
-
-                    _consumptionData.Clear();
-
-                    var consumptionList = new List<Consumption>();
-
-                    consumptionList.Add(new Consumption
+                    if (averageConsumptionWh > 0)
                     {
-                        Time = startQuarter,
-                        ConsumptionWh = averageConsumptionWh,
-                        // In case no weather data is present we store a large negative number.
-                        Humidity = liveWeer?.Luchtvochtigheid ?? -999,
-                        Temperature = liveWeer?.Temp ?? -999,
-                        GlobalRadiation = liveWeer?.GlobalRadiation ?? -999
-                    });
+                        var p1Details = await _p1MeterContainer.GetDetails(p1Meter.Id!);
+                        var weatherData = await _weatherService.GetWeatherData();
 
-                    await _consumptionDataService.AddRange(consumptionList);
+                        var liveWeer = weatherData?.LiveWeer?.FirstOrDefault();
 
-                    DataChanged?.Invoke();
+                        _consumptionData.Clear();
 
-                    _logger.LogInformation($"Consumption data stored for {startQuarter}");
+                        var consumptionList = new List<Consumption>();
 
+                        consumptionList.Add(new Consumption
+                        {
+                            Time = startQuarter,
+                            ConsumptionWh = averageConsumptionWh,
+                            // In case no weather data is present we store a large negative number.
+                            Humidity = liveWeer?.Luchtvochtigheid ?? -999,
+                            Temperature = liveWeer?.Temp ?? -999,
+                            GlobalRadiation = liveWeer?.GlobalRadiation ?? -999
+                        });
+
+                        await _consumptionDataService.AddRange(consumptionList);
+
+                        DataChanged?.Invoke();
+
+                        _logger.LogInformation($"Consumption data stored for {startQuarter}");
+                    }
+                    else
+                    {
+                        _consumptionData.Clear();
+
+                        _logger.LogWarning($"Consumption is negative {averageConsumptionWh}. Cleared data");
+                    }
                 }
             }
             else
