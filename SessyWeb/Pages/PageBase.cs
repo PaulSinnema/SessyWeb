@@ -32,11 +32,21 @@ namespace SessyWeb.Pages
             }
         }
 
+        [CascadingParameter]
+        public Action<bool> SetIsBusy { get; set; } = default!;
+
+        public bool IsBusy
+        {
+            set
+            {
+                if (SetIsBusy != null)
+                    SetIsBusy(value);
+            }
+        }
+
         public virtual void ScreenInfoChanged(ScreenInfo screenInfo) { }
 
         public bool IsComponentActive { get; internal set; } = false;
-
-
 
         protected override void OnInitialized()
         {

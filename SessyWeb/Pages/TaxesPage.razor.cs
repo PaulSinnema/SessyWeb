@@ -63,38 +63,47 @@ namespace SessyWeb.Pages
 
         async Task LoadData(LoadDataArgs args)
         {
-            isLoading = true;
+            IsBusy = true;
 
-            await Task.Yield();
-
-            EnsureTaxesGrid();
-
-            var filter = taxesGrid!.ColumnsCollection;
-
-            TaxesList = await _taxesService!.GetList(async (set) =>
+            try
             {
-                var result = set
-                    .OrderBy(eh => eh.Time)
-                    .AsQueryable();
+                isLoading = true;
 
-                var query = await Task.FromResult(result);
+                await Task.Yield();
 
-                if (!string.IsNullOrEmpty(args.Filter))
+                EnsureTaxesGrid();
+
+                var filter = taxesGrid!.ColumnsCollection;
+
+                TaxesList = await _taxesService!.GetList(async (set) =>
                 {
-                    query = query.Where(taxesGrid.ColumnsCollection);
-                }
+                    var result = set
+                        .OrderBy(eh => eh.Time)
+                        .AsQueryable();
 
-                if (!string.IsNullOrEmpty(args.OrderBy))
-                {
-                    query = query.OrderBy(args.OrderBy);
-                }
+                    var query = await Task.FromResult(result);
 
-                count = query.Count();
+                    if (!string.IsNullOrEmpty(args.Filter))
+                    {
+                        query = query.Where(taxesGrid.ColumnsCollection);
+                    }
 
-                return query.Skip(args.Skip!.Value).Take(args.Top!.Value).ToList();
-            });
+                    if (!string.IsNullOrEmpty(args.OrderBy))
+                    {
+                        query = query.OrderBy(args.OrderBy);
+                    }
 
-            isLoading = false;
+                    count = query.Count();
+
+                    return query.Skip(args.Skip!.Value).Take(args.Top!.Value).ToList();
+                });
+
+                isLoading = false;
+            }
+            finally
+            {
+                IsBusy = false;
+            }
         }
 
         private void EnsureTaxesGrid()

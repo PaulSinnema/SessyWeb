@@ -4,105 +4,116 @@
 @inject RadzenTheme RadzenTheme
 @inject IJSRuntime JSRuntime
 
-<AntiforgeryToken />  
+<AntiforgeryToken />
 
 <CascadingValue Value=@ScreenInfo Name="ScreenInfo" IsFixed=false>
-    @{
-        var show = ((ScreenInfo.IsMobile && ScreenInfo.IsLandscape) || !ScreenInfo.IsMobile);
-    }
-    <RadzenTooltip />
-    <RadzenChartTooltip />
-    <RadzenTheme Theme="@NewTheme" />
+    <CascadingValue Value="(Action<bool>)SetIsBusy">
+        @{
+            var show = ((ScreenInfo.IsMobile && ScreenInfo.IsLandscape) || !ScreenInfo.IsMobile);
+        }
 
-    <RadzenLayout Style="height: 100vh;">
-        <RadzenHeader Style="height: 100%;">
-            <RadzenStack Orientation="Orientation.Horizontal"
-                         AlignItems="AlignItems.Normal"
-                         Gap="0">
+        <RadzenTooltip />
+        <RadzenChartTooltip />
+        <RadzenTheme Theme="@NewTheme" />
 
-                <RadzenSidebarToggle Click="@ToggleDisplayStyle" />
-
-                <a href="https://sessy.nl" target="_blank" Style="background-color: beige; max-width: 120px;">
-                    <RadzenImage Path="/Images/sessy.svg" Style="padding: 5px;" />
-                </a>
-
-                <RadzenPanel>
-                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center">
-                        <RadzenLabel Text="Theme:" Style="margin-right: 10px;" />
-                        <RadzenDropDown Style="width: 200px;"
-                                        Name="ThemeDropDown"
-                                        TValue="string"
-                                        Value="@ThemeService.Theme"
-                                        ValueChanged="@ChangeTheme"
-                                        Data="@Themes.Free"
-                                        TextProperty=@nameof(Theme.Text)
-                                        ValueProperty=@nameof(Theme.Value) />
-                    </RadzenStack>
-                </RadzenPanel>
-
-                @if (show)
-                {
-                    <Clock />
-                }
-            </RadzenStack>
-        </RadzenHeader>
-
-        <RadzenPanelMenu DisplayStyle="@DisplayStyle" Style="@MenuStyle">
-            <RadzenPanelMenuItem Text="Charging hours"
-                                 Path="charginghours"
-                                 Click="@CollapseMenu"
-                                 Icon="grouped_bar_chart" />
-            <RadzenPanelMenuItem Text="Solar power"
-                                 Click="@CollapseMenu"
-                                 Path="solarpower"
-                                 Icon="solar_power" />
-            <RadzenPanelMenuItem Text="Consumption"
-                                 Click="@CollapseMenu"
-                                 Path="consumption"
-                                 Icon="electric_meter" />
-            <RadzenPanelMenuItem Text="Batteries"
-                                 Click="@CollapseMenu"
-                                 Path="batteries"
-                                 Icon="battery_charging_full" />
-            <RadzenPanelMenuItem Text="Status history"
-                                 Path="sessystatushistory"
-                                 Click="@CollapseMenu"
-                                 Icon="error" />
-            <RadzenPanelMenuItem Text="Sessy energy history"
-                                 Path="energyhistory"
-                                 Click="@CollapseMenu"
-                                 Icon="history" />
-            <RadzenPanelMenuItem Text="Epex prices"
-                                 Path="epexprices"
-                                 Click="@CollapseMenu"
-                                 Icon="euro" />
-            <RadzenPanelMenuItem Text="Sessy financial results"
-                                 Path="financialResults"
-                                 Click="@CollapseMenu"
-                                 Icon="euro" />
-            <RadzenPanelMenuItem Text="Sessy taxes"
-                                 Path="taxes"
-                                 Click="@CollapseMenu"
-                                 Icon="account_balance" />
-            <RadzenPanelMenuItem Text="Who's in control"
-                                 Path="control"
-                                 Click="@CollapseMenu"
-                                 Icon="factory" />
-            <RadzenPanelMenuItem Text="Credits"
-                                 Path="credits"
-                                 Click="@CollapseMenu"
-                                 Icon="license" />
-
-        </RadzenPanelMenu>
-        <RadzenBody Style="height: 100%;">
-            @* <RadzenText>Width: @screenWidth height: @screenHeight</RadzenText> *@
-            <div class="rz-p-4">
-                @Body
+        @if (IsBusy)
+        {
+            <div style="position:fixed; top:0; left:0; width:100%; height:100%; background: rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:center; z-index:1000;">
+                <RadzenProgressBarCircular Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Large" ShowValue="false" />
+                <span style="margin-left:12px;">Loading data…</span>
             </div>
-        </RadzenBody>
-        <RadzenFooter>
+        }
 
-        </RadzenFooter>
-    </RadzenLayout>
+        <RadzenLayout Style="height: 100vh;">
+            <RadzenHeader Style="height: 100%;">
+                <RadzenStack Orientation="Orientation.Horizontal"
+                             AlignItems="AlignItems.Normal"
+                             Gap="0">
+
+                    <RadzenSidebarToggle Click="@ToggleDisplayStyle" />
+
+                    <a href="https://sessy.nl" target="_blank" Style="background-color: beige; max-width: 120px;">
+                        <RadzenImage Path="/Images/sessy.svg" Style="padding: 5px;" />
+                    </a>
+
+                    <RadzenPanel>
+                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center">
+                            <RadzenLabel Text="Theme:" Style="margin-right: 10px;" />
+                            <RadzenDropDown Style="width: 200px;"
+                                            Name="ThemeDropDown"
+                                            TValue="string"
+                                            Value="@ThemeService.Theme"
+                                            ValueChanged="@ChangeTheme"
+                                            Data="@Themes.Free"
+                                            TextProperty=@nameof(Theme.Text)
+                                            ValueProperty=@nameof(Theme.Value) />
+                        </RadzenStack>
+                    </RadzenPanel>
+
+                    @if (show)
+                    {
+                        <Clock />
+                    }
+                </RadzenStack>
+            </RadzenHeader>
+
+            <RadzenPanelMenu DisplayStyle="@DisplayStyle" Style="@MenuStyle">
+                <RadzenPanelMenuItem Text="Charging hours"
+                                     Path="charginghours"
+                                     Click="@CollapseMenu"
+                                     Icon="grouped_bar_chart" />
+                <RadzenPanelMenuItem Text="Solar power"
+                                     Click="@CollapseMenu"
+                                     Path="solarpower"
+                                     Icon="solar_power" />
+                <RadzenPanelMenuItem Text="Consumption"
+                                     Click="@CollapseMenu"
+                                     Path="consumption"
+                                     Icon="electric_meter" />
+                <RadzenPanelMenuItem Text="Batteries"
+                                     Click="@CollapseMenu"
+                                     Path="batteries"
+                                     Icon="battery_charging_full" />
+                <RadzenPanelMenuItem Text="Status history"
+                                     Path="sessystatushistory"
+                                     Click="@CollapseMenu"
+                                     Icon="error" />
+                <RadzenPanelMenuItem Text="Sessy energy history"
+                                     Path="energyhistory"
+                                     Click="@CollapseMenu"
+                                     Icon="history" />
+                <RadzenPanelMenuItem Text="Epex prices"
+                                     Path="epexprices"
+                                     Click="@CollapseMenu"
+                                     Icon="euro" />
+                <RadzenPanelMenuItem Text="Sessy financial results"
+                                     Path="financialResults"
+                                     Click="@CollapseMenu"
+                                     Icon="euro" />
+                <RadzenPanelMenuItem Text="Sessy taxes"
+                                     Path="taxes"
+                                     Click="@CollapseMenu"
+                                     Icon="account_balance" />
+                <RadzenPanelMenuItem Text="Who's in control"
+                                     Path="control"
+                                     Click="@CollapseMenu"
+                                     Icon="factory" />
+                <RadzenPanelMenuItem Text="Credits"
+                                     Path="credits"
+                                     Click="@CollapseMenu"
+                                     Icon="license" />
+
+            </RadzenPanelMenu>
+            <RadzenBody Style="height: 100%;">
+                @* <RadzenText>Width: @screenWidth height: @screenHeight</RadzenText> *@
+                <div class="rz-p-4">
+                    @Body
+                </div>
+            </RadzenBody>
+            <RadzenFooter>
+
+            </RadzenFooter>
+        </RadzenLayout>
+    </CascadingValue>
 </CascadingValue>
 

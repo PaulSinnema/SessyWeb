@@ -31,33 +31,42 @@ namespace SessyWeb.Pages
 
         async Task LoadData(LoadDataArgs args)
         {
-            EnsureEnergyGrid();
+            IsBusy = true;
 
-            var now = _timeZoneService!.Now;
-            var filter = energyGrid!.ColumnsCollection;
-
-            EnergyHistoryList = await _energyHistoryService!.GetList(async (set) =>
+            try
             {
-                var result = set
-                    .OrderBy(eh => eh.Time)
-                    .AsQueryable();
+                EnsureEnergyGrid();
 
-                var query = await Task.FromResult(result);
+                var now = _timeZoneService!.Now;
+                var filter = energyGrid!.ColumnsCollection;
 
-                if (!string.IsNullOrEmpty(args.Filter))
+                EnergyHistoryList = await _energyHistoryService!.GetList(async (set) =>
                 {
-                    query = query.Where(energyGrid.ColumnsCollection);
-                }
+                    var result = set
+                        .OrderBy(eh => eh.Time)
+                        .AsQueryable();
 
-                if (!string.IsNullOrEmpty(args.OrderBy))
-                {
-                    query = query.OrderBy(args.OrderBy);
-                }
+                    var query = await Task.FromResult(result);
 
-                count = query.Count();
+                    if (!string.IsNullOrEmpty(args.Filter))
+                    {
+                        query = query.Where(energyGrid.ColumnsCollection);
+                    }
 
-                return query.Skip(args.Skip!.Value).Take(args.Top!.Value).ToList();
-            });
+                    if (!string.IsNullOrEmpty(args.OrderBy))
+                    {
+                        query = query.OrderBy(args.OrderBy);
+                    }
+
+                    count = query.Count();
+
+                    return query.Skip(args.Skip!.Value).Take(args.Top!.Value).ToList();
+                });
+            }
+            finally
+            {
+                IsBusy = false;
+            }
         }
 
         private void EnsureEnergyGrid()

@@ -223,69 +223,78 @@ namespace SessyWeb.Pages
         /// </summary>
         private async Task GetQuarterlyInfos()
         {
-            DateTime selectedDate;
+            IsBusy = true;
 
-            if (!ShowAll || DateSelectionChosen == null)
-                selectedDate = _timeZoneService!.Now;
-            else
-                selectedDate = DateSelectionChosen.Start!.Value;
-
-            double averageSellingPrice = 0.0;
-            double averageBuyingPrice = 0.0;
-
-            var listFromBatteryService = _batteriesService?.GetQuarterlyInfos() ?? new();
-
-            QuarterlyInfos = new List<QuarterlyInfoView>();
-
-            if (listFromBatteryService.Count > 0)
+            try
             {
-                averageSellingPrice = listFromBatteryService.Average(qi => qi.SellingPrice);
-                averageBuyingPrice = listFromBatteryService.Average(qi => qi.BuyingPrice);
-            }
+                DateTime selectedDate;
 
-            if (ShowAll)
-            {
-                var now = _timeZoneService!.Now;
+                if (!ShowAll || DateSelectionChosen == null)
+                    selectedDate = _timeZoneService!.Now;
+                else
+                    selectedDate = DateSelectionChosen.Start!.Value;
 
-                var quarterTime = now.DateFloorQuarter();
+                double averageSellingPrice = 0.0;
+                double averageBuyingPrice = 0.0;
 
-                var QuarterlyInfoList = listFromBatteryService?
-                    .Where(hi => hi.Time >= quarterTime)
-                    .ToList();
+                var listFromBatteryService = _batteriesService?.GetQuarterlyInfos() ?? new();
 
-                var performanceList = await _performanceDataService!
-                    .GetList(async (set) =>
+                QuarterlyInfos = new List<QuarterlyInfoView>();
+
+                if (listFromBatteryService.Count > 0)
+                {
+                    averageSellingPrice = listFromBatteryService.Average(qi => qi.SellingPrice);
+                    averageBuyingPrice = listFromBatteryService.Average(qi => qi.BuyingPrice);
+                }
+
+                if (ShowAll)
+                {
+                    var now = _timeZoneService!.Now;
+
+                    var quarterTime = now.DateFloorQuarter();
+
+                    var QuarterlyInfoList = listFromBatteryService?
+                        .Where(hi => hi.Time >= quarterTime)
+                        .ToList();
+
+                    var performanceList = await _performanceDataService!
+                        .GetList(async (set) =>
+                        {
+                            var result = set.Where(c => c.Time >= selectedDate.Date && c.Time < quarterTime)
+                                            .ToList();
+                            return await Task.FromResult(result);
+                        });
+
+                    foreach (var quarterlyInfo in QuarterlyInfoList ?? new List<QuarterlyInfo>())
                     {
-                        var result = set.Where(c => c.Time >= selectedDate.Date && c.Time < quarterTime)
-                                        .ToList();
-                        return await Task.FromResult(result);
-                    });
+                        QuarterlyInfos?.Add(FillQuarterlyInfoView(quarterlyInfo, averageBuyingPrice, averageSellingPrice));
+                    }
 
-                foreach (var quarterlyInfo in QuarterlyInfoList ?? new List<QuarterlyInfo>())
+                    foreach (var performance in performanceList)
+                    {
+                        QuarterlyInfos?.Add(FillQuarterlyInfoView(performance));
+                    }
+                }
+                else
                 {
-                    QuarterlyInfos?.Add(FillQuarterlyInfoView(quarterlyInfo, averageBuyingPrice, averageSellingPrice));
+                    var quarterlyInfoList = listFromBatteryService?
+                        .Where(hi => hi.Time >= selectedDate.DateFloorQuarter())
+                        .ToList();
+
+                    foreach (var quarterlyInfo in quarterlyInfoList!)
+                    {
+                        QuarterlyInfos?.Add(FillQuarterlyInfoView(quarterlyInfo, averageBuyingPrice, averageSellingPrice));
+                    }
                 }
 
-                foreach (var performance in performanceList)
-                {
-                    QuarterlyInfos?.Add(FillQuarterlyInfoView(performance));
-                }
+                ChangeChartStyle(ScreenInfo!.Height - 300);
+
+                await InvokeAsync(() => StateHasChanged());
             }
-            else
+            finally
             {
-                var quarterlyInfoList = listFromBatteryService?
-                    .Where(hi => hi.Time >= selectedDate.DateFloorQuarter())
-                    .ToList();
-
-                foreach (var quarterlyInfo in quarterlyInfoList!)
-                {
-                    QuarterlyInfos?.Add(FillQuarterlyInfoView(quarterlyInfo, averageBuyingPrice, averageSellingPrice));
-                }
+                IsBusy = false;
             }
-
-            ChangeChartStyle(ScreenInfo!.Height - 300);
-
-            await InvokeAsync(() => StateHasChanged());
         }
 
         public QuarterlyInfoView FillQuarterlyInfoView(QuarterlyInfo quarterlyInfo, double averageBuyingPrice, double averageSellingPrice)

@@ -96,77 +96,86 @@ namespace SessyWeb.Pages
 
         private async Task SelectionChanged()
         {
-            var DateChosen = DateSelectionChosen!.DateChosen?.Date ?? _timeZoneService!.Now.Date;
+            IsBusy = true;
 
-            var result = await _solarEdgeDataService!.GetList(async (set) =>
+            try
             {
-                switch (DateSelectionChosen!.PeriodChosen)
+                var DateChosen = DateSelectionChosen!.DateChosen?.Date ?? _timeZoneService!.Now.Date;
+
+                var result = await _solarEdgeDataService!.GetList(async (set) =>
                 {
-                    case PeriodsEnums.Day:
-                        {
-                            var result = set
-                                .Where(sed => sed.Time.Date == DateChosen)
-                                .ToList();
+                    switch (DateSelectionChosen!.PeriodChosen)
+                    {
+                        case PeriodsEnums.Day:
+                            {
+                                var result = set
+                                    .Where(sed => sed.Time.Date == DateChosen)
+                                    .ToList();
 
-                            return await Task.FromResult(result);
-                        }
+                                return await Task.FromResult(result);
+                            }
 
-                    case PeriodsEnums.Week:
-                        {
-                            var result = set
-                                .Where(sed => DateChosen.StartOfWeek() <= sed.Time && DateChosen!.EndOfWeek().AddDays(1).AddSeconds(-1) >= sed.Time)
-                                .ToList();
+                        case PeriodsEnums.Week:
+                            {
+                                var result = set
+                                    .Where(sed => DateChosen.StartOfWeek() <= sed.Time && DateChosen!.EndOfWeek().AddDays(1).AddSeconds(-1) >= sed.Time)
+                                    .ToList();
 
-                            return await Task.FromResult(result);
-                        }
+                                return await Task.FromResult(result);
+                            }
 
-                    case PeriodsEnums.Month:
-                        {
-                            var result = set
-                                .Where(sed => DateChosen.StartOfMonth() <= sed.Time && DateChosen!.EndOfMonth().AddDays(1).AddSeconds(-1) >= sed.Time)
-                                .ToList();
+                        case PeriodsEnums.Month:
+                            {
+                                var result = set
+                                    .Where(sed => DateChosen.StartOfMonth() <= sed.Time && DateChosen!.EndOfMonth().AddDays(1).AddSeconds(-1) >= sed.Time)
+                                    .ToList();
 
-                            return await Task.FromResult(result);
-                        }
+                                return await Task.FromResult(result);
+                            }
 
-                    case PeriodsEnums.Year:
-                        {
-                            var result = set
-                                .Where(sed => DateChosen!.Year == sed.Time.Year)
-                                .ToList();
+                        case PeriodsEnums.Year:
+                            {
+                                var result = set
+                                    .Where(sed => DateChosen!.Year == sed.Time.Year)
+                                    .ToList();
 
-                            return await Task.FromResult(result);
-                        }
+                                return await Task.FromResult(result);
+                            }
 
-                    case PeriodsEnums.All:
-                        return await Task.FromResult(set.ToList());
+                        case PeriodsEnums.All:
+                            return await Task.FromResult(set.ToList());
 
-                    default:
-                        throw new InvalidOperationException($"Wrong period type {DateSelectionChosen!.PeriodChosen}");
-                }
-            });
+                        default:
+                            throw new InvalidOperationException($"Wrong period type {DateSelectionChosen!.PeriodChosen}");
+                    }
+                });
 
-            SolarInverterData = result.OrderBy(sed => sed.Time)
-              .ToList(); ;
+                SolarInverterData = result.OrderBy(sed => sed.Time)
+                  .ToList(); ;
 
-            SolarPower = await GetSolarPower(DateSelectionChosen!.DateChosen!.Value);
+                SolarPower = await GetSolarPower(DateSelectionChosen!.DateChosen!.Value);
 
-            GroupedData = SolarInverterData
-                    .GroupBy(d => d.ProviderName)
-                    .ToDictionary(g => g.Key, g => g.ToList());
+                GroupedData = SolarInverterData
+                        .GroupBy(d => d.ProviderName)
+                        .ToDictionary(g => g.Key, g => g.ToList());
 
-            providerNames = GroupedData.Keys.OrderBy(k => k).ToList();
-            providerNames.Insert(0, "All");
+                providerNames = GroupedData.Keys.OrderBy(k => k).ToList();
+                providerNames.Insert(0, "All");
 
-            var numberOfElements = GroupedData.Values.Count();
+                var numberOfElements = GroupedData.Values.Count();
 
-            DetermineTickDistance(GroupedData);
+                DetermineTickDistance(GroupedData);
 
-            FillFormatter();
+                FillFormatter();
 
-            StateHasChanged();
+                StateHasChanged();
 
-            await SolarPowerChart!.Reload();
+                await SolarPowerChart!.Reload();
+            }
+            finally
+            {
+                IsBusy = false;
+            }
         }
 
         private void DetermineTickDistance(Dictionary<string, List<SolarInverterData>> groupedData)

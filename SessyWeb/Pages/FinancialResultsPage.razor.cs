@@ -6,6 +6,7 @@ using SessyCommon.Extensions;
 using SessyCommon.Services;
 using SessyController.Services;
 using SessyController.Services.Items;
+using SessyWeb.Helpers;
 using System.Linq.Dynamic.Core;
 using static SessyWeb.Components.DateChooserComponent;
 
@@ -57,7 +58,7 @@ namespace SessyWeb.Pages
 
         public decimal GetTotalCost(List<FinancialMonthResult> list)
         {
-            if(list != null)
+            if (list != null)
                 return list.Sum(fr => fr.TotalCost);
 
             return 0;
@@ -82,71 +83,82 @@ namespace SessyWeb.Pages
 
         async Task LoadData(LoadDataArgs args)
         {
-            if (financialResultsGrid == null) throw new InvalidOperationException($"{nameof(financialResultsGrid)} can not be null here, did you forget a @ref?");
+            IsBusy = true;
 
-            var chosen = DateSelectionChosen!.DateChosen!.Value.DateFloorQuarter();
-            DateTime start;
-            DateTime end;
+            StateHasChanged();
 
-            ExpandAllGroups = true;
-
-            switch (DateSelectionChosen!.PeriodChosen)
+            try
             {
-                case PeriodsEnums.Day:
-                    start = chosen.Date;
-                    end = chosen.AddDays(1);
-                    break;
+                if (financialResultsGrid == null) throw new InvalidOperationException($"{nameof(financialResultsGrid)} can not be null here, did you forget a @ref?");
 
-                case PeriodsEnums.Week:
-                    start = chosen.StartOfWeek();
-                    end = chosen.EndOfWeek().AddDays(1);
-                    break;
+                var chosen = DateSelectionChosen!.DateChosen!.Value.DateFloorQuarter();
+                DateTime start;
+                DateTime end;
 
-                case PeriodsEnums.Month:
-                    start = chosen.StartOfMonth();
-                    end = chosen.EndOfMonth().AddDays(1).AddSeconds(-1);
-                    break;
+                ExpandAllGroups = true;
 
-                case PeriodsEnums.Year:
-                    start = new DateTime(chosen.Year, 1, 1);
-                    end = new DateTime(chosen.Year, 12, 31);
-                    ExpandAllGroups = false;
-                    break;
+                switch (DateSelectionChosen!.PeriodChosen)
+                {
+                    case PeriodsEnums.Day:
+                        start = chosen.Date;
+                        end = chosen.AddDays(1);
+                        break;
 
-                case PeriodsEnums.All:
-                    start = DateTime.MinValue;
-                    end = DateTime.MaxValue;
-                    ExpandAllGroups = false;
-                    break;
+                    case PeriodsEnums.Week:
+                        start = chosen.StartOfWeek();
+                        end = chosen.EndOfWeek().AddDays(1);
+                        break;
 
-                default:
-                    throw new InvalidOperationException($"Invalid period {DateSelectionChosen!.PeriodChosen}");
+                    case PeriodsEnums.Month:
+                        start = chosen.StartOfMonth();
+                        end = chosen.EndOfMonth().AddDays(1).AddSeconds(-1);
+                        break;
+
+                    case PeriodsEnums.Year:
+                        start = new DateTime(chosen.Year, 1, 1);
+                        end = new DateTime(chosen.Year, 12, 31);
+                        ExpandAllGroups = false;
+                        break;
+
+                    case PeriodsEnums.All:
+                        start = DateTime.MinValue;
+                        end = DateTime.MaxValue;
+                        ExpandAllGroups = false;
+                        break;
+
+                    default:
+                        throw new InvalidOperationException($"Invalid period {DateSelectionChosen!.PeriodChosen}");
+                }
+
+                var filter = financialResultsGrid.ColumnsCollection;
+
+                var query = await _financialResultsService!.GetFinancialMonthResults(start, end);
+
+                if (!string.IsNullOrEmpty(args.Filter))
+                {
+                    query = query.Where(financialResultsGrid.ColumnsCollection);
+                }
+
+                if (!string.IsNullOrEmpty(args.OrderBy))
+                {
+                    query = query.OrderBy(args.OrderBy);
+                }
+
+                TotalCost = query.Sum(fr => fr.TotalCost);
+                Count = query.Count();
+
+                if (args.Skip > Count)
+                {
+                    args.Skip = 0;
+                    financialResultsGrid.CurrentPage = 0;
+                }
+
+                FinancialMonthResultsList = query.Skip(args.Skip!.Value).Take(args.Top!.Value).ToList();
             }
-
-            var filter = financialResultsGrid.ColumnsCollection;
-
-            var query = await _financialResultsService!.GetFinancialMonthResults(start, end);
-
-            if (!string.IsNullOrEmpty(args.Filter))
+            finally
             {
-                query = query.Where(financialResultsGrid.ColumnsCollection);
+                IsBusy = false;
             }
-
-            if (!string.IsNullOrEmpty(args.OrderBy))
-            {
-                query = query.OrderBy(args.OrderBy);
-            }
-
-            TotalCost = query.Sum(fr => fr.TotalCost);
-            Count = query.Count();
-
-            if(args.Skip > Count)
-            {
-                args.Skip = 0;
-                financialResultsGrid.CurrentPage = 0;
-            }
-
-            FinancialMonthResultsList = query.Skip(args.Skip!.Value).Take(args.Top!.Value).ToList();
 
             StateHasChanged();
         }

@@ -26,6 +26,17 @@ namespace SessyWeb.Shared
 
         public string? MenuStyle { get; set; }
 
+        public bool IsBusy { get; set; }
+
+        public  void SetIsBusy(bool isBusy)
+        {
+            if(IsBusy != isBusy)
+            {
+                IsBusy = isBusy;
+                StateHasChanged();
+            }
+        }
+
         protected override void OnInitialized()
         {
             MenuStyle = MenuStyleIcon;

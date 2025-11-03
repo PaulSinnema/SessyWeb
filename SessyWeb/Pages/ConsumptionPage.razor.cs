@@ -172,141 +172,150 @@ namespace SessyWeb.Pages
 
         private async Task SelectionChanged()
         {
-            switch (DateSelectionChosen!.PeriodChosen)
+            IsBusy = true;
+
+            try
             {
-                case PeriodsEnums.Day:
-                    {
-                        var list = await _consumptionDataService!.GetList(async (set) =>
+                switch (DateSelectionChosen!.PeriodChosen)
+                {
+                    case PeriodsEnums.Day:
                         {
-                            var result = set
-                                .Where(sed => sed.Time.Date == DateSelectionChosen!.DateChosen)
-                                .ToList();
-
-                            return await Task.FromResult(result);
-                        });
-
-                        ConsumptionDayData = list.Select(cd => new ConsumptionDisplayDayData
-                        {
-                            Time = cd.Time,
-                            ConsumptionKWh = cd.ConsumptionWh,
-                            Humidity = cd.Humidity,
-                            GlobalRadiation = cd.GlobalRadiation,
-                            Temperature = cd.Temperature
-                        }).ToList();
-
-                        await ReloadCharts();
-
-                        break;
-                    }
-
-
-                case PeriodsEnums.Week:
-                    {
-                        var result = await _consumptionDataService!.GetList(async (set) =>
-                        {
-                            var start = DateSelectionChosen!.DateChosen!.Value.StartOfWeek();
-                            var end = DateSelectionChosen!.DateChosen!.Value.EndOfWeek().AddDays(1).AddSeconds(-1);
-
-                            var result = set
-                                .Where(sed => start <= sed.Time &&
-                                              end >= sed.Time)
-                                .ToList();
-
-                            return await Task.FromResult(result);
-                        });
-
-                        ConsumptionWeekData = result.GroupBy(cd => cd.Time.Date)
-                            .Select(gr => new ConsumptionDisplayWeekData
+                            var list = await _consumptionDataService!.GetList(async (set) =>
                             {
-                                Day = gr.Key.Day,
-                                DayOfWeek = $"{gr.Key.DayOfWeek.ToString().Substring(0, 2)} {gr.Key.Day}",
-                                Position = (int)gr.Key.DayOfWeek,
-                                ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4
-                            })
-                            .OrderBy(item => item.Position)
-                            .ToList();
+                                var result = set
+                                    .Where(sed => sed.Time.Date == DateSelectionChosen!.DateChosen)
+                                    .ToList();
 
-                        await ReloadCharts();
+                                return await Task.FromResult(result);
+                            });
 
-                        break;
-                    }
+                            ConsumptionDayData = list.Select(cd => new ConsumptionDisplayDayData
+                            {
+                                Time = cd.Time,
+                                ConsumptionKWh = cd.ConsumptionWh,
+                                Humidity = cd.Humidity,
+                                GlobalRadiation = cd.GlobalRadiation,
+                                Temperature = cd.Temperature
+                            }).ToList();
 
-                case PeriodsEnums.Month:
-                    {
-                        var result = await _consumptionDataService!.GetList(async (set) =>
+                            await ReloadCharts();
+
+                            break;
+                        }
+
+
+                    case PeriodsEnums.Week:
                         {
-                            var result = set
-                                .Where(sed => DateSelectionChosen.DateChosen!.Value.StartOfMonth() <= sed.Time &&
-                                              DateSelectionChosen.DateChosen!.Value.EndOfMonth().AddDays(1).AddSeconds(-1) >= sed.Time)
+                            var result = await _consumptionDataService!.GetList(async (set) =>
+                            {
+                                var start = DateSelectionChosen!.DateChosen!.Value.StartOfWeek();
+                                var end = DateSelectionChosen!.DateChosen!.Value.EndOfWeek().AddDays(1).AddSeconds(-1);
+
+                                var result = set
+                                    .Where(sed => start <= sed.Time &&
+                                                  end >= sed.Time)
+                                    .ToList();
+
+                                return await Task.FromResult(result);
+                            });
+
+                            ConsumptionWeekData = result.GroupBy(cd => cd.Time.Date)
+                                .Select(gr => new ConsumptionDisplayWeekData
+                                {
+                                    Day = gr.Key.Day,
+                                    DayOfWeek = $"{gr.Key.DayOfWeek.ToString().Substring(0, 2)} {gr.Key.Day}",
+                                    Position = (int)gr.Key.DayOfWeek,
+                                    ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4
+                                })
+                                .OrderBy(item => item.Position)
                                 .ToList();
 
-                            return await Task.FromResult(result);
-                        });
+                            await ReloadCharts();
 
-                        ConsumptionMonthData = result.GroupBy(cd => cd.Time.Date)
-                            .Select(gr => new ConsumptionDisplayMonthData
-                            {
-                                Day = gr.Key.Day,
-                                DayOfWeek = $"{gr.Key.DayOfWeek.ToString().Substring(0, 2)} {gr.Key.Day}",
-                                ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4
-                            })
-                            .OrderBy(item => item.Day)
-                            .ToList();
+                            break;
+                        }
 
-                        await ReloadCharts();
-
-                        break;
-                    }
-
-                case PeriodsEnums.Year:
-                    {
-                        var result = await _consumptionDataService!.GetList(async (set) =>
+                    case PeriodsEnums.Month:
                         {
-                            var result = set
-                                .Where(sed => DateSelectionChosen!.DateChosen!.Value.Year == sed.Time.Year)
+                            var result = await _consumptionDataService!.GetList(async (set) =>
+                            {
+                                var result = set
+                                    .Where(sed => DateSelectionChosen.DateChosen!.Value.StartOfMonth() <= sed.Time &&
+                                                  DateSelectionChosen.DateChosen!.Value.EndOfMonth().AddDays(1).AddSeconds(-1) >= sed.Time)
+                                    .ToList();
+
+                                return await Task.FromResult(result);
+                            });
+
+                            ConsumptionMonthData = result.GroupBy(cd => cd.Time.Date)
+                                .Select(gr => new ConsumptionDisplayMonthData
+                                {
+                                    Day = gr.Key.Day,
+                                    DayOfWeek = $"{gr.Key.DayOfWeek.ToString().Substring(0, 2)} {gr.Key.Day}",
+                                    ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4
+                                })
+                                .OrderBy(item => item.Day)
                                 .ToList();
 
-                            return await Task.FromResult(result);
-                        });
+                            await ReloadCharts();
 
-                        ConsumptionYearData = result.GroupBy(cd => cd.Time.Month)
-                            .Select(gr => new ConsumptionDisplayYearData
-                            {
-                                Month = gr.Key,
-                                MonthOfYear = Formatters.FormatAsMonth(gr.Key),
-                                ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4
-                            })
-                            .ToList();
+                            break;
+                        }
 
-                        await ReloadCharts();
-
-                        break;
-                    }
-
-                case PeriodsEnums.All:
-                    {
-                        var result = await _consumptionDataService!.GetList(async (set) =>
+                    case PeriodsEnums.Year:
                         {
-                            var result = set
+                            var result = await _consumptionDataService!.GetList(async (set) =>
+                            {
+                                var result = set
+                                    .Where(sed => DateSelectionChosen!.DateChosen!.Value.Year == sed.Time.Year)
+                                    .ToList();
+
+                                return await Task.FromResult(result);
+                            });
+
+                            ConsumptionYearData = result.GroupBy(cd => cd.Time.Month)
+                                .Select(gr => new ConsumptionDisplayYearData
+                                {
+                                    Month = gr.Key,
+                                    MonthOfYear = Formatters.FormatAsMonth(gr.Key),
+                                    ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4
+                                })
                                 .ToList();
 
-                            return await Task.FromResult(result);
-                        });
-                        ConsumptionAllData = result.GroupBy(cd => cd.Time.Year)
-                            .Select(gr => new ConsumptionDisplayAllData
+                            await ReloadCharts();
+
+                            break;
+                        }
+
+                    case PeriodsEnums.All:
+                        {
+                            var result = await _consumptionDataService!.GetList(async (set) =>
                             {
-                                Year = gr.Key.ToString(),
-                                ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4
-                            })
-                            .ToList();
+                                var result = set
+                                    .ToList();
 
-                        await ReloadCharts();
+                                return await Task.FromResult(result);
+                            });
+                            ConsumptionAllData = result.GroupBy(cd => cd.Time.Year)
+                                .Select(gr => new ConsumptionDisplayAllData
+                                {
+                                    Year = gr.Key.ToString(),
+                                    ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4
+                                })
+                                .ToList();
 
-                        break;
-                    }
+                            await ReloadCharts();
 
-                default:
-                    throw new InvalidOperationException($"Invalid period: {DateSelectionChosen!.PeriodChosen}");
+                            break;
+                        }
+
+                    default:
+                        throw new InvalidOperationException($"Invalid period: {DateSelectionChosen!.PeriodChosen}");
+                }
+            }
+            finally
+            {
+                IsBusy = false;
             }
         }
 

@@ -48,35 +48,44 @@ namespace SessyWeb.Pages
 
         void LoadData(LoadDataArgs args)
         {
-            EnsureDataGridRef();
+            IsBusy = true;
 
-            var now = _timeZoneService!.Now;
-            var filter = historyGrid!.ColumnsCollection;
-
-            StatusHistoryList = _sessyStatusHistoryService!.GetSessyStatusHistory((ModelContext modelContext) =>
+            try
             {
-                var query = GetGroupedList(modelContext);
+                EnsureDataGridRef();
 
-                if (!string.IsNullOrEmpty(args.Filter))
+                var now = _timeZoneService!.Now;
+                var filter = historyGrid!.ColumnsCollection;
+
+                StatusHistoryList = _sessyStatusHistoryService!.GetSessyStatusHistory((ModelContext modelContext) =>
                 {
-                    query = query.Where(historyGrid.ColumnsCollection);
-                }
+                    var query = GetGroupedList(modelContext);
 
-                if (!string.IsNullOrEmpty(args.OrderBy))
-                {
-                    query = query.OrderBy(args.OrderBy);
-                }
+                    if (!string.IsNullOrEmpty(args.Filter))
+                    {
+                        query = query.Where(historyGrid.ColumnsCollection);
+                    }
 
-                count = query.Count();
+                    if (!string.IsNullOrEmpty(args.OrderBy))
+                    {
+                        query = query.OrderBy(args.OrderBy);
+                    }
 
-                if(args.Skip > count)
-                {
-                    args.Skip = 0;
-                    historyGrid.CurrentPage = 0;
-                }
+                    count = query.Count();
 
-                return query.Skip(args.Skip!.Value).Take(args.Top!.Value).ToList();
-            });
+                    if (args.Skip > count)
+                    {
+                        args.Skip = 0;
+                        historyGrid.CurrentPage = 0;
+                    }
+
+                    return query.Skip(args.Skip!.Value).Take(args.Top!.Value).ToList();
+                });
+            }
+            finally
+            {
+                IsBusy = false;
+            }
         }
 
         private void EnsureDataGridRef()

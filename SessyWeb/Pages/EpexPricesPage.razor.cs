@@ -32,43 +32,52 @@ namespace SessyWeb.Pages
 
         async Task LoadData(LoadDataArgs args)
         {
-            EnsureEnergyGrid();
+            IsBusy = true;
 
-            if (DateSelectionChosen != null)
+            try
             {
-                var now = _timeZoneService!.Now;
+                EnsureEnergyGrid();
 
-                var filter = epexPricesGrid!.ColumnsCollection;
-
-                EPEXPricesList = await _epexPricesDataService!.GetList(async (set) =>
+                if (DateSelectionChosen != null)
                 {
-                    var result = set
-                        .Where(eh => eh.Time >= DateSelectionChosen!.Start && eh.Time < DateSelectionChosen.End)
-                        .OrderBy(eh => eh.Time)
-                        .AsQueryable();
+                    var now = _timeZoneService!.Now;
 
-                    var query = await Task.FromResult(result);
+                    var filter = epexPricesGrid!.ColumnsCollection;
 
-                    if (!string.IsNullOrEmpty(args.Filter))
+                    EPEXPricesList = await _epexPricesDataService!.GetList(async (set) =>
                     {
-                        query = query.Where(epexPricesGrid.ColumnsCollection);
-                    }
+                        var result = set
+                            .Where(eh => eh.Time >= DateSelectionChosen!.Start && eh.Time < DateSelectionChosen.End)
+                            .OrderBy(eh => eh.Time)
+                            .AsQueryable();
 
-                    if (!string.IsNullOrEmpty(args.OrderBy))
-                    {
-                        query = query.OrderBy(args.OrderBy);
-                    }
+                        var query = await Task.FromResult(result);
 
-                    Count = query.Count();
+                        if (!string.IsNullOrEmpty(args.Filter))
+                        {
+                            query = query.Where(epexPricesGrid.ColumnsCollection);
+                        }
 
-                    if (args.Skip > Count)
-                    {
-                        args.Skip = 0;
-                        epexPricesGrid.CurrentPage = 0;
-                    }
+                        if (!string.IsNullOrEmpty(args.OrderBy))
+                        {
+                            query = query.OrderBy(args.OrderBy);
+                        }
 
-                    return query.Skip(args.Skip!.Value).Take(args.Top!.Value).ToList();
-                });
+                        Count = query.Count();
+
+                        if (args.Skip > Count)
+                        {
+                            args.Skip = 0;
+                            epexPricesGrid.CurrentPage = 0;
+                        }
+
+                        return query.Skip(args.Skip!.Value).Take(args.Top!.Value).ToList();
+                    });
+                }
+            }
+            finally
+            {
+                IsBusy = false;
             }
         }
 
