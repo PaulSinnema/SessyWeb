@@ -43,7 +43,7 @@ namespace SessyWeb.Pages
 
         protected override void OnParametersSet()
         {
-            DateSelectionChosen = new DateArgs(PeriodsEnums.Day, _timeZoneService!.Now);
+            // DateSelectionChosen = new DateArgs(PeriodsEnums.Day, _timeZoneService!.Now);
 
             base.OnParametersSet();
         }
@@ -52,6 +52,8 @@ namespace SessyWeb.Pages
         {
             if (firstRender)
             {
+                DateSelectionChosen = new DateArgs(PeriodsEnums.Day, _timeZoneService!.Now);
+
                 _consumptionMonitorService!.DataChanged += SelectionChanged;
             }
 
@@ -174,6 +176,8 @@ namespace SessyWeb.Pages
         {
             IsBusy = true;
 
+            var dateChoosen = DateSelectionChosen?.DateChosen?.Date ?? _timeZoneService!.Now.Date;
+
             try
             {
                 switch (DateSelectionChosen!.PeriodChosen)
@@ -183,7 +187,7 @@ namespace SessyWeb.Pages
                             var list = await _consumptionDataService!.GetList(async (set) =>
                             {
                                 var result = set
-                                    .Where(sed => sed.Time.Date == DateSelectionChosen!.DateChosen)
+                                    .Where(sed => sed.Time.Date == dateChoosen)
                                     .ToList();
 
                                 return await Task.FromResult(result);
@@ -208,8 +212,8 @@ namespace SessyWeb.Pages
                         {
                             var result = await _consumptionDataService!.GetList(async (set) =>
                             {
-                                var start = DateSelectionChosen!.DateChosen!.Value.StartOfWeek();
-                                var end = DateSelectionChosen!.DateChosen!.Value.EndOfWeek().AddDays(1).AddSeconds(-1);
+                                var start = dateChoosen.StartOfWeek();
+                                var end = dateChoosen.EndOfWeek().AddDays(1).AddSeconds(-1);
 
                                 var result = set
                                     .Where(sed => start <= sed.Time &&
@@ -239,9 +243,11 @@ namespace SessyWeb.Pages
                         {
                             var result = await _consumptionDataService!.GetList(async (set) =>
                             {
+                                var start = dateChoosen.EndOfMonth().AddDays(1).AddSeconds(-1);
+
                                 var result = set
-                                    .Where(sed => DateSelectionChosen.DateChosen!.Value.StartOfMonth() <= sed.Time &&
-                                                  DateSelectionChosen.DateChosen!.Value.EndOfMonth().AddDays(1).AddSeconds(-1) >= sed.Time)
+                                    .Where(sed => dateChoosen.StartOfMonth() <= sed.Time &&
+                                                  dateChoosen.EndOfMonth().AddDays(1).AddSeconds(-1) >= sed.Time)
                                     .ToList();
 
                                 return await Task.FromResult(result);
@@ -267,7 +273,7 @@ namespace SessyWeb.Pages
                             var result = await _consumptionDataService!.GetList(async (set) =>
                             {
                                 var result = set
-                                    .Where(sed => DateSelectionChosen!.DateChosen!.Value.Year == sed.Time.Year)
+                                    .Where(sed => dateChoosen.Year == sed.Time.Year)
                                     .ToList();
 
                                 return await Task.FromResult(result);
