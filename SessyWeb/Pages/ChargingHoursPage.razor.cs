@@ -191,19 +191,28 @@ namespace SessyWeb.Pages
 
                 if (sessions != null)
                 {
-                    var now = _timeZoneService!.Now.Date;
+                    IsBusy = true;
 
-                    await GetQuarterlyInfos();
+                    try
+                    {
+                        var now = _timeZoneService!.Now.Date;
 
-                    TotalSolarPowerExpectedToday = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(now);
-                    TotalSolarPowerExpectedTomorrow = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(now.AddDays(1));
+                        await GetQuarterlyInfos();
 
-                    TotalRevenueYesterday = await sessions.TotalCost(now.AddDays(-1));
-                    TotalRevenueToday = await sessions.TotalCost(now);
+                        TotalSolarPowerExpectedToday = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(now);
+                        TotalSolarPowerExpectedTomorrow = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(now.AddDays(1));
 
-                    BatteryPercentage = await _batteriesService.getBatteryPercentage();
+                        TotalRevenueYesterday = await sessions.TotalCost(now.AddDays(-1));
+                        TotalRevenueToday = await sessions.TotalCost(now);
 
-                    BatteryMode = _batteriesService.GetBatteryMode();
+                        BatteryPercentage = await _batteriesService.getBatteryPercentage();
+
+                        BatteryMode = _batteriesService.GetBatteryMode();
+                    }
+                    finally
+                    {
+                        IsBusy = false;
+                    }
 
                     await InvokeAsync(StateHasChanged);
                 }
@@ -223,7 +232,7 @@ namespace SessyWeb.Pages
         /// </summary>
         private async Task GetQuarterlyInfos()
         {
-            IsBusy = true;
+            // IsBusy = true;
 
             try
             {
@@ -293,7 +302,7 @@ namespace SessyWeb.Pages
             }
             finally
             {
-                IsBusy = false;
+                // IsBusy = false;
             }
         }
 

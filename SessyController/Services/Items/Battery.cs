@@ -98,11 +98,11 @@ namespace SessyController.Services.Items
                     tries++;
                     _logger.LogInformation($"Could not get active power strategy for battery {Id}. Retry {tries}");
 
-                    await Task.Delay(5000); // wait a while.
+                    await Task.Delay(10000); // wait a while.
                 }
 
             }
-            while (tries < 10);
+            while (tries <= 10);
 
             throw new InvalidOperationException($"Could not get active power strategy after 10 retries for battery {Id}", exception);
         }

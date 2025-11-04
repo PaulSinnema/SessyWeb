@@ -127,14 +127,14 @@ namespace SessyController.Services
 
             while (!_weatherService.Initialized && tries++ < 10)
             {
-                await Task.Delay(TimeSpan.FromSeconds(1), cancelationToken);
+                await Task.Delay(TimeSpan.FromSeconds(5), cancelationToken);
             }
 
             tries = 0;
 
             while (!_dayAheadMarketService.PricesInitialized && tries++ < 10)
             {
-                await Task.Delay(TimeSpan.FromSeconds(1), cancelationToken);
+                await Task.Delay(TimeSpan.FromSeconds(5), cancelationToken);
             }
 
             if (!(_dayAheadMarketService.PricesInitialized && _weatherService.Initialized))
