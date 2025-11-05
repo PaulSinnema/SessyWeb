@@ -14,5 +14,10 @@ namespace SessyData.Model
         public string? Name { get; set; }
         public String? Status { get; set; }
         public string? StatusDetails { get; set; }
+
+        public override string ToString()
+        {
+            return $"Id: {Id}, Time: {Time}, Name: {Name}, Status: {Status}, Details: {StatusDetails}";
+        }
     }
 }

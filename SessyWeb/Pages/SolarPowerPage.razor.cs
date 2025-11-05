@@ -94,6 +94,11 @@ namespace SessyWeb.Pages
             base.ScreenInfoChanged(screenInfo);
         }
 
+        public async Task ProviderChanged()
+        {
+            await SelectionChanged();
+        }
+
         private async Task SelectionChanged()
         {
             IsBusy = true;

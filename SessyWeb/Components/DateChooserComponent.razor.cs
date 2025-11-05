@@ -26,6 +26,12 @@ namespace SessyWeb.Components
 
         public Boolean ShowDays { get; set; } = true;
 
+        public bool YearDisplay { get; set; } = false;
+
+        public List<string> Years { get; set; } = new();
+
+        public string SelectedYear { get; set; } = string.Empty;
+
         public enum PeriodsEnums
         {
             Day,
@@ -47,13 +53,32 @@ namespace SessyWeb.Components
                 DateChosen = TimeZoneService!.Now.Date;
                 PeriodChosen = PeriodsEnums.Day;
 
+                var currentYear = DateTime.Now.Year;
+
+                for (int index = 0; index < 50; index++)
+                {
+                    Years.Insert(index, (currentYear - index).ToString());
+                }
+
+                SelectedYear = currentYear.ToString();
+
                 await DateSelectionChanged();
             }
+        }
+
+        public async Task YearChanged()
+        {
+            var yearChoosen = Convert.ToInt16(SelectedYear);
+
+            DateChosen = new DateTime(yearChoosen, 1, 1);
+
+            await DateSelectionChanged();
         }
 
         private void SetDatePickerParameters(PeriodsEnums period)
         {
             DatePickerVisible = true;
+            YearDisplay = false;
 
             switch (period)
             {
@@ -73,6 +98,7 @@ namespace SessyWeb.Components
                     break;
 
                 case PeriodsEnums.Year:
+                    YearDisplay = true;
                     DateFormat = "yyyy";
                     ShowDays = false;
                     break;

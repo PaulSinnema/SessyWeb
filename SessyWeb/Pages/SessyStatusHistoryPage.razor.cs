@@ -3,6 +3,7 @@ using Radzen;
 using Radzen.Blazor;
 using Radzen.Blazor.Rendering;
 using SessyCommon.Services;
+using SessyController.Services.Items;
 using SessyData.Model;
 using SessyData.Services;
 using System.Linq.Dynamic.Core;
@@ -18,11 +19,18 @@ namespace SessyWeb.Pages
         [Inject]
         private TimeZoneService? _timeZoneService { get; set; }
 
+        [Inject]
+        private BatteryContainer? _batteryContainer { get; set; }
+
         public DateArgs? DateSelectionChosen { get; set; }
-        
+
         private List<GroupedSessyStatus>? StatusHistoryList { get; set; } = new List<GroupedSessyStatus>();
 
         RadzenDataGrid<GroupedSessyStatus>? historyGrid { get; set; }
+
+        public List<string?> BatteryNames { get; set; } = new List<string?>();
+
+        public string selectedBattery { get; set; } = string.Empty;
 
         int count { get; set; }
 
@@ -30,6 +38,11 @@ namespace SessyWeb.Pages
         {
             DateSelectionChosen = dateArgs;
 
+            await SelectionChanged();
+        }
+
+        public async Task BatteryChanged()
+        {
             await SelectionChanged();
         }
 
@@ -43,7 +56,18 @@ namespace SessyWeb.Pages
             EnsureDataGridRef();
 
             if (firstRender)
+            {
+                BatteryNames = _batteryContainer!.Batteries!
+                    .Select(b => b.GetName())
+                    .OrderBy(bn => bn)
+                    .ToList();
+
+                BatteryNames.Insert(0, "All");
+
+                selectedBattery = "All";
+
                 await historyGrid!.FirstPage();
+            }
         }
 
         void LoadData(LoadDataArgs args)
@@ -130,55 +154,54 @@ namespace SessyWeb.Pages
                     throw new InvalidOperationException($"Wrong period {DateSelectionChosen!.PeriodChosen}");
             }
 
+            var battery = _batteryContainer!.Batteries!.SingleOrDefault(b => b.GetName() == selectedBattery);
+
             return modelContext.SessyStatusHistory
-                .Where(sh => sh.Time >= start && sh.Time <= end)    
+                .Where(sh => sh.Time >= start && sh.Time <= end && (battery == null || sh.Name == battery.Id))
                 .OrderByDescending(x => x.Time)
                 .ThenBy(x => x.Name)
                 .AsEnumerable() // Stap over naar LINQ-to-Objects
-                .GroupBy(x => new { x.Name, x.Status, x.StatusDetails }) // Groeperen op Name, Status, StatusDetails
+                .GroupBy(x => new { x.Name }) // Groeperen op Name, Status, StatusDetails
                 .SelectMany(group =>
                 {
-                    var sortedGroup = group.OrderBy(x => x.Time).ToList();
+                    var sortedGroup = group.OrderByDescending(x => x.Time).ToList();
                     var groupedList = new List<GroupedSessyStatus>();
 
-                    DateTime? startTime = null;
-                    DateTime? endTime = null;
+                    SessyStatusHistory? startEntry = null;
+                    SessyStatusHistory? endEntry = null;
 
                     foreach (var entry in sortedGroup)
                     {
-                        if (startTime == null || (entry.Time - endTime)?.TotalMinutes >= 2)
+                        endEntry = entry;
+
+                        // Nieuwe groep starten
+                        if (startEntry != null) // Voeg vorige groep toe voordat we resetten
                         {
-                            // Nieuwe groep starten
-                            if (startTime != null) // Voeg vorige groep toe voordat we resetten
+                            groupedList.Add(new GroupedSessyStatus
                             {
-                                groupedList.Add(new GroupedSessyStatus
-                                {
-                                    Name = group.Key.Name,
-                                    Status = group.Key.Status,
-                                    StatusDetails = group.Key.StatusDetails,
-                                    StartTime = startTime.Value,
-                                    EndTime = endTime!.Value,
-                                    Duration = endTime.Value - startTime.Value
-                                });
-                            }
-                            startTime = entry.Time;
+                                Name = startEntry.Name,
+                                Status = startEntry.Status,
+                                StatusDetails = startEntry.StatusDetails,
+                                StartTime = endEntry.Time,
+                                EndTime = startEntry.Time,
+                                Duration = endEntry.Time - startEntry.Time
+                            });
                         }
 
-                        // Bijwerken van eindtijd
-                        endTime = entry.Time;
+                        startEntry = entry;
                     }
 
                     // Laatste groep toevoegen
-                    if (startTime != null)
+                    if (startEntry != null)
                     {
                         groupedList.Add(new GroupedSessyStatus
                         {
-                            Name = group.Key.Name,
-                            Status = group.Key.Status,
-                            StatusDetails = group.Key.StatusDetails,
-                            StartTime = startTime.Value,
-                            EndTime = endTime!.Value,
-                            Duration = endTime.Value - startTime.Value
+                            Name = startEntry.Name,
+                            Status = startEntry.Status,
+                            StatusDetails = startEntry.StatusDetails,
+                            StartTime = startEntry.Time,
+                            EndTime = endEntry!.Time,
+                            Duration = endEntry.Time - startEntry.Time
                         });
                     }
 

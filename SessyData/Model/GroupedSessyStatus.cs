@@ -9,5 +9,10 @@
         public DateTime EndTime { get; set; }
         public TimeSpan Duration { get; set; }
         public string DurationVisual => Duration.ToString(@"hh\:mm\:ss");
+
+        public override string ToString()
+        {
+            return $"StartTime: {StartTime}, EndTime: {EndTime}, Duration: {Duration}, Name: {Name}, Status: {Status}, Details: {StatusDetails}";
+        }
     }
 }

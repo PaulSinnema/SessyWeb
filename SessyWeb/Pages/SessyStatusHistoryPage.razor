@@ -10,6 +10,16 @@
             <RadzenLabel Text="History" class="h4 m-2" />
 
             <DateChooserComponent SelectionChanged="@((DateArgs d) => DateSelectionChanged(d))" />
+
+                <RadzenLabel>Battery:</RadzenLabel>
+
+            <RadzenDropDown TValue="string"
+                            @bind-Value="selectedBattery"
+                            Data="@BatteryNames"
+                            Placeholder="Select battery"
+                            Change=@BatteryChanged
+                            Style="width: 200px;" />
+
         </RadzenStack>
     </RadzenHeader>
 
