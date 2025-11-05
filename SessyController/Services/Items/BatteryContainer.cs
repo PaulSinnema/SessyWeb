@@ -212,5 +212,10 @@ namespace SessyController.Services.Items
 
             return totalPower;
         }
+
+        public string GetName(string id)
+        {
+            return Batteries == null ? id : Batteries.Where(b => b.Id == id).FirstOrDefault()?.GetName() ?? id;
+        }
     }
 }

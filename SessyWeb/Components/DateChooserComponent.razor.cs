@@ -7,7 +7,7 @@ namespace SessyWeb.Components
     public partial class DateChooserComponent : BaseComponent
     {
         [Inject]
-        public TimeZoneService? TimeZoneService { get; set; }
+        public TimeZoneService? _TimeZoneService { get; set; }
 
         [Parameter]
         public EventCallback<DateArgs> SelectionChanged { get; set; }
@@ -50,7 +50,7 @@ namespace SessyWeb.Components
         {
             if (firstRender)
             {
-                DateChosen = TimeZoneService!.Now.Date;
+                DateChosen = _TimeZoneService!.Now.Date;
                 PeriodChosen = PeriodsEnums.Day;
 
                 var currentYear = DateTime.Now.Year;
@@ -64,6 +64,16 @@ namespace SessyWeb.Components
 
                 await DateSelectionChanged();
             }
+        }
+
+        public async Task TodayClicked()
+        {
+            var now = _TimeZoneService!.Now;
+
+            DateChosen = now.Date;
+            SelectedYear = DateChosen.Value.Year.ToString();
+
+            await DateSelectionChanged();
         }
 
         public async Task YearChanged()
@@ -114,7 +124,7 @@ namespace SessyWeb.Components
 
         public async Task DateChanged(DateTime? dateIn)
         {
-            var date = dateIn.HasValue ? dateIn.Value : TimeZoneService!.Now;
+            var date = dateIn.HasValue ? dateIn.Value : _TimeZoneService!.Now;
 
             switch (PeriodChosen)
             {

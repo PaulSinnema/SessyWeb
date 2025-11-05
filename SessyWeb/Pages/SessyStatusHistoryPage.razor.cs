@@ -179,7 +179,7 @@ namespace SessyWeb.Pages
                         {
                             groupedList.Add(new GroupedSessyStatus
                             {
-                                Name = startEntry.Name,
+                                Name = _batteryContainer.GetName(startEntry.Name!),
                                 Status = startEntry.Status,
                                 StatusDetails = startEntry.StatusDetails,
                                 StartTime = endEntry.Time,
@@ -196,7 +196,7 @@ namespace SessyWeb.Pages
                     {
                         groupedList.Add(new GroupedSessyStatus
                         {
-                            Name = startEntry.Name,
+                            Name = _batteryContainer.GetName(startEntry.Name!),
                             Status = startEntry.Status,
                             StatusDetails = startEntry.StatusDetails,
                             StartTime = startEntry.Time,
