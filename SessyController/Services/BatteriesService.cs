@@ -1392,5 +1392,12 @@ namespace SessyController.Services
                     return "?";
             }
         }
+
+        public Session? GetNextSession()
+        {
+            var now = _timeZoneService.Now;
+
+            return _sessions?.GetNextSession(now);
+        }
     }
 }

@@ -783,5 +783,10 @@ namespace SessyController.Services.Items
 
             return charge;
         }
+
+        internal Session? GetNextSession(DateTime now)
+        {
+            return SessionList.FirstOrDefault(se => se.LastDateTime >= now);
+        }
     }
 }
