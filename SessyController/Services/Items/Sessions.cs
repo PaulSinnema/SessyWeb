@@ -786,7 +786,9 @@ namespace SessyController.Services.Items
 
         internal Session? GetNextSession(DateTime now)
         {
-            return SessionList.FirstOrDefault(se => se.LastDateTime >= now);
+            return SessionList
+                .OrderBy(se => se.FirstDateTime)
+                .FirstOrDefault(se => se.LastDateTime >= now);
         }
     }
 }

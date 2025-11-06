@@ -396,7 +396,7 @@ namespace SessyController.Services.Items
                     throw new InvalidOperationException($"Wrong mode for session {this}");
             }
 
-            return quarters;
+            return quarters + 2; // TODO: There is some calculation error that prevents (dis)chargin to maximum. 
         }
 
         /// <summary>

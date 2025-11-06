@@ -4,7 +4,7 @@
     {
         public int Width { get; set; }
         public int Height { get; set; }
-        public bool IsMobile => Width <= 1000;
+        public bool IsMobile => Width <= 900;
         public bool IsLandscape => Width > Height;
 
         public override string ToString()
