@@ -34,7 +34,7 @@ namespace SessyController.Services.Items
 
         private List<QuarterlyInfo> _quarterlyInfos { get; set; }
 
-        public Sessions(List<QuarterlyInfo> hourlyInfos,
+        public Sessions(List<QuarterlyInfo> quarterlyInfos,
                         SettingsConfig settingsConfig,
                         BatteryContainer batteryContainer,
                         TimeZoneService? timeZoneService,
@@ -54,7 +54,7 @@ namespace SessyController.Services.Items
 
 
             _sessionList = new List<Session>();
-            _quarterlyInfos = hourlyInfos;
+            _quarterlyInfos = quarterlyInfos;
             _totalChargingCapacityPerQuarter = batteryContainer.GetChargingCapacityInWattsPerHour() / 4.0; // Per quarter hour.
             _totalDischargingCapacityPerQuarter = batteryContainer.GetDischargingCapacityInWattsPerHour() / 4.0; // Per quarter hour.
             _totalBatteryCapacity = batteryContainer.GetTotalCapacity();
@@ -784,11 +784,14 @@ namespace SessyController.Services.Items
             return charge;
         }
 
-        internal Session? GetNextSession(DateTime now)
+        internal QuarterlyInfo? GetNextQuarterlyInfoInSession(DateTime now)
         {
-            return SessionList
-                .OrderBy(se => se.FirstDateTime)
-                .FirstOrDefault(se => se.LastDateTime >= now);
+            var quarterlyInfo = _quarterlyInfos
+                .Where(qi => qi.Time > now && (qi.Charging || qi.Discharging))
+                .OrderBy(qi => qi.Time)
+                .FirstOrDefault();
+
+            return quarterlyInfo;
         }
     }
 }

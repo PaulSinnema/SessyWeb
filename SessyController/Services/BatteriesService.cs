@@ -1393,11 +1393,11 @@ namespace SessyController.Services
             }
         }
 
-        public Session? GetNextSession()
+        public QuarterlyInfo? GetNextQuarterlyInfoInSession()
         {
             var now = _timeZoneService.Now;
 
-            return _sessions?.GetNextSession(now);
+            return _sessions?.GetNextQuarterlyInfoInSession(now);
         }
     }
 }

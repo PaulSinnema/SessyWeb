@@ -55,7 +55,7 @@ namespace SessyController.Services.InverterServices
 
             _IsRunning = true;
 
-            CleanUpWrongData();
+            await CleanUpWrongData();
 
             // Loop to fetch prices every second
             while (!cancelationToken.IsCancellationRequested && _IsRunning)
@@ -95,9 +95,9 @@ namespace SessyController.Services.InverterServices
             await Task.Yield();
         }
 
-        private void CleanUpWrongData()
+        private async Task CleanUpWrongData()
         {
-            _solarEdgeDataService.RemoveWrongData(ProviderName);
+            await _solarEdgeDataService.RemoveWrongData(ProviderName);
         }
 
         private Dictionary<string, Dictionary<DateTime, double>> CollectedPowerData { get; set; } = new();
@@ -123,7 +123,7 @@ namespace SessyController.Services.InverterServices
 
                         CollectedPowerData[config.Key].Add(date, ActualSolarPowerInWatts);
 
-                        StoreData(CollectedPowerData);
+                        await StoreData(CollectedPowerData);
                     }
                 }
             }
@@ -173,7 +173,7 @@ namespace SessyController.Services.InverterServices
         /// <summary>
         /// Store the collected data in the DB.
         /// </summary>
-        private void StoreData(Dictionary<string, Dictionary<DateTime, double>> collectedPowerData)
+        private async Task StoreData(Dictionary<string, Dictionary<DateTime, double>> collectedPowerData)
         {
             var now = _timeZoneService.Now;
 
@@ -216,7 +216,7 @@ namespace SessyController.Services.InverterServices
                         Power = averagePower
                     };
 
-                    _solarEdgeDataService.Add(new List<SolarInverterData> { entry });
+                    await _solarEdgeDataService.Add(new List<SolarInverterData> { entry });
 
                     // Remove processed items from memory
                     foreach (var item in quarterGroup)
@@ -258,11 +258,28 @@ namespace SessyController.Services.InverterServices
         /// <returns>Unscaled AC Power output</returns>
         public async Task<ushort> GetACPower(string id)
         {
-            using var client = await GetModbusClient(id).ConfigureAwait(false);
+            var tries = 0;
 
-            var result = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.UInt16>(SunspecConsts.I_AC_Power).ConfigureAwait(false);
+            while (tries < 10)
+            {
+                try
+                {
+                    using var client = await GetModbusClient(id).ConfigureAwait(false);
+                    {
+                        var result = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.UInt16>(SunspecConsts.I_AC_Power).ConfigureAwait(false);
 
-            return result.Value;
+                        return result.Value;
+                    }
+                }
+                catch (Exception)
+                {
+                }
+
+                await Task.Delay(1000);
+                tries++;
+            }
+
+            throw new InvalidOperationException($"Failed to get modbus data for AC Power after 10 retries");
         }
 
         /// <summary>

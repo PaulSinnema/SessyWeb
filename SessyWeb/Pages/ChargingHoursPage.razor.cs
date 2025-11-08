@@ -49,7 +49,7 @@ namespace SessyWeb.Pages
         private string RowHeightStyle { get; set; } = "height 20px";
         private string GraphStyle { get; set; } = "min-width: 250px; visibility: hidden;";
 
-        private Session? NextSession { get; set; }
+        private QuarterlyInfo? NextQuarterlyInfoInSession { get; set; }
 
         private bool _showAll = false;
 
@@ -120,9 +120,9 @@ namespace SessyWeb.Pages
 
                 BatteryWithStatusList = newStatuses;
 
-                await InvokeAsync(StateHasChanged);
+                NextQuarterlyInfoInSession = _batteriesService?.GetNextQuarterlyInfoInSession();
 
-                NextSession = _batteriesService?.GetNextSession();
+                await InvokeAsync(StateHasChanged);
 
                 await Task.Delay(5000);
             }

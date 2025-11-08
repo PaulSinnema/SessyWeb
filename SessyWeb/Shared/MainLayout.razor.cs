@@ -55,12 +55,12 @@ namespace SessyWeb.Shared
         {
             WindowSize = browserWindowSize;
 
-            screenHeight = WindowSize.Height;
-            screenWidth = WindowSize.Width;
+            ScreenInfo.Update(WindowSize.Width, WindowSize.Height);
 
-            ScreenInfo.Height = screenHeight;
-            ScreenInfo.Width = screenWidth;
+            Console.WriteLine($"ScreenInfo: {ScreenInfo}");
 
+            await InvokeAsync(StateHasChanged);
+            
             await InvokeAsync(StateHasChanged);
         }
 
