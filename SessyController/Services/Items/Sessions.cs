@@ -21,11 +21,13 @@ namespace SessyController.Services.Items
 
         private TimeZoneService? _timeZoneService { get; set; }
 
+        private VirtualBatteryService _virtualBatteryService { get; set; }
+
         private ConsumptionDataService _consumptionDataService { get; set; }
 
         private ConsumptionMonitorService _consumptionMonitorService { get; set; }
 
-        private EnergyHistoryService _energyHistoryService { get; set; }
+        private EnergyHistoryDataService _energyHistoryService { get; set; }
 
         private List<Session>? _sessionList { get; set; }
         private int _maxChargingQuarters { get; set; }
@@ -38,20 +40,21 @@ namespace SessyController.Services.Items
                         SettingsConfig settingsConfig,
                         BatteryContainer batteryContainer,
                         TimeZoneService? timeZoneService,
+                        VirtualBatteryService virtualBatteryService,
                         FinancialResultsService financialResultsService,
                         ConsumptionDataService consumptionDataService,
                         ConsumptionMonitorService consumptionMonitorService,
-                        EnergyHistoryService energyHistoryService,
+                        EnergyHistoryDataService energyHistoryService,
                         ILoggerFactory loggerFactory)
         {
             _settingsConfig = settingsConfig;
             _batteryContainer = batteryContainer;
             _financialResultsService = financialResultsService;
             _timeZoneService = timeZoneService;
+            _virtualBatteryService = virtualBatteryService;
             _consumptionDataService = consumptionDataService;
             _consumptionMonitorService = consumptionMonitorService;
             _energyHistoryService = energyHistoryService;
-
 
             _sessionList = new List<Session>();
             _quarterlyInfos = quarterlyInfos;
@@ -192,7 +195,7 @@ namespace SessyController.Services.Items
                 {
                     case Modes.Charging:
                         {
-                            session = new Session(this, _timeZoneService!, mode, _maxChargingQuarters, _batteryContainer, _settingsConfig);
+                            session = new Session(this, _timeZoneService!, _virtualBatteryService, mode, _maxChargingQuarters, _batteryContainer, _settingsConfig);
                             session.Id = IdCounter++;
                             _sessionList.Add(session);
                             session.AddQuarterlyInfo(quarterlyInfo);
@@ -201,7 +204,7 @@ namespace SessyController.Services.Items
 
                     case Modes.Discharging:
                         {
-                            session = new Session(this, _timeZoneService!, mode, _maxDischargingQuarters, _batteryContainer, _settingsConfig);
+                            session = new Session(this, _timeZoneService!, _virtualBatteryService, mode, _maxDischargingQuarters, _batteryContainer, _settingsConfig);
                             session.Id = IdCounter++;
                             _sessionList.Add(session);
                             session.AddQuarterlyInfo(quarterlyInfo);

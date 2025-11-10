@@ -12,7 +12,7 @@ namespace SessyController.Services
         private SettingsConfig _settingsConfig { get; set; }
         private SessyBatteryConfig _sessyBatteryConfig { get; set; }
         private IServiceScopeFactory _serviceScopeFactory { get; set; }
-        private EnergyHistoryService _energyHistoryService { get; set; }
+        private EnergyHistoryDataService _energyHistoryService { get; set; }
 
         private IServiceScope _scope { get; set; }
         private SessyService _sessyService { get; set; }
@@ -27,7 +27,7 @@ namespace SessyController.Services
         public PowerEstimatesService(LoggingService<BatteriesService> logger,
                                 IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
                                 IOptionsMonitor<SessyBatteryConfig> sessyBatteryConfigMonitor,
-                                EnergyHistoryService energyHistoryService,
+                                EnergyHistoryDataService energyHistoryService,
                                 IServiceScopeFactory serviceScopeFactory)
         {
             _settingsConfig = settingsConfigMonitor.CurrentValue;

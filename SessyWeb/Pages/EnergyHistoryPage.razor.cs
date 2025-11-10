@@ -11,7 +11,7 @@ namespace SessyWeb.Pages
     public partial class EnergyHistoryPage : PageBase
     {
         [Inject]
-        private EnergyHistoryService? _energyHistoryService { get; set; }
+        private EnergyHistoryDataService? _energyHistoryService { get; set; }
 
         [Inject]
         private TimeZoneService? _timeZoneService { get; set; }

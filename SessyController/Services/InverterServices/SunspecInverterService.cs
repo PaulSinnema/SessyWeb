@@ -27,7 +27,7 @@ namespace SessyController.Services.InverterServices
         private bool _IsRunning { get; set; } = false;
 
         private TimeZoneService _timeZoneService;
-        private SolarEdgeDataService _solarEdgeDataService;
+        private SolarInverterDataService _solarEdgeDataService;
 
         public SunspecInverterService(LoggingService<SolarEdgeInverterService> logger,
                                       string providerName,
@@ -46,7 +46,7 @@ namespace SessyController.Services.InverterServices
 
             _tcpClientProvider = _scope.ServiceProvider.GetRequiredService<TcpClientProvider>();
             _timeZoneService = _scope.ServiceProvider.GetRequiredService<TimeZoneService>();
-            _solarEdgeDataService = _scope.ServiceProvider.GetRequiredService<SolarEdgeDataService>();
+            _solarEdgeDataService = _scope.ServiceProvider.GetRequiredService<SolarInverterDataService>();
         }
 
         public async Task Start(CancellationToken cancelationToken)

@@ -8,6 +8,7 @@ using SessyData.Model;
 using SessyData.Services;
 using static SessyController.Services.Items.Session;
 using static SessyData.Model.SessyWebControl;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace SessyController.Services
 {
@@ -44,9 +45,11 @@ namespace SessyController.Services
         private PerformanceDataService _performanceDataService { get; set; }
 
         private ConsumptionDataService _consumptionDataService { get; set; }
-        private EnergyHistoryService _energyHistoryDataService { get; set; }
+        private EnergyHistoryDataService _energyHistoryDataService { get; set; }
 
         private ConsumptionMonitorService _consumptionMonitorService { get; set; }
+
+        private VirtualBatteryService _virtualBatteryService { get; set; }
 
         private LoggingService<BatteriesService> _logger { get; set; }
 
@@ -104,8 +107,9 @@ namespace SessyController.Services
             _sessyWebControlDataService = _scope.ServiceProvider.GetRequiredService<SessyWebControlDataService>();
             _performanceDataService = _scope.ServiceProvider.GetRequiredService<PerformanceDataService>();
             _consumptionDataService = _scope.ServiceProvider.GetRequiredService<ConsumptionDataService>();
-            _energyHistoryDataService = _scope.ServiceProvider.GetRequiredService<EnergyHistoryService>();
+            _energyHistoryDataService = _scope.ServiceProvider.GetRequiredService<EnergyHistoryDataService>();
             _consumptionMonitorService = _scope.ServiceProvider.GetRequiredService<ConsumptionMonitorService>();
+            _virtualBatteryService = _scope.ServiceProvider.GetRequiredService<VirtualBatteryService>();
         }
 
         public override Task StopAsync(CancellationToken cancellationToken)
@@ -663,7 +667,7 @@ namespace SessyController.Services
 
             if (await FetchPricesFromENTSO_E(localTime))
             {
-                GetChargingHours();
+                await GetChargingHours();
             }
         }
 
@@ -693,7 +697,7 @@ namespace SessyController.Services
         /// <summary>
         /// In this routine it is determined when to charge the batteries.
         /// </summary>
-        private void GetChargingHours()
+        private async Task GetChargingHours()
         {
             try
             {
@@ -710,11 +714,11 @@ namespace SessyController.Services
                 {
                     MergeNeighbouringSessions();
 
-                    CheckSessions();
+                    await CheckSessions();
 
                     RemoveExtraChargingSessions();
 
-                    CheckSessions();
+                    await CheckSessions();
                 }
             }
             catch (Exception ex)
@@ -751,12 +755,14 @@ namespace SessyController.Services
         /// This method is voor debugging purposes only. It checks the content of hourlyInfos
         /// and sessions.
         /// </summary>
-        private void CheckSessions()
+        private async Task CheckSessions()
         {
             foreach (var session in _sessions.SessionList)
             {
                 if (session.GetQuarterlyInfoList().Count() == 0)
                     throw new InvalidOperationException($"Session without HourlyInfos");
+
+                var cost = await session.GetTotalCost();
             }
 
             foreach (var session in _sessions.SessionList)
@@ -1281,6 +1287,7 @@ namespace SessyController.Services
                                      _settingsConfig,
                                      _batteryContainer!,
                                      _timeZoneService,
+                                     _virtualBatteryService,
                                      _financialResultsService,
                                      _consumptionDataService,
                                      _consumptionMonitorService,

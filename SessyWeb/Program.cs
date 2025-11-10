@@ -96,11 +96,12 @@ builder.Services.AddScoped<SessyStatusHistoryService>();
 builder.Services.AddScoped<DbHelper>();
 builder.Services.AddScoped<PowerEstimatesService>();
 builder.Services.AddScoped<FinancialResultsService>();
-builder.Services.AddScoped<SolarEdgeDataService>();
+builder.Services.AddScoped<SolarInverterDataService>();
 builder.Services.AddScoped<ConsumptionDataService>();
 builder.Services.AddScoped<PerformanceDataService>();
+builder.Services.AddScoped<VirtualBatteryService>();
 
-builder.Services.AddSingleton<EnergyHistoryService>();
+builder.Services.AddSingleton<EnergyHistoryDataService>();
 builder.Services.AddSingleton<SolarEdgeInverterService>();
 builder.Services.AddSingleton<P1MeterService>();
 builder.Services.AddSingleton<BatteryContainer>();

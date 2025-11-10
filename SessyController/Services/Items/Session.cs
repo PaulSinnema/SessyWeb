@@ -1,4 +1,5 @@
-﻿using SessyCommon.Configurations;
+﻿using Microsoft.Extensions.Hosting;
+using SessyCommon.Configurations;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
 
@@ -37,6 +38,91 @@ namespace SessyController.Services.Items
                     hourlyPrice.SetModes(_mode);
                 }
             }
+        }
+
+
+        /// <summary>
+        /// Returns true if the quarterlyInfo is contained in the sessions list.
+        /// </summary>
+        public bool Contains(QuarterlyInfo quarterlyInfo)
+        {
+            return QuarterlyInfos.Any(hi => hi.Time.DateFloorQuarter() == quarterlyInfo.Time.DateFloorQuarter());
+        }
+
+        /// <summary>
+        /// All prices in the session
+        /// </summary>
+        private List<QuarterlyInfo> QuarterlyInfos { get; set; }
+
+        private Sessions _sessions { get; set; }
+
+        private TimeZoneService _timeZoneService { get; set; }
+
+        private VirtualBatteryService _virtualBatteryService;
+
+        /// <summary>
+        /// Max hours of (dis)charging
+        /// </summary>
+        public int MaxQuarters { get; set; }
+
+        /// <summary>
+        /// The average price of all hourly prices in the session.
+        /// </summary>
+        public double AveragePrice => QuarterlyInfos.Count > 0 ? QuarterlyInfos.Average(hp => hp.Price) : 0.0;
+
+        /// <summary>
+        /// First quarterlyInfo object in the session.
+        /// </summary>
+        public QuarterlyInfo? First => QuarterlyInfos.OrderBy(hi => hi.Time).FirstOrDefault();
+
+        /// <summary>
+        /// Last hourlyinfo object in the session.
+        /// </summary>
+        public QuarterlyInfo? Last => QuarterlyInfos.OrderByDescending(hi => hi.Time).FirstOrDefault();
+
+        /// <summary>
+        /// The first date in the session
+        /// </summary>
+        public DateTime FirstDateTime => First?.Time ?? DateTime.MinValue;
+
+        /// <summary>
+        /// Returns true if any of the prices is negative.
+        /// </summary>
+        public bool PricesAnyNegative => QuarterlyInfos.Any(hi => hi.Price < 0.0);
+
+        public bool PricesAllPositive => QuarterlyInfos.All(hi => hi.Price >= 0.0);
+
+        /// <summary>
+        /// The last date in the session
+        /// </summary>
+        public DateTime LastDateTime => Last?.Time ?? DateTime.MaxValue;
+
+        public Session(Sessions sessions,
+                       TimeZoneService timeZoneService,
+                       VirtualBatteryService virtualBatteryService,
+                       Modes mode,
+                       int maxQuarters,
+                       BatteryContainer batteryContainer,
+                       SettingsConfig settingsConfig)
+        {
+            QuarterlyInfos = new List<QuarterlyInfo>();
+            _sessions = sessions;
+            _timeZoneService = timeZoneService;
+            _virtualBatteryService = virtualBatteryService;
+            MaxQuarters = maxQuarters;
+            Mode = mode;
+            _batteryContainer = batteryContainer;
+            _settingsConfig = settingsConfig;
+        }
+
+        /// <summary>
+        /// Get the cost of this Session.
+        /// </summary>
+        public async Task<double> GetTotalCost()
+        {
+            var totalCost = await _virtualBatteryService!.CalculateLoadCostForPeriod(this);
+
+            return totalCost;
         }
 
         /// <summary>
@@ -98,77 +184,6 @@ namespace SessyController.Services.Items
             //        throw new InvalidOperationException($"Invalid mode {this}");
             //}
         }
-
-        /// <summary>
-        /// Returns true if the quarterlyInfo is contained in the sessions list.
-        /// </summary>
-        public bool Contains(QuarterlyInfo quarterlyInfo)
-        {
-            return QuarterlyInfos.Any(hi => hi.Time.DateFloorQuarter() == quarterlyInfo.Time.DateFloorQuarter());
-        }
-
-        /// <summary>
-        /// All prices in the session
-        /// </summary>
-        private List<QuarterlyInfo> QuarterlyInfos { get; set; }
-
-        private Sessions _sessions { get; set; }
-
-        private TimeZoneService _timeZoneService { get; set; }
-
-        /// <summary>
-        /// Max hours of (dis)charging
-        /// </summary>
-        public int MaxQuarters { get; set; }
-
-        /// <summary>
-        /// The average price of all hourly prices in the session.
-        /// </summary>
-        public double AveragePrice => QuarterlyInfos.Count > 0 ? QuarterlyInfos.Average(hp => hp.Price) : 0.0;
-
-        /// <summary>
-        /// First quarterlyInfo object in the session.
-        /// </summary>
-        public QuarterlyInfo? First => QuarterlyInfos.OrderBy(hi => hi.Time).FirstOrDefault();
-
-        /// <summary>
-        /// Last hourlyinfo object in the session.
-        /// </summary>
-        public QuarterlyInfo? Last => QuarterlyInfos.OrderByDescending(hi => hi.Time).FirstOrDefault();
-
-        /// <summary>
-        /// The first date in the session
-        /// </summary>
-        public DateTime FirstDateTime => First?.Time ?? DateTime.MinValue;
-
-        /// <summary>
-        /// Returns true if any of the prices is negative.
-        /// </summary>
-        public bool PricesAnyNegative => QuarterlyInfos.Any(hi => hi.Price < 0.0);
-
-        public bool PricesAllPositive => QuarterlyInfos.All(hi => hi.Price >= 0.0);
-
-        /// <summary>
-        /// The last date in the session
-        /// </summary>
-        public DateTime LastDateTime => Last?.Time ?? DateTime.MaxValue;
-
-        public Session(Sessions sessions,
-                       TimeZoneService timeZoneService,
-                       Modes mode,
-                       int maxQuarters,
-                       BatteryContainer batteryContainer,
-                       SettingsConfig settingsConfig)
-        {
-            QuarterlyInfos = new List<QuarterlyInfo>();
-            _sessions = sessions;
-            _timeZoneService = timeZoneService;
-            MaxQuarters = maxQuarters;
-            Mode = mode;
-            _batteryContainer = batteryContainer;
-            _settingsConfig = settingsConfig;
-        }
-
         /// <summary>
         /// Sets the charge needed for each quarterlyInfo object in this session.
         /// </summary>
@@ -244,24 +259,6 @@ namespace SessyController.Services.Items
 
                         return myCost >= theirCost;
                     }
-
-                default:
-                    throw new InvalidOperationException($"Wrong mode: {Mode}");
-            }
-        }
-
-        /// <summary>
-        /// Get the cost of this Session.
-        /// </summary>
-        public double GetTotalCost()
-        {
-            switch (Mode)
-            {
-                case Modes.Charging:
-                    return QuarterlyInfos.Sum(hi => hi.ChargingCost);
-
-                case Modes.Discharging:
-                    return QuarterlyInfos.Sum(hi => hi.DischargingCost);
 
                 default:
                     throw new InvalidOperationException($"Wrong mode: {Mode}");

@@ -4,9 +4,9 @@ using SessyData.Model;
 
 namespace SessyData.Services
 {
-    public class EnergyHistoryService : ServiceBase<EnergyHistory>
+    public class EnergyHistoryDataService : ServiceBase<EnergyHistory>
     {
-        public EnergyHistoryService(IServiceScopeFactory serviceScopeFactory) : base(serviceScopeFactory) { }
+        public EnergyHistoryDataService(IServiceScopeFactory serviceScopeFactory) : base(serviceScopeFactory) { }
 
         public (bool noData, double watts) GetNetPowerBetween(DateTime time, DateTime dateTime)
         {

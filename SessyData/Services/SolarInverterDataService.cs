@@ -3,9 +3,9 @@ using SessyData.Model;
 
 namespace SessyData.Services
 {
-    public class SolarEdgeDataService : ServiceBase<SolarInverterData>
+    public class SolarInverterDataService : ServiceBase<SolarInverterData>
     {
-        public SolarEdgeDataService(IServiceScopeFactory serviceScopeFactory) : base(serviceScopeFactory) { }
+        public SolarInverterDataService(IServiceScopeFactory serviceScopeFactory) : base(serviceScopeFactory) { }
 
         public async Task RemoveWrongData(string providerName)
         {

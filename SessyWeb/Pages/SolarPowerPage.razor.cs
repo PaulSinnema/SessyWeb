@@ -13,7 +13,7 @@ namespace SessyWeb.Pages
     public partial class SolarPowerPage : PageBase
     {
         [Inject]
-        SolarEdgeDataService? _solarEdgeDataService { get; set; }
+        SolarInverterDataService? _solarEdgeDataService { get; set; }
 
         [Inject]
         TimeZoneService? _timeZoneService { get; set; }

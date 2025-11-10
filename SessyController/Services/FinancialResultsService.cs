@@ -7,12 +7,12 @@ namespace SessyController.Services
 {
     public class FinancialResultsService
     {
-        private EnergyHistoryService _energyHistoryService { get; set; }
+        private EnergyHistoryDataService _energyHistoryService { get; set; }
 
         private TaxesDataService _taxesService { get; set; }
         private CalculationService _calculationService { get; set; }
 
-        public FinancialResultsService(EnergyHistoryService energyHistoryService, TaxesDataService taxesService, CalculationService calculationService)
+        public FinancialResultsService(EnergyHistoryDataService energyHistoryService, TaxesDataService taxesService, CalculationService calculationService)
         {
             _energyHistoryService = energyHistoryService;
             _taxesService = taxesService;

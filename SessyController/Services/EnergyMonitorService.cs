@@ -19,7 +19,7 @@ namespace SessyController.Services
         private TimeZoneService _timeZoneService { get; set; }
         private P1MeterService _p1MeterService { get; set; }
 
-        private EnergyHistoryService _energyHistoryService { get; set; }
+        private EnergyHistoryDataService _energyHistoryService { get; set; }
 
         private IServiceScopeFactory _serviceScopeFactory { get; set; }
 
@@ -45,7 +45,7 @@ namespace SessyController.Services
 
             _scope = _serviceScopeFactory.CreateScope();
 
-            _energyHistoryService = _scope.ServiceProvider.GetRequiredService<EnergyHistoryService>();
+            _energyHistoryService = _scope.ServiceProvider.GetRequiredService<EnergyHistoryDataService>();
             _p1MeterService = _scope.ServiceProvider.GetRequiredService<P1MeterService>();
             _dayAheadMarketService = _scope.ServiceProvider.GetRequiredService<DayAheadMarketService>();
 

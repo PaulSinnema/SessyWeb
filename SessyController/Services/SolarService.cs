@@ -21,7 +21,7 @@ namespace SessyController.Services
 
         private SolarDataService _solarDataService { get; set; }
 
-        private SolarEdgeDataService _solarEdgeDataService { get; set; }
+        private SolarInverterDataService _solarEdgeDataService { get; set; }
 
         private SettingsConfig _settingsConfig { get; set; }
 
@@ -41,7 +41,7 @@ namespace SessyController.Services
                             WeatherService weatherService,
                             DayAheadMarketService dayAheadMarketService,
                             SolarDataService solarDataService,
-                            SolarEdgeDataService solarEdgeDataService,
+                            SolarInverterDataService solarEdgeDataService,
                             IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
                             IServiceScopeFactory serviceScopeFactory)
         {

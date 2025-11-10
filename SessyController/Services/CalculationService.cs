@@ -12,12 +12,12 @@ namespace SessyController.Services
         private TimeZoneService _timezoneService { get; set; }
 
         private TaxesDataService _taxesDataService { get; set; }
-        private EnergyHistoryService _energyHistoryService { get; set; }
+        private EnergyHistoryDataService _energyHistoryService { get; set; }
 
         public CalculationService(EPEXPricesDataService epexPricesDataService,
                                   TimeZoneService timezoneService,
                                   TaxesDataService taxesDataService,
-                                  EnergyHistoryService energyHistoryService)
+                                  EnergyHistoryDataService energyHistoryService)
         {
             _epexPricesDataService = epexPricesDataService;
             _timezoneService = timezoneService;
