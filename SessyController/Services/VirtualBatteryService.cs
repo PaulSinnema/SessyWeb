@@ -39,6 +39,7 @@ namespace SessyController.Services
                 var start = quarterlyInfo.Time;
                 var end = quarterlyInfo.Time.AddMinutes(15);
 
+                // We need the previous quarter too to be able to calculate network production/consumption.
                 var history = await GetEnergyHistoriesData(start.AddMinutes(-15), end);
 
                 EnergyHistory? previousHistory = null;
@@ -59,35 +60,38 @@ namespace SessyController.Services
                     var currentConsumption = consumptionEnumerator.Current;
                     var currentSolar = solarEnumerator.Current;
 
-                    if (currentHistory.Time == currentConsumption.Time)
+                    if (previousHistory != null)
                     {
-                        totalNet += CalculateHisoryPower(currentHistory, previousHistory);
-                        totalConsumption += currentConsumption.ConsumptionWh * 0.25; // Per quarter hour
-
-                        if (hasSolarInverterData && currentSolar.Time == currentConsumption.Time)
+                        if (currentHistory.Time == currentConsumption.Time)
                         {
-                            totalSolarPower += currentSolar.Power * 0.25; // Per quarter hour
-                            hasSolarInverterData = solarEnumerator.MoveNext();
-                        }
+                            totalNet += CalculateHistoryPower(currentHistory, previousHistory);
+                            totalConsumption += currentConsumption.ConsumptionWh * 0.25; // Per quarter hour
 
-                        var totalBattery = totalConsumption - totalNet - totalSolarPower;
+                            if (hasSolarInverterData && currentSolar.Time == currentConsumption.Time)
+                            {
+                                totalSolarPower += currentSolar.Power * 0.25; // Per quarter hour
+                                hasSolarInverterData = solarEnumerator.MoveNext();
+                            }
 
-                        totalCost += totalBattery * quarterlyInfo.Price / 1000;
+                            var totalBattery = totalConsumption - totalNet - totalSolarPower;
 
-                        hasHistoryData = historyEnumerator.MoveNext();
-                        hasConsumptionData = consumptionEnumerator.MoveNext();
-                    }
-                    else
-                    {
-                        // Data missing, advance the smaller list
-                        if (currentHistory.Time > currentConsumption.Time)
-                        {
+                            totalCost += totalBattery * quarterlyInfo.Price / 1000;
+
+                            hasHistoryData = historyEnumerator.MoveNext();
                             hasConsumptionData = consumptionEnumerator.MoveNext();
                         }
                         else
                         {
-                            hasHistoryData = historyEnumerator.MoveNext();
+                            // Data missing, advance the younger list
+                            if (currentHistory.Time > currentConsumption.Time)
+                            {
+                                hasConsumptionData = consumptionEnumerator.MoveNext();
+                            }
+                            else
+                            {
+                                hasHistoryData = historyEnumerator.MoveNext();
 
+                            }
                         }
                     }
 
@@ -98,7 +102,7 @@ namespace SessyController.Services
             return totalCost;
         }
 
-        private double CalculateHisoryPower(EnergyHistory currentHistory, EnergyHistory? previousHistory)
+        private double CalculateHistoryPower(EnergyHistory currentHistory, EnergyHistory? previousHistory)
         {
             var consumed = currentHistory.ConsumedTariff1 - previousHistory.ConsumedTariff1;
             consumed += currentHistory.ConsumedTariff2 - previousHistory.ConsumedTariff2;

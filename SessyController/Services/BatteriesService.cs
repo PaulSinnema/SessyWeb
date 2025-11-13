@@ -716,7 +716,7 @@ namespace SessyController.Services
 
                     await CheckSessions();
 
-                    RemoveExtraChargingSessions();
+                    await RemoveExtraChargingSessions();
 
                     await CheckSessions();
                 }
@@ -762,7 +762,7 @@ namespace SessyController.Services
                 if (session.GetQuarterlyInfoList().Count() == 0)
                     throw new InvalidOperationException($"Session without HourlyInfos");
 
-                var cost = await session.GetTotalCost();
+                var cost = await session.GetTotalCost(); // TODO: Remove this after testing.
             }
 
             foreach (var session in _sessions.SessionList)
@@ -985,7 +985,7 @@ namespace SessyController.Services
         /// - Charging sessions larger than the max charging hours
         /// - Discharging sessions that are not profitable.
         /// </summary>
-        private void RemoveExtraChargingSessions()
+        private async Task RemoveExtraChargingSessions()
         {
             bool changed;
 
@@ -993,7 +993,7 @@ namespace SessyController.Services
             {
                 changed = false;
 
-                changed |= CheckProfitability();
+                changed |= await CheckProfitability();
 
                 changed |= RemoveEmptySessions();
 
@@ -1003,7 +1003,32 @@ namespace SessyController.Services
         /// <summary>
         /// Check if discharging sessions are profitable.
         /// </summary>
-        private bool CheckProfitability()
+        private async Task<bool> CheckProfitabilityNew()
+        {
+            bool changed = false;
+
+            Session? lastSession = null;
+
+            foreach (var session in _sessions.SessionList.OrderBy(se => se.FirstDateTime))
+            {
+                if (lastSession != null)
+                {
+                    if (lastSession.Mode == Modes.Charging && session.Mode == Modes.Discharging)
+                    {
+                        var chargingCost = await _virtualBatteryService.CalculateLoadCostForPeriod(lastSession);
+                        var dischargingCost = await _virtualBatteryService.CalculateLoadCostForPeriod(session);
+                        var differnceCost = dischargingCost - chargingCost;
+                    }
+                }
+
+                lastSession = session;
+            }
+
+            return changed;
+        }        /// <summary>
+                 /// Check if discharging sessions are profitable.
+                 /// </summary>
+        private async Task<bool> CheckProfitability()
         {
             bool changed = false;
 
@@ -1043,7 +1068,7 @@ namespace SessyController.Services
                 lastSession = session;
             }
 
-            return changed;
+            return await Task.FromResult(changed);
         }
 
         /// <summary>
