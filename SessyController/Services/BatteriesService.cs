@@ -701,9 +701,6 @@ namespace SessyController.Services
         {
             try
             {
-                DateTime now = _timeZoneService.Now;
-                DateTime nowHour = now.Date.AddHours(now.Hour);
-
                 _quarterlyInfos = _quarterlyInfos!
                     .OrderBy(hp => hp.Time)
                     .ToList();
@@ -713,10 +710,6 @@ namespace SessyController.Services
                 if (_sessions != null)
                 {
                     MergeNeighbouringSessions();
-
-                    await CheckSessions();
-
-                    await RemoveExtraChargingSessions();
 
                     await CheckSessions();
                 }
@@ -761,8 +754,6 @@ namespace SessyController.Services
             {
                 if (session.GetQuarterlyInfoList().Count() == 0)
                     throw new InvalidOperationException($"Session without HourlyInfos");
-
-                var cost = await session.GetTotalCost(); // TODO: Remove this after testing.
             }
 
             foreach (var session in _sessions.SessionList)
@@ -844,6 +835,14 @@ namespace SessyController.Services
         {
             do
             {
+                CalculateChargeNeeded();
+
+                await CalculateChargeLeft();
+
+                await RemoveExtraChargingSessions();
+
+                await CheckSessions();
+
                 await EvaluateChargingHoursAndProfitability();
             }
             while (ShrinkSessions());
@@ -1006,18 +1005,25 @@ namespace SessyController.Services
         private async Task<bool> CheckProfitabilityNew()
         {
             bool changed = false;
+            var now = _timeZoneService.Now;
 
             Session? lastSession = null;
 
-            foreach (var session in _sessions.SessionList.OrderBy(se => se.FirstDateTime))
+            foreach (var session in _sessions.SessionList.OrderBy(se => se.FirstDateTime).ToList())
             {
                 if (lastSession != null)
                 {
-                    if (lastSession.Mode == Modes.Charging && session.Mode == Modes.Discharging)
+                    if (session.LastDateTime > now && lastSession.Mode == Modes.Charging && session.Mode == Modes.Discharging)
                     {
-                        var chargingCost = await _virtualBatteryService.CalculateLoadCostForPeriod(lastSession);
-                        var dischargingCost = await _virtualBatteryService.CalculateLoadCostForPeriod(session);
-                        var differnceCost = dischargingCost - chargingCost;
+                        var chargingCost = await _virtualBatteryService.CalculateLoadCostForSession(lastSession);
+                        var dischargingCost = await _virtualBatteryService.CalculateLoadCostForSession(session);
+                        var differnceCost = dischargingCost + chargingCost;
+
+                        if(differnceCost < _settingsConfig.CycleCost)
+                        {
+                            _sessions.RemoveSession(session);
+                            changed = true;
+                        }
                     }
                 }
 
@@ -1025,9 +1031,11 @@ namespace SessyController.Services
             }
 
             return changed;
-        }        /// <summary>
-                 /// Check if discharging sessions are profitable.
-                 /// </summary>
+        }
+        
+        /// <summary>
+        /// Check if discharging sessions are profitable.
+        /// </summary>
         private async Task<bool> CheckProfitability()
         {
             bool changed = false;

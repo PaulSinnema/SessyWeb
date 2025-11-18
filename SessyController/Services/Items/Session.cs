@@ -120,7 +120,7 @@ namespace SessyController.Services.Items
         /// </summary>
         public async Task<double> GetTotalCost()
         {
-            var totalCost = await _virtualBatteryService!.CalculateLoadCostForPeriod(this);
+            var totalCost = await _virtualBatteryService!.CalculateLoadCostForSession(this);
 
             return totalCost;
         }

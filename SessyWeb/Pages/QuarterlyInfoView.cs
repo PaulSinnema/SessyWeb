@@ -27,6 +27,7 @@
         public double SolarPowerVisual => SmoothedSolarPower / 2.5;
         public double AverageBuyingPrice { get; set; }
         public double AverageSellingPrice { get; set; }
+        public double? SessionCost { get; set; } = null;
 
         public override string ToString()
         {

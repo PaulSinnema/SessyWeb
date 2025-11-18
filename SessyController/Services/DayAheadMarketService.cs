@@ -442,6 +442,8 @@ namespace SessyController.Services
 
             if (client != null)
             {
+                client.Timeout = TimeSpan.FromSeconds(120);
+
                 HttpResponseMessage response = await client.GetAsync(url, cancellationToken);
                 response.EnsureSuccessStatusCode();
                 string responseBody = await response.Content.ReadAsStringAsync(cancellationToken);

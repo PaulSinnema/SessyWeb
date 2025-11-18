@@ -206,8 +206,8 @@ namespace SessyWeb.Pages
                         TotalSolarPowerExpectedToday = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(now);
                         TotalSolarPowerExpectedTomorrow = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(now.AddDays(1));
 
-                        TotalRevenueYesterday = await sessions.TotalCost(now.AddDays(-1));
-                        TotalRevenueToday = await sessions.TotalCost(now);
+                        TotalRevenueYesterday = await sessions.TotalMonthlyCost(now.AddDays(-1));
+                        TotalRevenueToday = await sessions.TotalMonthlyCost(now);
 
                         BatteryPercentage = await _batteriesService.getBatteryPercentage();
 
@@ -280,7 +280,7 @@ namespace SessyWeb.Pages
 
                     foreach (var quarterlyInfo in QuarterlyInfoList ?? new List<QuarterlyInfo>())
                     {
-                        QuarterlyInfos?.Add(FillQuarterlyInfoView(quarterlyInfo, averageBuyingPrice, averageSellingPrice));
+                        QuarterlyInfos?.Add(await FillQuarterlyInfoView(quarterlyInfo, averageBuyingPrice, averageSellingPrice));
                     }
 
                     foreach (var performance in performanceList)
@@ -296,7 +296,7 @@ namespace SessyWeb.Pages
 
                     foreach (var quarterlyInfo in quarterlyInfoList!)
                     {
-                        QuarterlyInfos?.Add(FillQuarterlyInfoView(quarterlyInfo, averageBuyingPrice, averageSellingPrice));
+                        QuarterlyInfos?.Add(await FillQuarterlyInfoView(quarterlyInfo, averageBuyingPrice, averageSellingPrice));
                     }
                 }
 
@@ -310,8 +310,10 @@ namespace SessyWeb.Pages
             }
         }
 
-        public QuarterlyInfoView FillQuarterlyInfoView(QuarterlyInfo quarterlyInfo, double averageBuyingPrice, double averageSellingPrice)
+        public async Task<QuarterlyInfoView> FillQuarterlyInfoView(QuarterlyInfo quarterlyInfo, double averageBuyingPrice, double averageSellingPrice)
         {
+            var session = _batteriesService!.GetSessions().FindSession(quarterlyInfo);
+
             return new QuarterlyInfoView
             {
                 Time = quarterlyInfo.Time,
@@ -334,6 +336,7 @@ namespace SessyWeb.Pages
                 SmoothedSolarPower = quarterlyInfo.SmoothedSolarPower,
                 AverageBuyingPrice = averageBuyingPrice,
                 AverageSellingPrice = averageSellingPrice,
+                SessionCost = session != null ? await session.GetTotalCost() : null
             };
         }
 
@@ -358,7 +361,8 @@ namespace SessyWeb.Pages
                 DisplayState = performance.DisplayState ?? string.Empty,
                 Price = performance.Price,
                 ChargeNeeded = performance.ChargeNeeded,
-                SmoothedSolarPower = performance.SmoothedSolarPower
+                SmoothedSolarPower = performance.SmoothedSolarPower,
+                SessionCost = null
             };
         }
 

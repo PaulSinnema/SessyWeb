@@ -71,14 +71,7 @@ namespace SessyController.Services.Items
 
         public ReadOnlyCollection<Session> SessionList => _sessionList.AsReadOnly();
 
-        public double TotalRevenue(DateTime date)
-        {
-            return _quarterlyInfos
-                    .Where(hi => hi.Time.Date == date.Date)
-                    .Sum(hi => hi.Profit);
-        }
-
-        public async Task<decimal> TotalCost(DateTime date)
+        public async Task<decimal> TotalMonthlyCost(DateTime date)
         {
             var queryable = await _financialResultsService.GetFinancialMonthResults(date.Date, date.Date.AddHours(24));
             var list = queryable.ToList();

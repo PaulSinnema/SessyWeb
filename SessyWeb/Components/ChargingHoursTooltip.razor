@@ -95,3 +95,12 @@
         <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@QuarterlyInfo?.EstimatedConsumptionPerQuarterHour disabled Style=@fixedWidthStyle />
     </RadzenColumn>
 </RadzenRow>
+
+<RadzenRow>
+    <RadzenColumn Size="8">
+        <RadzenTextBox Value="Session cost" disabled Style=@fixedWidthStyle />
+    </RadzenColumn>
+    <RadzenColumn Size="2">
+        <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@QuarterlyInfo?.SessionCost disabled Style=@fixedWidthStyle />
+    </RadzenColumn>
+</RadzenRow>
