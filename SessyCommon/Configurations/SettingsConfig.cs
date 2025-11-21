@@ -6,6 +6,10 @@ namespace SessyCommon.Configurations
     public class SettingsConfig
     {
         /// <summary>
+        /// If set to true will put Charged (Sessy) in control
+        /// </summary>
+        public bool ChargedInControl { get; set; }
+        /// <summary>
         /// If set to true will use manual hours rather than automated hours.
         /// </summary>
         public bool ManualOverride { get; set; }

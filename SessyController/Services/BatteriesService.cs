@@ -331,9 +331,26 @@ namespace SessyController.Services
         /// </summary>
         private async Task<bool> WeControlTheBatteries()
         {
-            WeAreInControl = !await SupplierIsControllingTheBatteries();
+            var supplierInControl = await SupplierIsControllingTheBatteries();
+            var chargedInControl = _settingsConfig.ChargedInControl;
 
-            SessyWebControlStatus status = WeAreInControl ? SessyWebControlStatus.SessyWeb : SessyWebControlStatus.Provider;
+            WeAreInControl = !(supplierInControl || chargedInControl);
+
+            SessyWebControlStatus status = SessyWebControlStatus.SessyWeb;
+
+            if (!WeAreInControl)
+            {
+                if(_settingsConfig.ChargedInControl)
+                {
+                    status = SessyWebControlStatus.Charged;
+                }
+
+                // Supplier overrules all
+                if (supplierInControl)
+                {
+                    status = SessyWebControlStatus.Provider;
+                }
+            }
 
             var last = await _sessyWebControlDataService.Get(async (set) =>
             {

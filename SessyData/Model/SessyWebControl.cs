@@ -11,7 +11,8 @@ namespace SessyData.Model
         public enum SessyWebControlStatus
         {
             SessyWeb,
-            Provider
+            Provider,
+            Charged
         }
 
         [Key]
