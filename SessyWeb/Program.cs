@@ -55,6 +55,7 @@ else
 }
 
 string secretsPath = Path.Combine(configDirectory, "secrets.json");
+
 if (File.Exists(secretsPath))
 {
     builder.Configuration.AddJsonFile(secretsPath, optional: false, reloadOnChange: true);
