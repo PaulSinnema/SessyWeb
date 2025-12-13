@@ -340,7 +340,7 @@ namespace SessyController.Services
 
             if (!WeAreInControl)
             {
-                if(_settingsConfig.ChargedInControl)
+                if (_settingsConfig.ChargedInControl)
                 {
                     status = SessyWebControlStatus.Charged;
                 }
@@ -728,7 +728,7 @@ namespace SessyController.Services
                 {
                     MergeNeighbouringSessions();
 
-                    await CheckSessions();
+                    CheckSessions();
                 }
             }
             catch (Exception ex)
@@ -765,7 +765,7 @@ namespace SessyController.Services
         /// This method is voor debugging purposes only. It checks the content of hourlyInfos
         /// and sessions.
         /// </summary>
-        private async Task CheckSessions()
+        private void CheckSessions()
         {
             foreach (var session in _sessions.SessionList)
             {
@@ -858,7 +858,7 @@ namespace SessyController.Services
 
                 await RemoveExtraChargingSessions();
 
-                await CheckSessions();
+                CheckSessions();
 
                 await EvaluateChargingHoursAndProfitability();
             }
@@ -1036,7 +1036,7 @@ namespace SessyController.Services
                         var dischargingCost = await _virtualBatteryService.CalculateLoadCostForSession(session);
                         var differnceCost = dischargingCost + chargingCost;
 
-                        if(differnceCost < _settingsConfig.CycleCost)
+                        if (differnceCost < _settingsConfig.CycleCost)
                         {
                             _sessions.RemoveSession(session);
                             changed = true;
@@ -1049,7 +1049,7 @@ namespace SessyController.Services
 
             return changed;
         }
-        
+
         /// <summary>
         /// Check if discharging sessions are profitable.
         /// </summary>
@@ -1143,23 +1143,15 @@ namespace SessyController.Services
         /// </summary>
         private void CalculateChargeNeeded()
         {
-            Session? previousSession = null;
+            Session? nextSession = null;
 
-            var list = _sessions.SessionList.OrderBy(se => se.FirstDateTime);
+            var list = _sessions.SessionList.OrderByDescending(se => se.FirstDateTime);
 
-            foreach (var nextSession in list)
+            foreach (var previousSession in list)
             {
-                if (previousSession != null)
-                {
-                    _sessions.SetEstimateChargeNeededUntilNextSession(previousSession, nextSession);
-                }
+                _sessions.SetEstimateChargeNeededUntilNextSession(previousSession, nextSession);
 
-                previousSession = nextSession;
-            }
-
-            if (previousSession != null)
-            {
-                _sessions.SetEstimateChargeNeededUntilNextSession(previousSession);
+                nextSession = previousSession;
             }
         }
 

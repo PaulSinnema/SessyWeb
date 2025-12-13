@@ -9,9 +9,6 @@ namespace SessyWeb.Components
     public partial class ChargingHoursChartComponent : BaseComponent
     {
         [Inject]
-        private TimeZoneService? _timeZoneService {  get; set; }
-
-        [Inject]
         private TaxesDataService? _taxesDataService { get; set; }
 
         [Parameter]

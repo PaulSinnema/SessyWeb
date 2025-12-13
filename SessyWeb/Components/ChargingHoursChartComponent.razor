@@ -7,7 +7,7 @@
     <RadzenChart Style=@GraphStyle @ref=@QuarterlyHourChart>
         <RadzenLegend Position="@((ScreenInfo?.IsMobile ?? false) ? LegendPosition.Right : LegendPosition.Top)" Visible="true" />
         <RadzenChartTooltipOptions Shared="false" Visible="true" />
-        <RadzenAreaSeries Data="@QuarterlyInfos" Smooth="true" CategoryProperty="Time" Fill="#708090" Stroke="#708090" Title="Charging mode" ValueProperty="VisualizeInChart">
+        <RadzenAreaSeries Visible="@WeAreInControl" Data="@QuarterlyInfos" Smooth="true" CategoryProperty="Time" Fill="#708090" Stroke="#708090" Title="Charging mode" ValueProperty="VisualizeInChart">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
             </TooltipTemplate>
@@ -55,15 +55,6 @@
                 <RadzenSeriesDataLabels Visible="true" />
             </ChildContent>
         </RadzenColumnSeries>
-        @*<RadzenLineSeries Data="@QuarterlyInfos" Smooth="true" CategoryProperty="Time" Stroke="red" Title="Average buying price" LineType="LineType.Solid" ValueProperty="AverageBuyingPrice">
-            <TooltipTemplate Context="data">
-                <ChargingHoursTooltip QuarterlyInfo=@data />
-            </TooltipTemplate>
-            <ChildContent>
-                <RadzenMarkers Visible="false" />
-                <RadzenSeriesDataLabels Visible="false" />
-            </ChildContent>
-        </RadzenLineSeries>*@
         <RadzenColumnSeries Data="@QuarterlyInfos" CategoryProperty="Time" Title="Selling price" Fill="#00aae4" Stroke="#00aae4" LineType="LineType.Dashed" ValueProperty="SellingPrice"
                             Context="data">
             <TooltipTemplate>
@@ -74,25 +65,7 @@
                 <RadzenSeriesDataLabels Visible="@ShowSellingPriceLabels" />
             </ChildContent>
         </RadzenColumnSeries>
-        @*<RadzenLineSeries Data="@QuarterlyInfos" Smooth="true" CategoryProperty="Time" Stroke="orange" Title="Average selling price" LineType="LineType.Solid" ValueProperty="AverageSellingPrice">
-            <TooltipTemplate Context="data">
-                <ChargingHoursTooltip QuarterlyInfo=@data />
-            </TooltipTemplate>
-            <ChildContent>
-                <RadzenMarkers Visible="false" />
-                <RadzenSeriesDataLabels Visible="false" />
-            </ChildContent>
-        </RadzenLineSeries>*@
-        @*<RadzenColumnSeries Data="@QuarterlyInfos" CategoryProperty="Time" Title="Market price" LineType="LineType.Dashed" ValueProperty="MarketPrice">
-            <TooltipTemplate Context="data">
-                <ChargingHoursTooltip HourlyInfo=@data />
-            </TooltipTemplate>
-            <ChildContent>
-                <RadzenMarkers Visible="false" />
-                <RadzenSeriesDataLabels Visible="true" />
-            </ChildContent>
-        </RadzenColumnSeries>*@
-        <RadzenColumnSeries Data="@QuarterlyInfos" CategoryProperty="Time" Stroke="green" Fill="orange" Title="Revenue" ValueProperty="Profit">
+        <RadzenColumnSeries Visible="@WeAreInControl" Data="@QuarterlyInfos" CategoryProperty="Time" Stroke="green" Fill="orange" Title="Revenue" ValueProperty="Profit">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
             </TooltipTemplate>
@@ -151,7 +124,7 @@
                 <RadzenSeriesDataLabels Visible="false" />
             </ChildContent>
         </RadzenLineSeries>
-        <RadzenLineSeries Data="@QuarterlyInfos" Smooth="true" CategoryProperty="Time" Stroke="#b06500" Title="Charge needed" LineType="LineType.Solid" ValueProperty="ChargeNeededVisual">
+        <RadzenLineSeries Visible="@WeAreInControl" Data="@QuarterlyInfos" Smooth="true" CategoryProperty="Time" Stroke="#b06500" Title="Charge needed" LineType="LineType.Solid" ValueProperty="ChargeNeededVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
             </TooltipTemplate>

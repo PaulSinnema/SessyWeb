@@ -229,7 +229,7 @@
                         </RadzenTableCell>
                     </RadzenTableRow>
 
-                    <RadzenTableRow>
+                    <RadzenTableRow Visible="@WeAreInControl">
                         <RadzenTableCell Style="Width: 100px;">
                             <RadzenText TextStyle="TextStyle.Overline" class="rz-display-flex rz-mt-4 rz-mb-0">Mode</RadzenText>
                         </RadzenTableCell>
@@ -257,9 +257,9 @@
                     </RadzenTableRow>
                 </RadzenTable>
 
-                <RadzenText TextStyle="TextStyle.Overline" style="font-size: 0.9rem;" class="rz-display-flex rz-mt-4 rz-mb-0">Next session</RadzenText>
+                <RadzenText Visible="@WeAreInControl" TextStyle="TextStyle.Overline" style="font-size: 0.9rem;" class="rz-display-flex rz-mt-4 rz-mb-0">Next session</RadzenText>
 
-                <RadzenTable>
+                <RadzenTable Visible="@WeAreInControl">
                     <RadzenTableRow>
                         <RadzenTableCell Style="Width: 100px;">
                             <RadzenText TextStyle="TextStyle.Overline" class="rz-display-flex rz-mt-4 rz-mb-0">Time</RadzenText>

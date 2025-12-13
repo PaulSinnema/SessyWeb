@@ -17,8 +17,6 @@ namespace SessyWeb.Pages
         [Inject]
         public TooltipService? tooltipService { get; set; }
         [Inject]
-        public BatteriesService? _batteriesService { get; set; }
-        [Inject]
         public PerformanceDataService? _performanceDataService { get; set; }
         [Inject]
         public SolarService? _solarService { get; set; }
@@ -374,11 +372,7 @@ namespace SessyWeb.Pages
         }
 
 
-        public bool IsManualOverride => _batteriesService!.IsManualOverride;
-
-        public bool WeAreInControl => _batteriesService!.WeAreInControl;
-
-        public DateArgs DateSelectionChosen { get; private set; }
+        public DateArgs? DateSelectionChosen { get; private set; }
 
         /// <summary>
         /// Change the width of the chart depending on the number of quarterlyInfo objects.

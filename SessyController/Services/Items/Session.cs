@@ -1,5 +1,4 @@
-﻿using Microsoft.Extensions.Hosting;
-using SessyCommon.Configurations;
+﻿using SessyCommon.Configurations;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
 
@@ -90,7 +89,26 @@ namespace SessyController.Services.Items
         /// </summary>
         public bool PricesAnyNegative => QuarterlyInfos.Any(hi => hi.Price < 0.0);
 
+        /// <summary>
+        /// Returns true if all prices are positive.
+        /// </summary>
         public bool PricesAllPositive => QuarterlyInfos.All(hi => hi.Price >= 0.0);
+
+        /// <summary>
+        /// The number of quarters in this session.
+        /// </summary>
+        public int QuarterlyInfoCount => QuarterlyInfos.Count;
+
+        /// <summary>
+        /// Average charge needed in this session.
+        /// </summary>
+        public double AverageChargeNeeded()
+        {
+            var chargeNeededTotal = QuarterlyInfos.Sum(qi => qi.ChargeNeeded);
+            var chargeNeeded = chargeNeededTotal / QuarterlyInfos.Count;
+
+            return chargeNeeded;
+        }
 
         /// <summary>
         /// The last date in the session

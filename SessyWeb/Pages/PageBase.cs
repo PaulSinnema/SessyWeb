@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Components;
+using SessyController.Services;
 using SessyController.Services.Items;
 using SessyWeb.Helpers;
 
@@ -8,6 +9,9 @@ namespace SessyWeb.Pages
     {
         [Inject]
         public BatteryContainer? batteryContainer { get; set; }
+
+        [Inject]
+        public BatteriesService? _batteriesService { get; set; }
 
 #if DEBUG
         public bool HideId = false;
@@ -47,6 +51,12 @@ namespace SessyWeb.Pages
         public virtual void ScreenInfoChanged(ScreenInfo screenInfo) { }
 
         public bool IsComponentActive { get; internal set; } = false;
+
+        public bool IsManualOverride => _batteriesService!.IsManualOverride;
+
+        public bool WeAreInControl => _batteriesService!.WeAreInControl;
+
+
 
         protected override void OnInitialized()
         {

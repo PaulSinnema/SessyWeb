@@ -7,9 +7,6 @@
 
     public partial class Clock : BaseComponent, IDisposable
     {
-        [Inject]
-        private TimeZoneService? _timeZoneService { get; set; }
-
         private string? CurrentTime { get; set; } = "";
         private System.Timers.Timer? Timer;
 

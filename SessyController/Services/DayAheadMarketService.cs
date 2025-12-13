@@ -38,7 +38,7 @@ namespace SessyController.Services
         private static string? _securityToken;
         private static string? _inDomain;
 
-        private ConcurrentDictionary<DateTime, double>? _prices { get; set; }
+        private ConcurrentDictionary<DateTime, DynamichSchedule>? _prices { get; set; }
         private static LoggingService<DayAheadMarketService>? _logger { get; set; }
         private TimeZoneService _timeZoneService { get; set; }
         private BatteryContainer _batteryContainer { get; set; }
@@ -176,54 +176,10 @@ namespace SessyController.Services
 
             if (PricesAvailable)
             {
-                TransformPricesResolution();
-
                 await StorePrices();
             }
 
             PricesInitialized = true;
-        }
-
-        /// <summary>
-        /// Transform prices to 15 minutes resolution if needed.
-        /// On 11 June 2025 the resolution for The Netherlands will change to 15 minutes. Until
-        /// that time the 60 minutes resolution is transformed to 15 minutes.
-        /// </summary>
-        /// <exception cref="InvalidOperationException"></exception>
-        private void TransformPricesResolution()
-        {
-            if (PricesAvailable)
-            {
-                TransformPricesTo15MinuteResolutionIfNeeded();
-            }
-        }
-
-        /// <summary>
-        /// Add missing 15 minutes resolution entries.
-        /// </summary>
-        private void TransformPricesTo15MinuteResolutionIfNeeded()
-        {
-            var list = _prices!.ToList().OrderBy(ep => ep.Key);
-
-            foreach (var price in list)
-            {
-                CheckQuarterPrices(price.Key.AddMinutes(15), price.Value);
-                CheckQuarterPrices(price.Key.AddMinutes(30), price.Value);
-                CheckQuarterPrices(price.Key.AddMinutes(45), price.Value);
-            }
-        }
-
-        private void CheckQuarterPrices(DateTime time, double price)
-        {
-            if (!_prices.ContainsKey(time))
-            {
-                _prices.AddOrUpdate(time, price, Update);
-            }
-        }
-
-        private double Update(DateTime time, double value)
-        {
-            throw new InvalidOperationException($"Value already exists time: {time}, value : {value}");
         }
 
         private async Task FetchPricesFromSources(CancellationToken cancellationToken)
@@ -233,39 +189,6 @@ namespace SessyController.Services
 
             // Fetch day-ahead market prices from Sessy
             _prices = await FetchDayAheadPricesAsync();
-
-            if (_prices != null && _prices.Count > 0)
-            {
-                lastDate = _prices.Max(pr => pr.Key);
-            }
-
-            // It's 20:00 or later and still no prices on the Sessy.
-            // if (_prices == null || (now.Hour >= 20 && (lastDate - now).Hours < 0))
-            // {
-            // _logger.LogWarning($"It's 20:00 or later, Sessy still has no prices. Falling back on ENTSO-E.");
-
-            // Fallback on ENTSO-E for fetching the day-ahead market prices.
-            var entsoePrices = await FetchDayAheadPricesAsync(now, 1, cancellationToken);
-
-            var entsoeLastDate = lastDate;
-
-            if (entsoePrices != null && entsoePrices.Count > 0)
-            {
-                entsoeLastDate = entsoePrices.Max(pr => pr.Key);
-            }
-
-            _logger.LogWarning($"Fallback on ENTSO-E Last date: {entsoeLastDate}, Sessy last date {lastDate}");
-
-            if (entsoeLastDate > lastDate)
-            {
-                _logger.LogWarning($"ENTSO-E has more actual prices than Sessy, we take those prices.");
-                _prices = entsoePrices;
-            }
-            else
-            {
-                _logger.LogWarning($"ENTSO-E prices are not more actual than Sessy, keep Sessy prices");
-            }
-            // }
 
             PricesAvailable = _prices != null && _prices.Count > 0;
         }
@@ -469,22 +392,36 @@ namespace SessyController.Services
             return new ConcurrentDictionary<DateTime, double>();
         }
 
+        public class DynamichSchedule
+        {
+            public double Price { get; set; }
+            public double Power { get; set; }
+        }
+
         /// <summary>
         /// Get the day-ahead-prices from ENTSO-E.
         /// </summary>
-        private async Task<ConcurrentDictionary<DateTime, double>> FetchDayAheadPricesAsync()
+        private async Task<ConcurrentDictionary<DateTime, DynamichSchedule>> FetchDayAheadPricesAsync()
         {
             var battery = _batteryContainer.Batteries!.First();
 
             var dynamicSchedule = await battery.GetDynamicScheduleAsync();
 
-            var list = new ConcurrentDictionary<DateTime, double>();
+            var list = new ConcurrentDictionary<DateTime, DynamichSchedule>();
 
             foreach (var ep in dynamicSchedule.EnergyPrices)
             {
+                var ds = new DynamichSchedule { Price = ep.Price / 100000.0 };
+
+                ds.Power = dynamicSchedule!.DynamicSchedule!.SingleOrDefault(ds => ds.StartTime == ep.StartTime)?.Power ?? 0.0;
+
                 var priceWattHour = ep.Price / 100000.0;
 
-                list.AddOrUpdate(ep.StartTime, priceWattHour, (key, oldValue) => priceWattHour);
+                if (!list.TryAdd(ep.StartTime, ds))
+                {
+                    list[ep.StartTime].Price = ds.Price;
+                    list[ep.StartTime].Power = ds.Power;
+                }
             }
 
             return list;
@@ -502,7 +439,7 @@ namespace SessyController.Services
                 pricesList.Add(new EPEXPrices
                 {
                     Time = keyValuePair.Key,
-                    Price = keyValuePair.Value
+                    Price = keyValuePair.Value.Price
                 });
             }
 

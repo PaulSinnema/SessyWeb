@@ -567,7 +567,7 @@ namespace SessyController.Services.Items
 
         /// <summary>
         /// Returns the quarterly info objects between 2 sessions 
-        /// including the objects of the previous session and excluding the objects of the next session.
+        /// including the objects of the previous session but excluding the objects of the next session.
         /// </summary>
         private List<QuarterlyInfo> GetInfoObjectsFromStartUntilNextSession(Session previousSession, Session? nextSession = null)
         {
@@ -720,7 +720,7 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Estimates how much charge is needed in the batteries.
         /// </summary>
-        public void SetEstimateChargeNeededUntilNextSession(Session previousSession, Session? nextSession = null)
+        public void SetEstimateChargeNeededUntilNextSession(Session previousSession, Session? nextSession)
         {
             var infoObjects = GetInfoObjectsFromStartUntilNextSession(previousSession, nextSession);
 
@@ -762,7 +762,13 @@ namespace SessyController.Services.Items
         {
             double chargeNeeded = previousSession.Mode == Modes.Charging ? 1000.0 : 500.0; // Margins to compensate for uncertanties. 
 
-            chargeNeeded += previousSession.Mode == Modes.Charging ? _batteryContainer.GetTotalCapacity() : 0.0;
+            if (nextSession?.Mode == Modes.Discharging)
+            {
+                var count = nextSession.QuarterlyInfoCount;
+                var dischargingCapacityPerQuarterHour = _batteryContainer.GetChargingCapacityInWattsPerQuarter();
+                var nextSesseionChargeNeeded = nextSession.AverageChargeNeeded();
+                chargeNeeded += count * dischargingCapacityPerQuarterHour + nextSesseionChargeNeeded;
+            }
 
             return chargeNeeded;
         }
