@@ -22,6 +22,8 @@ namespace SessyWeb.Pages
         public SolarService? _solarService { get; set; }
         [Inject]
         public TimeZoneService? _timeZoneService { get; set; }
+        [Inject]
+        public BatteryContainer? _batteryContainer { get; set; }
 
         public List<QuarterlyInfoView>? QuarterlyInfos { get; set; } = new List<QuarterlyInfoView>();
 
@@ -281,9 +283,11 @@ namespace SessyWeb.Pages
                         QuarterlyInfos?.Add(await FillQuarterlyInfoView(quarterlyInfo, averageBuyingPrice, averageSellingPrice));
                     }
 
+                    var totalCapacity = _batteryContainer!.GetTotalCapacity();
+
                     foreach (var performance in performanceList)
                     {
-                        QuarterlyInfos?.Add(FillQuarterlyInfoView(performance));
+                        QuarterlyInfos?.Add(FillQuarterlyInfoView(performance, totalCapacity));
                     }
                 }
                 else
@@ -331,6 +335,7 @@ namespace SessyWeb.Pages
                 DisplayState = quarterlyInfo.DisplayState ?? string.Empty,
                 Price = quarterlyInfo.Price,
                 ChargeNeeded = quarterlyInfo.ChargeNeeded,
+                ChargeNeededPercentage = quarterlyInfo.ChargeNeededPercentage,
                 SmoothedSolarPower = quarterlyInfo.SmoothedSolarPower,
                 AverageBuyingPrice = averageBuyingPrice,
                 AverageSellingPrice = averageSellingPrice,
@@ -338,7 +343,7 @@ namespace SessyWeb.Pages
             };
         }
 
-        public QuarterlyInfoView FillQuarterlyInfoView(Performance performance)
+        public QuarterlyInfoView FillQuarterlyInfoView(Performance performance, double totalCapacity)
         {
             return new QuarterlyInfoView
             {
@@ -359,6 +364,7 @@ namespace SessyWeb.Pages
                 DisplayState = performance.DisplayState ?? string.Empty,
                 Price = performance.Price,
                 ChargeNeeded = performance.ChargeNeeded,
+                ChargeNeededPercentage = performance.ChargeNeeded > 0.0 ? totalCapacity / performance.ChargeNeeded / 100 : 0.0,
                 SmoothedSolarPower = performance.SmoothedSolarPower,
                 SessionCost = null
             };

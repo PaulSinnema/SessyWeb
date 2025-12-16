@@ -3,6 +3,8 @@
 @{
     var style = "padding: 0px; margin: 0px; height: 20px;";
     var fixedWidthStyle = $"{style} width: 150px; height: 25px;";
+    var threeQuarterWidthStyle = $"{style} width: 80px; height: 25px;";
+    var oneQuarterWidthStyle = $"{style} width: 67px; height: 25px;";
     var state = $"   {QuarterlyInfo?.DisplayState}";
 }
 
@@ -74,7 +76,8 @@
         <RadzenTextBox Value="Charge left %" disabled Style=@fixedWidthStyle />
     </RadzenColumn>
     <RadzenColumn Size="2">
-        <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@QuarterlyInfo?.ChargeLeftPercentage disabled Style=@fixedWidthStyle />
+        <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@QuarterlyInfo?.ChargeLeft disabled Style=@threeQuarterWidthStyle />
+        <RadzenNumeric Format="0.0" ShowUpDown="false" Value=@QuarterlyInfo?.ChargeLeftPercentage disabled Style=@oneQuarterWidthStyle />
     </RadzenColumn>
 </RadzenRow>
 
@@ -83,7 +86,8 @@
         <RadzenTextBox Value="Charge needed" disabled Style=@fixedWidthStyle />
     </RadzenColumn>
     <RadzenColumn Size="2">
-        <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@QuarterlyInfo?.ChargeNeeded disabled Style=@fixedWidthStyle />
+        <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@QuarterlyInfo?.ChargeNeeded disabled Style=@threeQuarterWidthStyle />
+        <RadzenNumeric Format="0.0" ShowUpDown="false" Value=@QuarterlyInfo?.ChargeNeededPercentage disabled Style=@oneQuarterWidthStyle />
     </RadzenColumn>
 </RadzenRow>
 

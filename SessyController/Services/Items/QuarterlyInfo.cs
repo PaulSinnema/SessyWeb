@@ -192,6 +192,8 @@ namespace SessyController.Services.Items
             }
         }
 
+        public double ChargeNeededPercentage => TotalCapacityInWatts != 0.0 ? ChargeNeeded / TotalCapacityInWatts * 100 : 0.0;
+
         public void SetChargeNeeded(double chargeNeeded)
         {
             ChargeNeeded = chargeNeeded;
@@ -209,7 +211,7 @@ namespace SessyController.Services.Items
         public double ChargingCapacityInWatts { get; }
         public double DischargingCapacityInWatts { get; }
 
-        public double ChargeLeftPercentage => _chargeLeft / (TotalCapacityInWatts / 100.0);
+        public double ChargeLeftPercentage => _chargeLeft / TotalCapacityInWatts * 100;
 
         public double SolarGlobalRadiation { get; set; }
 

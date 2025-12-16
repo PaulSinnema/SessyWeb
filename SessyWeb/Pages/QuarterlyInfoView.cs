@@ -14,6 +14,7 @@
         public double VisualizeInChart { get; set; }
         public double SmoothedSellingPrice { get; set; }
         public double ChargeNeeded { get; set; }
+        public double ChargeNeededPercentage { get; set; }
         public double ChargeLeft { get; set; }
         public double EstimatedConsumptionPerQuarterHour { get; set; }
         public double SolarPowerPerQuarterHour { get; set; }
