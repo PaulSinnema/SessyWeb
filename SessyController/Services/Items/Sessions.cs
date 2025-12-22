@@ -718,9 +718,76 @@ namespace SessyController.Services.Items
         }
 
         /// <summary>
+        /// Is this quarterlyHourInfo within the start end of a session?
+        /// </summary>
+        public Session? GetSessionTimeFrameOfQuarterlyHour(QuarterlyInfo info)
+        {
+            foreach (var session in SessionList)
+            {
+                if (info.Time >= session.FirstDateTime && info.Time <= session.LastDateTime)
+                {
+                    return session;
+                }
+            }
+
+            return null;
+        }
+
+        public void SetEstimateChargeNeededUntilNextSession()
+        {
+            var margin = 500.0;
+            var chargeNeeded = margin;
+            QuarterlyInfo? previousQuarterlyHourInfo = null;
+            var chargingCapacity = _batteryContainer.GetChargingCapacityInWattsPerQuarter();
+            var dischargingCapacity = _batteryContainer.GetDischargingCapacityInWattsPerQuarter();
+
+            foreach (var quarterlyHour in _quarterlyInfos.OrderByDescending(qi => qi.Time))
+            {
+                if (previousQuarterlyHourInfo != null)
+                {
+                    var session = GetSessionTimeFrameOfQuarterlyHour(previousQuarterlyHourInfo);
+
+                    if (session != null)
+                    {
+                        if (quarterlyHour.Time == session.FirstDateTime.AddMinutes(-15))
+                        {
+                            switch (session.Mode)
+                            {
+                                case Modes.Charging:
+                                    session.SetChargeNeeded(chargeNeeded);
+                                    chargeNeeded = margin;
+
+                                    break;
+
+                                case Modes.Discharging:
+                                    chargeNeeded += session.GetTotalPowerRequired();
+
+                                    break;
+
+                                case Modes.ZeroNetHome:
+                                case Modes.Unknown:
+                                default:
+                                    throw new InvalidOperationException($"Wrong mode: {session.Mode}");
+                            }
+                        }
+                    }
+                }
+
+                chargeNeeded += quarterlyHour.EstimatedConsumptionPerQuarterHour;
+                chargeNeeded -= quarterlyHour.SolarPowerPerQuarterInWatts;
+
+                chargeNeeded = EnsureBoundaries(chargeNeeded);
+
+                quarterlyHour.SetChargeNeeded(chargeNeeded);
+
+                previousQuarterlyHourInfo = quarterlyHour;
+            }
+        }
+
+        /// <summary>
         /// Estimates how much charge is needed in the batteries.
         /// </summary>
-        public void SetEstimateChargeNeededUntilNextSession(Session previousSession, Session? nextSession)
+        public void SetEstimateChargeNeededUntilNextSessionOld(Session previousSession, Session? nextSession)
         {
             var infoObjects = GetInfoObjectsFromStartUntilNextSession(previousSession, nextSession);
 

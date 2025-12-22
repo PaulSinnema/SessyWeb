@@ -277,9 +277,7 @@ namespace SessyController.Services
             {
                 currentSession.AddQuarterlyInfo(_quarterlyInfos[index++]);
 
-                CalculateChargeNeeded();
-
-                await CalculateChargeLeft();
+                await RecalculateChargeLeftAndNeeded();
 
                 return true;
             }
@@ -463,7 +461,7 @@ namespace SessyController.Services
             {
                 case Modes.Charging:
                     {
-                        var chargingPower = currentSession.GetChargingPowerInWatts(currentHourlyInfo);
+                        var chargingPower = currentSession.GetChargingPowerInWattsPerQuarter();
 #if !DEBUG
                         await _batteryContainer.StartCharging(chargingPower);
 #endif
@@ -472,7 +470,7 @@ namespace SessyController.Services
 
                 case Modes.Discharging:
                     {
-                        var chargingPower = currentSession.GetChargingPowerInWatts(currentHourlyInfo);
+                        var chargingPower = currentSession.GetChargingPowerInWattsPerQuarter();
 #if !DEBUG
                         await _batteryContainer.StartDisharging(chargingPower);
 #endif
@@ -852,9 +850,7 @@ namespace SessyController.Services
         {
             do
             {
-                CalculateChargeNeeded();
-
-                await CalculateChargeLeft();
+                await RecalculateChargeLeftAndNeeded();
 
                 await RemoveExtraChargingSessions();
 
@@ -886,9 +882,7 @@ namespace SessyController.Services
                     {
                         _sessions.CompleteSession(session);
 
-                        CalculateChargeNeeded();
-
-                        await CalculateChargeLeft();
+                        await RecalculateChargeLeftAndNeeded();
                     }
                 }
             }
@@ -917,15 +911,15 @@ namespace SessyController.Services
 
         private async Task EvaluateChargingHoursAndProfitability()
         {
-            //do
-            //{
-            CalculateChargeNeeded();
+            do
+            {
+                await RecalculateChargeLeftAndNeeded();
 
-            await CalculateChargeLeft();
+                _sessions.CalculateProfits(_timeZoneService!);
+            }
+            while (_sessions.RemoveMoreExpensiveChargingSessions());
 
-            _sessions.CalculateProfits(_timeZoneService!);
-            //}
-            //while (_sessions.RemoveMoreExpensiveChargingSessions());
+            await RecalculateChargeLeftAndNeeded();
         }
 
         /// <summary>
@@ -1137,22 +1131,20 @@ namespace SessyController.Services
             return changed;
         }
 
+        private async Task RecalculateChargeLeftAndNeeded()
+        {
+            CalculateChargeNeeded();
+
+            await CalculateChargeLeft();
+        }
+
         /// <summary>
         /// This routine detects charge session that follow each other and determines how much
         /// charge is needed for the session.
         /// </summary>
         private void CalculateChargeNeeded()
         {
-            Session? nextSession = null;
-
-            var list = _sessions.SessionList.OrderByDescending(se => se.FirstDateTime);
-
-            foreach (var previousSession in list)
-            {
-                _sessions.SetEstimateChargeNeededUntilNextSession(previousSession, nextSession);
-
-                nextSession = previousSession;
-            }
+            _sessions.SetEstimateChargeNeededUntilNextSession();
         }
 
         // Helpers: signal smoothing + prominence-based peak/trough detection

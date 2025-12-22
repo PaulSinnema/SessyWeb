@@ -146,62 +146,17 @@ namespace SessyController.Services.Items
         /// <summary>
         /// The charging power in Watts for (dis)charging.
         /// </summary>
-        public double GetChargingPowerInWatts(QuarterlyInfo currentHourlyInfo)
+        public double GetChargingPowerInWattsPerQuarter()
         {
-            return currentHourlyInfo.Charging ? _batteryContainer.GetChargingCapacityInWattsPerHour() : _batteryContainer.GetDischargingCapacityInWattsPerHour();
-
-            // TODO: // This is not correct, we need to calculate the power based on the current hourly info and the mode.
-            //var chargeNeeded = currentHourlyInfo.ChargeNeeded;
-            //var totalCapacity = _batteryContainer.GetTotalCapacity();
-            //var prices = SessionHourlyInfos.Sum(hi => hi.BuyingPrice);
-            //var quarterTime = _timeZoneService.Now.DateFloorQuarter();
-
-            //switch (Mode)
-            //{
-            //    case Modes.Charging:
-            //        {
-            //            var toCharge = chargeNeeded;
-            //            var capacity = _batteryContainer.GetChargingCapacity() / 4.0;
-
-            //            foreach (var quarterlyInfo in SessionHourlyInfos
-            //                .Where(hi => hi.Time >= quarterTime)
-            //                .OrderBy(hi => hi.BuyingPrice))
-            //            {
-            //                var watts = Math.Min(capacity, toCharge);
-            //                toCharge -= watts;
-
-            //                if (quarterlyInfo.Time == currentHourlyInfo.Time)
-            //                {
-            //                    return Math.Max(watts, 0.0);
-            //                }
-            //            }
-
-            //            throw new InvalidOperationException($"Could not find current hourly info for mode {Mode}, HourlyInfo: {currentHourlyInfo}");
-            //        }
-
-            //    case Modes.Discharging:
-            //        {
-            //            var toDischarge = totalCapacity - chargeNeeded;
-            //            var capacity = _batteryContainer.GetDischargingCapacity() / 4.0;
-
-            //            foreach (var quarterlyInfo in SessionHourlyInfos
-            //                .Where(hi => hi.Time >= quarterTime)
-            //                .OrderByDescending(hi => hi.SellingPrice))
-            //            {
-            //                var watts = Math.Min(capacity, toDischarge);
-            //                toDischarge -= watts;
-
-            //                if (quarterlyInfo.Time == currentHourlyInfo.Time)
-            //                    return Math.Max(watts, 0.0);
-            //            }
-
-            //            throw new InvalidOperationException($"Could not find current hourly info for mode {Mode}, HourlyInfo: {currentHourlyInfo}");
-            //        }
-
-            //    default:
-            //        throw new InvalidOperationException($"Invalid mode {this}");
-            //}
+            return Mode == Modes.Charging ? _batteryContainer.GetChargingCapacityInWattsPerQuarter() : 
+                Mode == Modes.Discharging ? _batteryContainer.GetDischargingCapacityInWattsPerQuarter() : 0.0;
         }
+
+        public double GetTotalPowerRequired()
+        {
+            return GetChargingPowerInWattsPerQuarter() * QuarterlyInfos.Count;
+        }
+
         /// <summary>
         /// Sets the charge needed for each quarterlyInfo object in this session.
         /// </summary>
