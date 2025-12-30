@@ -369,13 +369,13 @@ namespace SessyController.Services
 
                         if (average > 0)
                         {
-                            quarterlyInfo.EstimatedConsumptionPerQuarterHour = average;
+                            quarterlyInfo.EstimatedConsumptionPerQuarterInWatts = average;
                             return;
                         }
                     }
                 }
 
-                quarterlyInfo.EstimatedConsumptionPerQuarterHour = _settingConfig.EnergyNeedsPerMonth / 96.0; // Default to average monthly consumption
+                quarterlyInfo.EstimatedConsumptionPerQuarterInWatts = _settingConfig.EnergyNeedsPerMonth / 96.0; // Default to average monthly consumption
             }
 
         }

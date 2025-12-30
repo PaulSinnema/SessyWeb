@@ -300,10 +300,25 @@ namespace SessyController.Services.InverterServices
         /// </summary>
         public async Task<double> GetACPowerInWatts(string id)
         {
-            var powerOutput = await GetACPower(id).ConfigureAwait(false);
-            var scaleFactor = await GetACPowerScaleFactor(id).ConfigureAwait(false);
+            var tries = 0;
+            Exception? lastException = null;
 
-            return powerOutput * Math.Pow(10, scaleFactor);
+            while (tries++ < 10)
+            {
+                try
+                {
+                    var powerOutput = await GetACPower(id).ConfigureAwait(false);
+                    var scaleFactor = await GetACPowerScaleFactor(id).ConfigureAwait(false);
+
+                    return powerOutput * Math.Pow(10, scaleFactor);
+                }
+                catch (Exception ex)
+                {
+                    lastException = ex;
+                }  
+            }
+
+            throw new InvalidOperationException("GetACPowerInWatts failed after 10 retries.", lastException);
         }
 
         /// <summary>

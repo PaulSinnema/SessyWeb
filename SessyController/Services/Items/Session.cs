@@ -1,4 +1,5 @@
-﻿using SessyCommon.Configurations;
+﻿using Microsoft.AspNetCore.Http.Connections;
+using SessyCommon.Configurations;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
 
@@ -152,6 +153,15 @@ namespace SessyController.Services.Items
                 Mode == Modes.Discharging ? _batteryContainer.GetDischargingCapacityInWattsPerQuarter() : 0.0;
         }
 
+        /// <summary>
+        /// The charging power in Watts for (dis)charging.
+        /// </summary>
+        public double GetChargingPowerInWattsPerHour()
+        {
+            return Mode == Modes.Charging ? _batteryContainer.GetChargingCapacityInWattsPerHour() :
+                Mode == Modes.Discharging ? _batteryContainer.GetDischargingCapacityInWattsPerHour() : 0.0;
+        }
+
         public double GetTotalPowerRequired()
         {
             return GetChargingPowerInWattsPerQuarter() * QuarterlyInfos.Count;
@@ -215,27 +225,7 @@ namespace SessyController.Services.Items
             if (session.Mode != Mode)
                 throw new InvalidOperationException($"Modes should be the same of both sessions {Mode} != {session.Mode}");
 
-            switch (Mode)
-            {
-                case Modes.Charging:
-                    {
-                        var myCost = QuarterlyInfos.Sum(hi => hi.ChargingCost);
-                        var theirCost = session.QuarterlyInfos.Sum(hi => hi.ChargingCost);
-
-                        return myCost <= theirCost;
-                    }
-
-                case Modes.Discharging:
-                    {
-                        var myCost = QuarterlyInfos.Sum(hi => hi.DischargingCost);
-                        var theirCost = session.QuarterlyInfos.Sum(hi => hi.DischargingCost);
-
-                        return myCost >= theirCost;
-                    }
-
-                default:
-                    throw new InvalidOperationException($"Wrong mode: {Mode}");
-            }
+            return AveragePrice <= session.AveragePrice;
         }
 
         /// <summary>

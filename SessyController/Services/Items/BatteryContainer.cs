@@ -68,7 +68,9 @@ namespace SessyController.Services.Items
 
             foreach(var battery in Batteries)
             {
-                PowerStatus? powerStatus = await battery.GetPowerStatus();
+                PowerStatus? powerStatus = await battery.GetPowerStatus().ConfigureAwait(false);
+
+                await Task.Delay(100);
 
                 stateOfCharge += powerStatus.Sessy.StateOfCharge;
                 count++;

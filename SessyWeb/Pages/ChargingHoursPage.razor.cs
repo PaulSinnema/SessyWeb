@@ -328,7 +328,7 @@ namespace SessyWeb.Pages
                 VisualizeInChart = quarterlyInfo.VisualizeInChart,
                 SmoothedSellingPrice = quarterlyInfo.SmoothedSellingPrice,
                 ChargeLeft = quarterlyInfo.ChargeLeft,
-                EstimatedConsumptionPerQuarterHour = quarterlyInfo.EstimatedConsumptionPerQuarterHour,
+                EstimatedConsumptionPerQuarterHour = quarterlyInfo.EstimatedConsumptionPerQuarterInWatts,
                 SolarPowerPerQuarterHour = quarterlyInfo.SolarPowerPerQuarterHour,
                 SolarGlobalRadiation = quarterlyInfo.SolarGlobalRadiation,
                 ChargeLeftPercentage = quarterlyInfo.ChargeLeftPercentage,

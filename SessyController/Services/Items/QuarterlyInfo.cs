@@ -135,7 +135,7 @@ namespace SessyController.Services.Items
             _session = null; 
         }
 
-        public double EstimatedConsumptionPerQuarterHour { get; set; }
+        public double EstimatedConsumptionPerQuarterInWatts { get; set; }
 
         /// <summary>
         /// This is the profit if Net Zero Home were enabled. It is used

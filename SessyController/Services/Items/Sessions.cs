@@ -315,7 +315,7 @@ namespace SessyController.Services.Items
 
                 if (hours < 10)
                 {
-                    var quarterlyNeed = quarterlyInfo.EstimatedConsumptionPerQuarterHour;
+                    var quarterlyNeed = quarterlyInfo.EstimatedConsumptionPerQuarterInWatts;
                     var kWh = (Math.Min(quarterlyNeed, quarterlyInfo.ChargeLeft) / 1000); // Per quarter hour.
                     var selling = quarterlyInfo.Price * kWh;
                     var buying = lastChargingSession.Count > 0 ? lastChargingSession.Average(lcs => lcs.Price) * kWh : 0.0;
@@ -371,7 +371,7 @@ namespace SessyController.Services.Items
 
             foreach (var quarterlyInfo in _quarterlyInfos)
             {
-                var homeNeeds = quarterlyInfo.EstimatedConsumptionPerQuarterHour;
+                var homeNeeds = quarterlyInfo.EstimatedConsumptionPerQuarterInWatts;
 
                 if (quarterlyInfo.Time >= first && quarterlyInfo.Time <= last && currentCharge >= 0)
                 {
@@ -733,13 +733,14 @@ namespace SessyController.Services.Items
             return null;
         }
 
+        /// <summary>
+        /// Calculate the charge needed for all Quarterly hour objects and set them.
+        /// </summary>
         public void SetEstimateChargeNeededUntilNextSession()
         {
             var margin = 500.0;
             var chargeNeeded = margin;
             QuarterlyInfo? previousQuarterlyHourInfo = null;
-            var chargingCapacity = _batteryContainer.GetChargingCapacityInWattsPerQuarter();
-            var dischargingCapacity = _batteryContainer.GetDischargingCapacityInWattsPerQuarter();
 
             foreach (var quarterlyHour in _quarterlyInfos.OrderByDescending(qi => qi.Time))
             {
@@ -751,15 +752,19 @@ namespace SessyController.Services.Items
                     {
                         if (quarterlyHour.Time == session.FirstDateTime.AddMinutes(-15))
                         {
+                            // We are at the quarter just before the session.
+
                             switch (session.Mode)
                             {
                                 case Modes.Charging:
+                                    // We need to set the charge needed in all quarterlyhours of the session.
                                     session.SetChargeNeeded(chargeNeeded);
                                     chargeNeeded = margin;
 
                                     break;
 
                                 case Modes.Discharging:
+                                    // Calculate the total power needed for this discharging session
                                     chargeNeeded += session.GetTotalPowerRequired();
 
                                     break;
@@ -773,7 +778,9 @@ namespace SessyController.Services.Items
                     }
                 }
 
-                chargeNeeded += quarterlyHour.EstimatedConsumptionPerQuarterHour;
+                // Add estimated consumption
+                chargeNeeded += quarterlyHour.EstimatedConsumptionPerQuarterInWatts;
+                // Subtract estimated solar power
                 chargeNeeded -= quarterlyHour.SolarPowerPerQuarterInWatts;
 
                 chargeNeeded = EnsureBoundaries(chargeNeeded);
@@ -798,7 +805,7 @@ namespace SessyController.Services.Items
                 switch (previousSession.Mode)
                 {
                     case Modes.Charging:
-                        chargeNeeded += infoObject.EstimatedConsumptionPerQuarterHour;
+                        chargeNeeded += infoObject.EstimatedConsumptionPerQuarterInWatts;
                         chargeNeeded -= infoObject.SolarPowerPerQuarterInWatts;
 
                         break;
@@ -806,7 +813,7 @@ namespace SessyController.Services.Items
                     case Modes.Discharging:
                         if (!infoObject.Discharging)
                         {
-                            chargeNeeded += infoObject.EstimatedConsumptionPerQuarterHour;
+                            chargeNeeded += infoObject.EstimatedConsumptionPerQuarterInWatts;
                             chargeNeeded -= infoObject.SolarPowerPerQuarterInWatts;
                         }
 

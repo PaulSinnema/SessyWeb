@@ -306,7 +306,7 @@ namespace SessyController.Services
                         SellingPrice = currentQuarterlyInfo.SellingPrice,
                         SmoothedSellingPrice = currentQuarterlyInfo.SmoothedSellingPrice,
                         Profit = currentQuarterlyInfo.Profit,
-                        EstimatedConsumptionPerQuarterHour = currentQuarterlyInfo.EstimatedConsumptionPerQuarterHour,
+                        EstimatedConsumptionPerQuarterHour = currentQuarterlyInfo.EstimatedConsumptionPerQuarterInWatts,
                         ChargeLeft = await _batteryContainer.GetStateOfChargeInWatts(),
                         ChargeNeeded = currentQuarterlyInfo.ChargeNeeded,
                         Charging = currentQuarterlyInfo.Charging,
@@ -461,7 +461,7 @@ namespace SessyController.Services
             {
                 case Modes.Charging:
                     {
-                        var chargingPower = currentSession.GetChargingPowerInWattsPerQuarter();
+                        var chargingPower = currentSession.GetChargingPowerInWattsPerHour();
 #if !DEBUG
                         await _batteryContainer.StartCharging(chargingPower);
 #endif
@@ -470,7 +470,7 @@ namespace SessyController.Services
 
                 case Modes.Discharging:
                     {
-                        var chargingPower = currentSession.GetChargingPowerInWattsPerQuarter();
+                        var chargingPower = currentSession.GetChargingPowerInWattsPerHour();
 #if !DEBUG
                         await _batteryContainer.StartDisharging(chargingPower);
 #endif
@@ -856,11 +856,13 @@ namespace SessyController.Services
 
                 CheckSessions();
 
-                await EvaluateChargingHoursAndProfitability();
+                // await EvaluateChargingHoursAndProfitability();
             }
-            while (ShrinkSessions());
+            while (await ShrinkSessions());
 
             await CheckForFutureChargingSessions();
+
+            await RecalculateChargeLeftAndNeeded();
         }
 
         /// <summary>
@@ -885,6 +887,8 @@ namespace SessyController.Services
                         await RecalculateChargeLeftAndNeeded();
                     }
                 }
+
+                await ShrinkSessions();
             }
         }
 
@@ -972,7 +976,7 @@ namespace SessyController.Services
 
                     case Modes.ZeroNetHome:
                         {
-                            charge -= quarterlyInfo.EstimatedConsumptionPerQuarterHour;
+                            charge -= quarterlyInfo.EstimatedConsumptionPerQuarterInWatts;
                             charge += quarterlyInfo.SolarPowerPerQuarterInWatts;
 
                             break;
@@ -1001,13 +1005,11 @@ namespace SessyController.Services
 
             do
             {
-                changed = false;
-
-                changed |= await CheckProfitability();
-
-                changed |= RemoveEmptySessions();
+                changed = await CheckProfitability();
 
             } while (changed);
+
+            await RecalculateChargeLeftAndNeeded();
         }
 
         /// <summary>
@@ -1051,16 +1053,16 @@ namespace SessyController.Services
         {
             bool changed = false;
 
-            Session? lastSession = null;
+            Session? previousSession = null;
 
-            foreach (var session in _sessions.SessionList.OrderBy(se => se.FirstDateTime))
+            foreach (var nextSession in _sessions.SessionList.OrderBy(se => se.FirstDateTime))
             {
-                if (lastSession != null)
+                if (previousSession != null)
                 {
-                    if (lastSession.Mode == Modes.Charging && session.Mode == Modes.Discharging)
+                    if (previousSession.Mode == Modes.Charging && nextSession.Mode == Modes.Discharging)
                     {
-                        using var chargeEnumerator = lastSession.GetQuarterlyInfoList().OrderBy(hi => hi.Price).ToList().GetEnumerator();
-                        using var dischargeEnumerator = session.GetQuarterlyInfoList().OrderByDescending(hi => hi.Price).ToList().GetEnumerator();
+                        using var chargeEnumerator = previousSession.GetQuarterlyInfoList().OrderBy(hi => hi.Price).ToList().GetEnumerator();
+                        using var dischargeEnumerator = nextSession.GetQuarterlyInfoList().OrderByDescending(hi => hi.Price).ToList().GetEnumerator();
 
                         var hasCharging = chargeEnumerator.MoveNext();
                         var hasDischarging = dischargeEnumerator.MoveNext();
@@ -1069,7 +1071,7 @@ namespace SessyController.Services
                         {
                             if (chargeEnumerator.Current.Price + _settingsConfig.CycleCost > dischargeEnumerator.Current.Price)
                             {
-                                session.RemoveQuarterlyInfo(dischargeEnumerator.Current);
+                                nextSession.RemoveQuarterlyInfo(dischargeEnumerator.Current);
 
                                 hasDischarging = dischargeEnumerator.MoveNext();
 
@@ -1084,8 +1086,12 @@ namespace SessyController.Services
                     }
                 }
 
-                lastSession = session;
+                previousSession = nextSession;
             }
+
+            changed |= RemoveEmptySessions();
+
+            await RecalculateChargeLeftAndNeeded();
 
             return await Task.FromResult(changed);
         }
@@ -1112,7 +1118,7 @@ namespace SessyController.Services
         /// <summary>
         /// Shrink sessions if the hours needed to charge to 100% is less than calculated.
         /// </summary>
-        private bool ShrinkSessions()
+        private async Task<bool> ShrinkSessions()
         {
             var changed = false;
 
@@ -1127,6 +1133,8 @@ namespace SessyController.Services
             }
 
             changed |= RemoveEmptySessions();
+
+            await RecalculateChargeLeftAndNeeded();
 
             return changed;
         }

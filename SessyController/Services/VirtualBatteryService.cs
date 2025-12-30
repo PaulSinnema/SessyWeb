@@ -226,8 +226,8 @@ namespace SessyController.Services
         /// </summary>
         private double EstimateConsumptionWhFromQuarterlyInfo(QuarterlyInfo quarterlyInfo)
         {
-            if (quarterlyInfo.EstimatedConsumptionPerQuarterHour > 0.0)
-                return quarterlyInfo.EstimatedConsumptionPerQuarterHour;
+            if (quarterlyInfo.EstimatedConsumptionPerQuarterInWatts > 0.0)
+                return quarterlyInfo.EstimatedConsumptionPerQuarterInWatts;
 
             return 0.0;
         }
