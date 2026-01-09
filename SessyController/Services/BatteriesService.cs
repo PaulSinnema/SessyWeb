@@ -198,8 +198,6 @@ namespace SessyController.Services
                                 await EvaluateSessions().ConfigureAwait(false);
                             }
 
-                            CalculateDeltaLowestPrice();
-
                             await StorePerformance(currentHourlyInfo);
 
                             if (await WeControlTheBatteries().ConfigureAwait(false))
@@ -488,14 +486,6 @@ namespace SessyController.Services
                     }
 
                 case Modes.Disabled:
-                    {
-#if !DEBUG
-                        await _batteryContainer.StopAll();
-#endif
-
-                        break;
-                    }
-
                 case Modes.Unknown:
                 default:
                     {
@@ -1155,6 +1145,8 @@ namespace SessyController.Services
 
         private async Task RecalculateChargeLeftAndNeeded()
         {
+            CalculateDeltaLowestPrice();
+
             CalculateChargeNeeded();
 
             await CalculateChargeLeft();

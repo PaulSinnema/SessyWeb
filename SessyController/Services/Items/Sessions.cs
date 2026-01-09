@@ -872,8 +872,10 @@ namespace SessyController.Services.Items
 
         internal void CalculateDeltaLowestPrice()
         {
+            double lowestPrice = 0.0;
+
             var sessions = SessionList
-                              .Where(se => se.Mode == Modes.Charging)
+                              // .Where(se => se.Mode == Modes.Charging)
                               .OrderBy(se => se.FirstDateTime);
 
             foreach (var session in sessions)
@@ -882,9 +884,14 @@ namespace SessyController.Services.Items
 
                 var objectsBetween = GetInfoObjectsFromStartUntilNextSession(session, nextSession);
 
+                if(session.Mode == Modes.Charging)
+                {
+                    lowestPrice = session.LowestPrice;
+                }
+
                 foreach (var quarterlyInfo in objectsBetween)
                 {
-                    quarterlyInfo.SetDeltaLowestPrice(session.LowestPrice);
+                    quarterlyInfo.SetDeltaLowestPrice(lowestPrice);
                 }
             }
         }
