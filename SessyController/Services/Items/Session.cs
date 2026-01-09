@@ -15,13 +15,15 @@ namespace SessyController.Services.Items
             Unknown,
             Charging,
             Discharging,
-            ZeroNetHome
+            ZeroNetHome,
+            Disabled
         };
 
         private Modes _mode { get; set; }
         private BatteryContainer _batteryContainer { get; set; }
         private SettingsConfig _settingsConfig { get; set; }
         public int Id { get; set; }
+        public double LowestPrice => QuarterlyInfos.Min(qi => qi.Price);
 
         public Modes Mode
         {

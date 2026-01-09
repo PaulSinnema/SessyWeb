@@ -383,7 +383,7 @@ namespace SessyController.Services.Items
 
                     hours++;
 
-                    if (quarterlyInfo.NetZeroHome)
+                    if (quarterlyInfo.ZeroNetHome)
                         currentCharge -= homeNeeds;
                 }
             }
@@ -868,6 +868,25 @@ namespace SessyController.Services.Items
                 .FirstOrDefault();
 
             return quarterlyInfo;
+        }
+
+        internal void CalculateDeltaLowestPrice()
+        {
+            var sessions = SessionList
+                              .Where(se => se.Mode == Modes.Charging)
+                              .OrderBy(se => se.FirstDateTime);
+
+            foreach (var session in sessions)
+            {
+                var nextSession = GetNextSession(session);
+
+                var objectsBetween = GetInfoObjectsFromStartUntilNextSession(session, nextSession);
+
+                foreach (var quarterlyInfo in objectsBetween)
+                {
+                    quarterlyInfo.SetDeltaLowestPrice(session.LowestPrice);
+                }
+            }
         }
     }
 }

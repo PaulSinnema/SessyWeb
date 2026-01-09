@@ -198,6 +198,8 @@ namespace SessyController.Services
                                 await EvaluateSessions().ConfigureAwait(false);
                             }
 
+                            CalculateDeltaLowestPrice();
+
                             await StorePerformance(currentHourlyInfo);
 
                             if (await WeControlTheBatteries().ConfigureAwait(false))
@@ -482,6 +484,15 @@ namespace SessyController.Services
 #if !DEBUG
                         await _batteryContainer.StartNetZeroHome();
 #endif
+                        break;
+                    }
+
+                case Modes.Disabled:
+                    {
+#if !DEBUG
+                        await _batteryContainer.StopAll();
+#endif
+
                         break;
                     }
 
@@ -982,6 +993,9 @@ namespace SessyController.Services
                             break;
                         }
 
+                    case Modes.Disabled:
+                        break;
+
                     default:
                         throw new InvalidOperationException($"Invalid mode for quarterlyInfo: {quarterlyInfo}");
                 }
@@ -1153,6 +1167,11 @@ namespace SessyController.Services
         private void CalculateChargeNeeded()
         {
             _sessions.SetEstimateChargeNeededUntilNextSession();
+        }
+
+        private void CalculateDeltaLowestPrice()
+        {
+            _sessions.CalculateDeltaLowestPrice();
         }
 
         // Helpers: signal smoothing + prominence-based peak/trough detection

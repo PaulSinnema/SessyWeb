@@ -90,7 +90,7 @@ namespace SessyController.Services.Items
         public double SmoothedBuyingPrice { get; private set; }
         public double SmoothedSellingPrice { get; private set; }
         public double SmoothedPrice => Charging ? SmoothedBuyingPrice : SmoothedSellingPrice;
-
+        public double DeltaLowestPrice { get; private set; }
 
         public double SmoothedSolarPower { get; set; }
 
@@ -125,6 +125,11 @@ namespace SessyController.Services.Items
             }
         }
 
+        public void SetDeltaLowestPrice(double lowestPrice)
+        {
+            DeltaLowestPrice = lowestPrice - Price;
+        }
+
         public void SetSession(Session session)
         {
             _session = session;
@@ -132,7 +137,7 @@ namespace SessyController.Services.Items
 
         public void ClearSession()
         {
-            _session = null; 
+            _session = null;
         }
 
         public double EstimatedConsumptionPerQuarterInWatts { get; set; }
@@ -241,7 +246,8 @@ namespace SessyController.Services.Items
             {
                 if (Charging) return Modes.Charging;
                 if (Discharging) return Modes.Discharging;
-                if (NetZeroHome) return Modes.ZeroNetHome;
+                if (ZeroNetHome) return Modes.ZeroNetHome;
+                if (Disabled) return Modes.Disabled;
                 return Modes.Unknown;
             }
         }
@@ -351,10 +357,12 @@ namespace SessyController.Services.Items
                     return -0.1;
                 else if (Discharging)
                     return 0.1;
-                else if (NetZeroHome)
+                else if (ZeroNetHome)
                     return 0.03;
+                else if (Disabled)
+                    return 0.0;
 
-                    return 1.0;
+                return 1.0;
             }
         }
 
@@ -364,7 +372,8 @@ namespace SessyController.Services.Items
             {
                 return Charging ? "Charging" :
                           Discharging ? "Discharging" :
-                          NetZeroHome ? "Net zero home" : "Wrong state";
+                          ZeroNetHome ? "Net zero home" :
+                          Disabled ? "Disabled" : "Wrong state";
             }
         }
 
@@ -381,12 +390,14 @@ namespace SessyController.Services.Items
             }
         }
 
+        public bool Disabled => Math.Abs(DeltaLowestPrice) < _settingsConfig.NetZeroHomeMinProfit;
+
         /// <summary>
         /// If no (dis)charging is in progress Net Zero Home is requested.
         /// </summary>
-        public bool NetZeroHome
+        public bool ZeroNetHome
         {
-            get => (!(Charging || Discharging));
+            get => (!(Charging || Discharging || Disabled));
         }
 
         /// <summary>
@@ -409,7 +420,7 @@ namespace SessyController.Services.Items
         /// </summary>
         public override string ToString()
         {
-            return $"{Time}: Charging: {Charging}, Discharging: {Discharging}, Zero Net Home: {NetZeroHome}, Price: {BuyingPrice}, Profit: {Profit}, NZH profit: {NetZeroHomeProfit} Charge left: {_chargeLeft}, Charge needed: {_chargeNeeded}, Solar power {SolarPowerPerQuarterHour}";
+            return $"{Time}: Charging: {Charging}, Discharging: {Discharging}, Zero Net Home: {ZeroNetHome}, Price: {BuyingPrice}, Profit: {Profit}, NZH profit: {NetZeroHomeProfit} Charge left: {_chargeLeft}, Charge needed: {_chargeNeeded}, Solar power {SolarPowerPerQuarterHour}";
         }
     }
 }
