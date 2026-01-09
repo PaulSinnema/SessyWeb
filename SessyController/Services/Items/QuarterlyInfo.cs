@@ -390,7 +390,7 @@ namespace SessyController.Services.Items
             }
         }
 
-        public bool Disabled => Math.Abs(DeltaLowestPrice) < _settingsConfig.NetZeroHomeMinProfit;
+        public bool Disabled => DeltaLowestPrice < _settingsConfig.NetZeroHomeMinProfit;
 
         /// <summary>
         /// If no (dis)charging is in progress Net Zero Home is requested.
