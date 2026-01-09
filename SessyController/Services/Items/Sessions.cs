@@ -875,7 +875,6 @@ namespace SessyController.Services.Items
             double lowestPrice = 0.0;
 
             var sessions = SessionList
-                              // .Where(se => se.Mode == Modes.Charging)
                               .OrderBy(se => se.FirstDateTime);
 
             foreach (var session in sessions)

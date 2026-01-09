@@ -725,6 +725,8 @@ namespace SessyController.Services
 
                 if (_sessions != null)
                 {
+                    CalculateDeltaLowestPrice();
+
                     MergeNeighbouringSessions();
 
                     CheckSessions();
@@ -1145,8 +1147,6 @@ namespace SessyController.Services
 
         private async Task RecalculateChargeLeftAndNeeded()
         {
-            CalculateDeltaLowestPrice();
-
             CalculateChargeNeeded();
 
             await CalculateChargeLeft();

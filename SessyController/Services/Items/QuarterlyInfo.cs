@@ -127,7 +127,7 @@ namespace SessyController.Services.Items
 
         public void SetDeltaLowestPrice(double lowestPrice)
         {
-            DeltaLowestPrice = lowestPrice - Price;
+            DeltaLowestPrice = Price - lowestPrice;
         }
 
         public void SetSession(Session session)
