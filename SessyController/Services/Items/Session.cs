@@ -1,7 +1,7 @@
-﻿using Microsoft.AspNetCore.Http.Connections;
-using SessyCommon.Configurations;
+﻿using SessyCommon.Configurations;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
+using static SessyController.Services.Items.ChargingModes;
 
 namespace SessyController.Services.Items
 {
@@ -10,15 +10,6 @@ namespace SessyController.Services.Items
     /// </summary>
     public class Session : IDisposable
     {
-        public enum Modes
-        {
-            Unknown,
-            Charging,
-            Discharging,
-            ZeroNetHome,
-            Disabled
-        };
-
         private Modes _mode { get; set; }
         private BatteryContainer _batteryContainer { get; set; }
         private SettingsConfig _settingsConfig { get; set; }

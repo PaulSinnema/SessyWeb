@@ -6,6 +6,7 @@ using SessyController.Managers;
 using SessyController.Services.Items;
 using SessyData.Model;
 using SessyData.Services;
+using static SessyController.Services.Items.ChargingModes;
 using static SessyController.Services.Items.Session;
 using static SessyData.Model.SessyWebControl;
 using static System.Runtime.InteropServices.JavaScript.JSType;
@@ -315,7 +316,7 @@ namespace SessyController.Services
                         SmoothedSolarPower = currentQuarterlyInfo.SmoothedSolarPower,
                         SolarGlobalRadiation = currentQuarterlyInfo.SolarGlobalRadiation,
                         ChargeLeftPercentage = currentQuarterlyInfo.ChargeLeftPercentage,
-                        DisplayState = currentQuarterlyInfo.DisplayState,
+                        DisplayState = currentQuarterlyInfo.GetDisplayMode,
                         VisualizeInChart = currentQuarterlyInfo.VisualizeInChart,
                     }
                 };
@@ -1438,19 +1439,7 @@ namespace SessyController.Services
         {
             var quarterlyInfo = _sessions.GetCurrentQuarterlyInfo();
 
-            switch (quarterlyInfo.Mode)
-            {
-                case Modes.Unknown:
-                    return "?";
-                case Modes.Charging:
-                    return "Charging";
-                case Modes.Discharging:
-                    return "Discharging";
-                case Modes.ZeroNetHome:
-                    return "Zero net home";
-                default:
-                    return "?";
-            }
+            return GetDisplayMode(quarterlyInfo.Mode);
         }
 
         public QuarterlyInfo? GetNextQuarterlyInfoInSession()

@@ -2,6 +2,7 @@
 using SessyCommon.Extensions;
 using SessyCommon.Services;
 using SessyController.Services.InverterServices;
+using static SessyController.Services.Items.ChargingModes;
 using static SessyController.Services.Items.Session;
 
 namespace SessyController.Services.Items
@@ -244,11 +245,7 @@ namespace SessyController.Services.Items
         {
             get
             {
-                if (Charging) return Modes.Charging;
-                if (Discharging) return Modes.Discharging;
-                if (ZeroNetHome) return Modes.ZeroNetHome;
-                if (Disabled) return Modes.Disabled;
-                return Modes.Unknown;
+                return GetMode(this);
             }
         }
 
@@ -366,14 +363,11 @@ namespace SessyController.Services.Items
             }
         }
 
-        public string DisplayState
+        public string GetDisplayMode
         {
             get
             {
-                return Charging ? "Charging" :
-                          Discharging ? "Discharging" :
-                          ZeroNetHome ? "Net zero home" :
-                          Disabled ? "Disabled" : "Wrong state";
+                return GetDisplayMode(Mode);
             }
         }
 

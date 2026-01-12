@@ -3,8 +3,7 @@ using SessyCommon.Extensions;
 using SessyCommon.Services;
 using SessyData.Services;
 using System.Collections.ObjectModel;
-using System.Threading.Channels;
-using static SessyController.Services.Items.Session;
+using static SessyController.Services.Items.ChargingModes;
 
 namespace SessyController.Services.Items
 {

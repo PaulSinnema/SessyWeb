@@ -332,7 +332,7 @@ namespace SessyWeb.Pages
                 SolarPowerPerQuarterHour = quarterlyInfo.SolarPowerPerQuarterHour,
                 SolarGlobalRadiation = quarterlyInfo.SolarGlobalRadiation,
                 ChargeLeftPercentage = quarterlyInfo.ChargeLeftPercentage,
-                DisplayState = quarterlyInfo.DisplayState ?? string.Empty,
+                DisplayState = quarterlyInfo.GetDisplayMode ?? string.Empty,
                 Price = quarterlyInfo.Price,
                 ChargeNeeded = quarterlyInfo.ChargeNeeded,
                 ChargeNeededPercentage = quarterlyInfo.ChargeNeededPercentage,
