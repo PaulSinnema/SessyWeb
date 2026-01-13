@@ -19,7 +19,7 @@
         <RadzenCard Style="padding: 3px 3px 5px 10px;">
             <RadzenTable>
                 <RadzenTableRow>
-                    <RadzenTableCell Style="width: 100px;">
+                    <RadzenTableCell Style="width: 100px;vertical-align: top;">
                         <RadzenStack Orientation="Orientation.Vertical" Gap="0" AlignItems="AlignItems.Start" Style="width: 200px;">
                             <RadzenText TextStyle="TextStyle.Overline" class="rz-display-flex rz-mt-4 rz-mb-0">Date</RadzenText>
                             <RadzenText TextStyle="TextStyle.Body2"><b>@_timeZoneService!.Now.Date.AddDays(-1).ToString("dd-MM-yyyy")</b></RadzenText>
@@ -28,7 +28,7 @@
                         </RadzenStack>
                     </RadzenTableCell>
 
-                    <RadzenTableCell Style="width: 75px;">
+                    <RadzenTableCell Style="width: 75px;vertical-align: top;">
                         <RadzenStack Orientation="Orientation.Vertical" Gap="0" AlignItems="AlignItems.Start" Style="width: 200px;">
                             <RadzenText TextStyle="TextStyle.Overline" class="rz-display-flex rz-mt-4 rz-mb-0">Solar</RadzenText>
                             <RadzenText TextStyle="TextStyle.Body1"><b>--</b></RadzenText>
@@ -40,7 +40,7 @@
                         </RadzenStack>
                     </RadzenTableCell>
 
-                    <RadzenTableCell Style="width: 75px;">
+                    <RadzenTableCell Style="width: 75px;vertical-align: top;">
                         <RadzenStack Orientation="Orientation.Vertical" Gap="0" AlignItems="AlignItems.Start" Style="width: 150px;">
                             <RadzenText TextStyle="TextStyle.Overline" class="rz-display-flex rz-mt-4 rz-mb-0">Cost</RadzenText>
                             <RadzenText TextStyle="TextStyle.Body1"><b>€ @TotalRevenueExpectedYesterdayVisual</b></RadzenText>
@@ -50,7 +50,7 @@
 
                     </RadzenTableCell>
 
-                    <RadzenTableCell Style="width: 120px;">
+                    <RadzenTableCell Style="width: 120px;vertical-align: top;">
                         <RadzenStack Orientation="Orientation.Vertical" Gap="0" AlignItems="AlignItems.Start" Style="width: 200px;">
                             <RadzenText TextStyle="TextStyle.Overline" class="rz-display-flex rz-mt-4 rz-mb-0">Battery</RadzenText>
                             <RadzenText TextStyle="TextStyle.Body1"><b>@BatteryPercentageVisual</b></RadzenText>
@@ -72,7 +72,7 @@
                         </RadzenStack>
                     </RadzenTableCell>
 
-                    <RadzenTableCell Style="width: 100%;">
+                    <RadzenTableCell Style="width: 100%;vertical-align: top;">
                         <RadzenStack Orientation="Orientation.Horizontal" Gap="1" AlignItems="AlignItems.Start">
                             <RadzenStack Orientation="Orientation.Horizontal" Style="width: 100%;">
                                 <RadzenStack Orientation="Orientation.Vertical" Gap="2" AlignItems="AlignItems.Start" Style="width: 150px;">
