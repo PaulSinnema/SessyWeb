@@ -169,7 +169,7 @@ namespace SessyController.Services
         /// </summary>
         public async Task Process(CancellationToken cancellationToken)
         {
-            if (_dayAheadMarketService != null && _dayAheadMarketService.PricesInitialized)
+            if (_dayAheadMarketService != null && _dayAheadMarketService.IsInitialized())
             {
                 // Prevent race conditions.
                 await HourlyInfoSemaphore.WaitAsync().ConfigureAwait(false);

@@ -132,15 +132,15 @@ builder.Services.AddSingleton<ISolarInverterService, HuaweiInverterService>();
 builder.Services.AddSingleton<ISolarInverterService, SungrowInverterService>();
 builder.Services.AddSingleton<ISolarInverterService, VictronInverterService>();
 
-builder.Services.AddHostedService(provider => provider.GetRequiredService<DayAheadMarketService>());
-builder.Services.AddHostedService(provider => provider.GetRequiredService<BatteriesService>());
-builder.Services.AddHostedService(provider => provider.GetRequiredService<WeatherService>());
-builder.Services.AddHostedService(provider => provider.GetRequiredService<SessyMonitorService>());
-builder.Services.AddHostedService(provider => provider.GetRequiredService<EnergyMonitorService>());
-builder.Services.AddHostedService(provider => provider.GetRequiredService<P1MeterService>());
-builder.Services.AddHostedService(provider => provider.GetRequiredService<SolarInverterManager>());
-builder.Services.AddHostedService(provider => provider.GetRequiredService<ConsumptionMonitorService>());
-builder.Services.AddHostedService(provider => provider.GetRequiredService<DatabaseBackupService>());
+builder.Services.AddHostedService<DayAheadMarketService>();
+builder.Services.AddHostedService<BatteriesService>();
+builder.Services.AddHostedService<WeatherService>();
+builder.Services.AddHostedService<SessyMonitorService>();
+builder.Services.AddHostedService<EnergyMonitorService>();
+builder.Services.AddHostedService<P1MeterService>();
+builder.Services.AddHostedService<SolarInverterManager>();
+builder.Services.AddHostedService<ConsumptionMonitorService>();
+builder.Services.AddHostedService<DatabaseBackupService>();
 
 builder.Services.AddRazorPages(options =>
 {

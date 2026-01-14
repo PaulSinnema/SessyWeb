@@ -178,12 +178,12 @@ namespace SessyController.Services
         {
             var tries = 0;
 
-            while (!_weatherService.Initialized && tries++ < 10)
+            while (!_weatherService.IsInitialized() && tries++ < 10)
             {
                 await Task.Delay(TimeSpan.FromSeconds(1), cancelationToken);
             }
 
-            if (!_weatherService.Initialized)
+            if (!_weatherService.IsInitialized())
                 throw new InvalidOperationException("Weather service not initialized");
         }
 

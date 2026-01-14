@@ -125,19 +125,19 @@ namespace SessyController.Services
         {
             var tries = 0;
 
-            while (!_weatherService.Initialized && tries++ < 10)
+            while (!_weatherService.IsInitialized() && tries++ < 10)
             {
                 await Task.Delay(TimeSpan.FromSeconds(5), cancelationToken);
             }
 
             tries = 0;
 
-            while (!_dayAheadMarketService.PricesInitialized && tries++ < 10)
+            while (!_dayAheadMarketService.IsInitialized() && tries++ < 10)
             {
                 await Task.Delay(TimeSpan.FromSeconds(5), cancelationToken);
             }
 
-            if (!(_dayAheadMarketService.PricesInitialized && _weatherService.Initialized))
+            if (!(_dayAheadMarketService.IsInitialized() && _weatherService.IsInitialized()))
                 throw new InvalidOperationException("Day ahead service or weather service not initialized");
         }
         

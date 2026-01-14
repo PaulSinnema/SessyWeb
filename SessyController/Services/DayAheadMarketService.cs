@@ -60,7 +60,7 @@ namespace SessyController.Services
         private Taxes? _taxes { get; set; }
 
         public bool PricesAvailable { get; internal set; } = false;
-        public bool PricesInitialized { get; internal set; } = false;
+        private static bool _initialized { get; set; } = false;
 
         public DayAheadMarketService(LoggingService<DayAheadMarketService> logger,
                                     IConfiguration configuration,
@@ -95,6 +95,11 @@ namespace SessyController.Services
             _settingsConfigMonitorSubscription = _settingsConfigMonitor.OnChange((settings) => _settingsConfig = settings);
 
             _logger = logger;
+        }
+
+        public bool IsInitialized()
+        {
+            return _initialized;
         }
 
         /// <summary>
@@ -179,7 +184,7 @@ namespace SessyController.Services
                 await StorePrices();
             }
 
-            PricesInitialized = true;
+            _initialized = true;
         }
 
         private async Task FetchPricesFromSources(CancellationToken cancellationToken)

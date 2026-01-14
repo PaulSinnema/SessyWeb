@@ -20,7 +20,7 @@ namespace SessyController.Services
 
         private WeerData? WeatherData { get; set; }
 
-        public bool Initialized { get; private set; }
+        private static bool _initialized { get; set; }
 
         public WeatherService(LoggingService<SessyService> logger,
                               TimeZoneService timeZoneService,
@@ -43,7 +43,7 @@ namespace SessyController.Services
 
             while (!cancelationToken.IsCancellationRequested)
             {
-                Initialized = false;
+                _initialized = false;
 
                 try
                 {
@@ -53,7 +53,7 @@ namespace SessyController.Services
                     {
                         WeatherData = await GetWeatherDataAsync();
 
-                        StoreWeatherData(WeatherData);
+                        await StoreWeatherData(WeatherData);
 
                     }
                     finally
@@ -61,21 +61,30 @@ namespace SessyController.Services
                         WeatherDataSemaphore.Release();
                     }
 
-                    Initialized = true;
+                    _initialized = true;
+
+                    // Wait 30 minutes
+                    await Task.Delay(TimeSpan.FromMinutes(30), cancelationToken);
+
+                    continue;
                 }
                 catch (Exception ex)
                 {
                     _logger.LogException(ex, "An error occurred while getting the weather data.");
                 }
 
-                // Wait 30 minutes
-                await Task.Delay(TimeSpan.FromMinutes(30), cancelationToken);
+                await Task.Delay(TimeSpan.FromSeconds(30), cancelationToken);
             }
 
             _logger.LogWarning("Weather service stopped.");
         }
 
-        private void StoreWeatherData(WeerData? weatherData)
+        public bool IsInitialized()
+        {
+            return _initialized; 
+        }
+
+        private async Task StoreWeatherData(WeerData? weatherData)
         {
             var statusList = new List<SolarData>();
 
@@ -88,7 +97,7 @@ namespace SessyController.Services
                 });
             }
 
-            _solarDataService.AddOrUpdate(statusList, (item, set) => set.Where(sd => sd.Time == item.Time).FirstOrDefault());
+            await _solarDataService.AddOrUpdate(statusList, (item, set) => set.Where(sd => sd.Time == item.Time).FirstOrDefault());
         }
 
         private async Task<WeerData?> GetWeatherDataAsync()
