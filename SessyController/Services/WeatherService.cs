@@ -20,7 +20,7 @@ namespace SessyController.Services
 
         private WeerData? WeatherData { get; set; }
 
-        private static bool _initialized { get; set; }
+        private bool _initialized { get; set; }
 
         public WeatherService(LoggingService<SessyService> logger,
                               TimeZoneService timeZoneService,

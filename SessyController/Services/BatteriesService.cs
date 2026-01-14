@@ -411,7 +411,7 @@ namespace SessyController.Services
         /// </summary>
         private async Task HandleChargingAndDischarging(BatteryStates batteryStates, QuarterlyInfo currentHourlyInfo)
         {
-            if (_dayAheadMarketService.PricesAvailable)
+            if (_dayAheadMarketService.IsInitialized())
             {
                 if (_settingsConfig.ManualOverride == false)
                 {

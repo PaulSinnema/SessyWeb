@@ -59,8 +59,8 @@ namespace SessyController.Services
         private IDisposable? _settingsConfigMonitorSubscription { get; set; }
         private Taxes? _taxes { get; set; }
 
-        public bool PricesAvailable { get; internal set; } = false;
-        private static bool _initialized { get; set; } = false;
+        private bool PricesAvailable { get; set; } = false;
+        private bool _initialized { get; set; } = false;
 
         public DayAheadMarketService(LoggingService<DayAheadMarketService> logger,
                                     IConfiguration configuration,
@@ -129,7 +129,7 @@ namespace SessyController.Services
                 {
                     int delayTime = 5; // Check again in 5 minutes if no prices available
 
-                    if (_prices != null && _prices.Count > 0)
+                    if (PricesAvailable)
                     {
                         // Wait until the next whole quarter or until cancellation
                         var localTime = _timeZoneService.Now;
@@ -137,7 +137,9 @@ namespace SessyController.Services
                         delayTime = 15 - (localTime.Minute % 15) + 1; // 1 minute extra to be sure
                     }
                     else
-                        _logger.LogWarning("No prices available from ENTSO-E, checking again in 5 minutes.");
+                    {
+                        _logger.LogWarning("No prices available from Sessy, checking again in 5 minutes.");
+                    }
 
                     await Task.Delay(TimeSpan.FromMinutes(delayTime), cancelationToken);
                 }
@@ -182,9 +184,9 @@ namespace SessyController.Services
             if (PricesAvailable)
             {
                 await StorePrices();
-            }
 
-            _initialized = true;
+                _initialized = true;
+            }
         }
 
         private async Task FetchPricesFromSources(CancellationToken cancellationToken)

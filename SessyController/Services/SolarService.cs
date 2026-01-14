@@ -168,7 +168,7 @@ namespace SessyController.Services
         /// </summary>
         private async Task GetEstimatesForSolarPower(List<QuarterlyInfo> hourlyInfos)
         {
-            if (_weatherService.IsInitialized() && _dayAheadMarketService.PricesAvailable)
+            if (_weatherService.IsInitialized() && _dayAheadMarketService.IsInitialized())
             {
                 var startDate = hourlyInfos.Min(hi => hi.Time);
                 var endDate = hourlyInfos.Max(hi => hi.Time);
