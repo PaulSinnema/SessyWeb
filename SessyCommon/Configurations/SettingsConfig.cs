@@ -6,6 +6,11 @@ namespace SessyCommon.Configurations
     public class SettingsConfig
     {
         /// <summary>
+        /// Where your house is situated.
+        /// </summary>
+        public double Latitude { get; set; }
+        public double Longitude { get; set; }
+        /// <summary>
         /// If set to true will put Charged (Sessy) in control
         /// </summary>
         public bool ChargedInControl { get; set; }

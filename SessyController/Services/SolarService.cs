@@ -271,8 +271,8 @@ namespace SessyController.Services
         {
             var endpoint = config[id];
 
-            var longitude = endpoint.Longitude;
-            var latitude = endpoint.Latitude;
+            var longitude = _settingsConfig.Longitude;
+            var latitude = _settingsConfig.Latitude;
 
             double solarAltitude;
             double solarAzimuth;

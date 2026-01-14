@@ -7,9 +7,10 @@ namespace SessyController.Services.InverterServices
     {
         public SungrowInverterService(LoggingService<SolarEdgeInverterService> logger,
                                       IHttpClientFactory httpClientFactory,
+                                      IOptionsMonitor<SettingsConfig> settingsConfig,
                                       IOptionsMonitor<PowerSystemsConfig> powerSystemsConfig,
                                       IServiceScopeFactory serviceScopeFactory)
-            : base(logger, "Sungrow", httpClientFactory, powerSystemsConfig, serviceScopeFactory)
+            : base(logger, "Sungrow", httpClientFactory, settingsConfig, powerSystemsConfig, serviceScopeFactory)
         {
         }
     }

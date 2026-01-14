@@ -16,6 +16,9 @@ namespace SessyController.Services.InverterServices
     {
         public string ProviderName { get; private set; }
 
+        private IOptionsMonitor<SettingsConfig> _settingsConfigMonitor;
+        private SettingsConfig _settingsConfig;
+
         private LoggingService<SolarEdgeInverterService> _logger { get; set; }
         private IOptionsMonitor<PowerSystemsConfig> _powerSystemsConfigMonitor { get; set; }
         private PowerSystemsConfig _powerSystemConfig { get; set; }
@@ -32,14 +35,18 @@ namespace SessyController.Services.InverterServices
         public SunspecInverterService(LoggingService<SolarEdgeInverterService> logger,
                                       string providerName,
                                       IHttpClientFactory httpClientFactory,
+                                      IOptionsMonitor<SettingsConfig> settingsConfig,
                                       IOptionsMonitor<PowerSystemsConfig> powerSystemsConfigMonitor,
                                       IServiceScopeFactory serviceScopeFactory)
         {
             _logger = logger;
             ProviderName = providerName;
+            _settingsConfigMonitor = settingsConfig;
+            _settingsConfig = _settingsConfigMonitor.CurrentValue;
             _powerSystemsConfigMonitor = powerSystemsConfigMonitor;
             _powerSystemConfig = _powerSystemsConfigMonitor.CurrentValue;
 
+            _settingsConfigMonitor.OnChange((config) => _settingsConfig = config);
             _powerSystemsConfigMonitor.OnChange((config) => _powerSystemConfig = config);
 
             _scope = serviceScopeFactory.CreateScope();
@@ -106,10 +113,10 @@ namespace SessyController.Services.InverterServices
         {
             foreach (var powerSystemConfig in _powerSystemConfig.Endpoints)
             {
+                var level = _timeZoneService.GetSunlightLevel(_settingsConfig.Latitude, _settingsConfig.Longitude);
+
                 foreach (var config in powerSystemConfig.Value)
                 {
-                    var level = _timeZoneService.GetSunlightLevel(config.Value.Latitude, config.Value.Longitude);
-
                     if (level == SolCalc.Data.SunlightLevel.Daylight)
                     {
                         // The sun is visible (over the horizon).
@@ -259,6 +266,7 @@ namespace SessyController.Services.InverterServices
         public async Task<ushort> GetACPower(string id)
         {
             var tries = 0;
+            Exception? exception = null;
 
             while (tries < 10)
             {
@@ -271,15 +279,16 @@ namespace SessyController.Services.InverterServices
                         return result.Value;
                     }
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
+                    exception = ex;
                 }
 
                 await Task.Delay(1000);
                 tries++;
             }
 
-            throw new InvalidOperationException($"Failed to get modbus data for AC Power after 10 retries");
+            throw new InvalidOperationException($"Failed to get modbus data for AC Power after 10 retries", exception);
         }
 
         /// <summary>

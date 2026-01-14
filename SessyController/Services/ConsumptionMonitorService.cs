@@ -269,7 +269,13 @@ namespace SessyController.Services
 
         public async Task<double> CalculateConsumption()
         {
-            var solarPower = await _solarInverterManager.GetTotalACPowerInWatts();
+            double solarPower = 0.0;
+
+            if(_timeZoneService.GetSunlightLevel(_settingConfig.Latitude, _settingConfig.Longitude) == SolCalc.Data.SunlightLevel.Daylight)
+            {
+                solarPower = await _solarInverterManager.GetTotalACPowerInWatts();
+            }
+
             var netPower = await _p1MeterContainer.GetTotalPowerInWatts();
             var batteryPower = await _batteryContainer.GetTotalPowerInWatts();
 

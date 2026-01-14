@@ -7,9 +7,10 @@ namespace SessyController.Services.InverterServices
     {
         public VictronInverterService(LoggingService<SolarEdgeInverterService> logger,
                                       IHttpClientFactory httpClientFactory,
+                                      IOptionsMonitor<SettingsConfig> settingsConfig,
                                       IOptionsMonitor<PowerSystemsConfig> powerSystemsConfig,
                                       IServiceScopeFactory serviceScopeFactory)
-            : base(logger, "Victron", httpClientFactory, powerSystemsConfig, serviceScopeFactory)
+            : base(logger, "Victron", httpClientFactory, settingsConfig, powerSystemsConfig, serviceScopeFactory)
         {
         }
     }
