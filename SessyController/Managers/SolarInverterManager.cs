@@ -1,27 +1,46 @@
 ﻿using Microsoft.Extensions.Options;
 using SessyCommon.Configurations;
+using SessyCommon.Services;
 using SessyController.Interfaces;
 
 namespace SessyController.Managers
 {
     public class SolarInverterManager : BackgroundService
     {
-        private PowerSystemsConfig _powerSystemsConfig { get; set; }
+        private TimeZoneService _timeZoneService;
+        private IOptionsMonitor<SettingsConfig> _settingsConfigMonitor;
+        private SettingsConfig _settingsConfig;
+        private IOptionsMonitor<PowerSystemsConfig> _powerSystemConfigMonitor;
+
+        private PowerSystemsConfig? _powerSystemsConfig { get; set; }
         private List<ISolarInverterService> _activeInverterServices { get; set; } = new();
         private double TotalCapacity => _activeInverterServices.Sum(serv => serv.Endpoints.Sum(ep => ep.Value.InverterMaxCapacity));
 
         public SolarInverterManager(IEnumerable<ISolarInverterService> inverterServices,
-                                    IOptionsMonitor<PowerSystemsConfig> powerSystemsConfig)
+                                    TimeZoneService timezoneService,
+                                    IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
+                                    IOptionsMonitor<PowerSystemsConfig> powerSystemsConfigMonitor)
         {
-            _powerSystemsConfig = powerSystemsConfig.CurrentValue;
-
-            FillActiveInverterServices(inverterServices);
-
-            powerSystemsConfig.OnChange((config) =>
+            _timeZoneService = timezoneService;
+            _settingsConfigMonitor = settingsConfigMonitor;
+            _settingsConfig = settingsConfigMonitor.CurrentValue;
+            _settingsConfigMonitor.OnChange((config) =>
             {
-                _powerSystemsConfig = config;
-                FillActiveInverterServices(inverterServices);
+                _settingsConfig = config;
             });
+
+            _powerSystemConfigMonitor = powerSystemsConfigMonitor;
+            UpdatePowersystemConfig(inverterServices, _powerSystemConfigMonitor.CurrentValue);
+            _powerSystemConfigMonitor.OnChange((config) =>
+            {
+                UpdatePowersystemConfig(inverterServices, config);
+            });
+        }
+
+        private void UpdatePowersystemConfig(IEnumerable<ISolarInverterService> inverterServices, PowerSystemsConfig config)
+        {
+            _powerSystemsConfig = config;
+            FillActiveInverterServices(inverterServices);
         }
 
         private void FillActiveInverterServices(IEnumerable<ISolarInverterService> inverterServices)
@@ -34,9 +53,13 @@ namespace SessyController.Managers
         public async Task<double> GetTotalACPowerInWatts()
         {
             double total = 0;
-            foreach (var service in _activeInverterServices)
+
+            if (_timeZoneService.GetSunlightLevel(_settingsConfig.Latitude, _settingsConfig.Longitude) == SolCalc.Data.SunlightLevel.Daylight)
             {
-                total += await service.GetTotalACPowerInWatts();
+                foreach (var service in _activeInverterServices)
+                {
+                    total += await service.GetTotalACPowerInWatts();
+                }
             }
 
             return total;
