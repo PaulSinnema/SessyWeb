@@ -1,15 +1,16 @@
 ﻿using SessyCommon.Configurations;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
+using SessyController.Interfaces;
+using SessyController.Managers;
 using SessyController.Services.InverterServices;
 using static SessyController.Services.Items.ChargingModes;
-using static SessyController.Services.Items.Session;
 
 namespace SessyController.Services.Items
 {
     public class QuarterlyInfo
     {
-        private const double minSolarPower = 0.0;
+        private const double minSolarPower = 50.0;
 
         private QuarterlyInfo(DateTime time,
                                 Session? session,
@@ -18,7 +19,7 @@ namespace SessyController.Services.Items
                                 double sellingPrice,
                                 SettingsConfig settingsConfig,
                                 BatteryContainer batteryContainer,
-                                SolarEdgeInverterService solarEdgeService,
+                                SolarInverterManager solarInverterManager,
                                 TimeZoneService timeZoneService,
                                 CalculationService calculationService)
         {
@@ -27,7 +28,7 @@ namespace SessyController.Services.Items
 
             _settingsConfig = settingsConfig;
             _batteryContainer = batteryContainer;
-            _solarEdgeService = solarEdgeService;
+            _solarInverterManager = solarInverterManager;
             _timeZoneService = timeZoneService;
             _calculationService = calculationService;
 
@@ -49,7 +50,7 @@ namespace SessyController.Services.Items
             double marketPrice,
             SettingsConfig settingsConfig,
             BatteryContainer batteryContainer,
-            SolarEdgeInverterService solarEdgeService,
+            SolarInverterManager solarInverterManager,
             TimeZoneService timeZoneService,
             CalculationService calculationService)
         {
@@ -64,7 +65,7 @@ namespace SessyController.Services.Items
                 selling,
                 settingsConfig,
                 batteryContainer,
-                solarEdgeService,
+                solarInverterManager,
                 timeZoneService,
                 calculationService);
         }
@@ -73,7 +74,7 @@ namespace SessyController.Services.Items
 
         private BatteryContainer _batteryContainer { get; set; }
 
-        private SolarEdgeInverterService _solarEdgeService { get; set; }
+        private SolarInverterManager _solarInverterManager { get; set; }
 
         private TimeZoneService _timeZoneService { get; set; }
 
@@ -371,20 +372,22 @@ namespace SessyController.Services.Items
             }
         }
 
-        private bool SolarPowerIsActive
+        private async Task<bool> SolarPowerIsActive()
         {
-            get
+            var now = _timeZoneService.Now.DateFloorQuarter();
+
+            if (Time == now)
             {
-                var now = _timeZoneService.Now;
+                var totalSolarPower = await _solarInverterManager.GetTotalACPowerInWatts().ConfigureAwait(false);
 
-                if (Time == now.DateFloorQuarter() && _solarEdgeService.ActualSolarPowerInWatts > minSolarPower)
+                if (totalSolarPower > minSolarPower)
                     return true;
-
-                return false;
             }
+
+            return false;
         }
 
-        public bool Disabled => DeltaLowestPrice < _settingsConfig.NetZeroHomeMinProfit;
+        public bool Disabled => DeltaLowestPrice < _settingsConfig.NetZeroHomeMinProfit && ! SolarPowerIsActive().ConfigureAwait(false).GetAwaiter().GetResult();
 
         /// <summary>
         /// If no (dis)charging is in progress Net Zero Home is requested.

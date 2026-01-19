@@ -2,6 +2,7 @@
 using SessyCommon.Configurations;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
+using SessyController.Managers;
 using SessyController.Services.InverterServices;
 using SessyController.Services.Items;
 using SessyData.Model;
@@ -53,7 +54,7 @@ namespace SessyController.Services
         private IServiceScope _scope { get; set; }
 
         private TaxesDataService _taxesService { get; set; }
-        private SolarEdgeInverterService _solarEdgeService { get; set; }
+        private SolarInverterManager _solarInverterManager { get; set; }
 
         private SettingsConfig _settingsConfig { get; set; }
         private IDisposable? _settingsConfigMonitorSubscription { get; set; }
@@ -69,7 +70,7 @@ namespace SessyController.Services
                                     EPEXPricesDataService epexPricesDataService,
                                     IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
                                     TaxesDataService taxesService,
-                                    SolarEdgeInverterService solarEdgeService,
+                                    SolarInverterManager solarInverterManager,
                                     CalculationService calculationService,
                                     IHttpClientFactory httpClientFactory,
                                     IServiceScopeFactory serviceScopeFactory)
@@ -81,7 +82,7 @@ namespace SessyController.Services
             _batteryContainer = batteryContainer;
             _serviceScopeFactory = serviceScopeFactory;
             _epexPricesDataService = epexPricesDataService;
-            _solarEdgeService = solarEdgeService;
+            _solarInverterManager = solarInverterManager;
             _settingsConfigMonitor = settingsConfigMonitor;
             _httpClientFactory = httpClientFactory;
             _calculationService = calculationService;
@@ -253,7 +254,7 @@ namespace SessyController.Services
                     ep!.Price!.Value,
                     _settingsConfig,
                     _batteryContainer,
-                    _solarEdgeService,
+                    _solarInverterManager,
                     _timeZoneService,
                     _calculationService));
 

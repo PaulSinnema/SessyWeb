@@ -756,8 +756,13 @@ namespace SessyController.Services.Items
                             switch (session.Mode)
                             {
                                 case Modes.Charging:
-                                    // We need to set the charge needed in all quarterlyhours of the session.
-                                    session.SetChargeNeeded(chargeNeeded);
+                                    var nextSession = GetNextSession(session);
+
+                                    if (nextSession != null && nextSession.Mode == Modes.Discharging)
+                                    {
+                                        chargeNeeded += nextSession.GetTotalPowerRequired();
+                                    }
+
                                     chargeNeeded = margin;
 
                                     break;

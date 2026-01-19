@@ -7,9 +7,7 @@ using SessyController.Services.Items;
 using SessyData.Model;
 using SessyData.Services;
 using static SessyController.Services.Items.ChargingModes;
-using static SessyController.Services.Items.Session;
 using static SessyData.Model.SessyWebControl;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace SessyController.Services
 {
@@ -312,6 +310,8 @@ namespace SessyController.Services
                         ChargeNeeded = currentQuarterlyInfo.ChargeNeeded,
                         Charging = currentQuarterlyInfo.Charging,
                         Discharging = currentQuarterlyInfo.Discharging,
+                        ZeroNetHome = currentQuarterlyInfo.ZeroNetHome,
+                        Disabled = currentQuarterlyInfo.Disabled,
                         SolarPowerPerQuarterHour = currentQuarterlyInfo.SolarPowerPerQuarterHour,
                         SmoothedSolarPower = currentQuarterlyInfo.SmoothedSolarPower,
                         SolarGlobalRadiation = currentQuarterlyInfo.SolarGlobalRadiation,
@@ -930,6 +930,79 @@ namespace SessyController.Services
             await RecalculateChargeLeftAndNeeded();
         }
 
+        public async Task<double> CalculateAveragePriceOfChargeInBatteries()
+        {
+            var totalCharge = 0.0;
+            var totalCost = 0.0;
+            double chargingCapacity = _sessyBatteryConfig.TotalChargingCapacity / 4.0; // Per quarter hour
+            double dischargingCapacity = _sessyBatteryConfig.TotalDischargingCapacity / 4.0; // Per quarter hour
+            var now = _timeZoneService.Now;
+            var from = _quarterlyInfos!.Min(qi => qi.Time);
+
+            var performanceList = await _performanceDataService.GetList(async (set) =>
+            {
+                var result = set.Where(p => p.Time >= from && p.Time <= now).ToList();
+
+                return await Task.FromResult(result);
+            });
+
+
+            foreach (var performance in performanceList)
+            {
+                if (performance.Charging)
+                {
+                    if (performance.ChargeLeft < performance.ChargeNeeded)
+                    {
+                        var room = (performance.ChargeNeeded - performance.ChargeLeft);
+                        var charge = Math.Min(chargingCapacity, room);
+
+                        charge /= 1000;
+
+                        totalCharge += charge;
+                        totalCost += charge * performance.Price / 4.0;
+                    }
+
+                    break;
+                }
+
+                if (performance.Discharging)
+                {
+                    if (performance.ChargeLeft > performance.ChargeNeeded)
+                    {
+                        var room = (performance.ChargeLeft - performance.ChargeNeeded);
+                        var charge = Math.Min(dischargingCapacity, room);
+
+                        charge /= 1000;
+
+                        totalCharge -= charge;
+                        totalCost -= charge * performance.Price / 4.0;
+                    }
+
+                    break;
+                }
+
+                if (performance.ZeroNetHome)
+                {
+                    if (performance.ChargeLeft > 0.0)
+                    {
+                        var room = performance.ChargeLeft;
+                        var charge = Math.Min(performance.EstimatedConsumptionPerQuarterHour, room);
+
+                        charge /= 1000;
+
+                        totalCharge -= charge;
+                        totalCost -= charge * performance.Price / 4.0;
+                    }
+
+                    break;
+                }
+            }
+
+            var average = totalCost / totalCharge * 4.0;
+
+            return average;
+        }
+
         /// <summary>
         /// Calculate the estimated charge per hour starting from the current hour.
         /// </summary>
@@ -1059,6 +1132,7 @@ namespace SessyController.Services
         private async Task<bool> CheckProfitability()
         {
             bool changed = false;
+            var averagePriceInBattery = await CalculateAveragePriceOfChargeInBatteries();
 
             Session? previousSession = null;
 
@@ -1076,7 +1150,7 @@ namespace SessyController.Services
 
                         while (hasCharging && hasDischarging)
                         {
-                            if (chargeEnumerator.Current.Price + _settingsConfig.CycleCost > dischargeEnumerator.Current.Price)
+                            if (averagePriceInBattery + _settingsConfig.CycleCost > dischargeEnumerator.Current.Price)
                             {
                                 nextSession.RemoveQuarterlyInfo(dischargeEnumerator.Current);
 

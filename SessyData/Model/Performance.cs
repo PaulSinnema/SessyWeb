@@ -23,6 +23,8 @@ namespace SessyData.Model
         public double ChargeNeeded { get; set; }
         public bool Charging { get; set; }
         public bool Discharging { get; set; }
+        public bool ZeroNetHome { get; set; }
+        public bool Disabled { get; set; }
         public double Price => Charging ? BuyingPrice : SellingPrice;
         public double SolarPowerPerQuarterHour { get; set; }
         public double SolarGlobalRadiation { get; set; }
