@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Components;
 using Radzen.Blazor;
 using SessyCommon.Services;
+using SessyController.Services.Items;
 using SessyData.Services;
 using SessyWeb.Pages;
 
@@ -18,6 +19,11 @@ namespace SessyWeb.Components
 
         [Parameter]
         public string? GraphStyle { get; set; }
+
+        public double ChartMin => -ChartMinMax;
+        public double ChartMax => ChartMinMax;
+
+        public double ChartMinMax => Math.Round(Math.Max(QuarterlyInfos.Max(qi => qi.Price), Math.Abs(QuarterlyInfos.Min(qi => qi.Price))) + 0.10, 1);
 
         public RadzenChart? QuarterlyHourChart { get; set; }
 

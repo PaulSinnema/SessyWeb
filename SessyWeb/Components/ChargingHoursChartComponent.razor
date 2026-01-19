@@ -146,7 +146,7 @@
             <RadzenGridLines Visible="true" />
             <RadzenAxisTitle Text="Time" />
         </RadzenCategoryAxis>
-        <RadzenValueAxis Formatter="@Formatters.FormatAsPrice">
+        <RadzenValueAxis Formatter="@Formatters.FormatAsPrice" Min=@ChartMin Max=@ChartMinMax Step=0.10>
             <RadzenGridLines Visible="true" />
             <RadzenAxisTitle Text="Price" />
         </RadzenValueAxis>
