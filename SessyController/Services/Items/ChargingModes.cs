@@ -1,6 +1,6 @@
 ﻿namespace SessyController.Services.Items
 {
-    public static class ChargingModes
+    public class ChargingModes
     {
         public enum Modes
         {
@@ -11,7 +11,7 @@
             Disabled
         };
 
-        public static string GetDisplayMode(Modes mode)
+        public string GetDisplayMode(Modes mode)
         {
             switch (mode)
             {
@@ -30,12 +30,12 @@
             }
         }
 
-        public static Modes GetMode(QuarterlyInfo qi)
+        public async Task<Modes> GetMode(QuarterlyInfo qi)
         {
             if (qi.Charging) return Modes.Charging;
             if (qi.Discharging) return Modes.Discharging;
-            if (qi.ZeroNetHome) return Modes.ZeroNetHome;
-            if (qi.Disabled) return Modes.Disabled;
+            if (await qi.ZeroNetHome()) return Modes.ZeroNetHome;
+            if (await qi.Disabled()) return Modes.Disabled;
             return Modes.Unknown;
         }
     }

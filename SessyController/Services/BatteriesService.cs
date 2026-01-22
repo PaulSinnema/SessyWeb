@@ -23,6 +23,9 @@ namespace SessyController.Services
         private SolarInverterManager? _solarInverterManager { get; set; }
         private SolarService? _solarService { get; set; }
         private IServiceScopeFactory _serviceScopeFactory { get; set; }
+
+        private ChargingModes _chargingModes;
+
         private IOptionsMonitor<SettingsConfig> _settingsConfigMonitor { get; set; }
 
         private IDisposable? _sessyBatteryConfigSubscription { get; set; }
@@ -59,6 +62,7 @@ namespace SessyController.Services
         public bool WeAreInControl { get; private set; } = true;
 
         public BatteriesService(LoggingService<BatteriesService> logger,
+                                ChargingModes chargingModes,
                                 IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
                                 IOptionsMonitor<SessyBatteryConfig> sessyBatteryConfigMonitor,
                                 IServiceScopeFactory serviceScopeFactory)
@@ -71,6 +75,7 @@ namespace SessyController.Services
 
             _logger.LogInformation("BatteriesService checking settings");
 
+            _chargingModes = chargingModes;
             _settingsConfigMonitor = settingsConfigMonitor;
             _sessyBatteryConfigMonitor = sessyBatteryConfigMonitor;
 
@@ -304,20 +309,20 @@ namespace SessyController.Services
                         SmoothedBuyingPrice = currentQuarterlyInfo.SmoothedBuyingPrice,
                         SellingPrice = currentQuarterlyInfo.SellingPrice,
                         SmoothedSellingPrice = currentQuarterlyInfo.SmoothedSellingPrice,
-                        Profit = currentQuarterlyInfo.Profit,
+                        Profit = await currentQuarterlyInfo.Profit(),
                         EstimatedConsumptionPerQuarterHour = currentQuarterlyInfo.EstimatedConsumptionPerQuarterInWatts,
                         ChargeLeft = await _batteryContainer.GetStateOfChargeInWatts(),
                         ChargeNeeded = currentQuarterlyInfo.ChargeNeeded,
                         Charging = currentQuarterlyInfo.Charging,
                         Discharging = currentQuarterlyInfo.Discharging,
-                        ZeroNetHome = currentQuarterlyInfo.ZeroNetHome,
-                        Disabled = currentQuarterlyInfo.Disabled,
+                        ZeroNetHome = await currentQuarterlyInfo.ZeroNetHome(),
+                        Disabled = await currentQuarterlyInfo.Disabled(),
                         SolarPowerPerQuarterHour = currentQuarterlyInfo.SolarPowerPerQuarterHour,
                         SmoothedSolarPower = currentQuarterlyInfo.SmoothedSolarPower,
                         SolarGlobalRadiation = currentQuarterlyInfo.SolarGlobalRadiation,
                         ChargeLeftPercentage = currentQuarterlyInfo.ChargeLeftPercentage,
-                        DisplayState = currentQuarterlyInfo.GetDisplayMode,
-                        VisualizeInChart = currentQuarterlyInfo.VisualizeInChart,
+                        DisplayState = await currentQuarterlyInfo.GetDisplayMode(),
+                        VisualizeInChart = await currentQuarterlyInfo.VisualizeInChart(),
                     }
                 };
 
@@ -458,7 +463,7 @@ namespace SessyController.Services
 
             await CancelSessionIfStateRequiresIt(sessions, currentHourlyInfo, batteryStates);
 
-            switch (currentHourlyInfo.Mode)
+            switch (await currentHourlyInfo.Mode())
             {
                 case Modes.Charging:
                     {
@@ -684,7 +689,7 @@ namespace SessyController.Services
 
             if (await FetchPricesFromENTSO_E(localTime))
             {
-                GetChargingHours();
+                await GetChargingHours();
             }
         }
 
@@ -714,7 +719,7 @@ namespace SessyController.Services
         /// <summary>
         /// In this routine it is determined when to charge the batteries.
         /// </summary>
-        private void GetChargingHours()
+        private async Task GetChargingHours()
         {
             try
             {
@@ -730,7 +735,7 @@ namespace SessyController.Services
 
                     MergeNeighbouringSessions();
 
-                    CheckSessions();
+                    await CheckSessions();
                 }
             }
             catch (Exception ex)
@@ -767,7 +772,7 @@ namespace SessyController.Services
         /// This method is voor debugging purposes only. It checks the content of hourlyInfos
         /// and sessions.
         /// </summary>
-        private void CheckSessions()
+        private async Task CheckSessions()
         {
             foreach (var session in _sessions.SessionList)
             {
@@ -780,14 +785,22 @@ namespace SessyController.Services
                 switch (session.Mode)
                 {
                     case Modes.Charging:
-                        if (!session.GetQuarterlyInfoList().All(hi => hi.Mode == Modes.Charging))
-                            throw new InvalidOperationException($"Charging session has hourlyinfo objects without charging mode {session}");
+                        foreach (var hi in session.GetQuarterlyInfoList())
+                        {
+                            var mode = await hi.Mode().ConfigureAwait(false);
+                            if (mode != Modes.Charging)
+                                throw new InvalidOperationException($"Charging session has hourlyinfo objects without charging mode {session}");
+                        }
 
                         break;
 
                     case Modes.Discharging:
-                        if (!session.GetQuarterlyInfoList().All(hi => hi.Mode == Modes.Discharging))
-                            throw new InvalidOperationException($"Discharging session has hourlyinfo objects without discharging mode {session}");
+                        foreach (var hi in session.GetQuarterlyInfoList())
+                        {
+                            var mode = await hi.Mode().ConfigureAwait(false);
+                            if (mode != Modes.Discharging)
+                                throw new InvalidOperationException($"Discharging session has hourlyinfo objects without discharging mode {session}");
+                        }
 
                         break;
 
@@ -800,7 +813,7 @@ namespace SessyController.Services
 
             foreach (var quarterlyInfo in _quarterlyInfos)
             {
-                switch (quarterlyInfo.Mode)
+                switch (await quarterlyInfo.Mode())
                 {
                     case Modes.Charging:
                         {
@@ -840,7 +853,7 @@ namespace SessyController.Services
             }
         }
 
-        private static Session CheckSession(Sessions sessions, QuarterlyInfo quarterlyInfo)
+        private Session CheckSession(Sessions sessions, QuarterlyInfo quarterlyInfo)
         {
             var session = sessions.FindSession(quarterlyInfo);
 
@@ -858,7 +871,7 @@ namespace SessyController.Services
 
                 await RemoveExtraChargingSessions();
 
-                CheckSessions();
+                await CheckSessions();
 
                 // await EvaluateChargingHoursAndProfitability();
             }
@@ -878,7 +891,7 @@ namespace SessyController.Services
         {
             if (ThereAreNoFutureSessions())
             {
-                var quarterlyInfo = FindCheapestQuarterlyInfo();
+                var quarterlyInfo = await FindCheapestQuarterlyInfo();
 
                 if (quarterlyInfo != null)
                 {
@@ -906,16 +919,25 @@ namespace SessyController.Services
             return result;
         }
 
-        public QuarterlyInfo? FindCheapestQuarterlyInfo()
+        public async Task<QuarterlyInfo?> FindCheapestQuarterlyInfo()
         {
             var now = _timeZoneService.Now;
 
-            return _quarterlyInfos!.Where(qi => qi.Time >= now &&
-                                               qi.Mode != Modes.Charging &&
-                                               qi.Mode != Modes.Discharging)
-                                  .OrderBy(qi => qi.BuyingPrice)
-                                  .FirstOrDefault();
+            QuarterlyInfo? best = null;
+
+            foreach (var qi in _quarterlyInfos!.Where(q => q.Time >= now).OrderBy(q => q.BuyingPrice))
+            {
+                var mode = await qi.Mode().ConfigureAwait(false);
+                if (mode is Modes.Charging or Modes.Discharging)
+                    continue;
+
+                best = qi;
+                break; // eerste (dus goedkoopste) die voldoet
+            }
+
+            return best;
         }
+
 
         private async Task EvaluateChargingHoursAndProfitability()
         {
@@ -923,7 +945,7 @@ namespace SessyController.Services
             {
                 await RecalculateChargeLeftAndNeeded();
 
-                _sessions.CalculateProfits(_timeZoneService!);
+                await _sessions.CalculateProfits(_timeZoneService!);
             }
             while (_sessions.RemoveMoreExpensiveChargingSessions());
 
@@ -1026,7 +1048,7 @@ namespace SessyController.Services
 
             foreach (var quarterlyInfo in list)
             {
-                switch (quarterlyInfo.Mode)
+                switch (await quarterlyInfo.Mode())
                 {
                     case Modes.Charging:
                         {
@@ -1509,11 +1531,11 @@ namespace SessyController.Services
             return await _batteryContainer.GetBatterPercentage();
         }
 
-        public string GetBatteryMode()
+        public async Task<string> GetBatteryMode()
         {
             var quarterlyInfo = _sessions.GetCurrentQuarterlyInfo();
 
-            return GetDisplayMode(quarterlyInfo.Mode);
+            return  _chargingModes.GetDisplayMode(await quarterlyInfo.Mode());
         }
 
         public QuarterlyInfo? GetNextQuarterlyInfoInSession()

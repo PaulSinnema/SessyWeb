@@ -1,9 +1,7 @@
 ﻿using SessyCommon.Configurations;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
-using SessyController.Interfaces;
 using SessyController.Managers;
-using SessyController.Services.InverterServices;
 using static SessyController.Services.Items.ChargingModes;
 
 namespace SessyController.Services.Items
@@ -13,6 +11,7 @@ namespace SessyController.Services.Items
         private const double minSolarPower = 50.0;
 
         private QuarterlyInfo(DateTime time,
+                                ChargingModes chargingModes,
                                 Session? session,
                                 double marketPrice,
                                 double buyingPrice,
@@ -26,6 +25,7 @@ namespace SessyController.Services.Items
             Time = time;
             _session = session;
 
+            _chargingModes = chargingModes;
             _settingsConfig = settingsConfig;
             _batteryContainer = batteryContainer;
             _solarInverterManager = solarInverterManager;
@@ -47,6 +47,7 @@ namespace SessyController.Services.Items
         // Factory that does the awaiting
         public static async Task<QuarterlyInfo> CreateAsync(
             DateTime time,
+            ChargingModes chargingModes,
             double marketPrice,
             SettingsConfig settingsConfig,
             BatteryContainer batteryContainer,
@@ -59,6 +60,7 @@ namespace SessyController.Services.Items
 
             return new QuarterlyInfo(
                 time,
+                chargingModes,
                 null,
                 marketPrice,
                 buying,
@@ -103,27 +105,26 @@ namespace SessyController.Services.Items
 
         private Session? _session { get; set; }
 
+        private ChargingModes _chargingModes { get; set; }
+
         public int? SessionId => _session?.Id;
 
         /// <summary>
         /// How much profit does this (dis)charge give?
         /// </summary>
-        public double Profit
+        public async Task<double> Profit()
         {
-            get
+            switch (await Mode())
             {
-                switch (Mode)
-                {
-                    case Modes.Charging:
-                        return -ChargingCost;
+                case Modes.Charging:
+                    return -ChargingCost;
 
-                    case Modes.Discharging:
-                        return DischargingCost;
+                case Modes.Discharging:
+                    return DischargingCost;
 
-                    case Modes.ZeroNetHome:
-                    default:
-                        return 0.0;
-                }
+                case Modes.ZeroNetHome:
+                default:
+                    return 0.0;
             }
         }
 
@@ -242,12 +243,9 @@ namespace SessyController.Services.Items
             SmoothedSellingPrice = 0.0;
         }
 
-        public Modes Mode
+        public async Task<Modes> Mode()
         {
-            get
-            {
-                return GetMode(this);
-            }
+            return await _chargingModes.GetMode(this);
         }
 
         /// <summary>
@@ -347,29 +345,23 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Helper for visualization
         /// </summary>
-        public double VisualizeInChart
+        public async Task<double> VisualizeInChart()
         {
-            get
-            {
-                if (Charging)
-                    return -0.1;
-                else if (Discharging)
-                    return 0.1;
-                else if (ZeroNetHome)
-                    return 0.03;
-                else if (Disabled)
-                    return 0.0;
+            if (Charging)
+                return -0.1;
+            else if (Discharging)
+                return 0.1;
+            else if (await ZeroNetHome())
+                return 0.03;
+            else if (await Disabled())
+                return 0.0;
 
-                return 1.0;
-            }
+            return 1.0;
         }
 
-        public string GetDisplayMode
+        public async Task<string> GetDisplayMode()
         {
-            get
-            {
-                return GetDisplayMode(Mode);
-            }
+            return _chargingModes.GetDisplayMode(await Mode());
         }
 
         private async Task<bool> SolarPowerIsActive()
@@ -387,15 +379,12 @@ namespace SessyController.Services.Items
             return false;
         }
 
-        public bool Disabled => DeltaLowestPrice < _settingsConfig.NetZeroHomeMinProfit && ! SolarPowerIsActive().ConfigureAwait(false).GetAwaiter().GetResult();
+        public async Task<bool> Disabled() => DeltaLowestPrice < _settingsConfig.NetZeroHomeMinProfit && !await SolarPowerIsActive().ConfigureAwait(false);
 
         /// <summary>
         /// If no (dis)charging is in progress Net Zero Home is requested.
         /// </summary>
-        public bool ZeroNetHome
-        {
-            get => (!(Charging || Discharging || Disabled));
-        }
+        public async Task<bool> ZeroNetHome() => (!(Charging || Discharging || await Disabled()));
 
         /// <summary>
         /// The price of energy is negative.

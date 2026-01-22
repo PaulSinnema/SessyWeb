@@ -38,6 +38,7 @@ namespace SessyController.Services
 
         private static string? _securityToken;
         private static string? _inDomain;
+        private ChargingModes _chargingModes;
 
         private ConcurrentDictionary<DateTime, DynamichSchedule>? _prices { get; set; }
         private static LoggingService<DayAheadMarketService>? _logger { get; set; }
@@ -64,6 +65,7 @@ namespace SessyController.Services
         private bool _initialized { get; set; } = false;
 
         public DayAheadMarketService(LoggingService<DayAheadMarketService> logger,
+                                    ChargingModes chargingModes,
                                     IConfiguration configuration,
                                     TimeZoneService timeZoneService,
                                     BatteryContainer batteryContainer,
@@ -78,6 +80,7 @@ namespace SessyController.Services
             _securityToken = configuration[ConfigSecurityTokenKey];
             _inDomain = configuration[ConfigInDomain];
 
+            _chargingModes = chargingModes;
             _timeZoneService = timeZoneService;
             _batteryContainer = batteryContainer;
             _serviceScopeFactory = serviceScopeFactory;
@@ -251,6 +254,7 @@ namespace SessyController.Services
             var tasks = ordered.Select(ep =>
                 QuarterlyInfo.CreateAsync(
                     ep.Time,
+                    _chargingModes,
                     ep!.Price!.Value,
                     _settingsConfig,
                     _batteryContainer,

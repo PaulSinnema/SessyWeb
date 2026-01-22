@@ -211,7 +211,7 @@ namespace SessyWeb.Pages
 
                         BatteryPercentage = await _batteriesService.getBatteryPercentage();
 
-                        BatteryMode = _batteriesService.GetBatteryMode();
+                        BatteryMode = await _batteriesService.GetBatteryMode();
                     }
                     finally
                     {
@@ -273,7 +273,7 @@ namespace SessyWeb.Pages
                     var performanceList = await _performanceDataService!
                         .GetList(async (set) =>
                         {
-                            var result = set.Where(c => c.Time >= selectedDate.Date && c.Time < quarterTime)
+                            var result = set.Where(c => c.Time >= selectedDate.Date.AddDays(-1) && c.Time < quarterTime)
                                             .ToList();
                             return await Task.FromResult(result);
                         });
@@ -323,16 +323,16 @@ namespace SessyWeb.Pages
                 BuyingPrice = quarterlyInfo.BuyingPrice,
                 SellingPrice = quarterlyInfo.SellingPrice,
                 MarketPrice = quarterlyInfo.MarketPrice,
-                Profit = quarterlyInfo.Profit,
+                Profit = await quarterlyInfo.Profit(),
                 SmoothedBuyingPrice = quarterlyInfo.SmoothedBuyingPrice,
-                VisualizeInChart = quarterlyInfo.VisualizeInChart,
+                VisualizeInChart = await quarterlyInfo.VisualizeInChart(),
                 SmoothedSellingPrice = quarterlyInfo.SmoothedSellingPrice,
                 ChargeLeft = quarterlyInfo.ChargeLeft,
                 EstimatedConsumptionPerQuarterHour = quarterlyInfo.EstimatedConsumptionPerQuarterInWatts,
                 SolarPowerPerQuarterHour = quarterlyInfo.SolarPowerPerQuarterHour,
                 SolarGlobalRadiation = quarterlyInfo.SolarGlobalRadiation,
                 ChargeLeftPercentage = quarterlyInfo.ChargeLeftPercentage,
-                DisplayState = quarterlyInfo.GetDisplayMode ?? string.Empty,
+                DisplayState = await quarterlyInfo.GetDisplayMode() ?? string.Empty,
                 Price = quarterlyInfo.Price,
                 ChargeNeeded = quarterlyInfo.ChargeNeeded,
                 ChargeNeededPercentage = quarterlyInfo.ChargeNeededPercentage,

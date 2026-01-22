@@ -218,7 +218,7 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Calculates the profits for the hourly info objects in the sessions hourly info list.
         /// </summary>
-        public void CalculateProfits(TimeZoneService timeZoneService)
+        public async Task CalculateProfits(TimeZoneService timeZoneService)
         {
             List<QuarterlyInfo> lastChargingSession = new List<QuarterlyInfo>();
 
@@ -228,7 +228,7 @@ namespace SessyController.Services.Items
 
             foreach (var nextQuarter in _quarterlyInfos.OrderBy(hi => hi.Time))
             {
-                switch (nextQuarter.Mode)
+                switch (await nextQuarter.Mode())
                 {
                     case Modes.Charging:
                         CalculateChargingProfits(lastChargingSession, previousQuarter, nextQuarter);
@@ -359,7 +359,7 @@ namespace SessyController.Services.Items
             return false;
         }
 
-        public double GetMaxZeroNetHomeHours(Session previousSession, Session session)
+        public async Task<double> GetMaxZeroNetHomeHours(Session previousSession, Session session)
         {
             double currentCharge = 1.0;
 
@@ -382,7 +382,7 @@ namespace SessyController.Services.Items
 
                     hours++;
 
-                    if (quarterlyInfo.ZeroNetHome)
+                    if (await quarterlyInfo.ZeroNetHome())
                         currentCharge -= homeNeeds;
                 }
             }

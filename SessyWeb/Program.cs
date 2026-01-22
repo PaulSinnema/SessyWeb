@@ -102,6 +102,7 @@ builder.Services.AddScoped<ConsumptionDataService>();
 builder.Services.AddScoped<PerformanceDataService>();
 builder.Services.AddScoped<VirtualBatteryService>();
 
+builder.Services.AddSingleton<ChargingModes>();
 builder.Services.AddSingleton<EnergyHistoryDataService>();
 builder.Services.AddSingleton<SolarEdgeInverterService>();
 builder.Services.AddSingleton<P1MeterService>();
