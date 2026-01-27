@@ -39,7 +39,8 @@ namespace SessyData.Model
         }
         public override string ToString()
         {
-            return $"Buying Price: {BuyingPrice}, Selling Price: {SellingPrice}, Profit: {Profit}, " +
+            return $"Time: {Time}, State: {DisplayState} " + 
+                   $"Buying Price: {BuyingPrice}, Selling Price: {SellingPrice}, Profit: {Profit}, " +
                    $"Estimated Consumption Per Quarter Hour: {EstimatedConsumptionPerQuarterHour}, " +
                    $"Charge Left: {ChargeLeft}, Charge Needed: {ChargeNeeded}, " +
                    $"Charging: {Charging}, Discharging: {Discharging}";

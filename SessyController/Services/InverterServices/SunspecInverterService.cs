@@ -324,10 +324,14 @@ namespace SessyController.Services.InverterServices
                 catch (Exception ex)
                 {
                     lastException = ex;
+
+                    await Task.Delay(1000);
                 }  
             }
 
-            throw new InvalidOperationException("GetACPowerInWatts failed after 10 retries.", lastException);
+            _logger.LogException(lastException, "GetACPowerInWatts failed after 10 retries.");
+
+            return 0.0;
         }
 
         /// <summary>

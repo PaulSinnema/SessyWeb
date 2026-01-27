@@ -270,10 +270,44 @@ namespace SessyController.Services
         public async Task<double> CalculateConsumption()
         {
             double solarPower = 0.0;
+            double netPower = 0.0;
+            double batteryPower = 0.0;
+            bool error = false;
 
-            solarPower = await _solarInverterManager.GetTotalACPowerInWatts();
-            var netPower = await _p1MeterContainer.GetTotalPowerInWatts();
-            var batteryPower = await _batteryContainer.GetTotalPowerInWatts();
+            try
+            {
+                solarPower = await _solarInverterManager.GetTotalACPowerInWatts();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogException(ex, "Could not get Solarpower");
+                error = true;
+            }
+
+            try
+            {
+                netPower = await _p1MeterContainer.GetTotalPowerInWatts();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogException(ex, "Could not get net power");
+                error = true;
+            }
+
+            try
+            {
+                batteryPower = await _batteryContainer.GetTotalPowerInWatts();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogException(ex, "Could not get battery power");
+                error = true;
+            }
+
+            if (error)
+            {
+                return 0.0; // Some value(s) missing. Return 0.0.
+            }
 
             return solarPower + netPower + batteryPower;
         }

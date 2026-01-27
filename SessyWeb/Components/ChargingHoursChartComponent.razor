@@ -23,6 +23,7 @@
                             {
                                 <RadzenSeriesAnnotation Visible="true"
                                                         TItem="QuarterlyInfoView"
+                                                        @key="@($"sess1-{item.Time:O}")" 
                                                         Data="@item"
                                                         OffsetX=@(item.VisualizeInChart > 0 ? 20 : -80)
                                                         OffsetY=@(item.VisualizeInChart > 0 ? 180 : 32)
@@ -34,6 +35,7 @@
 
                             <RadzenSeriesAnnotation Visible="true"
                                                     TItem="QuarterlyInfoView"
+                                                    @key="@($"sess2-{item.Time:O}")"
                                                     Data="@item"
                                                     OffsetX=@(item.VisualizeInChart > 0 ? 8 : 0)
                                                     OffsetY=@(item.VisualizeInChart > 0 ? -16 : 16)

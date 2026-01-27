@@ -981,7 +981,7 @@ namespace SessyController.Services
                         charge /= 1000;
 
                         totalCharge += charge;
-                        totalCost += charge * performance.Price / 4.0;
+                        totalCost += charge * performance.Price;
                     }
 
                     break;
@@ -997,7 +997,7 @@ namespace SessyController.Services
                         charge /= 1000;
 
                         totalCharge -= charge;
-                        totalCost -= charge * performance.Price / 4.0;
+                        totalCost -= charge * performance.Price;
                     }
 
                     break;
@@ -1013,14 +1013,17 @@ namespace SessyController.Services
                         charge /= 1000;
 
                         totalCharge -= charge;
-                        totalCost -= charge * performance.Price / 4.0;
+                        totalCost -= charge * performance.Price;
                     }
 
                     break;
                 }
             }
 
-            var average = totalCost / totalCharge * 4.0;
+            double average = 0.0;
+
+            if(totalCharge > 0.0)
+                average = totalCost / totalCharge;
 
             return average;
         }
