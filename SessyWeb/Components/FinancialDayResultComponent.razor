@@ -28,7 +28,7 @@
         <RadzenDataGridColumn Property="@nameof(FinancialResult.Price)" Title="Price" FormatString="{0:C5}" FormatProvider="@GetFormatProvider()" />
         <RadzenDataGridColumn Property="@nameof(FinancialResult.Cost)" Title="Cost" FormatString="{0:C5}" FormatProvider="@GetFormatProvider()">
             <GroupFooterTemplate>
-                <b> @String.Format(GetFormatProvider(), "{0:C5}", GetDailyTotalCost(context.Data.Items.Cast<FinancialResult>()))</b>
+                <b> @String.Format(GetFormatProvider(), "{0:C5}", GetDailyTotalCost(context.Data!.Items!.Cast<FinancialResult>()))</b>
             </GroupFooterTemplate>
         </RadzenDataGridColumn>
     </Columns>

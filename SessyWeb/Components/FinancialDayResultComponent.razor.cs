@@ -29,7 +29,7 @@ namespace SessyWeb.Components
         {
             if (args.FirstRender)
             {
-                args.Grid.Groups.Add(new GroupDescriptor() { Property = nameof(FinancialResult.YearMonth), Title = "Time" });
+                args.Grid!.Groups.Add(new GroupDescriptor() { Property = nameof(FinancialResult.YearMonth), Title = "Time" });
                 StateHasChanged();
             }
         }

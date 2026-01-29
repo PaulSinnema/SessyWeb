@@ -21,6 +21,7 @@
         public double SmoothedSolarPower { get; set; }
         public double SolarGlobalRadiation { get; set; }
         public double ChargeLeftPercentage { get; set; }
+        public double DeltaLowestPrice { get; set; }
 
         public double EstimatedConsumptionPerQuarterHourVisual => EstimatedConsumptionPerQuarterHour / 2500;
         public double ChargeNeededVisual => ChargeNeeded / 100000;

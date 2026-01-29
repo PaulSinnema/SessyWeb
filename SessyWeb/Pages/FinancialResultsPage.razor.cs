@@ -69,7 +69,7 @@ namespace SessyWeb.Pages
             if (args.FirstRender)
             {
                 _energyMonitorService!.DataChanged += EnergyMonitorServiceDataChanged;
-                args.Grid.Groups.Add(new GroupDescriptor() { Property = nameof(FinancialResult.YearMonth), Title = "Time" });
+                args.Grid!.Groups.Add(new GroupDescriptor() { Property = nameof(FinancialResult.YearMonth), Title = "Time" });
             }
         }
 

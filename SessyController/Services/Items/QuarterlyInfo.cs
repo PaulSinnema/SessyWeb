@@ -112,25 +112,28 @@ namespace SessyController.Services.Items
         /// <summary>
         /// How much profit does this (dis)charge give?
         /// </summary>
-        public async Task<double> Profit()
+        public double Profit
         {
-            switch (await Mode())
+            get
             {
-                case Modes.Charging:
-                    return -ChargingCost;
+                switch (Mode)
+                {
+                    case Modes.Charging:
+                        return -ChargingCost;
 
-                case Modes.Discharging:
-                    return DischargingCost;
+                    case Modes.Discharging:
+                        return DischargingCost;
 
-                case Modes.ZeroNetHome:
-                default:
-                    return 0.0;
+                    case Modes.ZeroNetHome:
+                    default:
+                        return 0.0;
+                }
             }
         }
 
-        public void SetDeltaLowestPrice(double lowestPrice)
+        public void SetDeltaLowestPrice(double priceOfEnergyInBatteries)
         {
-            DeltaLowestPrice = Price - lowestPrice;
+            DeltaLowestPrice = Price - priceOfEnergyInBatteries;
         }
 
         public void SetSession(Session session)
@@ -243,10 +246,7 @@ namespace SessyController.Services.Items
             SmoothedSellingPrice = 0.0;
         }
 
-        public async Task<Modes> Mode()
-        {
-            return await _chargingModes.GetMode(this);
-        }
+        public Modes Mode => _chargingModes.GetMode(this);
 
         /// <summary>
         /// If true charging is requested.
@@ -345,23 +345,23 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Helper for visualization
         /// </summary>
-        public async Task<double> VisualizeInChart()
+        public double VisualizeInChart()
         {
             if (Charging)
                 return -0.1;
             else if (Discharging)
                 return 0.1;
-            else if (await ZeroNetHome())
+            else if (ZeroNetHome)
                 return 0.03;
-            else if (await Disabled())
+            else if (Disabled)
                 return 0.0;
 
             return 1.0;
         }
 
-        public async Task<string> GetDisplayMode()
+        public string GetDisplayMode()
         {
-            return _chargingModes.GetDisplayMode(await Mode());
+            return _chargingModes.GetDisplayMode(Mode);
         }
 
         private async Task<bool> SolarPowerIsActive()
@@ -379,12 +379,12 @@ namespace SessyController.Services.Items
             return false;
         }
 
-        public async Task<bool> Disabled() => DeltaLowestPrice < _settingsConfig.NetZeroHomeMinProfit && !await SolarPowerIsActive().ConfigureAwait(false);
+        public bool Disabled => DeltaLowestPrice < _settingsConfig.NetZeroHomeMinProfit && SolarPowerPerQuarterInWatts < EstimatedConsumptionPerQuarterInWatts;
 
         /// <summary>
         /// If no (dis)charging is in progress Net Zero Home is requested.
         /// </summary>
-        public async Task<bool> ZeroNetHome() => (!(Charging || Discharging || await Disabled()));
+        public bool ZeroNetHome => (!(Charging || Discharging || Disabled));
 
         /// <summary>
         /// The price of energy is negative.

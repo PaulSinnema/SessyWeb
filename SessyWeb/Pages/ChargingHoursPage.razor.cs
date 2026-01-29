@@ -1,6 +1,5 @@
 ﻿using Microsoft.AspNetCore.Components;
 using Radzen;
-using SessyCommon.Configurations;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
 using SessyController.Services;
@@ -323,23 +322,24 @@ namespace SessyWeb.Pages
                 BuyingPrice = quarterlyInfo.BuyingPrice,
                 SellingPrice = quarterlyInfo.SellingPrice,
                 MarketPrice = quarterlyInfo.MarketPrice,
-                Profit = await quarterlyInfo.Profit(),
+                Profit = quarterlyInfo.Profit,
                 SmoothedBuyingPrice = quarterlyInfo.SmoothedBuyingPrice,
-                VisualizeInChart = await quarterlyInfo.VisualizeInChart(),
+                VisualizeInChart = quarterlyInfo.VisualizeInChart(),
                 SmoothedSellingPrice = quarterlyInfo.SmoothedSellingPrice,
                 ChargeLeft = quarterlyInfo.ChargeLeft,
                 EstimatedConsumptionPerQuarterHour = quarterlyInfo.EstimatedConsumptionPerQuarterInWatts,
                 SolarPowerPerQuarterHour = quarterlyInfo.SolarPowerPerQuarterHour,
                 SolarGlobalRadiation = quarterlyInfo.SolarGlobalRadiation,
                 ChargeLeftPercentage = quarterlyInfo.ChargeLeftPercentage,
-                DisplayState = await quarterlyInfo.GetDisplayMode() ?? string.Empty,
+                DisplayState = quarterlyInfo.GetDisplayMode() ?? string.Empty,
                 Price = quarterlyInfo.Price,
                 ChargeNeeded = quarterlyInfo.ChargeNeeded,
                 ChargeNeededPercentage = quarterlyInfo.ChargeNeededPercentage,
                 SmoothedSolarPower = quarterlyInfo.SmoothedSolarPower,
                 AverageBuyingPrice = averageBuyingPrice,
                 AverageSellingPrice = averageSellingPrice,
-                SessionCost = session != null ? await session.GetTotalCost() : null
+                SessionCost = session != null ? await session.GetTotalCost() : null,
+                DeltaLowestPrice = quarterlyInfo.DeltaLowestPrice
             };
         }
 
@@ -366,7 +366,8 @@ namespace SessyWeb.Pages
                 ChargeNeeded = performance.ChargeNeeded,
                 ChargeNeededPercentage = performance.ChargeNeeded > 0.0 ? totalCapacity / performance.ChargeNeeded / 100 : 0.0,
                 SmoothedSolarPower = performance.SmoothedSolarPower,
-                SessionCost = null
+                SessionCost = null,
+                DeltaLowestPrice = 0.0
             };
         }
 

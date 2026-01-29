@@ -309,20 +309,20 @@ namespace SessyController.Services
                         SmoothedBuyingPrice = currentQuarterlyInfo.SmoothedBuyingPrice,
                         SellingPrice = currentQuarterlyInfo.SellingPrice,
                         SmoothedSellingPrice = currentQuarterlyInfo.SmoothedSellingPrice,
-                        Profit = await currentQuarterlyInfo.Profit(),
+                        Profit = currentQuarterlyInfo.Profit,
                         EstimatedConsumptionPerQuarterHour = currentQuarterlyInfo.EstimatedConsumptionPerQuarterInWatts,
                         ChargeLeft = await _batteryContainer.GetStateOfChargeInWatts(),
                         ChargeNeeded = currentQuarterlyInfo.ChargeNeeded,
                         Charging = currentQuarterlyInfo.Charging,
                         Discharging = currentQuarterlyInfo.Discharging,
-                        ZeroNetHome = await currentQuarterlyInfo.ZeroNetHome(),
-                        Disabled = await currentQuarterlyInfo.Disabled(),
+                        ZeroNetHome = currentQuarterlyInfo.ZeroNetHome,
+                        Disabled = currentQuarterlyInfo.Disabled,
                         SolarPowerPerQuarterHour = currentQuarterlyInfo.SolarPowerPerQuarterHour,
                         SmoothedSolarPower = currentQuarterlyInfo.SmoothedSolarPower,
                         SolarGlobalRadiation = currentQuarterlyInfo.SolarGlobalRadiation,
                         ChargeLeftPercentage = currentQuarterlyInfo.ChargeLeftPercentage,
-                        DisplayState = await currentQuarterlyInfo.GetDisplayMode(),
-                        VisualizeInChart = await currentQuarterlyInfo.VisualizeInChart(),
+                        DisplayState = currentQuarterlyInfo.GetDisplayMode(),
+                        VisualizeInChart = currentQuarterlyInfo.VisualizeInChart(),
                     }
                 };
 
@@ -463,7 +463,7 @@ namespace SessyController.Services
 
             await CancelSessionIfStateRequiresIt(sessions, currentHourlyInfo, batteryStates);
 
-            switch (await currentHourlyInfo.Mode())
+            switch (currentHourlyInfo.Mode)
             {
                 case Modes.Charging:
                     {
@@ -731,7 +731,7 @@ namespace SessyController.Services
 
                 if (_sessions != null)
                 {
-                    CalculateDeltaLowestPrice();
+                    await CalculateDeltaLowestPrice().ConfigureAwait(false);
 
                     MergeNeighbouringSessions();
 
@@ -787,7 +787,7 @@ namespace SessyController.Services
                     case Modes.Charging:
                         foreach (var hi in session.GetQuarterlyInfoList())
                         {
-                            var mode = await hi.Mode().ConfigureAwait(false);
+                            var mode = hi.Mode;
                             if (mode != Modes.Charging)
                                 throw new InvalidOperationException($"Charging session has hourlyinfo objects without charging mode {session}");
                         }
@@ -797,7 +797,7 @@ namespace SessyController.Services
                     case Modes.Discharging:
                         foreach (var hi in session.GetQuarterlyInfoList())
                         {
-                            var mode = await hi.Mode().ConfigureAwait(false);
+                            var mode = hi.Mode;
                             if (mode != Modes.Discharging)
                                 throw new InvalidOperationException($"Discharging session has hourlyinfo objects without discharging mode {session}");
                         }
@@ -813,7 +813,7 @@ namespace SessyController.Services
 
             foreach (var quarterlyInfo in _quarterlyInfos)
             {
-                switch (await quarterlyInfo.Mode())
+                switch (quarterlyInfo.Mode)
                 {
                     case Modes.Charging:
                         {
@@ -927,7 +927,7 @@ namespace SessyController.Services
 
             foreach (var qi in _quarterlyInfos!.Where(q => q.Time >= now).OrderBy(q => q.BuyingPrice))
             {
-                var mode = await qi.Mode().ConfigureAwait(false);
+                var mode = qi.Mode;
                 if (mode is Modes.Charging or Modes.Discharging)
                     continue;
 
@@ -945,7 +945,7 @@ namespace SessyController.Services
             {
                 await RecalculateChargeLeftAndNeeded();
 
-                await _sessions.CalculateProfits(_timeZoneService!);
+                _sessions.CalculateProfits(_timeZoneService!);
             }
             while (_sessions.RemoveMoreExpensiveChargingSessions());
 
@@ -954,78 +954,12 @@ namespace SessyController.Services
 
         public async Task<double> CalculateAveragePriceOfChargeInBatteries()
         {
-            var totalCharge = 0.0;
-            var totalCost = 0.0;
             double chargingCapacity = _sessyBatteryConfig.TotalChargingCapacity / 4.0; // Per quarter hour
             double dischargingCapacity = _sessyBatteryConfig.TotalDischargingCapacity / 4.0; // Per quarter hour
-            var now = _timeZoneService.Now;
+            var to = _timeZoneService.Now;
             var from = _quarterlyInfos!.Min(qi => qi.Time);
 
-            var performanceList = await _performanceDataService.GetList(async (set) =>
-            {
-                var result = set.Where(p => p.Time >= from && p.Time <= now).ToList();
-
-                return await Task.FromResult(result);
-            });
-
-
-            foreach (var performance in performanceList)
-            {
-                if (performance.Charging)
-                {
-                    if (performance.ChargeLeft < performance.ChargeNeeded)
-                    {
-                        var room = (performance.ChargeNeeded - performance.ChargeLeft);
-                        var charge = Math.Min(chargingCapacity, room);
-
-                        charge /= 1000;
-
-                        totalCharge += charge;
-                        totalCost += charge * performance.Price;
-                    }
-
-                    break;
-                }
-
-                if (performance.Discharging)
-                {
-                    if (performance.ChargeLeft > performance.ChargeNeeded)
-                    {
-                        var room = (performance.ChargeLeft - performance.ChargeNeeded);
-                        var charge = Math.Min(dischargingCapacity, room);
-
-                        charge /= 1000;
-
-                        totalCharge -= charge;
-                        totalCost -= charge * performance.Price;
-                    }
-
-                    break;
-                }
-
-                if (performance.ZeroNetHome)
-                {
-                    if (performance.ChargeLeft > 0.0)
-                    {
-                        var room = performance.ChargeLeft;
-                        var charge = Math.Min(performance.EstimatedConsumptionPerQuarterHour, room);
-
-                        charge /= 1000;
-
-                        totalCharge -= charge;
-                        totalCost -= charge * performance.Price;
-                    }
-
-                    break;
-                }
-            }
-
-            double average = 0.0;
-
-            if(totalCharge > 0.0)
-                average = totalCost / totalCharge;
-
-            return average;
+            return await _performanceDataService.CalculateAveragePriceOfChargeInBatteries(chargingCapacity, dischargingCapacity, from, to);
         }
 
         /// <summary>
@@ -1051,7 +985,7 @@ namespace SessyController.Services
 
             foreach (var quarterlyInfo in list)
             {
-                switch (await quarterlyInfo.Mode())
+                switch (quarterlyInfo.Mode)
                 {
                     case Modes.Charging:
                         {
@@ -1247,7 +1181,7 @@ namespace SessyController.Services
 
         private async Task RecalculateChargeLeftAndNeeded()
         {
-            CalculateChargeNeeded();
+            await CalculateChargeNeeded();
 
             await CalculateChargeLeft();
         }
@@ -1256,14 +1190,14 @@ namespace SessyController.Services
         /// This routine detects charge session that follow each other and determines how much
         /// charge is needed for the session.
         /// </summary>
-        private void CalculateChargeNeeded()
+        private async Task CalculateChargeNeeded()
         {
             _sessions.SetEstimateChargeNeededUntilNextSession();
         }
 
-        private void CalculateDeltaLowestPrice()
+        private async Task CalculateDeltaLowestPrice()
         {
-            _sessions.CalculateDeltaLowestPrice();
+            await _sessions.CalculateDeltaLowestPrice().ConfigureAwait(false);
         }
 
         // Helpers: signal smoothing + prominence-based peak/trough detection
@@ -1438,10 +1372,12 @@ namespace SessyController.Services
             // Create sessions object
             _sessions = new Sessions(_quarterlyInfos,
                                      _settingsConfig,
+                                     _sessyBatteryConfig,
                                      _batteryContainer!,
                                      _timeZoneService,
                                      _virtualBatteryService,
                                      _financialResultsService,
+                                     _performanceDataService,
                                      _consumptionDataService,
                                      _consumptionMonitorService,
                                      _energyHistoryDataService,
@@ -1538,7 +1474,10 @@ namespace SessyController.Services
         {
             var quarterlyInfo = _sessions.GetCurrentQuarterlyInfo();
 
-            return  _chargingModes.GetDisplayMode(await quarterlyInfo.Mode());
+            if(quarterlyInfo != null)
+                return  _chargingModes.GetDisplayMode(quarterlyInfo.Mode);
+
+            return "???";
         }
 
         public QuarterlyInfo? GetNextQuarterlyInfoInSession()

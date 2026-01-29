@@ -329,7 +329,8 @@ namespace SessyController.Services.InverterServices
                 }  
             }
 
-            _logger.LogException(lastException, "GetACPowerInWatts failed after 10 retries.");
+            if(lastException != null)
+                _logger.LogException(lastException, "GetACPowerInWatts failed after 10 retries.");
 
             return 0.0;
         }

@@ -38,7 +38,7 @@
                             <FinancialDayResultComponent FinancialResultsList="@MonthResult.FinancialResultsList" ExpandAllGroups=@ExpandAllGroups />
                         </Template>
                         <GroupFooterTemplate>
-                            <b> @String.Format(GetFormatProvider(), "Total monthly cost: {0:C}", GetMonthlyTotalCost(@MonthResult.Data.Items.AsQueryable().FirstOrDefault()))</b>
+                            <b> @String.Format(GetFormatProvider(), "Total monthly cost: {0:C}", GetMonthlyTotalCost(@MonthResult.Data!.Items!.AsQueryable().FirstOrDefault()))</b>
                         </GroupFooterTemplate>
                     </RadzenDataGridColumn>
                 </Columns>

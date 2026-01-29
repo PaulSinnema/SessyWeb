@@ -144,6 +144,15 @@
                 <RadzenSeriesDataLabels Visible="false" />
             </ChildContent>
         </RadzenLineSeries>
+        <RadzenLineSeries Data="@QuarterlyInfos" Smooth="true" CategoryProperty="Time" Title="Delta lowest price" LineType="LineType.Solid" ValueProperty="DeltaLowestPrice">
+            <TooltipTemplate Context="data">
+                <ChargingHoursTooltip QuarterlyInfo=@data />
+            </TooltipTemplate>
+            <ChildContent>
+                <RadzenMarkers Visible="false" />
+                <RadzenSeriesDataLabels Visible="false" />
+            </ChildContent>
+        </RadzenLineSeries>
         <RadzenCategoryAxis Padding="40" Formatter="@Formatters.FormatAsDayHour" TickDistance="152">
             <RadzenGridLines Visible="true" />
             <RadzenAxisTitle Text="Time" />

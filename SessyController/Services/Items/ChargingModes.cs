@@ -30,12 +30,12 @@
             }
         }
 
-        public async Task<Modes> GetMode(QuarterlyInfo qi)
+        public Modes GetMode(QuarterlyInfo qi)
         {
             if (qi.Charging) return Modes.Charging;
             if (qi.Discharging) return Modes.Discharging;
-            if (await qi.ZeroNetHome()) return Modes.ZeroNetHome;
-            if (await qi.Disabled()) return Modes.Disabled;
+            if (qi.ZeroNetHome) return Modes.ZeroNetHome;
+            if (qi.Disabled) return Modes.Disabled;
             return Modes.Unknown;
         }
     }

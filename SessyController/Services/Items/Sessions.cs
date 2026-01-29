@@ -14,6 +14,8 @@ namespace SessyController.Services.Items
         private double _totalBatteryCapacity { get; set; }
         private ILogger<Sessions> _logger { get; set; }
         private SettingsConfig _settingsConfig { get; set; }
+        private SessyBatteryConfig _sessyBatteryConfig { get; set; }
+
         private BatteryContainer _batteryContainer { get; set; }
 
         private FinancialResultsService _financialResultsService { get; set; }
@@ -23,6 +25,8 @@ namespace SessyController.Services.Items
         private VirtualBatteryService _virtualBatteryService { get; set; }
 
         private ConsumptionDataService _consumptionDataService { get; set; }
+
+        private PerformanceDataService _performanceDataService { get; set; }
 
         private ConsumptionMonitorService _consumptionMonitorService { get; set; }
 
@@ -37,21 +41,25 @@ namespace SessyController.Services.Items
 
         public Sessions(List<QuarterlyInfo> quarterlyInfos,
                         SettingsConfig settingsConfig,
+                        SessyBatteryConfig sessyBatteryConfig,
                         BatteryContainer batteryContainer,
                         TimeZoneService? timeZoneService,
                         VirtualBatteryService virtualBatteryService,
                         FinancialResultsService financialResultsService,
+                        PerformanceDataService performanceDataService,
                         ConsumptionDataService consumptionDataService,
                         ConsumptionMonitorService consumptionMonitorService,
                         EnergyHistoryDataService energyHistoryService,
                         ILoggerFactory loggerFactory)
         {
             _settingsConfig = settingsConfig;
+            _sessyBatteryConfig = sessyBatteryConfig;
             _batteryContainer = batteryContainer;
             _financialResultsService = financialResultsService;
             _timeZoneService = timeZoneService;
             _virtualBatteryService = virtualBatteryService;
             _consumptionDataService = consumptionDataService;
+            _performanceDataService = performanceDataService;
             _consumptionMonitorService = consumptionMonitorService;
             _energyHistoryService = energyHistoryService;
 
@@ -218,7 +226,7 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Calculates the profits for the hourly info objects in the sessions hourly info list.
         /// </summary>
-        public async Task CalculateProfits(TimeZoneService timeZoneService)
+        public void CalculateProfits(TimeZoneService timeZoneService)
         {
             List<QuarterlyInfo> lastChargingSession = new List<QuarterlyInfo>();
 
@@ -228,7 +236,7 @@ namespace SessyController.Services.Items
 
             foreach (var nextQuarter in _quarterlyInfos.OrderBy(hi => hi.Time))
             {
-                switch (await nextQuarter.Mode())
+                switch (nextQuarter.Mode)
                 {
                     case Modes.Charging:
                         CalculateChargingProfits(lastChargingSession, previousQuarter, nextQuarter);
@@ -357,37 +365,6 @@ namespace SessyController.Services.Items
             }
 
             return false;
-        }
-
-        public async Task<double> GetMaxZeroNetHomeHours(Session previousSession, Session session)
-        {
-            double currentCharge = 1.0;
-
-            var first = previousSession.LastDateTime.AddHours(1);
-            var last = session.FirstDateTime.AddHours(-1);
-            var hours = 0;
-            var firstTime = true;
-
-            foreach (var quarterlyInfo in _quarterlyInfos)
-            {
-                var homeNeeds = quarterlyInfo.EstimatedConsumptionPerQuarterInWatts;
-
-                if (quarterlyInfo.Time >= first && quarterlyInfo.Time <= last && currentCharge >= 0)
-                {
-                    if (firstTime)
-                    {
-                        currentCharge = quarterlyInfo.ChargeLeft;
-                        firstTime = false;
-                    }
-
-                    hours++;
-
-                    if (await quarterlyInfo.ZeroNetHome())
-                        currentCharge -= homeNeeds;
-                }
-            }
-
-            return hours;
         }
 
         public void CompleteAllSessions()
@@ -874,29 +851,16 @@ namespace SessyController.Services.Items
             return quarterlyInfo;
         }
 
-        internal void CalculateDeltaLowestPrice()
+        public async Task CalculateDeltaLowestPrice()
         {
-            double lowestPrice = 0.0;
+            double chargingCapacity = _sessyBatteryConfig.TotalChargingCapacity / 4.0; // Per quarter hour
+            double dischargingCapacity = _sessyBatteryConfig.TotalDischargingCapacity / 4.0; // Per quarter hour
+            var to = _timeZoneService.Now;
+            var from = _quarterlyInfos!.Min(qi => qi.Time);
 
-            var sessions = SessionList
-                              .OrderBy(se => se.FirstDateTime);
+            var priceOfEnergyInBatteries = await _performanceDataService.CalculateAveragePriceOfChargeInBatteries(chargingCapacity, dischargingCapacity, from, to).ConfigureAwait(false);
 
-            foreach (var session in sessions)
-            {
-                var nextSession = GetNextSession(session);
-
-                var objectsBetween = GetInfoObjectsFromStartUntilNextSession(session, nextSession);
-
-                if(session.Mode == Modes.Charging)
-                {
-                    lowestPrice = session.LowestPrice;
-                }
-
-                foreach (var quarterlyInfo in objectsBetween)
-                {
-                    quarterlyInfo.SetDeltaLowestPrice(lowestPrice);
-                }
-            }
+            _quarterlyInfos.ForEach(qi => qi.SetDeltaLowestPrice(priceOfEnergyInBatteries));
         }
     }
 }
