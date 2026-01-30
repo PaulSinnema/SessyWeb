@@ -32,6 +32,8 @@ namespace SessyController.Services.Items
 
         private EnergyHistoryDataService _energyHistoryService { get; set; }
 
+        private CalculationService _calculationService { get; set; }
+
         private List<Session>? _sessionList { get; set; }
         private int _maxChargingQuarters { get; set; }
         private int _maxDischargingQuarters { get; set; }
@@ -50,6 +52,7 @@ namespace SessyController.Services.Items
                         ConsumptionDataService consumptionDataService,
                         ConsumptionMonitorService consumptionMonitorService,
                         EnergyHistoryDataService energyHistoryService,
+                        CalculationService calculationService,
                         ILoggerFactory loggerFactory)
         {
             _settingsConfig = settingsConfig;
@@ -62,6 +65,7 @@ namespace SessyController.Services.Items
             _performanceDataService = performanceDataService;
             _consumptionMonitorService = consumptionMonitorService;
             _energyHistoryService = energyHistoryService;
+            _calculationService = calculationService;
 
             _sessionList = new List<Session>();
             _quarterlyInfos = quarterlyInfos;
@@ -858,7 +862,7 @@ namespace SessyController.Services.Items
             var to = _timeZoneService.Now;
             var from = _quarterlyInfos!.Min(qi => qi.Time);
 
-            var priceOfEnergyInBatteries = await _performanceDataService.CalculateAveragePriceOfChargeInBatteries(chargingCapacity, dischargingCapacity, from, to).ConfigureAwait(false);
+            var priceOfEnergyInBatteries = await _calculationService.CalculateAveragePriceOfChargeInBatteries(chargingCapacity, dischargingCapacity, from, to).ConfigureAwait(false);
 
             _quarterlyInfos.ForEach(qi => qi.SetDeltaLowestPrice(priceOfEnergyInBatteries));
         }

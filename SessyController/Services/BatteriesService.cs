@@ -24,8 +24,6 @@ namespace SessyController.Services
         private SolarService? _solarService { get; set; }
         private IServiceScopeFactory _serviceScopeFactory { get; set; }
 
-        private ChargingModes _chargingModes;
-
         private IOptionsMonitor<SettingsConfig> _settingsConfigMonitor { get; set; }
 
         private IDisposable? _sessyBatteryConfigSubscription { get; set; }
@@ -53,6 +51,8 @@ namespace SessyController.Services
 
         private VirtualBatteryService _virtualBatteryService { get; set; }
 
+        private CalculationService _calculationService { get; set; }
+
         private LoggingService<BatteriesService> _logger { get; set; }
 
         private static List<QuarterlyInfo>? _quarterlyInfos { get; set; } = new List<QuarterlyInfo>();
@@ -62,7 +62,6 @@ namespace SessyController.Services
         public bool WeAreInControl { get; private set; } = true;
 
         public BatteriesService(LoggingService<BatteriesService> logger,
-                                ChargingModes chargingModes,
                                 IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
                                 IOptionsMonitor<SessyBatteryConfig> sessyBatteryConfigMonitor,
                                 IServiceScopeFactory serviceScopeFactory)
@@ -75,7 +74,6 @@ namespace SessyController.Services
 
             _logger.LogInformation("BatteriesService checking settings");
 
-            _chargingModes = chargingModes;
             _settingsConfigMonitor = settingsConfigMonitor;
             _sessyBatteryConfigMonitor = sessyBatteryConfigMonitor;
 
@@ -114,6 +112,7 @@ namespace SessyController.Services
             _energyHistoryDataService = _scope.ServiceProvider.GetRequiredService<EnergyHistoryDataService>();
             _consumptionMonitorService = _scope.ServiceProvider.GetRequiredService<ConsumptionMonitorService>();
             _virtualBatteryService = _scope.ServiceProvider.GetRequiredService<VirtualBatteryService>();
+            _calculationService = _scope.ServiceProvider.GetRequiredService<CalculationService>();
         }
 
         public override Task StopAsync(CancellationToken cancellationToken)
@@ -959,7 +958,7 @@ namespace SessyController.Services
             var to = _timeZoneService.Now;
             var from = _quarterlyInfos!.Min(qi => qi.Time);
 
-            return await _performanceDataService.CalculateAveragePriceOfChargeInBatteries(chargingCapacity, dischargingCapacity, from, to);
+            return await _calculationService.CalculateAveragePriceOfChargeInBatteries(chargingCapacity, dischargingCapacity, from, to);
         }
 
         /// <summary>
@@ -1381,6 +1380,7 @@ namespace SessyController.Services
                                      _consumptionDataService,
                                      _consumptionMonitorService,
                                      _energyHistoryDataService,
+                                     _calculationService,
                                      loggerFactory);
 
             // Seed sessions from detected extrema
@@ -1475,7 +1475,7 @@ namespace SessyController.Services
             var quarterlyInfo = _sessions.GetCurrentQuarterlyInfo();
 
             if(quarterlyInfo != null)
-                return  _chargingModes.GetDisplayMode(quarterlyInfo.Mode);
+                return  ChargingModes.GetDisplayMode(quarterlyInfo.Mode);
 
             return "???";
         }

@@ -11,7 +11,6 @@ namespace SessyController.Services.Items
         private const double minSolarPower = 50.0;
 
         private QuarterlyInfo(DateTime time,
-                                ChargingModes chargingModes,
                                 Session? session,
                                 double marketPrice,
                                 double buyingPrice,
@@ -25,7 +24,6 @@ namespace SessyController.Services.Items
             Time = time;
             _session = session;
 
-            _chargingModes = chargingModes;
             _settingsConfig = settingsConfig;
             _batteryContainer = batteryContainer;
             _solarInverterManager = solarInverterManager;
@@ -47,7 +45,6 @@ namespace SessyController.Services.Items
         // Factory that does the awaiting
         public static async Task<QuarterlyInfo> CreateAsync(
             DateTime time,
-            ChargingModes chargingModes,
             double marketPrice,
             SettingsConfig settingsConfig,
             BatteryContainer batteryContainer,
@@ -60,7 +57,6 @@ namespace SessyController.Services.Items
 
             return new QuarterlyInfo(
                 time,
-                chargingModes,
                 null,
                 marketPrice,
                 buying,
@@ -104,8 +100,6 @@ namespace SessyController.Services.Items
         public DateTime Time { get; set; }
 
         private Session? _session { get; set; }
-
-        private ChargingModes _chargingModes { get; set; }
 
         public int? SessionId => _session?.Id;
 
@@ -246,7 +240,7 @@ namespace SessyController.Services.Items
             SmoothedSellingPrice = 0.0;
         }
 
-        public Modes Mode => _chargingModes.GetMode(this);
+        public Modes Mode => ChargingModes.GetMode(this);
 
         /// <summary>
         /// If true charging is requested.
@@ -361,7 +355,7 @@ namespace SessyController.Services.Items
 
         public string GetDisplayMode()
         {
-            return _chargingModes.GetDisplayMode(Mode);
+            return ChargingModes.GetDisplayMode(Mode);
         }
 
         private async Task<bool> SolarPowerIsActive()

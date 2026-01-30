@@ -1,7 +1,9 @@
 ﻿using SessyCommon.Services;
+using SessyController.Services.Items;
 using SessyData.Model;
 using SessyData.Services;
 using System.Collections.Concurrent;
+using static SessyController.Services.Items.ChargingModes;
 
 namespace SessyController.Services
 {
@@ -9,17 +11,21 @@ namespace SessyController.Services
     {
         private EPEXPricesDataService _epexPricesDataService { get; set; }
 
+        private PerformanceDataService _performanceDataService { get; set; }
+
         private TimeZoneService _timezoneService { get; set; }
 
         private TaxesDataService _taxesDataService { get; set; }
         private EnergyHistoryDataService _energyHistoryService { get; set; }
 
         public CalculationService(EPEXPricesDataService epexPricesDataService,
+                                  PerformanceDataService performanceDataService,
                                   TimeZoneService timezoneService,
                                   TaxesDataService taxesDataService,
                                   EnergyHistoryDataService energyHistoryService)
         {
             _epexPricesDataService = epexPricesDataService;
+            _performanceDataService = performanceDataService;
             _timezoneService = timezoneService;
             _taxesDataService = taxesDataService;
             _energyHistoryService = energyHistoryService;
@@ -160,6 +166,116 @@ namespace SessyController.Services
             totalCost -= taxRecord.TaxReduction;
 
             return totalCost / quarters;
+        }
+
+        public async Task<double> CalculateAveragePriceOfChargeInBatteries(double chargingCapacity, double dischargingCapacity, DateTime from, DateTime to)
+        {
+            var totalChargekWh = 0.0;
+            var totalCost = 0.0;
+
+            var performanceList = await _performanceDataService.GetList(async (set) =>
+            {
+                var result = set.Where(p => p.Time >= from && p.Time <= to).ToList();
+
+                return await Task.FromResult(result);
+            });
+
+            foreach (var performance in performanceList)
+            {
+                var room = CalculateRoomInWatt(performance, chargingCapacity, dischargingCapacity);
+                var mode = ChargingModes.GetMode(performance);
+
+                switch (mode)
+                {
+                    case Modes.Charging:
+                        {
+                            if (performance.ChargeLeft < performance.ChargeNeeded)
+                            {
+                                var charge = Math.Min(chargingCapacity, room);
+
+                                charge /= 1000;
+
+                                totalChargekWh += charge;
+                                totalCost += charge * performance.Price;
+                            }
+                            break;
+                        }
+
+                    case Modes.Discharging:
+                        {
+                            if (performance.ChargeLeft > performance.ChargeNeeded)
+                            {
+                                var charge = Math.Min(dischargingCapacity, room);
+
+                                charge /= 1000;
+
+                                totalChargekWh -= charge;
+                                totalCost -= charge * performance.Price;
+                            }
+
+                            break;
+                        }
+
+                    case Modes.ZeroNetHome:
+                        {
+                            var charge = Math.Min(performance.EstimatedConsumptionPerQuarterHour, room);
+
+                            charge /= 1000;
+
+                            totalChargekWh -= charge;
+                            totalCost -= charge * performance.Price;
+
+                            break;
+                        }
+
+                    case Modes.Disabled:
+                        break;
+
+                    case Modes.Unknown:
+                    default:
+                        break;
+                }
+            }
+
+            double average = 0.0;
+
+            if (totalChargekWh > 0.0)
+                average = totalCost / totalChargekWh;
+
+            return average;
+        }
+
+        /// <summary>
+        /// Determine how much energy there is left in the batteries that can be used for (dis)charging.
+        /// </summary>
+        public static double CalculateRoomInWatt(Performance performance, double chargingCapacity, double dischargingCapacity)
+        {
+            Modes mode = ChargingModes.GetMode(performance);
+            double roomInWatt = 0.0;
+
+            switch (mode)
+            {
+                case Modes.Charging:
+                    roomInWatt = performance.ChargeNeeded - performance.ChargeLeft + performance.SolarPowerPerQuarterHour - performance.EstimatedConsumptionPerQuarterHour;
+                    break;
+
+                case Modes.Discharging:
+                    roomInWatt = performance.ChargeLeft - performance.ChargeNeeded + performance.SolarPowerPerQuarterHour - performance.EstimatedConsumptionPerQuarterHour;
+                    break;
+
+                case Modes.ZeroNetHome:
+                    roomInWatt = performance.ChargeLeft + performance.SolarPowerPerQuarterHour - performance.EstimatedConsumptionPerQuarterHour;
+                    break;
+
+                case Modes.Disabled:
+                    break;
+
+            case Modes.Unknown:
+            default:
+                    break;
+            }
+
+            return Math.Max(roomInWatt, 0.0);
         }
     }
 }
