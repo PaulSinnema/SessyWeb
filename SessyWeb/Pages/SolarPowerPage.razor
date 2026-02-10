@@ -7,8 +7,8 @@
 @using SessyWeb.Helpers
 @using static SessyWeb.Components.DateChooserComponent
 
-@code{
-    bool ShowDataLabels = false;
+@code {
+    bool ShowDataLabels = true;
     bool ShowMarkers = true;
 }
 
@@ -24,8 +24,8 @@
             <RadzenLabel Text="Select provider" Component="RadzenDropDownBindValue" />
 
             <RadzenDropDown TValue="string"
-                            @bind-Value="selectedProvider"
-                            Data="@providerNames"
+                            @bind-Value="SelectedProvider"
+                            Data="@ProviderNames"
                             Placeholder="Select provider"
                             Change=@ProviderChanged
                             Style="width: 200px;" />
@@ -40,39 +40,172 @@
     </RadzenHeader>
 
     <RadzenBody>
-        <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Left" AlignItems="AlignItems.Start" Gap="0.5rem" Style="width: 100%;">
-
-            <RadzenChart Style="@GraphStyle" @ref=SolarPowerChart>
-                <RadzenLegend Position="LegendPosition.Top" Visible="true" />
-                @foreach (var provider in GroupedData)
-                {
-                    if (selectedProvider == "All" || selectedProvider == provider.Key)
+        @if (DateSelectionChosen!.PeriodChosen == PeriodsEnums.Day)
+        {
+            <RadzenCard>
+                <RadzenChart Style="@GraphStyle" @ref=SolarPowerChart>
+                    <RadzenLegend Position="LegendPosition.Top" Visible="true" />
+                    @foreach (var provider in SolarDayData)
                     {
-                        <RadzenAreaSeries Data="@provider.Value"
-                        Title="@provider.Key"
-                        CategoryProperty="Time"
-                        ValueProperty="Power"
-                        Smooth="true"
-                        LineType="LineType.Dotted" >
-                            <ChildContent>
-                                <RadzenMarkers Visible="@ShowMarkers" MarkerType="MarkerType.Circle" />
-                                <RadzenSeriesDataLabels Visible="@ShowDataLabels" />
-                            </ChildContent>
-                        </RadzenAreaSeries>
+                        if (SelectedProvider == "All" || SelectedProvider == provider.Key)
+                        {
+                            <RadzenAreaSeries Data="@provider.Value"
+                                                Title="@provider.Key"
+                                                CategoryProperty="Key"
+                                                ValueProperty="Value"
+                                                Smooth="true">
+                                <ChildContent>
+                                    <RadzenMarkers Visible="@ShowMarkers" MarkerType="MarkerType.Circle" />
+                                    <RadzenSeriesDataLabels Visible="@ShowDataLabels" />
+                                </ChildContent>
+                            </RadzenAreaSeries>
+                        }
                     }
-                }
 
-                <RadzenValueAxis Formatter="@Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                    <RadzenValueAxis Formatter="@Formatters.FormatAsRoundedNumberWithZeroSuppression">
 
-                </RadzenValueAxis>
+                    </RadzenValueAxis>
 
-                <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance>
-                    <RadzenGridLines Visible="true" />
-                    <RadzenAxisTitle Text="Time" />
-                </RadzenCategoryAxis>
+                    <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance>
+                        <RadzenGridLines Visible="true" />
+                        <RadzenAxisTitle Text="Time" />
+                    </RadzenCategoryAxis>
 
-            </RadzenChart>
-        </RadzenStack>
+                </RadzenChart>
+            </RadzenCard>
+        }
+        else if (DateSelectionChosen!.PeriodChosen == PeriodsEnums.Week)
+        {
+            <RadzenCard>
+                <RadzenChart Style="@GraphStyle" @ref=SolarPowerChart>
+                    <RadzenLegend Position="LegendPosition.Top" Visible="true" />
+                    @foreach (var provider in SolarWeekData)
+                    {
+                        if (SelectedProvider == "All" || SelectedProvider == provider.Key)
+                        {
+                            <RadzenColumnSeries Data="@provider.Value"
+                                              Title="@provider.Key"
+                                              CategoryProperty="Key"
+                                              ValueProperty="Value">
+                                <ChildContent>
+                                    <RadzenMarkers Visible="@ShowMarkers" MarkerType="MarkerType.Circle" />
+                                    <RadzenSeriesDataLabels Visible="@ShowDataLabels" />
+                                </ChildContent>
+                            </RadzenColumnSeries>
+                        }
+                    }
+
+                    <RadzenValueAxis Formatter="@Formatters.FormatAsRoundedNumberWithZeroSuppression">
+
+                    </RadzenValueAxis>
+
+                    <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance>
+                        <RadzenGridLines Visible="true" />
+                        <RadzenAxisTitle Text="Time" />
+                    </RadzenCategoryAxis>
+
+                </RadzenChart>
+            </RadzenCard>
+        }
+        else if (DateSelectionChosen!.PeriodChosen == PeriodsEnums.Month)
+        {
+            <RadzenCard>
+                <RadzenChart Style="@GraphStyle" @ref=SolarPowerChart>
+                    <RadzenLegend Position="LegendPosition.Top" Visible="true" />
+                    @foreach (var provider in SolarMonthData)
+                    {
+                        if (SelectedProvider == "All" || SelectedProvider == provider.Key)
+                        {
+                            <RadzenColumnSeries Data="@provider.Value"
+                                                Title="@provider.Key"
+                                                CategoryProperty="Key"
+                                                ValueProperty="Value">
+                                <ChildContent>
+                                    <RadzenMarkers Visible="@ShowMarkers" MarkerType="MarkerType.Circle" />
+                                    <RadzenSeriesDataLabels Visible="@ShowDataLabels" />
+                                </ChildContent>
+                            </RadzenColumnSeries>
+                        }
+                    }
+
+                    <RadzenValueAxis Formatter="@Formatters.FormatAsRoundedNumberWithZeroSuppression">
+
+                    </RadzenValueAxis>
+
+                    <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance>
+                        <RadzenGridLines Visible="true" />
+                        <RadzenAxisTitle Text="Time" />
+                    </RadzenCategoryAxis>
+
+                </RadzenChart>
+            </RadzenCard>
+        }
+        else if (DateSelectionChosen!.PeriodChosen == PeriodsEnums.Year)
+        {
+            <RadzenCard>
+                <RadzenChart Style="@GraphStyle" @ref=SolarPowerChart>
+                    <RadzenLegend Position="LegendPosition.Top" Visible="true" />
+                    @foreach (var provider in SolarYearData)
+                    {
+                        if (SelectedProvider == "All" || SelectedProvider == provider.Key)
+                        {
+                            <RadzenColumnSeries Data="@provider.Value"
+                                                Title="@provider.Key"
+                                                CategoryProperty="Key"
+                                                ValueProperty="Value">
+                                <ChildContent>
+                                    <RadzenMarkers Visible="@ShowMarkers" MarkerType="MarkerType.Circle" />
+                                    <RadzenSeriesDataLabels Visible="@ShowDataLabels" />
+                                </ChildContent>
+                            </RadzenColumnSeries>
+                        }
+                    }
+
+                    <RadzenValueAxis Formatter="@Formatters.FormatAsRoundedNumberWithZeroSuppression">
+
+                    </RadzenValueAxis>
+
+                    <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance>
+                        <RadzenGridLines Visible="true" />
+                        <RadzenAxisTitle Text="Time" />
+                    </RadzenCategoryAxis>
+
+                </RadzenChart>
+            </RadzenCard>
+        }
+        else if(DateSelectionChosen!.PeriodChosen == PeriodsEnums.All)
+        {
+            <RadzenCard>
+                <RadzenChart Style="@GraphStyle" @ref=SolarPowerChart>
+                    <RadzenLegend Position="LegendPosition.Top" Visible="true" />
+                    @foreach (var provider in SolarAllData)
+                    {
+                        if (SelectedProvider == "All" || SelectedProvider == provider.Key)
+                        {
+                            <RadzenColumnSeries Data="@provider.Value"
+                                                Title="@provider.Key"
+                                                CategoryProperty="Key"
+                                                ValueProperty="Value">
+                                <ChildContent>
+                                    <RadzenMarkers Visible="@ShowMarkers" MarkerType="MarkerType.Circle" />
+                                    <RadzenSeriesDataLabels Visible="@ShowDataLabels" />
+                                </ChildContent>
+                            </RadzenColumnSeries>
+                        }
+                    }
+
+                    <RadzenValueAxis Formatter="@Formatters.FormatAsRoundedNumberWithZeroSuppression">
+
+                    </RadzenValueAxis>
+
+                    <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance>
+                        <RadzenGridLines Visible="true" />
+                        <RadzenAxisTitle Text="Time" />
+                    </RadzenCategoryAxis>
+
+                </RadzenChart>
+            </RadzenCard>
+        }
     </RadzenBody>
 
     <RadzenFooter>

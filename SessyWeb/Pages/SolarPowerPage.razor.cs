@@ -6,6 +6,7 @@ using SessyController.Services;
 using SessyData.Model;
 using SessyData.Services;
 using SessyWeb.Helpers;
+using System.Linq;
 using static SessyWeb.Components.DateChooserComponent;
 
 namespace SessyWeb.Pages
@@ -21,11 +22,10 @@ namespace SessyWeb.Pages
         [Inject]
         SolarService? _solarService { get; set; }
 
-        private Dictionary<string, List<SolarInverterData>> GroupedData { get; set; } = new();
-        private List<string> providerNames { get; set; } = new();
+        private List<string> ProviderNames { get; set; } = new();
         public List<SolarInverterData> SolarInverterData { get; set; } = new();
 
-        public string selectedProvider { get; set; } = "All";
+        public string SelectedProvider { get; set; } = "All";
 
         public double SolarPower { get; set; }
 
@@ -37,6 +37,12 @@ namespace SessyWeb.Pages
 
         private int TickDistance { get; set; }
 
+        public Dictionary<string, Dictionary<DateTime, double>> SolarDayData { get; set; } = new();
+        public Dictionary<string, Dictionary<DateTime, double>> SolarWeekData { get; set; } = new();
+        public Dictionary<string, Dictionary<DateTime, double>> SolarMonthData { get; set; } = new();
+        public Dictionary<string, Dictionary<int, double>> SolarYearData { get; set; } = new();
+        public Dictionary<string, Dictionary<int, double>> SolarAllData { get; set; } = new();
+
         protected override async Task OnInitializedAsync()
         {
             DateSelectionChosen = new DateArgs(PeriodsEnums.Day, _timeZoneService!.Now.Date);
@@ -46,9 +52,11 @@ namespace SessyWeb.Pages
 
         protected override async Task OnAfterRenderAsync(bool firstRender)
         {
-            if (firstRender)
+            if (firstRender || _screenInfoChanged)
             {
                 await SelectionChanged();
+
+                _screenInfoChanged = false;
             }
 
             await base.OnAfterRenderAsync(firstRender);
@@ -78,8 +86,11 @@ namespace SessyWeb.Pages
                     break;
 
                 case PeriodsEnums.Year:
-                case PeriodsEnums.All:
                     Formatter = Formatters.FormatAsMonth;
+                    break;
+
+                case PeriodsEnums.All:
+                    Formatter = Formatters.FormatAsYear;
                     break;
 
                 default:
@@ -87,9 +98,13 @@ namespace SessyWeb.Pages
             }
         }
 
+        private bool _screenInfoChanged = false;
+
         public override void ScreenInfoChanged(ScreenInfo screenInfo)
         {
             SolarPowerChartWidth = ScreenInfo!.Width == 0 ? 2300 : ScreenInfo!.Width;
+
+            _screenInfoChanged = true;
 
             base.ScreenInfoChanged(screenInfo);
         }
@@ -107,69 +122,226 @@ namespace SessyWeb.Pages
             {
                 var DateChosen = DateSelectionChosen!.DateChosen?.Date ?? _timeZoneService!.Now.Date;
 
-                var result = await _solarEdgeDataService!.GetList(async (set) =>
+                switch (DateSelectionChosen!.PeriodChosen)
                 {
-                    switch (DateSelectionChosen!.PeriodChosen)
-                    {
-                        case PeriodsEnums.Day:
+                    case PeriodsEnums.Day:
+                        {
+                            var result = await _solarEdgeDataService!.GetList(async (set) =>
                             {
                                 var result = set
-                                    .Where(sed => sed.Time.Date == DateChosen)
+                                    .Where(sed => sed.Time.Date == DateChosen.Date)
                                     .ToList();
 
                                 return await Task.FromResult(result);
+                            });
+
+                            SolarDayData = new Dictionary<string, Dictionary<DateTime, double>>();
+
+                            ProviderNames = result.Select(sid => sid.ProviderName).Distinct().ToList();
+
+                            foreach (var providerName in ProviderNames)
+                            {
+                                var dateData = new Dictionary<DateTime, double>();
+
+                                SolarDayData.Add(providerName, dateData);
+
+                                var dates = result.Select(sid => sid.Time).Distinct();
+
+                                foreach (var quarters in dates)
+                                {
+                                    dateData.Add(quarters, result.Where(sid => sid.ProviderName == providerName && sid.Time == quarters).Sum(sid => sid.Power) / 4000);
+                                }
                             }
 
-                        case PeriodsEnums.Week:
+                            DetermineTickDistance(result);
+                        }
+                        //{
+                        //    var result = await _solarEdgeDataService!.GetList(async (set) =>
+                        //    {
+                        //        var result = set
+                        //            .Where(sed => sed.Time.Date == DateChosen.Date)
+                        //            .ToList();
+
+                        //        return await Task.FromResult(result);
+                        //    });
+
+                        //    SolarDayData = result
+                        //                   .GroupBy(d => d.ProviderName)
+                        //                   .ToDictionary(sid => sid.Key,
+                        //                   sid => sid.Select(g => new SolarDisplayDayData
+                        //                   {
+                        //                       ProviderName = g.ProviderName,
+                        //                       Time = g.Time,
+                        //                       Power = g.Power
+                        //                   }).ToList());
+
+                        //    DetermineTickDistance(SolarDayData);
+                        //}
+
+                        break;
+
+
+                    case PeriodsEnums.Week:
+                        {
+                            var result = await _solarEdgeDataService!.GetList(async (set) =>
                             {
                                 var result = set
                                     .Where(sed => DateChosen.StartOfWeek() <= sed.Time && DateChosen!.EndOfWeek().AddDays(1).AddSeconds(-1) >= sed.Time)
                                     .ToList();
 
                                 return await Task.FromResult(result);
+                            });
+
+                            SolarWeekData = new Dictionary<string, Dictionary<DateTime, double>>();
+
+                            ProviderNames = result.Select(sid => sid.ProviderName).Distinct().ToList();
+
+                            foreach (var providerName in ProviderNames)
+                            {
+                                var dateData = new Dictionary<DateTime, double>();
+
+                                SolarWeekData.Add(providerName, dateData);
+
+                                var dates = result.Select(sid => sid.Time.Date).Distinct();
+
+                                foreach (var date in dates)
+                                {
+                                    dateData.Add(date.Date, result.Where(sid => sid.ProviderName == providerName && sid.Time.Date == date).Sum(sid => sid.Power) / 4000);
+                                }
                             }
 
-                        case PeriodsEnums.Month:
+                            DetermineTickDistance(result);
+                        }
+
+                        break;
+
+                    case PeriodsEnums.Month:
+                        {
+                            var result = await _solarEdgeDataService!.GetList(async (set) =>
                             {
                                 var result = set
                                     .Where(sed => DateChosen.StartOfMonth() <= sed.Time && DateChosen!.EndOfMonth().AddDays(1).AddSeconds(-1) >= sed.Time)
                                     .ToList();
 
                                 return await Task.FromResult(result);
+                            });
+
+                            SolarMonthData = new Dictionary<string, Dictionary<DateTime, double>>();
+
+                            ProviderNames = result.Select(sid => sid.ProviderName).Distinct().ToList();
+
+                            foreach (var providerName in ProviderNames)
+                            {
+                                var dateData = new Dictionary<DateTime, double>();
+
+                                SolarMonthData.Add(providerName, dateData);
+
+                                var dates = result.Select(sid => sid.Time.Date).Distinct();
+
+                                foreach (var date in dates)
+                                {
+                                    var subset = result.Where(sid => sid.ProviderName == providerName && sid.Time.Date == date);
+
+                                    var kWh = subset.Sum(sid => sid.Power) / 4000;
+
+                                    dateData.Add(date.Date, kWh);
+                                }
                             }
 
-                        case PeriodsEnums.Year:
+                            DetermineTickDistance(result);
+                        }
+
+                        break;
+
+                    case PeriodsEnums.Year:
+                        {
+                            var startDate = new DateTime(DateChosen.Year, 1, 1);
+                            var endDate = new DateTime(DateChosen.Year, 12, 31, 23, 59, 59);
+
+                            var result = await _solarEdgeDataService!.GetList(async (set) =>
                             {
                                 var result = set
-                                    .Where(sed => DateChosen!.Year == sed.Time.Year)
+                                    .Where(sed => startDate <= sed.Time && endDate >= sed.Time)
                                     .ToList();
 
                                 return await Task.FromResult(result);
+                            });
+
+                            SolarYearData = new Dictionary<string, Dictionary<int, double>>();
+
+                            ProviderNames = result.Select(sid => sid.ProviderName).Distinct().ToList();
+
+                            foreach (var providerName in ProviderNames)
+                            {
+                                var dateData = new Dictionary<int, double>();
+
+                                SolarYearData.Add(providerName, dateData);
+
+                                var dates = result.Select(sid => sid.Time.Month).Distinct();
+
+                                foreach (var month in dates)
+                                {
+                                    var subset = result.Where(sid => sid.ProviderName == providerName && sid.Time.Month == month);
+
+                                    var kWh = subset.Sum(sid => sid.Power) / 4000;
+
+                                    dateData.Add(month, kWh);
+                                }
                             }
 
-                        case PeriodsEnums.All:
-                            return await Task.FromResult(set.ToList());
+                            DetermineTickDistance(result);
+                        }
 
-                        default:
-                            throw new InvalidOperationException($"Wrong period type {DateSelectionChosen!.PeriodChosen}");
-                    }
-                });
+                        break;
 
-                SolarInverterData = result.OrderBy(sed => sed.Time)
-                  .ToList(); ;
+                    case PeriodsEnums.All:
+                        {
+                            var startDate = DateTime.MinValue;
+                            var endDate = DateTime.MaxValue;
+
+                            var result = await _solarEdgeDataService!.GetList(async (set) =>
+                            {
+                                var result = set
+                                    .Where(sed => startDate <= sed.Time && endDate >= sed.Time)
+                                    .ToList();
+
+                                return await Task.FromResult(result);
+                            });
+
+                            SolarAllData = new Dictionary<string, Dictionary<int, double>>();
+
+                            ProviderNames = result.Select(sid => sid.ProviderName).Distinct().ToList();
+
+                            foreach (var providerName in ProviderNames)
+                            {
+                                var dateData = new Dictionary<int, double>();
+
+                                SolarAllData.Add(providerName, dateData);
+
+                                var dates = result.Select(sid => sid.Time.Year).Distinct();
+
+                                foreach (var year in dates)
+                                {
+                                    var subset = result.Where(sid => sid.ProviderName == providerName && sid.Time.Year == year);
+
+                                    var kWh = subset.Sum(sid => sid.Power) / 4000;
+
+                                    dateData.Add(year, kWh);
+                                }
+                            }
+
+                            DetermineTickDistance(result);
+                        }
+
+                        break;
+
+                    default:
+                        throw new InvalidOperationException($"Wrong period type {DateSelectionChosen!.PeriodChosen}");
+                }
+
+                ProviderNames.Insert(0, "All");
 
                 SolarPower = await GetSolarPower(DateSelectionChosen!.DateChosen!.Value);
-
-                GroupedData = SolarInverterData
-                        .GroupBy(d => d.ProviderName)
-                        .ToDictionary(g => g.Key, g => g.ToList());
-
-                providerNames = GroupedData.Keys.OrderBy(k => k).ToList();
-                providerNames.Insert(0, "All");
-
-                var numberOfElements = GroupedData.Values.Count();
-
-                DetermineTickDistance(GroupedData);
 
                 FillFormatter();
 
@@ -183,14 +355,14 @@ namespace SessyWeb.Pages
             }
         }
 
-        private void DetermineTickDistance(Dictionary<string, List<SolarInverterData>> groupedData)
+        private void DetermineTickDistance(List<SolarInverterData>? solarInverterData)
         {
             TickDistance = SolarPowerChartWidth;
-            
-            if (groupedData != null && groupedData.Count > 0)
+
+            if (solarInverterData != null && solarInverterData.Count > 0)
             {
-                var start = groupedData.Values.Min(list => list.Min(sid => sid.Time));
-                var end = groupedData.Values.Max(list => list.Max(sid => sid.Time)).AddDays(1);
+                var start = solarInverterData.Min(list => list.Time);
+                var end = solarInverterData.Max(list => list.Time).AddDays(1).AddSeconds(-1);
 
                 switch (DateSelectionChosen!.PeriodChosen)
                 {
@@ -221,11 +393,19 @@ namespace SessyWeb.Pages
                         }
 
                     case PeriodsEnums.Year:
-                    case PeriodsEnums.All:
                         {
-                            var months = (end - start).Days / 30;
+                            var months = (end - start).Days / 31;
 
                             TickDistance = SolarPowerChartWidth / (months == 0 ? 12 : months);
+
+                            break;
+                        }
+
+                    case PeriodsEnums.All:
+                        {
+                            var years = (end - start).Days / 365 + 1;
+
+                            TickDistance = SolarPowerChartWidth / (years == 0 ? 1 : years);
 
                             break;
                         }
@@ -273,6 +453,41 @@ namespace SessyWeb.Pages
             }
 
             return await _solarService!.GetRealizedSolarPower(start, end);
+        }
+
+        public class SolarDisplayDayData
+        {
+            public string ProviderName { get; set; } = string.Empty;
+            public DateTime Time { get; set; }
+            public double Power { get; set; }
+        }
+
+        public class SolarDisplayWeekData
+        {
+            public string ProviderName { get; set; } = string.Empty;
+            public DayOfWeek Position { get; set; }
+            public double Power { get; set; }
+        }
+
+        public class SolarDisplayMonthData
+        {
+            public string ProviderName { get; set; } = string.Empty;
+            public DateTime Time { get; set; }
+            public double Power { get; set; }
+        }
+
+        public class SolarDisplayYearData
+        {
+            public string ProviderName { get; set; } = string.Empty;
+            public DateTime Time { get; set; }
+            public double Power { get; set; }
+        }
+
+        public class SolarDisplayAllData
+        {
+            public string ProviderName { get; set; } = string.Empty;
+            public DateTime Time { get; set; }
+            public double Power { get; set; }
         }
     }
 }

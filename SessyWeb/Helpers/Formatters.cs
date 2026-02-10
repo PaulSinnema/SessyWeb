@@ -85,6 +85,10 @@ namespace SessyWeb.Helpers
                     var dateTime = (DateTime)value;
                     month = dateTime.Month;
                 }
+                else if(value is double)
+                {
+                    month = Convert.ToInt32(value);
+                }
                 else
                     throw new InvalidOperationException($"Object type not supported {value}");
 
@@ -175,7 +179,7 @@ namespace SessyWeb.Helpers
                 return "";
             }
 
-            return $"{kwh:n0}";
+            return $"{kwh:n2}";
         }
     }
 }
