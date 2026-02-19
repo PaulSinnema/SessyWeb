@@ -389,33 +389,40 @@ namespace SessyController.Services.Items
                 {
                     if (previousSession.Mode == nextSession.Mode)
                     {
-                        var previousList = previousSession.GetQuarterlyInfoList();
-                        var nextList = nextSession.GetQuarterlyInfoList();
-
                         switch (previousSession.Mode)
                         {
                             case Modes.Charging:
-                                if (previousList.First().MarketPrice > nextList.First().MarketPrice)
                                 {
-                                    RemoveSession(previousSession);
-                                    return true;
-                                }
-                                else
-                                {
-                                    RemoveSession(nextSession);
-                                    return true;
+                                    var previousMinPrice = previousSession.AveragePrice;
+                                    var nextMinPrice = nextSession.AveragePrice;
+
+                                    if (previousMinPrice > nextMinPrice)
+                                    {
+                                        RemoveSession(previousSession);
+                                        return true;
+                                    }
+                                    else
+                                    {
+                                        RemoveSession(nextSession);
+                                        return true;
+                                    }
                                 }
 
                             case Modes.Discharging:
-                                if (previousList.First().MarketPrice < nextList.First().MarketPrice)
                                 {
-                                    RemoveSession(previousSession);
-                                    return true;
-                                }
-                                else
-                                {
-                                    RemoveSession(nextSession);
-                                    return true;
+                                    var previousMaxPrice = previousSession.AveragePrice;
+                                    var nextMaxPrice = nextSession.AveragePrice;
+
+                                    if (previousMaxPrice < nextMaxPrice)
+                                    {
+                                        RemoveSession(previousSession);
+                                        return true;
+                                    }
+                                    else
+                                    {
+                                        RemoveSession(nextSession);
+                                        return true;
+                                    }
                                 }
 
                             default:
@@ -737,14 +744,7 @@ namespace SessyController.Services.Items
                             switch (session.Mode)
                             {
                                 case Modes.Charging:
-                                    var nextSession = GetNextSession(session);
-
-                                    if (nextSession != null && nextSession.Mode == Modes.Discharging)
-                                    {
-                                        chargeNeeded += nextSession.GetTotalPowerRequired();
-                                    }
-
-                                    chargeNeeded = margin;
+                                    chargeNeeded -= session.GetTotalPowerRequired();
 
                                     break;
 

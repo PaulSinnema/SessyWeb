@@ -180,7 +180,7 @@ namespace SessyController.Services
                 return await Task.FromResult(result);
             });
 
-            foreach (var performance in performanceList)
+            foreach (var performance in performanceList.OrderBy(pf => pf.Time))
             {
                 var room = CalculateRoomInWatt(performance, chargingCapacity, dischargingCapacity);
                 var mode = ChargingModes.GetMode(performance);
@@ -218,7 +218,7 @@ namespace SessyController.Services
 
                     case Modes.ZeroNetHome:
                         {
-                            var charge = Math.Min(performance.EstimatedConsumptionPerQuarterHour, room);
+                            var charge = Math.Min(performance.EstimatedConsumptionPerQuarterHour + performance.SolarPowerPerQuarterHour, room);
 
                             charge /= 1000;
 
@@ -256,11 +256,11 @@ namespace SessyController.Services
             switch (mode)
             {
                 case Modes.Charging:
-                    roomInWatt = performance.ChargeNeeded - performance.ChargeLeft + performance.SolarPowerPerQuarterHour - performance.EstimatedConsumptionPerQuarterHour;
+                    roomInWatt = performance.ChargeNeeded - performance.ChargeLeft; // + performance.SolarPowerPerQuarterHour - performance.EstimatedConsumptionPerQuarterHour;
                     break;
 
                 case Modes.Discharging:
-                    roomInWatt = performance.ChargeLeft - performance.ChargeNeeded + performance.SolarPowerPerQuarterHour - performance.EstimatedConsumptionPerQuarterHour;
+                    roomInWatt = performance.ChargeLeft - performance.ChargeNeeded; // + performance.SolarPowerPerQuarterHour - performance.EstimatedConsumptionPerQuarterHour;
                     break;
 
                 case Modes.ZeroNetHome:

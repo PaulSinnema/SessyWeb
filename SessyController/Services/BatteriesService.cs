@@ -1123,6 +1123,14 @@ namespace SessyController.Services
                             }
                         }
                     }
+
+                    if(previousSession.Mode == Modes.Charging && nextSession.Mode == Modes.Charging)
+                    {
+                        if(nextSession.IsMoreProfitable(previousSession))
+                        {
+                            _sessions.RemoveSession(previousSession);
+                        }
+                    }
                 }
 
                 previousSession = nextSession;
@@ -1344,7 +1352,7 @@ namespace SessyController.Services
             int stepMin = SignalExtrema.DetectSamplingMinutes(times);
 
             // Choose smoothing window ~ 1 hour (odd number)
-            int targetSmoothMinutes = 60; // TODO: make configurable (_settingsConfig?)
+            int targetSmoothMinutes = 15; // TODO: make configurable (_settingsConfig?)
             int smoothWindow = Math.Max(3, (int)Math.Round((double)targetSmoothMinutes / stepMin));
             if (smoothWindow % 2 == 0) smoothWindow++; // prefer odd
 
