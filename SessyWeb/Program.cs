@@ -99,7 +99,6 @@ builder.Services.AddScoped<PowerEstimatesService>();
 builder.Services.AddScoped<FinancialResultsService>();
 builder.Services.AddScoped<SolarInverterDataService>();
 builder.Services.AddScoped<ConsumptionDataService>();
-builder.Services.AddScoped<VirtualBatteryService>();
 
 builder.Services.AddSingleton<PerformanceDataService>();
 builder.Services.AddSingleton<CalculationService>();

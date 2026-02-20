@@ -28,12 +28,12 @@ namespace SessyWeb.Shared
 
         public bool IsBusy { get; set; }
 
-        public  void SetIsBusy(bool isBusy)
+        public void SetIsBusy(bool isBusy)
         {
-            if(IsBusy != isBusy)
+            if (IsBusy != isBusy)
             {
                 IsBusy = isBusy;
-                StateHasChanged();
+                _ = InvokeAsync(StateHasChanged);
             }
         }
 

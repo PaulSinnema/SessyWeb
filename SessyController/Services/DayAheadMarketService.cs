@@ -253,7 +253,6 @@ namespace SessyController.Services
                     ep.Time,
                     ep!.Price!.Value,
                     _settingsConfig,
-                    _batteryContainer,
                     _solarInverterManager,
                     _timeZoneService,
                     _calculationService));

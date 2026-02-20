@@ -2,8 +2,8 @@
 using SessyCommon.Configurations;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
-using SessyController.Managers;
 using SessyController.Services.Items;
+using SessyController.Services.Optimization; // BatteryArbitrageMilp
 using SessyData.Model;
 using SessyData.Services;
 using static SessyController.Services.Items.ChargingModes;
@@ -12,133 +12,106 @@ using static SessyData.Model.SessyWebControl;
 namespace SessyController.Services
 {
     /// <summary>
-    /// This service maintains all batteries in the system.
+    /// Solver-based batteries controller:
+    /// - Fetch day-ahead quarter prices
+    /// - Enrich with expected consumption/solar
+    /// - Build MILP plan (charge/discharge/net-zero)
+    /// - Apply CycleCost gating
+    /// - Repair SOC feasibility (no discharging when there isn't enough energy)
+    /// - Write plan into QuarterlyInfos (for UI)
+    /// - Simulate SOC forward from "now" (ChargeLeft/ChargeNeeded for UI)
+    /// - Execute current quarter with a runtime SOC guard (and keep UI consistent)
     /// </summary>
-    public partial class BatteriesService : BackgroundHeartbeatService
+    public sealed class BatteriesService : BackgroundHeartbeatService
     {
-        private IServiceScope _scope { get; set; }
-        private SessyService? _sessyService { get; set; }
-        private P1MeterService? _p1MeterService { get; set; }
-        private DayAheadMarketService? _dayAheadMarketService { get; set; }
-        private SolarInverterManager? _solarInverterManager { get; set; }
-        private SolarService? _solarService { get; set; }
-        private IServiceScopeFactory _serviceScopeFactory { get; set; }
+        private readonly LoggingService<BatteriesService> _logger;
+        private readonly IServiceScopeFactory _serviceScopeFactory;
 
-        private IOptionsMonitor<SettingsConfig> _settingsConfigMonitor { get; set; }
+        private readonly IOptionsMonitor<SettingsConfig> _settingsConfigMonitor;
+        private readonly IOptionsMonitor<SessyBatteryConfig> _sessyBatteryConfigMonitor;
 
-        private IDisposable? _sessyBatteryConfigSubscription { get; set; }
+        private IDisposable? _settingsConfigSubscription;
+        private IDisposable? _sessyBatteryConfigSubscription;
 
-        private SettingsConfig _settingsConfig { get; set; }
-        private IOptionsMonitor<SessyBatteryConfig> _sessyBatteryConfigMonitor { get; set; }
+        private SettingsConfig _settingsConfig;
+        private SessyBatteryConfig _sessyBatteryConfig;
 
-        private IDisposable? _settingsConfigSubscription { get; set; }
+        private readonly SemaphoreSlim _semaphore = new(1, 1);
 
-        private SessyBatteryConfig _sessyBatteryConfig { get; set; }
-        private BatteryContainer? _batteryContainer { get; set; }
-        private TimeZoneService? _timeZoneService { get; set; }
-        private PowerEstimatesService _powerEstimatesService { get; set; }
-        private WeatherService _weatherService { get; set; }
+        private IServiceScope _scope;
 
-        private FinancialResultsService _financialResultsService { get; set; }
+        private DayAheadMarketService _dayAheadMarketService;
+        private SolarService _solarService;
+        private BatteryContainer _batteryContainer;
+        private TimeZoneService _timeZoneService;
+        private ConsumptionMonitorService _consumptionMonitorService;
+        private SessyWebControlDataService _sessyWebControlDataService;
 
-        private SessyWebControlDataService _sessyWebControlDataService { get; set; }
-        private PerformanceDataService _performanceDataService { get; set; }
-
-        private ConsumptionDataService _consumptionDataService { get; set; }
-        private EnergyHistoryDataService _energyHistoryDataService { get; set; }
-
-        private ConsumptionMonitorService _consumptionMonitorService { get; set; }
-
-        private VirtualBatteryService _virtualBatteryService { get; set; }
-
-        private CalculationService _calculationService { get; set; }
-
-        private LoggingService<BatteriesService> _logger { get; set; }
-
-        private static List<QuarterlyInfo>? _quarterlyInfos { get; set; } = new List<QuarterlyInfo>();
+        private static List<QuarterlyInfo> _quarterlyInfos = new();
+        private Dictionary<DateTime, PlanAction> _planByTime = new();
 
         public bool IsManualOverride => _settingsConfig.ManualOverride;
-
         public bool WeAreInControl { get; private set; } = true;
 
-        public BatteriesService(LoggingService<BatteriesService> logger,
-                                IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
-                                IOptionsMonitor<SessyBatteryConfig> sessyBatteryConfigMonitor,
-                                IServiceScopeFactory serviceScopeFactory)
+        public delegate Task DataChangedDelegate();
+        public event DataChangedDelegate? DataChanged;
+
+        private sealed record PlanAction
+        {
+            public Modes Mode;
+            public double PowerW; // planned power (W)
+        }
+
+        // Runtime safety buffers (Wh-like)
+        private const double SocHysteresisWh = 50.0; // buffer to prevent flapping around 0
+        private const double ReserveWh = 0.0;        // set >0 if you want a hard reserve (e.g. 500Wh)
+
+        public BatteriesService(
+            LoggingService<BatteriesService> logger,
+            IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
+            IOptionsMonitor<SessyBatteryConfig> sessyBatteryConfigMonitor,
+            IServiceScopeFactory serviceScopeFactory)
         {
             _logger = logger;
-
-            _logger.LogInformation("BatteriesService starting");
-
             _serviceScopeFactory = serviceScopeFactory;
-
-            _logger.LogInformation("BatteriesService checking settings");
 
             _settingsConfigMonitor = settingsConfigMonitor;
             _sessyBatteryConfigMonitor = sessyBatteryConfigMonitor;
 
-            _settingsConfigSubscription = _settingsConfigMonitor.OnChange(settings =>
-            {
-                _settingsConfig = settings;
-                _lastSessionCanceled = null;
-            });
+            _settingsConfig = settingsConfigMonitor.CurrentValue ?? throw new InvalidOperationException("ManagementSettings missing");
+            _sessyBatteryConfig = sessyBatteryConfigMonitor.CurrentValue ?? throw new InvalidOperationException("Sessy:Batteries missing");
 
-            _sessyBatteryConfigSubscription = _sessyBatteryConfigMonitor.OnChange((SessyBatteryConfig settings) =>
-            {
-                _sessyBatteryConfig = settings;
-            });
-
-            _settingsConfig = settingsConfigMonitor.CurrentValue;
-            _sessyBatteryConfig = sessyBatteryConfigMonitor.CurrentValue;
-
-            if (_settingsConfig == null) throw new InvalidOperationException("ManagementSettings missing");
-            if (_sessyBatteryConfig == null) throw new InvalidOperationException("Sessy:Batteries missing");
+            _settingsConfigSubscription = _settingsConfigMonitor.OnChange(settings => _settingsConfig = settings);
+            _sessyBatteryConfigSubscription = _sessyBatteryConfigMonitor.OnChange(settings => _sessyBatteryConfig = settings);
 
             _scope = _serviceScopeFactory.CreateScope();
 
-            _sessyService = _scope.ServiceProvider.GetRequiredService<SessyService>();
-            _p1MeterService = _scope.ServiceProvider.GetRequiredService<P1MeterService>();
             _dayAheadMarketService = _scope.ServiceProvider.GetRequiredService<DayAheadMarketService>();
-            _solarInverterManager = _scope.ServiceProvider.GetRequiredService<SolarInverterManager>();
             _solarService = _scope.ServiceProvider.GetRequiredService<SolarService>();
             _batteryContainer = _scope.ServiceProvider.GetRequiredService<BatteryContainer>();
             _timeZoneService = _scope.ServiceProvider.GetRequiredService<TimeZoneService>();
-            _powerEstimatesService = _scope.ServiceProvider.GetRequiredService<PowerEstimatesService>();
-            _weatherService = _scope.ServiceProvider.GetRequiredService<WeatherService>();
-            _financialResultsService = _scope.ServiceProvider.GetRequiredService<FinancialResultsService>();
-            _sessyWebControlDataService = _scope.ServiceProvider.GetRequiredService<SessyWebControlDataService>();
-            _performanceDataService = _scope.ServiceProvider.GetRequiredService<PerformanceDataService>();
-            _consumptionDataService = _scope.ServiceProvider.GetRequiredService<ConsumptionDataService>();
-            _energyHistoryDataService = _scope.ServiceProvider.GetRequiredService<EnergyHistoryDataService>();
             _consumptionMonitorService = _scope.ServiceProvider.GetRequiredService<ConsumptionMonitorService>();
-            _virtualBatteryService = _scope.ServiceProvider.GetRequiredService<VirtualBatteryService>();
-            _calculationService = _scope.ServiceProvider.GetRequiredService<CalculationService>();
+            _sessyWebControlDataService = _scope.ServiceProvider.GetRequiredService<SessyWebControlDataService>();
+
+            _logger.LogInformation("BatteriesService (solver-based) starting");
         }
 
         public override Task StopAsync(CancellationToken cancellationToken)
         {
             _scope.Dispose();
-
             return base.StopAsync(cancellationToken);
         }
 
-        /// <summary>
-        /// Executes the background service, fetching prices periodically.
-        /// </summary>
-        protected override async Task ExecuteAsync(CancellationToken cancelationToken)
+        protected override async Task ExecuteAsync(CancellationToken cancellationToken)
         {
-            _logger.LogWarning("Batteries service started ...");
+            _logger.LogWarning("BatteriesService (solver-based) started ...");
 
-            // Loop to fetch prices every hour
-            while (!cancelationToken.IsCancellationRequested)
+            while (!cancellationToken.IsCancellationRequested)
             {
                 try
                 {
-                    GC.Collect();
-
-                    await HeartBeatAsync();
-
-                    await Process(cancelationToken);
+                    await HeartBeatAsync().ConfigureAwait(false);
+                    await Process(cancellationToken).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
@@ -147,11 +120,11 @@ namespace SessyController.Services
 
                 try
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(5), cancelationToken);
+                    await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(false);
                 }
                 catch (TaskCanceledException)
                 {
-                    // Ignore cancellation exception during delay
+                    // ignore
                 }
                 catch (Exception ex)
                 {
@@ -162,179 +135,576 @@ namespace SessyController.Services
             _logger.LogWarning("BatteriesService stopped.");
         }
 
-        private SemaphoreSlim HourlyInfoSemaphore = new SemaphoreSlim(1);
+        public List<QuarterlyInfo> GetQuarterlyInfos()
+        {
+            _semaphore.Wait();
+            try
+            {
+                return _quarterlyInfos.ToList();
+            }
+            finally
+            {
+                _semaphore.Release();
+            }
+        }
 
-        private Sessions? _sessions { get; set; } = null;
+        public async Task<string> GetBatteryMode()
+        {
+            var now = _timeZoneService.Now.DateFloorQuarter();
+            if (_planByTime.TryGetValue(now, out var act))
+                return ChargingModes.GetDisplayMode(act.Mode);
+
+            return "???";
+        }
+
+        public QuarterlyInfo? GetNextQuarterlyInfoInPlan()
+        {
+            var now = _timeZoneService.Now.DateFloorQuarter();
+            return _quarterlyInfos
+                .OrderBy(q => q.Time)
+                .FirstOrDefault(q => q.Time >= now && _planByTime.ContainsKey(q.Time));
+        }
 
         /// <summary>
-        /// This routine is called periodically as a background task.
+        /// Periodic background routine.
         /// </summary>
         public async Task Process(CancellationToken cancellationToken)
         {
-            if (_dayAheadMarketService != null && _dayAheadMarketService.IsInitialized())
+            if (_dayAheadMarketService == null || !_dayAheadMarketService.IsInitialized())
+                return;
+
+            await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+            try
             {
-                // Prevent race conditions.
-                await HourlyInfoSemaphore.WaitAsync().ConfigureAwait(false);
+                if (!await RefreshQuarterlyPrices().ConfigureAwait(false))
+                    return;
 
-                try
+                // Enrich for UI + SOC simulation.
+                await _consumptionMonitorService.EstimateConsumptionInWattsPerQuarter(_quarterlyInfos).ConfigureAwait(false);
+                await _solarService.GetExpectedSolarPower(_quarterlyInfos).ConfigureAwait(false);
+
+                // 1) Plan
+                BuildMilpPlan();
+
+                // 2) Economic gating (CycleCost)
+                ApplyCycleCostToPlan();
+
+                // 3) SOC feasibility repair (plan-level)
+                await EnsureEnergyForPlannedDischargeAsync().ConfigureAwait(false);
+
+                // 4) Write plan to QuarterlyInfos (UI)
+                WritePlanIntoQuarterlyInfos();
+
+                // 5) Simulate SOC forward from NOW (UI: ChargeLeft/ChargeNeeded)
+                await WriteBackSocSimulationAsync().ConfigureAwait(false);
+
+                // 6) Execute current quarter with runtime guard
+                var nowQuarter = _timeZoneService.Now.DateFloorQuarter();
+
+                if (await WeControlTheBatteries().ConfigureAwait(false))
                 {
-                    await DetermineChargingQuarters().ConfigureAwait(false);
+                    var exec = await GetExecutableActionForNowAsync(nowQuarter).ConfigureAwait(false);
 
-                    if (_sessions != null)
+                    // If runtime override differs, persist it for UI consistency and re-simulate from now.
+                    if (!_planByTime.TryGetValue(nowQuarter, out var plannedNow) ||
+                        plannedNow.Mode != exec.Mode ||
+                        Math.Abs(plannedNow.PowerW - exec.PowerW) > 0.1)
                     {
-                        await _consumptionMonitorService.EstimateConsumptionInWattsPerQuarter(_quarterlyInfos!).ConfigureAwait(false);
-
-                        await _solarService.GetExpectedSolarPower(_quarterlyInfos!).ConfigureAwait(false);
-
-                        await EvaluateSessions().ConfigureAwait(false);
-
-                        QuarterlyInfo? currentHourlyInfo = _sessions.GetCurrentQuarterlyInfo();
-
-                        if (currentHourlyInfo != null)
-                        {
-                            Session? currentSession = _sessions.FindSession(currentHourlyInfo);
-
-                            var changed = await EpandCurrentSessionIfNeeded(currentSession!).ConfigureAwait(false);
-
-                            if (changed)
-                            {
-                                await EvaluateSessions().ConfigureAwait(false);
-                            }
-
-                            await StorePerformance(currentHourlyInfo);
-
-                            if (await WeControlTheBatteries().ConfigureAwait(false))
-                            {
-                                var batteryStates = await GetBatteryStates(currentHourlyInfo);
-
-                                await HandleChargingAndDischarging(batteryStates, currentHourlyInfo).ConfigureAwait(false);
-                            }
-                        }
+                        ApplyRuntimeOverrideToPlan(nowQuarter, exec);
+                        WritePlanIntoQuarterlyInfos();
+                        await WriteBackSocSimulationAsync().ConfigureAwait(false);
                     }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogException(ex, $"Unhandled exception in Process: {ex.ToDetailedString()}");
-                    // Keep the loop running, just report in the log what went wrong.
-                }
-                finally
-                {
-                    HourlyInfoSemaphore.Release();
 
-                    if (DataChanged != null)
-                    {
-                        await DataChanged?.Invoke();
-                    }
+                    await ExecuteAction(exec).ConfigureAwait(false);
+                }
+                else
+                {
+#if !DEBUG
+                    await _batteryContainer.StopAll().ConfigureAwait(false);
+#endif
                 }
             }
-        }
-
-        private async Task<bool> EpandCurrentSessionIfNeeded(Session currentSession)
-        {
-            var changed = false;
-            var failsafe = 10;
-
-            if (currentSession != null)
+            catch (Exception ex)
             {
-                switch (currentSession.Mode)
-                {
-                    case Modes.Charging:
-                        while (currentSession.Last.ChargeLeft < currentSession.Last.ChargeNeeded && failsafe-- > 0)
-                        {
-                            var expanded = await ExpandSession(currentSession);
-
-                            if (!expanded)
-                                break;
-
-                            changed = true;
-                        }
-
-                        break;
-
-                    case Modes.Discharging:
-                        while (currentSession.Last.ChargeLeft > currentSession.Last.ChargeNeeded && failsafe-- > 0)
-                        {
-                            var expanded = await ExpandSession(currentSession);
-
-                            if (!expanded)
-                                break;
-
-                            changed = true;
-                        }
-
-                        break;
-
-                    default:
-                        break;
-                }
+                _logger.LogException(ex, $"Unhandled exception in Process: {ex.ToDetailedString()}");
             }
-
-            return changed;
-        }
-
-        private async Task<bool> ExpandSession(Session currentSession)
-        {
-            var index = _quarterlyInfos.IndexOf(currentSession.Last!) + 1;
-
-            if (index < _quarterlyInfos.Count)
+            finally
             {
-                currentSession.AddQuarterlyInfo(_quarterlyInfos[index++]);
+                _semaphore.Release();
 
-                await RecalculateChargeLeftAndNeeded();
-
-                return true;
-            }
-
-            return false;
-        }
-
-        private async Task StorePerformance(QuarterlyInfo currentQuarterlyInfo)
-        {
-            if (!await _performanceDataService.Exists(async (set) =>
-            {
-                var result = set.Any(pd => pd.Time == currentQuarterlyInfo.Time);
-                return await Task.FromResult(result).ConfigureAwait(false);
-            }).ConfigureAwait(false))
-            {
-                var time = currentQuarterlyInfo.Time;
-
-                var performanceData = new List<Performance>
-                {
-                    new Performance
-                    {
-                        Time = currentQuarterlyInfo.Time,
-                        MarketPrice = currentQuarterlyInfo.MarketPrice,
-                        BuyingPrice = currentQuarterlyInfo.BuyingPrice,
-                        SmoothedBuyingPrice = currentQuarterlyInfo.SmoothedBuyingPrice,
-                        SellingPrice = currentQuarterlyInfo.SellingPrice,
-                        SmoothedSellingPrice = currentQuarterlyInfo.SmoothedSellingPrice,
-                        Profit = currentQuarterlyInfo.Profit,
-                        EstimatedConsumptionPerQuarterHour = currentQuarterlyInfo.EstimatedConsumptionPerQuarterInWatts,
-                        ChargeLeft = await _batteryContainer.GetStateOfChargeInWatts(),
-                        ChargeNeeded = currentQuarterlyInfo.ChargeNeeded,
-                        Charging = currentQuarterlyInfo.Charging,
-                        Discharging = currentQuarterlyInfo.Discharging,
-                        ZeroNetHome = currentQuarterlyInfo.ZeroNetHome,
-                        Disabled = currentQuarterlyInfo.Disabled,
-                        SolarPowerPerQuarterHour = currentQuarterlyInfo.SolarPowerPerQuarterHour,
-                        SmoothedSolarPower = currentQuarterlyInfo.SmoothedSolarPower,
-                        SolarGlobalRadiation = currentQuarterlyInfo.SolarGlobalRadiation,
-                        ChargeLeftPercentage = currentQuarterlyInfo.ChargeLeftPercentage,
-                        DisplayState = currentQuarterlyInfo.GetDisplayMode(),
-                        VisualizeInChart = currentQuarterlyInfo.VisualizeInChart(),
-                    }
-                };
-
-                await _performanceDataService.Add(performanceData).ConfigureAwait(false);
+                if (DataChanged != null)
+                    await DataChanged.Invoke().ConfigureAwait(false);
             }
         }
 
         /// <summary>
-        /// Checks who has control. If control changed since the last store of data a new record is stored.
+        /// Fetches the day-ahead quarter-hour prices.
+        /// </summary>
+        private async Task<bool> RefreshQuarterlyPrices()
+        {
+            var prices = await _dayAheadMarketService.GetPrices().ConfigureAwait(false);
+
+            _quarterlyInfos = prices
+                .OrderBy(p => p.Time)
+                .ToList();
+
+            QuarterlyInfo.AddSmoothedPrices(_quarterlyInfos, 6);
+
+            return _quarterlyInfos.Count > 0;
+        }
+
+        /// <summary>
+        /// Builds a per-quarter optimal plan using MILP and stores it in _planByTime.
+        /// IMPORTANT: This only builds a plan; feasibility/economic gating happens afterwards.
+        /// </summary>
+        private void BuildMilpPlan()
+        {
+            double capacityWh = _batteryContainer.GetTotalCapacity();
+            double capacityKWh = capacityWh / 1000.0;
+
+            double socWh = _batteryContainer.GetStateOfChargeInWatts().GetAwaiter().GetResult();
+            double socKWh = socWh / 1000.0;
+
+            double maxChargeKW = _sessyBatteryConfig.TotalChargingCapacity / 1000.0;
+            double maxDischargeKW = _sessyBatteryConfig.TotalDischargingCapacity / 1000.0;
+
+            var pricePoints = _quarterlyInfos
+                .OrderBy(q => q.Time)
+                .Select(q =>
+                {
+                    // Net load in Wh (positive = house drains battery, negative = surplus solar)
+                    double netLoadWh = q.EstimatedConsumptionPerQuarterInWatts - q.SolarPowerPerQuarterInWatts;
+
+                    return new PricePoint(
+                        q.Time,
+                        q.BuyingPrice,
+                        q.SellingPrice,
+                        netLoadWh
+                    );
+                })
+                .ToList();
+
+            var spec = new BatterySpec(
+                CapacityKWh: capacityKWh,
+                InitialSocKWh: socKWh,
+                MinSocKWh: 0.0,
+                MaxSocKWh: capacityKWh,
+                MaxChargeKW: maxChargeKW,
+                MaxDischargeKW: maxDischargeKW,
+                ChargeEfficiency: 0.95,
+                DischargeEfficiency: 0.95
+            );
+
+            var opt = new SessyOptions(
+                QuarterMinutes: 15,
+                ActiveQuarterPenaltyEur: 0.0,
+                ForbidSimultaneousChargeDischarge: true,
+                TimeLimitMs: 10_000
+            );
+
+            var result = BatteryArbitrageMilp.Solve(pricePoints, spec, opt);
+
+            _logger.LogInformation($"MILP plan built: optimal={result.Optimal}, objective={result.ObjectiveEur:F4} EUR");
+
+            var plan = new Dictionary<DateTime, PlanAction>(result.Plan.Count);
+
+            foreach (var p in result.Plan)
+            {
+                double powerW;
+                ChargingModes.Modes mode;
+
+                switch (p.Mode)
+                {
+                    case ActionMode.Charge:
+                        mode = ChargingModes.Modes.Charging;
+                        powerW = Math.Round(p.ChargeKW * 1000.0, 0);
+                        break;
+
+                    case ActionMode.Discharge:
+                        mode = ChargingModes.Modes.Discharging;
+                        powerW = Math.Round(p.DischargeKW * 1000.0, 0);
+                        break;
+
+                    default:
+                        mode = ChargingModes.Modes.ZeroNetHome;
+                        powerW = 0;
+                        break;
+                }
+
+                plan[p.Start] = new PlanAction { Mode = mode, PowerW = powerW };
+            }
+
+            _planByTime = plan;
+
+            // Ensure we have entries for every quarter we might display/simulate.
+            foreach (var qi in _quarterlyInfos)
+            {
+                if (!_planByTime.ContainsKey(qi.Time))
+                    _planByTime[qi.Time] = new PlanAction { Mode = ChargingModes.Modes.ZeroNetHome, PowerW = 0 };
+            }
+        }
+
+        /// <summary>
+        /// Interprets CycleCost as a minimum required spread (EUR/kWh) to allow discharging.
+        /// If spread is insufficient, we downgrade planned discharge quarters to ZeroNetHome.
+        /// </summary>
+        private void ApplyCycleCostToPlan()
+        {
+            if (_quarterlyInfos.Count == 0 || _planByTime.Count == 0) return;
+
+            double minSpread = _settingsConfig.CycleCost;
+            if (minSpread <= 0.0) return;
+
+            // We'll keep a running "best cost basis" for energy that could have been charged earlier.
+            // - If we've seen charging in the plan, that becomes our basis (min buy of charging quarters so far).
+            // - If no charging seen yet, assume the basis is current quarter buying price (conservative and consistent).
+            double? minBuyOfPlannedChargeSoFar = null;
+
+            foreach (var qi in _quarterlyInfos.OrderBy(q => q.Time))
+            {
+                var act = _planByTime[qi.Time];
+
+                if (act.Mode == ChargingModes.Modes.Charging && act.PowerW > 10)
+                {
+                    minBuyOfPlannedChargeSoFar = minBuyOfPlannedChargeSoFar == null
+                        ? qi.BuyingPrice
+                        : Math.Min(minBuyOfPlannedChargeSoFar.Value, qi.BuyingPrice);
+
+                    continue;
+                }
+
+                if (act.Mode == ChargingModes.Modes.Discharging && act.PowerW > 10)
+                {
+                    double basis = minBuyOfPlannedChargeSoFar ?? qi.BuyingPrice;
+                    double spread = qi.SellingPrice - basis;
+
+                    if (spread < minSpread)
+                    {
+                        act.Mode = ChargingModes.Modes.ZeroNetHome;
+                        act.PowerW = 0;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Ensures the PLAN is SOC-feasible from "now" forward:
+        /// - Simulate SOC from current measured SOC using plan power (W) and net load (Wh)
+        /// - If a discharge would be impossible, first try to flip an earlier cheap quarter to charging
+        /// - If no candidate exists, downgrade that discharge quarter to ZeroNetHome
+        /// This modifies _planByTime (plan-level), not just UI.
+        /// </summary>
+        private async Task EnsureEnergyForPlannedDischargeAsync()
+        {
+            if (_quarterlyInfos.Count == 0 || _planByTime.Count == 0) return;
+
+            var now = _timeZoneService.Now.DateFloorQuarter();
+
+            double capWh = _batteryContainer.GetTotalCapacity();
+            double socStartWh = await _batteryContainer.GetStateOfChargeInWatts().ConfigureAwait(false);
+
+            // Safety epsilon to avoid floating issues
+            const double eps = 0.0001;
+
+            static double Clamp(double v, double min, double max) => v < min ? min : (v > max ? max : v);
+
+            var future = _quarterlyInfos
+                .OrderBy(q => q.Time)
+                .Where(q => q.Time >= now)
+                .ToList();
+
+            if (future.Count == 0) return;
+
+            // Ensure every future quarter has a plan entry
+            foreach (var qi in future)
+            {
+                if (!_planByTime.ContainsKey(qi.Time))
+                    _planByTime[qi.Time] = new PlanAction { Mode = ChargingModes.Modes.ZeroNetHome, PowerW = 0 };
+            }
+
+            const int maxFixes = 500;
+            int fixes = 0;
+
+            while (fixes++ < maxFixes)
+            {
+                double soc = socStartWh;
+                DateTime? violationAt = null;
+
+                // 1) Simulate with current plan
+                foreach (var qi in future)
+                {
+                    var act = _planByTime[qi.Time];
+
+                    // Net load (Wh): positive drains SOC
+                    double netLoadWh = qi.EstimatedConsumptionPerQuarterInWatts - qi.SolarPowerPerQuarterInWatts;
+
+                    // Planned action energy this quarter (Wh = W * 0.25h)
+                    double plannedEnergyWh = Math.Max(0.0, act.PowerW) * 0.25;
+
+                    if (act.Mode == ChargingModes.Modes.Charging)
+                    {
+                        soc = Math.Min(capWh, soc + plannedEnergyWh);
+                    }
+                    else if (act.Mode == ChargingModes.Modes.Discharging)
+                    {
+                        // Need enough SOC (including reserve/hysteresis) to do this planned discharge
+                        double required = ReserveWh + SocHysteresisWh + plannedEnergyWh;
+                        if (soc < required + eps)
+                        {
+                            violationAt = qi.Time;
+                            break;
+                        }
+
+                        soc = Math.Max(0.0, soc - plannedEnergyWh);
+                    }
+
+                    // Apply household delta
+                    soc = Clamp(soc - netLoadWh, 0.0, capWh);
+                }
+
+                if (violationAt == null)
+                    return; // plan is feasible
+
+                // 2) Try to repair by flipping an earlier cheap quarter to CHARGING
+                // Prefer quarters that are currently NOT discharging and NOT already charging.
+                var candidates = future
+                    .Where(q => q.Time < violationAt.Value)
+                    .Select(q => (qi: q, act: _planByTime[q.Time]))
+                    .Where(x => x.act.Mode != ChargingModes.Modes.Discharging)
+                    .Where(x => x.act.Mode != ChargingModes.Modes.Charging || x.act.PowerW <= 10)
+                    .OrderBy(x => x.qi.BuyingPrice)
+                    .ToList();
+
+                if (candidates.Count > 0)
+                {
+                    var chosen = candidates[0];
+
+                    chosen.act.Mode = ChargingModes.Modes.Charging;
+                    chosen.act.PowerW = _batteryContainer.GetChargingCapacityInWattsPerHour();
+
+                    // loop and re-simulate
+                    continue;
+                }
+
+                // 3) No way to add more charge before violation -> disable that discharge quarter
+                var v = _planByTime[violationAt.Value];
+                v.Mode = ChargingModes.Modes.ZeroNetHome;
+                v.PowerW = 0;
+
+                // loop and re-simulate (may fix later violations too)
+            }
+
+            _logger.LogWarning("EnsureEnergyForPlannedDischargeAsync: reached maxFixes; plan may still be infeasible.");
+        }
+
+        /// <summary>
+        /// Writes plan (Mode + planned power) into QuarterlyInfos for UI/diagnostics.
+        /// </summary>
+        private void WritePlanIntoQuarterlyInfos()
+        {
+            foreach (var qi in _quarterlyInfos)
+            {
+                if (!_planByTime.TryGetValue(qi.Time, out var act))
+                {
+                    qi.SetMode(ChargingModes.Modes.ZeroNetHome);
+                    qi.SetPlanPower(0, 0);
+                    continue;
+                }
+
+                qi.SetMode(act.Mode);
+
+                if (act.Mode == ChargingModes.Modes.Charging)
+                    qi.SetPlanPower(act.PowerW, 0);
+                else if (act.Mode == ChargingModes.Modes.Discharging)
+                    qi.SetPlanPower(0, act.PowerW);
+                else
+                    qi.SetPlanPower(0, 0);
+            }
+        }
+
+        /// <summary>
+        /// SOC simulation for UI:
+        /// - Anchor at "now" using measured SOC
+        /// - Simulate forward using plan energy and net load
+        /// - Does NOT change the plan (no Mode changes here)
+        /// </summary>
+        private async Task WriteBackSocSimulationAsync()
+        {
+            if (_quarterlyInfos.Count == 0 || _planByTime.Count == 0) return;
+
+            var nowQuarter = _timeZoneService.Now.DateFloorQuarter();
+
+            double capWh = _batteryContainer.GetTotalCapacity();
+            double socNowWh = await _batteryContainer.GetStateOfChargeInWatts().ConfigureAwait(false);
+
+            static double Clamp(double v, double min, double max) => v < min ? min : (v > max ? max : v);
+
+            // Past: keep whatever is currently there (or set to 0 if you prefer).
+            // We'll just ensure it doesn't carry random values.
+            foreach (var past in _quarterlyInfos.Where(q => q.Time < nowQuarter))
+            {
+                // If you want a cleaner chart when ShowAll=true, uncomment:
+                // past.SetChargeLeft(0.0);
+                // past.SetChargeNeeded(0.0);
+            }
+
+            // Forward from NOW (inclusive)
+            double soc = socNowWh;
+
+            foreach (var qi in _quarterlyInfos.OrderBy(q => q.Time).Where(q => q.Time >= nowQuarter))
+            {
+                if (!_planByTime.TryGetValue(qi.Time, out var act))
+                    act = new PlanAction { Mode = ChargingModes.Modes.ZeroNetHome, PowerW = 0 };
+
+                // Net load (Wh): positive drains SOC
+                double netLoadWh = qi.EstimatedConsumptionPerQuarterInWatts - qi.SolarPowerPerQuarterInWatts;
+
+                // Planned action energy this quarter (Wh)
+                double plannedEnergyWh = Math.Max(0.0, act.PowerW) * 0.25;
+
+                if (act.Mode == ChargingModes.Modes.Charging)
+                {
+                    soc = Math.Min(capWh, soc + plannedEnergyWh);
+                }
+                else if (act.Mode == ChargingModes.Modes.Discharging)
+                {
+                    // UI simulation should never go negative; feasibility is enforced earlier.
+                    soc = Math.Max(0.0, soc - plannedEnergyWh);
+                }
+
+                soc = Clamp(soc - netLoadWh, 0.0, capWh);
+
+                qi.SetChargeLeft(soc);
+
+                // For now: show "target" as current simulated SOC.
+                // If later the solver outputs a target trajectory, write that here instead.
+                qi.SetChargeNeeded(soc);
+            }
+        }
+
+        /// <summary>
+        /// Returns a safe action to execute NOW, using measured SOC.
+        /// If planned discharge is infeasible, override to ZeroNetHome (or charge when buy price is negative).
+        /// </summary>
+        private async Task<PlanAction> GetExecutableActionForNowAsync(DateTime nowQuarter)
+        {
+            if (!_planByTime.TryGetValue(nowQuarter, out var planned))
+                return new PlanAction { Mode = ChargingModes.Modes.ZeroNetHome, PowerW = 0 };
+
+            if (planned.Mode != ChargingModes.Modes.Discharging || planned.PowerW <= 10)
+                return planned;
+
+            double socWh = await _batteryContainer.GetStateOfChargeInWatts().ConfigureAwait(false);
+
+            // Required energy for this quarter (Wh)
+            double requiredWh = planned.PowerW * 0.25;
+
+            if (socWh <= ReserveWh + SocHysteresisWh + requiredWh)
+            {
+                var qi = _quarterlyInfos.FirstOrDefault(q => q.Time == nowQuarter);
+
+                // Optional: when buy is negative, prefer charging instead of NZH
+                if (qi != null && qi.BuyingPrice < 0.0)
+                {
+                    return new PlanAction
+                    {
+                        Mode = ChargingModes.Modes.Charging,
+                        PowerW = _batteryContainer.GetChargingCapacityInWattsPerHour()
+                    };
+                }
+
+                return new PlanAction { Mode = ChargingModes.Modes.ZeroNetHome, PowerW = 0 };
+            }
+
+            return planned;
+        }
+
+        /// <summary>
+        /// Writes a runtime override back into the plan so UI stays consistent.
+        /// </summary>
+        private void ApplyRuntimeOverrideToPlan(DateTime time, PlanAction action)
+        {
+            _planByTime[time] = action;
+        }
+
+        /// <summary>
+        /// Executes the action for the current quarter.
+        /// NOTE: runtime safety is already handled in GetExecutableActionForNowAsync.
+        /// </summary>
+        private async Task ExecuteAction(PlanAction action)
+        {
+#if !DEBUG
+            if (_dayAheadMarketService.IsInitialized())
+            {
+                if (_settingsConfig.ManualOverride)
+                {
+                    await ExecuteManualOverride().ConfigureAwait(false);
+                    return;
+                }
+
+                switch (action.Mode)
+                {
+                    case ChargingModes.Modes.Charging:
+                        if (action.PowerW > 10)
+                            await _batteryContainer.StartCharging((int)Math.Round(action.PowerW)).ConfigureAwait(false);
+                        else
+                            await _batteryContainer.StopAll().ConfigureAwait(false);
+                        break;
+
+                    case ChargingModes.Modes.Discharging:
+                        if (action.PowerW > 10)
+                            await _batteryContainer.StartDisharging((int)Math.Round(action.PowerW)).ConfigureAwait(false);
+                        else
+                            await _batteryContainer.StopAll().ConfigureAwait(false);
+                        break;
+
+                    case ChargingModes.Modes.ZeroNetHome:
+                        await _batteryContainer.StartNetZeroHome().ConfigureAwait(false);
+                        break;
+
+                    case ChargingModes.Modes.Disabled:
+                    default:
+                        await _batteryContainer.StopAll().ConfigureAwait(false);
+                        break;
+                }
+            }
+            else
+            {
+                await ExecuteManualOverride().ConfigureAwait(false);
+            }
+#else
+            await Task.Delay(1).ConfigureAwait(false);
+#endif
+        }
+
+        /// <summary>
+        /// Manual override execution.
+        /// </summary>
+        private async Task ExecuteManualOverride()
+        {
+#if !DEBUG
+            var localTime = _timeZoneService.Now;
+
+            if (_settingsConfig.ManualChargingHours != null && _settingsConfig.ManualChargingHours.Contains(localTime.Hour))
+                await _batteryContainer.StartCharging(_batteryContainer.GetChargingCapacityInWattsPerHour()).ConfigureAwait(false);
+            else if (_settingsConfig.ManualDischargingHours != null && _settingsConfig.ManualDischargingHours.Contains(localTime.Hour))
+                await _batteryContainer.StartDisharging(_batteryContainer.GetDischargingCapacityInWattsPerHour()).ConfigureAwait(false);
+            else if (_settingsConfig.ManualNetZeroHomeHours != null && _settingsConfig.ManualNetZeroHomeHours.Contains(localTime.Hour))
+                await _batteryContainer.StartNetZeroHome().ConfigureAwait(false);
+            else
+                await _batteryContainer.StopAll().ConfigureAwait(false);
+#else
+            await Task.Delay(1).ConfigureAwait(false);
+#endif
+        }
+
+        /// <summary>
+        /// Checks who has control. Stores a new record if the controller changes.
         /// </summary>
         private async Task<bool> WeControlTheBatteries()
         {
-            var supplierInControl = await SupplierIsControllingTheBatteries();
+            var supplierInControl = await SupplierIsControllingTheBatteries().ConfigureAwait(false);
             var chargedInControl = _settingsConfig.ChargedInControl;
 
             WeAreInControl = !(supplierInControl || chargedInControl);
@@ -344,36 +714,24 @@ namespace SessyController.Services
             if (!WeAreInControl)
             {
                 if (_settingsConfig.ChargedInControl)
-                {
                     status = SessyWebControlStatus.Charged;
-                }
 
-                // Supplier overrules all
                 if (supplierInControl)
-                {
                     status = SessyWebControlStatus.Provider;
-                }
             }
 
             var last = await _sessyWebControlDataService.Get(async (set) =>
             {
-                var result = set.OrderByDescending(sc => sc.Time)
-                        .FirstOrDefault();
-
-                return await Task.FromResult(result);
-            });
+                var result = set.OrderByDescending(sc => sc.Time).FirstOrDefault();
+                return await Task.FromResult(result).ConfigureAwait(false);
+            }).ConfigureAwait(false);
 
             if (last == null || last.Status != status)
-            {
-                await StoreStatus(status);
-            }
+                await StoreStatus(status).ConfigureAwait(false);
 
             return WeAreInControl;
         }
 
-        /// <summary>
-        /// Store a new control record to the database.
-        /// </summary>
         private async Task StoreStatus(SessyWebControlStatus status)
         {
             var controlList = new List<SessyWebControl>
@@ -385,1114 +743,42 @@ namespace SessyController.Services
                 }
             };
 
-            await _sessyWebControlDataService.Add(controlList);
+            await _sessyWebControlDataService.Add(controlList).ConfigureAwait(false);
         }
 
-        /// <summary>
-        /// Checks whether the supplier has control over the batteries.
-        /// The StrategyOverridden boolean is true when the supplier is taking control
-        /// and false when the supplier doesn't need control anymore.
-        /// </summary>
         private async Task<bool> SupplierIsControllingTheBatteries()
         {
             foreach (var battery in _batteryContainer.Batteries)
             {
-                var currentPowerStrategy = await battery.GetPowerStatus();
-
+                var currentPowerStrategy = await battery.GetPowerStatus().ConfigureAwait(false);
                 if (currentPowerStrategy.Sessy.StrategyOverridden)
-                {
-                    // Supplier is controlling the batteries.
                     return true;
-                }
             }
 
-            // We are in control
             return false;
         }
 
-        /// <summary>
-        /// Handle (dis)charging manual or automatic.
-        /// </summary>
-        private async Task HandleChargingAndDischarging(BatteryStates batteryStates, QuarterlyInfo currentHourlyInfo)
-        {
-            if (_dayAheadMarketService.IsInitialized())
-            {
-                if (_settingsConfig.ManualOverride == false)
-                {
-                    await HandleAutomaticCharging(_sessions!, currentHourlyInfo, batteryStates);
-                }
-                else
-                {
-                    await HandleManualCharging(currentHourlyInfo);
-                }
-            }
-            else
-            {
-                _logger.LogInformation("No prices available from ENTSO-E, switching to manual charging");
-
-                await HandleManualCharging(currentHourlyInfo);
-            }
-        }
-
-        /// <summary>
-        /// Returns the fetched prices and analyzes them.
-        /// </summary>
-        public List<QuarterlyInfo>? GetQuarterlyInfos()
-        {
-            HourlyInfoSemaphore.Wait();
-
-            try
-            {
-                return _quarterlyInfos;
-            }
-            finally
-            {
-                HourlyInfoSemaphore.Release();
-            }
-        }
-
-        public Sessions GetSessions()
-        {
-            return _sessions!;
-        }
-
-        private async Task HandleAutomaticCharging(Sessions sessions, QuarterlyInfo currentHourlyInfo, BatteryStates batteryStates)
-        {
-            var currentSession = sessions.GetSession(currentHourlyInfo);
-
-            await CancelSessionIfStateRequiresIt(sessions, currentHourlyInfo, batteryStates);
-
-            switch (currentHourlyInfo.Mode)
-            {
-                case Modes.Charging:
-                    {
-                        var chargingPower = currentSession.GetChargingPowerInWattsPerHour();
-#if !DEBUG
-                        await _batteryContainer.StartCharging(chargingPower);
-#endif
-                        break;
-                    }
-
-                case Modes.Discharging:
-                    {
-                        var chargingPower = currentSession.GetChargingPowerInWattsPerHour();
-#if !DEBUG
-                        await _batteryContainer.StartDisharging(chargingPower);
-#endif
-                        break;
-                    }
-
-                case Modes.ZeroNetHome:
-                    {
-#if !DEBUG
-                        await _batteryContainer.StartNetZeroHome();
-#endif
-                        break;
-                    }
-
-                case Modes.Disabled:
-                case Modes.Unknown:
-                default:
-                    {
-#if !DEBUG
-                        await _batteryContainer.StopAll();
-#endif
-                        break;
-                    }
-
-            }
-        }
-
-        private async Task HandleManualCharging(QuarterlyInfo currentQuarterlyInfo)
-        {
-#if !DEBUG
-            var localTime = _timeZoneService.Now;
-
-            if (_settingsConfig.ManualChargingHours != null && _settingsConfig.ManualChargingHours.Contains(localTime.Hour))
-                await _batteryContainer.StartCharging(_batteryContainer.GetChargingCapacityInWattsPerHour());
-            else if (_settingsConfig.ManualDischargingHours != null && _settingsConfig.ManualDischargingHours.Contains(localTime.Hour))
-                await _batteryContainer.StartDisharging(_batteryContainer.GetDischargingCapacityInWattsPerHour());
-            else if (_settingsConfig.ManualNetZeroHomeHours != null && _settingsConfig.ManualNetZeroHomeHours.Contains(localTime.Hour))
-                await _batteryContainer.StartNetZeroHome();
-            else
-                await _batteryContainer.StopAll();
-#else
-            await Task.Delay(1); // Prevent warning in debug mode
-#endif
-        }
-
-        private class SessionInfo
-        {
-            public SessionInfo(Session? session)
-            {
-                FirstDate = session.FirstDateTime;
-                LastDate = session.LastDateTime;
-            }
-
-            public DateTime FirstDate { get; private set; }
-            public DateTime LastDate { get; private set; }
-
-            public bool IsInsideTimeFrame(QuarterlyInfo quarterlyInfo)
-            {
-                return FirstDate <= quarterlyInfo.Time && LastDate >= quarterlyInfo.Time;
-            }
-        }
-
-        private SessionInfo? _lastSessionCanceled { get; set; } = null;
-
-        /// <summary>
-        /// If batteries are full (enough) stop charging this session
-        /// If batteries are empty stop discharging this session
-        /// </summary>
-        private async Task CancelSessionIfStateRequiresIt(Sessions sessions, QuarterlyInfo currentHourlyInfo, BatteryStates batteryStates)
-        {
-            var session = sessions.GetSession(currentHourlyInfo);
-
-            if (session != null)
-            {
-                if (_lastSessionCanceled != null)
-                {
-                    if (_lastSessionCanceled.IsInsideTimeFrame(currentHourlyInfo))
-                    {
-                        _logger.LogInformation($"Session was previously canceled {session}");
-
-                        StopSession(session);
-
-                        return;
-                    }
-                }
-
-                if (session.Mode == Modes.Charging)
-                {
-                    if (batteryStates.BatteriesAreFull || batteryStates.ChargeAtMaximum)
-                    {
-                        StopSession(session);
-
-                        _logger.LogWarning($"Warning: Charging session stopped because batteries are full (enough). {session}, batteries are full: {batteryStates.BatteriesAreFull}, charge at maximum: {batteryStates.ChargeAtMaximum}");
-                    }
-                }
-                else if (session.Mode == Modes.Discharging)
-                {
-                    bool batteriesAreEmpty = await AreAllBatteriesEmpty();
-                    bool chargeAtMinimum = await IsMinChargeNeededReached(currentHourlyInfo);
-
-                    if (batteriesAreEmpty || chargeAtMinimum)
-                    {
-                        StopSession(session);
-
-                        _logger.LogWarning($"Warning: Discharging session stopped. Min. charge reached or batteries are empty. {session}, batteries are empty: {batteriesAreEmpty}, charge at minimum: {chargeAtMinimum}");
-                    }
-                }
-            }
-        }
-
-        public class BatteryStates
-        {
-            public bool BatteriesAreFull { get; set; }
-            public bool ChargeAtMaximum { get; set; }
-        }
-
-        /// <summary>
-        /// Gets states for the battery. BatteriesAreFull and ChargeAtMaximum.
-        /// </summary>
-        private async Task<BatteryStates> GetBatteryStates(QuarterlyInfo currentHourlyInfo)
-        {
-            BatteryStates batteryStates = new();
-
-            batteryStates.BatteriesAreFull = await AreAllBatteriesFull();
-            batteryStates.ChargeAtMaximum = await IsMaxChargeNeededReached(currentHourlyInfo);
-
-            return batteryStates;
-        }
-
-        /// <summary>
-        /// Check whether the current hourly info is in a discharging session and return
-        /// true if so and the calculated min charge needed is reached.
-        /// </summary>
-        private async Task<bool> IsMinChargeNeededReached(QuarterlyInfo currentHourlyInfo)
-        {
-            var currentChargeState = await _batteryContainer.GetStateOfChargeInWatts();
-
-            return (currentHourlyInfo.Discharging && currentChargeState <= currentHourlyInfo.ChargeNeeded);
-        }
-
-        /// <summary>
-        /// Check whether the current hourly info is in a charging session and return
-        /// true if so and the calculated max charge needed is reached.
-        /// </summary>
-        private async Task<bool> IsMaxChargeNeededReached(QuarterlyInfo currentHourlyInfo)
-        {
-            var currentChargeState = await _batteryContainer.GetStateOfChargeInWatts();
-
-            return (currentHourlyInfo.Charging && currentChargeState >= currentHourlyInfo.ChargeNeeded);
-        }
-
-        /// <summary>
-        /// Cancel (dis)charging for current session.
-        /// </summary>
-        private void StopSession(Session? session)
-        {
-            _lastSessionCanceled = new SessionInfo(session);
-
-            _sessions.RemoveSession(session);
-        }
-
-        /// <summary>
-        /// Returns true if all batteries have state SYSTEM_STATE_BATTERY_FULL
-        /// </summary>
-        private async Task<bool> AreAllBatteriesFull()
-        {
-            var batteriesAreFull = true;
-
-            foreach (var battery in _batteryContainer.Batteries)
-            {
-                var systemState = await battery.GetPowerStatus();
-
-                if (systemState.Sessy.SystemState != Sessy.SystemStates.SYSTEM_STATE_BATTERY_FULL)
-                {
-                    batteriesAreFull = false;
-                    break;
-                }
-            }
-
-            return batteriesAreFull;
-        }
-
-        /// <summary>
-        /// Returns true if all batteries have state SYSTEM_STATE_BATTERY_EMPTY
-        /// </summary>
-        private async Task<bool> AreAllBatteriesEmpty()
-        {
-            var batteriesAreEmpty = true;
-
-            foreach (var battery in _batteryContainer.Batteries)
-            {
-                var systemState = await battery.GetPowerStatus();
-
-                if (systemState.Sessy.SystemState != Sessy.SystemStates.SYSTEM_STATE_BATTERY_EMPTY)
-                {
-                    batteriesAreEmpty = false;
-                    break;
-                }
-            }
-
-            return batteriesAreEmpty;
-        }
-
-        /// <summary>
-        /// Determine when to charge the batteries.
-        /// </summary>
-        public async Task DetermineChargingQuarters()
-        {
-            DateTime localTime = _timeZoneService.Now;
-
-            if (await FetchPricesFromENTSO_E(localTime))
-            {
-                await GetChargingHours();
-            }
-        }
-
-        /// <summary>
-        /// Get the day-ahead-prices from ENTSO-E.
-        /// </summary>
-        private async Task<bool> FetchPricesFromENTSO_E(DateTime localTime)
-        {
-            // Get the available hourly prices.
-            var prices = await _dayAheadMarketService.GetPrices();
-
-            _quarterlyInfos = prices
-                .OrderBy(hp => hp.Time)
-                .ToList();
-
-            QuarterlyInfo.AddSmoothedPrices(_quarterlyInfos, 6);
-
-            return _quarterlyInfos != null && _quarterlyInfos.Count > 0;
-        }
-
-        private DateTime? lastSessionCreationDate { get; set; } = null;
-
-        public delegate Task DataChangedDelegate();
-
-        public event DataChangedDelegate? DataChanged;
-
-        /// <summary>
-        /// In this routine it is determined when to charge the batteries.
-        /// </summary>
-        private async Task GetChargingHours()
-        {
-            try
-            {
-                _quarterlyInfos = _quarterlyInfos!
-                    .OrderBy(hp => hp.Time)
-                    .ToList();
-
-                CreateSessions();
-
-                if (_sessions != null)
-                {
-                    await CalculateDeltaLowestPrice().ConfigureAwait(false);
-
-                    MergeNeighbouringSessions();
-
-                    await CheckSessions();
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"Unhandled exception in GetChargingHours{ex.ToDetailedString()}");
-            }
-        }
-
-        /// <summary>
-        /// Merge sesseion that have no info objects between them.
-        /// </summary>
-        private void MergeNeighbouringSessions()
-        {
-            Session? previousSession = null;
-
-            foreach (var nextSession in _sessions.SessionList.OrderBy(se => se.FirstDateTime).ToList())
-            {
-                if (previousSession != null)
-                {
-                    if (previousSession.Mode == nextSession.Mode &&
-                        previousSession.Last.Time.AddMinutes(15) == nextSession.FirstDateTime)
-                    {
-                        previousSession.Merge(nextSession);
-                        _sessions.RemoveSession(nextSession, false);
-                        continue;
-                    }
-                }
-
-                previousSession = nextSession;
-            }
-        }
-
-        /// <summary>
-        /// This method is voor debugging purposes only. It checks the content of hourlyInfos
-        /// and sessions.
-        /// </summary>
-        private async Task CheckSessions()
-        {
-            foreach (var session in _sessions.SessionList)
-            {
-                if (session.GetQuarterlyInfoList().Count() == 0)
-                    throw new InvalidOperationException($"Session without HourlyInfos");
-            }
-
-            foreach (var session in _sessions.SessionList)
-            {
-                switch (session.Mode)
-                {
-                    case Modes.Charging:
-                        foreach (var hi in session.GetQuarterlyInfoList())
-                        {
-                            var mode = hi.Mode;
-                            if (mode != Modes.Charging)
-                                throw new InvalidOperationException($"Charging session has hourlyinfo objects without charging mode {session}");
-                        }
-
-                        break;
-
-                    case Modes.Discharging:
-                        foreach (var hi in session.GetQuarterlyInfoList())
-                        {
-                            var mode = hi.Mode;
-                            if (mode != Modes.Discharging)
-                                throw new InvalidOperationException($"Discharging session has hourlyinfo objects without discharging mode {session}");
-                        }
-
-                        break;
-
-                    case Modes.Unknown:
-                    case Modes.ZeroNetHome:
-                    default:
-                        throw new InvalidOperationException($"Session has wrong mode {session}");
-                }
-            }
-
-            foreach (var quarterlyInfo in _quarterlyInfos)
-            {
-                switch (quarterlyInfo.Mode)
-                {
-                    case Modes.Charging:
-                        {
-                            if (!_sessions.InAnySession(quarterlyInfo))
-                                throw new InvalidOperationException($"Info not in a session {quarterlyInfo}");
-
-                            Session session = CheckSession(_sessions, quarterlyInfo);
-
-                            if (session.Mode != Modes.Charging)
-                                throw new InvalidOperationException($"Charging info in wrong session {quarterlyInfo}");
-
-                            break;
-                        }
-
-                    case Modes.Discharging:
-                        {
-                            if (!_sessions.InAnySession(quarterlyInfo))
-                                throw new InvalidOperationException($"Info not in a session {quarterlyInfo}");
-
-                            Session session = CheckSession(_sessions, quarterlyInfo);
-
-                            if (session.Mode != Modes.Discharging)
-                                throw new InvalidOperationException($"Discharging info in wrong session {quarterlyInfo}");
-
-                            break;
-                        }
-
-                    case Modes.ZeroNetHome:
-                    default:
-                        if (_sessions.InAnySession(quarterlyInfo))
-                        {
-                            throw new InvalidOperationException($"Hourlyinfo should not be in any session {quarterlyInfo}");
-                        }
-
-                        break;
-                }
-            }
-        }
-
-        private Session CheckSession(Sessions sessions, QuarterlyInfo quarterlyInfo)
-        {
-            var session = sessions.FindSession(quarterlyInfo);
-
-            if (session.GetQuarterlyInfoList().Count < 1)
-                throw new InvalidOperationException($"Empty charging session {session}");
-
-            return session;
-        }
-
-        private async Task EvaluateSessions()
-        {
-            do
-            {
-                await RecalculateChargeLeftAndNeeded();
-
-                await RemoveExtraChargingSessions();
-
-                await CheckSessions();
-
-                // await EvaluateChargingHoursAndProfitability();
-            }
-            while (await ShrinkSessions());
-
-            await CheckForFutureChargingSessions();
-
-            await RecalculateChargeLeftAndNeeded();
-        }
-
-        /// <summary>
-        /// If there are no charging sessions in the future at least
-        /// create a charging session for the charge needed to get to the
-        /// next day as cheap as possible.
-        /// </summary>
-        private async Task CheckForFutureChargingSessions()
-        {
-            if (ThereAreNoFutureSessions())
-            {
-                var quarterlyInfo = await FindCheapestQuarterlyInfo();
-
-                if (quarterlyInfo != null)
-                {
-                    var session = _sessions.AddNewSession(Modes.Charging, quarterlyInfo);
-
-                    if (session != null)
-                    {
-                        _sessions.CompleteSession(session);
-
-                        await RecalculateChargeLeftAndNeeded();
-                    }
-                }
-
-                await ShrinkSessions();
-            }
-        }
-
-        private bool ThereAreNoFutureSessions()
-        {
-            var now = _timeZoneService.Now;
-            var list = _sessions.SessionList.Where(se => se.LastDateTime > now);
-
-            var result = !list.Any(se => se.Mode == Modes.Charging);
-
-            return result;
-        }
-
-        public async Task<QuarterlyInfo?> FindCheapestQuarterlyInfo()
-        {
-            var now = _timeZoneService.Now;
-
-            QuarterlyInfo? best = null;
-
-            foreach (var qi in _quarterlyInfos!.Where(q => q.Time >= now).OrderBy(q => q.BuyingPrice))
-            {
-                var mode = qi.Mode;
-                if (mode is Modes.Charging or Modes.Discharging)
-                    continue;
-
-                best = qi;
-                break; // eerste (dus goedkoopste) die voldoet
-            }
-
-            return best;
-        }
-
-
-        private async Task EvaluateChargingHoursAndProfitability()
-        {
-            do
-            {
-                await RecalculateChargeLeftAndNeeded();
-
-                _sessions.CalculateProfits(_timeZoneService!);
-            }
-            while (_sessions.RemoveMoreExpensiveChargingSessions());
-
-            await RecalculateChargeLeftAndNeeded();
-        }
-
-        public async Task<double> CalculateAveragePriceOfChargeInBatteries()
-        {
-            double chargingCapacity = _sessyBatteryConfig.TotalChargingCapacity / 4.0; // Per quarter hour
-            double dischargingCapacity = _sessyBatteryConfig.TotalDischargingCapacity / 4.0; // Per quarter hour
-            var to = _timeZoneService.Now;
-            var from = _quarterlyInfos!.Min(qi => qi.Time);
-
-            return await _calculationService.CalculateAveragePriceOfChargeInBatteries(chargingCapacity, dischargingCapacity, from, to);
-        }
-
-        /// <summary>
-        /// Calculate the estimated charge per hour starting from the current hour.
-        /// </summary>
-        public async Task CalculateChargeLeft()
-        {
-            double charge = 0.0;
-            double totalCapacity = _batteryContainer.GetTotalCapacity();
-            double chargingCapacity = _sessyBatteryConfig.TotalChargingCapacity / 4.0; // Per quarter hour
-            double dischargingCapacity = _sessyBatteryConfig.TotalDischargingCapacity / 4.0; // Per quarter hour
-            var now = _timeZoneService.Now;
-            var localTimeHour = now.Date.AddHours(now.Hour);
-            charge = await _batteryContainer.GetStateOfChargeInWatts();
-
-            var hourlyInfoList = _quarterlyInfos!
-                .OrderBy(hp => hp.Time)
-                .ToList();
-
-            hourlyInfoList.ForEach(hi => hi.SetChargeLeft(charge));
-
-            var list = hourlyInfoList.Where(hi => hi.Time >= now.DateFloorQuarter());
-
-            foreach (var quarterlyInfo in list)
-            {
-                switch (quarterlyInfo.Mode)
-                {
-                    case Modes.Charging:
-                        {
-                            if (charge < quarterlyInfo.ChargeNeeded)
-                            {
-                                var toCharge = quarterlyInfo.ChargeNeeded - charge;
-
-                                charge += Math.Min(toCharge, chargingCapacity);
-                            }
-
-                            break;
-                        }
-
-                    case Modes.Discharging:
-                        {
-                            if (charge > quarterlyInfo.ChargeNeeded)
-                            {
-                                var toDischarge = charge - quarterlyInfo.ChargeNeeded;
-                                charge -= Math.Min(toDischarge, dischargingCapacity);
-                            }
-
-                            break;
-                        }
-
-                    case Modes.ZeroNetHome:
-                        {
-                            charge -= quarterlyInfo.EstimatedConsumptionPerQuarterInWatts;
-                            charge += quarterlyInfo.SolarPowerPerQuarterInWatts;
-
-                            break;
-                        }
-
-                    case Modes.Disabled:
-                        break;
-
-                    default:
-                        throw new InvalidOperationException($"Invalid mode for quarterlyInfo: {quarterlyInfo}");
-                }
-
-                if (charge < 0) charge = 0.0;
-                if (charge > totalCapacity) charge = totalCapacity;
-
-                quarterlyInfo.SetChargeLeft(charge);
-            }
-        }
-
-        /// <summary>
-        /// In this fase creating all sessions has finished. Now it's time to evaluate which
-        /// ones to keep. The following sessions are filtered out.
-        /// - Charging sessions larger than the max charging hours
-        /// - Discharging sessions that are not profitable.
-        /// </summary>
-        private async Task RemoveExtraChargingSessions()
-        {
-            bool changed;
-
-            do
-            {
-                changed = await CheckProfitability();
-
-            } while (changed);
-
-            await RecalculateChargeLeftAndNeeded();
-        }
-
-        /// <summary>
-        /// Check if discharging sessions are profitable.
-        /// </summary>
-        private async Task<bool> CheckProfitabilityNew()
-        {
-            bool changed = false;
-            var now = _timeZoneService.Now;
-
-            Session? lastSession = null;
-
-            foreach (var session in _sessions.SessionList.OrderBy(se => se.FirstDateTime).ToList())
-            {
-                if (lastSession != null)
-                {
-                    if (session.LastDateTime > now && lastSession.Mode == Modes.Charging && session.Mode == Modes.Discharging)
-                    {
-                        var chargingCost = await _virtualBatteryService.CalculateLoadCostForSession(lastSession);
-                        var dischargingCost = await _virtualBatteryService.CalculateLoadCostForSession(session);
-                        var differnceCost = dischargingCost + chargingCost;
-
-                        if (differnceCost < _settingsConfig.CycleCost)
-                        {
-                            _sessions.RemoveSession(session);
-                            changed = true;
-                        }
-                    }
-                }
-
-                lastSession = session;
-            }
-
-            return changed;
-        }
-
-        /// <summary>
-        /// Check if discharging sessions are profitable.
-        /// </summary>
-        private async Task<bool> CheckProfitability()
-        {
-            bool changed = false;
-            var averagePriceInBattery = await CalculateAveragePriceOfChargeInBatteries();
-
-            Session? previousSession = null;
-
-            foreach (var nextSession in _sessions.SessionList.OrderBy(se => se.FirstDateTime))
-            {
-                if (previousSession != null)
-                {
-                    if (previousSession.Mode == Modes.Charging && nextSession.Mode == Modes.Discharging)
-                    {
-                        using var chargeEnumerator = previousSession.GetQuarterlyInfoList().OrderBy(hi => hi.Price).ToList().GetEnumerator();
-                        using var dischargeEnumerator = nextSession.GetQuarterlyInfoList().OrderByDescending(hi => hi.Price).ToList().GetEnumerator();
-
-                        var hasCharging = chargeEnumerator.MoveNext();
-                        var hasDischarging = dischargeEnumerator.MoveNext();
-
-                        while (hasCharging && hasDischarging)
-                        {
-                            if (averagePriceInBattery + _settingsConfig.CycleCost > dischargeEnumerator.Current.Price)
-                            {
-                                nextSession.RemoveQuarterlyInfo(dischargeEnumerator.Current);
-
-                                hasDischarging = dischargeEnumerator.MoveNext();
-
-                                changed = true;
-                            }
-                            else
-                            {
-                                hasCharging = chargeEnumerator.MoveNext();
-                                hasDischarging = dischargeEnumerator.MoveNext();
-                            }
-                        }
-                    }
-
-                    if(previousSession.Mode == Modes.Charging && nextSession.Mode == Modes.Charging)
-                    {
-                        if(nextSession.IsMoreProfitable(previousSession))
-                        {
-                            _sessions.RemoveSession(previousSession);
-                        }
-                    }
-                }
-
-                previousSession = nextSession;
-            }
-
-            changed |= RemoveEmptySessions();
-
-            await RecalculateChargeLeftAndNeeded();
-
-            return await Task.FromResult(changed);
-        }
-
-        /// <summary>
-        /// Remove sessions without (dis)charging hours.
-        /// </summary>
-        private bool RemoveEmptySessions()
-        {
-            var changed = false;
-
-            foreach (var session in _sessions.SessionList.ToList())
-            {
-                if (session.GetQuarterlyInfoList().Count() == 0)
-                {
-                    _sessions.RemoveSession(session);
-                    changed = true;
-                }
-            }
-
-            return changed;
-        }
-
-        /// <summary>
-        /// Shrink sessions if the hours needed to charge to 100% is less than calculated.
-        /// </summary>
-        private async Task<bool> ShrinkSessions()
-        {
-            var changed = false;
-
-            foreach (var session in _sessions.SessionList)
-            {
-                var maxQuarters = session.GetQuartersForMode();
-
-                if (session.RemoveAllAfter(maxQuarters))
-                {
-                    changed = true;
-                }
-            }
-
-            changed |= RemoveEmptySessions();
-
-            await RecalculateChargeLeftAndNeeded();
-
-            return changed;
-        }
-
-        private async Task RecalculateChargeLeftAndNeeded()
-        {
-            await CalculateChargeNeeded();
-
-            await CalculateChargeLeft();
-        }
-
-        /// <summary>
-        /// This routine detects charge session that follow each other and determines how much
-        /// charge is needed for the session.
-        /// </summary>
-        private async Task CalculateChargeNeeded()
-        {
-            _sessions.SetEstimateChargeNeededUntilNextSession();
-        }
-
-        private async Task CalculateDeltaLowestPrice()
-        {
-            await _sessions.CalculateDeltaLowestPrice().ConfigureAwait(false);
-        }
-
-        // Helpers: signal smoothing + prominence-based peak/trough detection
-        static class SignalExtrema
-        {
-            // Compute median sampling interval in minutes (robust to outliers)
-            public static int DetectSamplingMinutes(IReadOnlyList<DateTime> times)
-            {
-                if (times.Count < 2) return 15;
-                var deltas = new List<double>(times.Count - 1);
-                for (int i = 1; i < times.Count; i++)
-                    deltas.Add((times[i] - times[i - 1]).TotalMinutes);
-                deltas.Sort();
-                double median = deltas[deltas.Count / 2];
-                return (int)Math.Max(1, Math.Round(median));
-            }
-
-            // Simple centered moving average (odd window preferred). Edges use partial windows.
-            public static double[] MovingAverage(IList<double> values, int window)
-            {
-                if (values.Count == 0 || window <= 1) return values.ToArray();
-                int half = window / 2;
-                var outv = new double[values.Count];
-
-                for (int i = 0; i < values.Count; i++)
-                {
-                    int s = Math.Max(0, i - half);
-                    int e = Math.Min(values.Count - 1, i + half);
-                    double sum = 0; int n = 0;
-                    for (int j = s; j <= e; j++) { sum += values[j]; n++; }
-                    outv[i] = sum / n;
-                }
-                return outv;
-            }
-
-            // Robust scale estimate using IQR (Q75 - Q25)
-            public static (double mean, double iqr, double stdLike) Stats(IList<double> values)
-            {
-                if (values.Count == 0) return (0, 0, 0);
-                var sorted = values.OrderBy(v => v).ToArray();
-                double q25 = Quantile(sorted, 0.25);
-                double q75 = Quantile(sorted, 0.75);
-                double iqr = q75 - q25;
-
-                double mean = values.Average();
-                // Approximate robust sigma from IQR for normal-ish data
-                double stdLike = iqr / 1.349; // ≈ sigma
-                return (mean, iqr, stdLike);
-
-                static double Quantile(double[] arr, double p)
-                {
-                    if (arr.Length == 1) return arr[0];
-                    double pos = p * (arr.Length - 1);
-                    int i = (int)Math.Floor(pos);
-                    double frac = pos - i;
-                    if (i >= arr.Length - 1) return arr[^1];
-                    return arr[i] * (1 - frac) + arr[i + 1] * frac;
-                }
-            }
-
-            // Find local maxima indices with prominence and minDistance
-            public static List<int> FindPeaks(
-                IList<double> x,
-                double minProminence,
-                int minDistance)
-            {
-                var candidates = new List<int>();
-                for (int i = 1; i < x.Count - 1; i++)
-                {
-                    if (x[i] > x[i - 1] && x[i] >= x[i + 1]) candidates.Add(i);
-                }
-                if (candidates.Count == 0) return candidates;
-
-                var accepted = new List<(int idx, double prom)>();
-
-                foreach (var i in candidates)
-                {
-                    double peak = x[i];
-
-                    // Walk left to first higher point; track lowest saddle
-                    double leftMin = peak;
-                    for (int j = i - 1; j >= 0; j--)
-                    {
-                        if (x[j] > peak) break;
-                        leftMin = Math.Min(leftMin, x[j]);
-                    }
-                    // Walk right to first higher point; track lowest saddle
-                    double rightMin = peak;
-                    for (int j = i + 1; j < x.Count; j++)
-                    {
-                        if (x[j] > peak) break;
-                        rightMin = Math.Min(rightMin, x[j]);
-                    }
-                    double saddle = Math.Max(leftMin, rightMin);
-                    double prom = peak - saddle;
-
-                    if (prom >= minProminence) accepted.Add((i, prom));
-                }
-
-                // Enforce minDistance by keeping the most prominent first
-                var result = new List<int>();
-                foreach (var (idx, _) in accepted.OrderByDescending(p => p.prom))
-                {
-                    if (result.All(r => Math.Abs(r - idx) >= minDistance))
-                        result.Add(idx);
-                }
-                result.Sort();
-                return result;
-            }
-
-            // Find local minima by inverting the signal and reusing peak logic
-            public static List<int> FindTroughs(
-                IList<double> x,
-                double minProminence,
-                int minDistance)
-            {
-                var inv = x.Select(v => -v).ToArray();
-                return FindPeaks(inv, minProminence, minDistance);
-            }
-        }
-
-        // ====== Your method rewritten ======
-        private void CreateSessions()
-        {
-            _sessions?.Dispose();
-            _sessions = null;
-
-            if (_quarterlyInfos == null || _quarterlyInfos.Count == 0)
-            {
-                _logger.LogWarning("QuarterlyInfos is empty!!");
-                return;
-            }
-
-            var loggerFactory = _scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
-
-            // Sort consistently
-            var list = _quarterlyInfos.OrderBy(hi => hi.Time).ToList();
-
-            // Prepare arrays
-            var times = list.Select(x => x.Time).ToList();
-            var buy = list.Select(x => x.BuyingPrice).ToList();
-            var sell = list.Select(x => x.SellingPrice).ToList();
-
-            // Detect sampling cadence (min)
-            int stepMin = SignalExtrema.DetectSamplingMinutes(times);
-
-            // Choose smoothing window ~ 1 hour (odd number)
-            int targetSmoothMinutes = 15; // TODO: make configurable (_settingsConfig?)
-            int smoothWindow = Math.Max(3, (int)Math.Round((double)targetSmoothMinutes / stepMin));
-            if (smoothWindow % 2 == 0) smoothWindow++; // prefer odd
-
-            // Smooth the series (light smoothing to kill tiny bumps)
-            var buySmooth = SignalExtrema.MovingAverage(buy, smoothWindow);
-            var sellSmooth = SignalExtrema.MovingAverage(sell, smoothWindow);
-
-            // Robust scale to set default prominence thresholds
-            var (_, buyIqr, buySigma) = SignalExtrema.Stats(buySmooth);
-            var (_, sellIqr, sellSigma) = SignalExtrema.Stats(sellSmooth);
-
-            // Default: require at least ~0.75 * sigma prominence (tune as needed)
-            // For very flat series, fall back to IQR fraction.
-            double minPromBuy = Math.Max(0.0, 0.75 * (buySigma > 0 ? buySigma : buyIqr / 1.349));
-            double minPromSell = Math.Max(0.0, 0.75 * (sellSigma > 0 ? sellSigma : sellIqr / 1.349));
-
-            // Minimal spacing between major extrema ~ 1 hour
-            int minDistance = Math.Max(2, (int)Math.Round(60.0 / stepMin));
-
-            // Detect major troughs in Buying (Charging) and peaks in Selling (Discharging)
-            var buyTroughIdx = SignalExtrema.FindTroughs(buySmooth, minPromBuy, minDistance);
-            var sellPeakIdx = SignalExtrema.FindPeaks(sellSmooth, minPromSell, minDistance);
-
-            // Create sessions object
-            _sessions = new Sessions(_quarterlyInfos,
-                                     _settingsConfig,
-                                     _sessyBatteryConfig,
-                                     _batteryContainer!,
-                                     _timeZoneService,
-                                     _virtualBatteryService,
-                                     _financialResultsService,
-                                     _performanceDataService,
-                                     _consumptionDataService,
-                                     _consumptionMonitorService,
-                                     _energyHistoryDataService,
-                                     _calculationService,
-                                     loggerFactory);
-
-            // Seed sessions from detected extrema
-            // Safety: still honor InAnySession (your existing logic)
-            foreach (var i in buyTroughIdx)
-            {
-                var q = list[i];
-                if (!_sessions.InAnySession(q))
-                    _sessions.AddNewSession(Modes.Charging, q);
-            }
-            foreach (var i in sellPeakIdx)
-            {
-                var q = list[i];
-                if (!_sessions.InAnySession(q))
-                    _sessions.AddNewSession(Modes.Discharging, q);
-            }
-
-            // Optional: also consider endpoints if they are extreme w.r.t. neighbors (edge handling)
-            if (list.Count > 1)
-            {
-                // Left edge
-                if (buySmooth[0] <= buySmooth[1] - minPromBuy)
-                {
-                    var q0 = list[0];
-                    if (!_sessions.InAnySession(q0))
-                        _sessions.AddNewSession(Modes.Charging, q0);
-                }
-                if (sellSmooth[0] >= sellSmooth[1] + minPromSell)
-                {
-                    var q0 = list[0];
-                    if (!_sessions.InAnySession(q0))
-                        _sessions.AddNewSession(Modes.Discharging, q0);
-                }
-
-                // Right edge
-                int last = list.Count - 1;
-                if (buySmooth[last] <= buySmooth[last - 1] - minPromBuy)
-                {
-                    var qn = list[last];
-                    if (!_sessions.InAnySession(qn))
-                        _sessions.AddNewSession(Modes.Charging, qn);
-                }
-                if (sellSmooth[last] >= sellSmooth[last - 1] + minPromSell)
-                {
-                    var qn = list[last];
-                    if (!_sessions.InAnySession(qn))
-                        _sessions.AddNewSession(Modes.Discharging, qn);
-                }
-            }
-
-            // Let the profitability pruning & completion logic do its work
-            while (_sessions.RemoveLessProfitableSessions()) { /* keep pruning */ }
-
-            _sessions.CompleteAllSessions();
-        }
-
-
-        private bool _isDisposed = false;
+        private bool _isDisposed;
 
         public override void Dispose()
         {
-            if (!_isDisposed)
-            {
-                _settingsConfigSubscription.Dispose();
-                _sessyBatteryConfigSubscription.Dispose();
+            if (_isDisposed) return;
 
-                _quarterlyInfos.Clear();
-                _quarterlyInfos = null;
-                _sessyService = null;
-                _p1MeterService = null;
-                _dayAheadMarketService = null;
-                _solarInverterManager = null;
-                _solarService = null;
-                _batteryContainer = null;
-                _timeZoneService = null;
+            _settingsConfigSubscription?.Dispose();
+            _sessyBatteryConfigSubscription?.Dispose();
 
-                _scope.Dispose();
+            _quarterlyInfos.Clear();
+            _planByTime.Clear();
 
-                base.Dispose();
+            _scope.Dispose();
 
-                _isDisposed = true;
-            }
+            base.Dispose();
+            _isDisposed = true;
         }
 
         public async Task<double> getBatteryPercentage()
         {
-            return await _batteryContainer.GetBatterPercentage();
-        }
-
-        public async Task<string> GetBatteryMode()
-        {
-            var quarterlyInfo = _sessions.GetCurrentQuarterlyInfo();
-
-            if(quarterlyInfo != null)
-                return  ChargingModes.GetDisplayMode(quarterlyInfo.Mode);
-
-            return "???";
-        }
-
-        public QuarterlyInfo? GetNextQuarterlyInfoInSession()
-        {
-            var now = _timeZoneService.Now;
-
-            return _sessions?.GetNextQuarterlyInfoInSession(now);
+            return await _batteryContainer.GetBatterPercentage().ConfigureAwait(false);
         }
     }
 }

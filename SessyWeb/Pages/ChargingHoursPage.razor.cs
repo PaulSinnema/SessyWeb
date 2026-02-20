@@ -13,18 +13,13 @@ namespace SessyWeb.Pages
 {
     public partial class ChargingHoursPage : PageBase
     {
-        [Inject]
-        public TooltipService? tooltipService { get; set; }
-        [Inject]
-        public PerformanceDataService? _performanceDataService { get; set; }
-        [Inject]
-        public SolarService? _solarService { get; set; }
-        [Inject]
-        public TimeZoneService? _timeZoneService { get; set; }
-        [Inject]
-        public BatteryContainer? _batteryContainer { get; set; }
+        [Inject] public TooltipService? tooltipService { get; set; }
+        [Inject] public PerformanceDataService? _performanceDataService { get; set; }
+        [Inject] public SolarService? _solarService { get; set; }
+        [Inject] public TimeZoneService? _timeZoneService { get; set; }
+        [Inject] public BatteryContainer? _batteryContainer { get; set; }
 
-        public List<QuarterlyInfoView>? QuarterlyInfos { get; set; } = new List<QuarterlyInfoView>();
+        public List<QuarterlyInfoView>? QuarterlyInfos { get; set; } = new();
 
         public double TotalSolarPowerExpectedToday { get; private set; }
         public double TotalSolarPowerExpectedTomorrow { get; private set; }
@@ -45,9 +40,9 @@ namespace SessyWeb.Pages
 
         private CancellationTokenSource _cts = new();
 
-        private string RowHeightStyle { get; set; } = "height 20px";
         private string GraphStyle { get; set; } = "min-width: 250px; visibility: hidden;";
 
+        // Kept name to minimize razor changes; it now means "next planned action".
         private QuarterlyInfo? NextQuarterlyInfoInSession { get; set; }
 
         private bool _showAll = false;
@@ -75,19 +70,19 @@ namespace SessyWeb.Pages
             {
                 _ = UpdateLoop();
             }
-            catch (Exception)
+            catch
             {
                 // Keep it silent.
             }
         }
 
         /// <summary>
-        /// List with battery statusses.
+        /// List with battery statuses.
         /// </summary>
         public List<BatteryWithStatus>? BatteryWithStatusList { get; set; }
 
         /// <summary>
-        /// Class that holds the battery status.
+        /// Class that holds battery status.
         /// </summary>
         public class BatteryWithStatus
         {
@@ -102,28 +97,43 @@ namespace SessyWeb.Pages
         /// </summary>
         private async Task UpdateLoop()
         {
-            while (true)
+            while (!_cts.IsCancellationRequested)
             {
-                var newStatuses = new List<BatteryWithStatus>();
-
-                foreach (var battery in batteryContainer!.Batteries!)
+                try
                 {
-                    var powerStatus = await battery.GetPowerStatus();
+                    var newStatuses = new List<BatteryWithStatus>();
 
-                    newStatuses.Add(new BatteryWithStatus
+                    foreach (var battery in batteryContainer!.Batteries!)
                     {
-                        Battery = battery,
-                        PowerStatus = powerStatus
-                    });
+                        var powerStatus = await battery.GetPowerStatus().ConfigureAwait(false);
+
+                        newStatuses.Add(new BatteryWithStatus
+                        {
+                            Battery = battery,
+                            PowerStatus = powerStatus
+                        });
+                    }
+
+                    BatteryWithStatusList = newStatuses;
+
+                    // Solver-based: next planned action
+                    NextQuarterlyInfoInSession = _batteriesService?.GetNextQuarterlyInfoInPlan();
+
+                    await InvokeAsync(StateHasChanged);
+                }
+                catch
+                {
+                    // swallow, keep loop alive
                 }
 
-                BatteryWithStatusList = newStatuses;
-
-                NextQuarterlyInfoInSession = _batteriesService?.GetNextQuarterlyInfoInSession();
-
-                await InvokeAsync(StateHasChanged);
-
-                await Task.Delay(5000);
+                try
+                {
+                    await Task.Delay(5000, _cts.Token).ConfigureAwait(false);
+                }
+                catch
+                {
+                    // ignore cancellation / delay errors
+                }
             }
         }
 
@@ -137,9 +147,7 @@ namespace SessyWeb.Pages
                 await InvokeAsync(async () =>
                 {
                     await BatteriesServiceDataChanged();
-
                     HandleScreenHeight();
-
                     StateHasChanged();
                 });
             }
@@ -157,10 +165,19 @@ namespace SessyWeb.Pages
 
         private void HandleScreenHeight()
         {
-            var height = ScreenInfo!.Height;
-            var width = ScreenInfo!.Width;
+            var height = ScreenInfo?.Height ?? 0;
+            var width = ScreenInfo?.Width ?? 0;
+
+            // If screen size is not known yet, use a sane fallback
+            if (height <= 0) height = 900;
+            if (width <= 0) width = 1400;
 
             HandleResize(height - 300, width);
+        }
+
+        private void HandleResize(int height, int width)
+        {
+            ChangeChartStyle(height);
         }
 
         /// <summary>
@@ -190,44 +207,69 @@ namespace SessyWeb.Pages
         {
             await InvokeAsync(async () =>
             {
-                var sessions = _batteriesService!.GetSessions();
+                IsBusy = true;
 
-                if (sessions != null)
+                try
                 {
-                    IsBusy = true;
+                    var now = _timeZoneService!.Now;
+                    var today = now.Date;
+                    var yesterday = today.AddDays(-1);
+                    var tomorrow = today.AddDays(1);
 
-                    try
-                    {
-                        var now = _timeZoneService!.Now.Date;
+                    await GetQuarterlyInfos();
 
-                        await GetQuarterlyInfos();
+                    TotalSolarPowerExpectedToday = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(today);
+                    TotalSolarPowerExpectedTomorrow = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(tomorrow);
 
-                        TotalSolarPowerExpectedToday = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(now);
-                        TotalSolarPowerExpectedTomorrow = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(now.AddDays(1));
+                    // Yesterday revenue: realized profit from Performance table (historical).
+                    TotalRevenueYesterday = await GetRealizedRevenueForDate(yesterday).ConfigureAwait(false);
 
-                        TotalRevenueYesterday = await sessions.TotalMonthlyCost(now.AddDays(-1));
-                        TotalRevenueToday = await sessions.TotalMonthlyCost(now);
+                    // Today revenue: expected/planned profit from the current plan (QuarterlyInfos).
+                    TotalRevenueToday = GetPlannedRevenueForDate(today);
 
-                        BatteryPercentage = await _batteriesService.getBatteryPercentage();
-
-                        BatteryMode = await _batteriesService.GetBatteryMode();
-                    }
-                    finally
-                    {
-                        IsBusy = false;
-                    }
-
-                    await InvokeAsync(StateHasChanged);
+                    BatteryPercentage = await _batteriesService!.getBatteryPercentage().ConfigureAwait(false);
+                    BatteryMode = await _batteriesService.GetBatteryMode().ConfigureAwait(false);
                 }
+                finally
+                {
+                    IsBusy = false;
+                }
+
+                await InvokeAsync(StateHasChanged);
             });
         }
 
-        /// <summary>
-        /// The window is resized. Handle it.
-        /// </summary>
-        private void HandleResize(int height, int width)
+        private async Task<decimal> GetRealizedRevenueForDate(DateTime date)
         {
-            ChangeChartStyle(height);
+            if (_performanceDataService == null) return 0m;
+
+            var from = date.Date;
+            var to = date.Date.AddDays(1);
+
+            var list = await _performanceDataService.GetList(async set =>
+            {
+                var result = set
+                    .Where(p => p.Time >= from && p.Time < to)
+                    .ToList();
+
+                return await Task.FromResult(result);
+            }).ConfigureAwait(false);
+
+            // Profit is double; store as decimal for UI
+            return (decimal)list.Sum(p => p.Profit);
+        }
+
+        private decimal GetPlannedRevenueForDate(DateTime date)
+        {
+            var from = date.Date;
+            var to = date.Date.AddDays(1);
+
+            var listFromBatteryService = _batteriesService?.GetQuarterlyInfos() ?? new List<QuarterlyInfo>();
+            var planned = listFromBatteryService
+                .Where(q => q.Time >= from && q.Time < to)
+                .Sum(q => q.Profit);
+
+            return (decimal)planned;
         }
 
         /// <summary>
@@ -235,137 +277,158 @@ namespace SessyWeb.Pages
         /// </summary>
         private async Task GetQuarterlyInfos()
         {
-            // IsBusy = true;
+            // Determine base date safely
+            DateTime baseDate;
+            if (ShowAll)
+                baseDate = DateSelectionChosen?.Start ?? _timeZoneService!.Now;
+            else
+                baseDate = _timeZoneService!.Now;
 
-            try
+            var from = baseDate.Date.AddDays(-1);
+            var to = baseDate.Date.AddDays(2); // yesterday..tomorrow (3-day window)
+
+            var listFromBatteryService = _batteriesService?.GetQuarterlyInfos() ?? new List<QuarterlyInfo>();
+
+            double averageSellingPrice = listFromBatteryService.Count > 0 ? listFromBatteryService.Average(qi => qi.SellingPrice) : 0.0;
+            double averageBuyingPrice = listFromBatteryService.Count > 0 ? listFromBatteryService.Average(qi => qi.BuyingPrice) : 0.0;
+
+            var views = new List<QuarterlyInfoView>();
+
+            if (ShowAll)
             {
-                DateTime selectedDate;
+                // Plan (future/current) limited to window
+                var planItems = listFromBatteryService
+                    .Where(q => q.Time >= from && q.Time < to)
+                    .OrderBy(q => q.Time)
+                    .ToList();
 
-                if (!ShowAll || DateSelectionChosen == null)
-                    selectedDate = _timeZoneService!.Now;
-                else
-                    selectedDate = DateSelectionChosen.Start!.Value;
+                foreach (var qi in planItems)
+                    views.Add(await FillQuarterlyInfoView(qi, averageBuyingPrice, averageSellingPrice).ConfigureAwait(false));
 
-                double averageSellingPrice = 0.0;
-                double averageBuyingPrice = 0.0;
-
-                var listFromBatteryService = _batteriesService?.GetQuarterlyInfos() ?? new();
-
-                QuarterlyInfos = new List<QuarterlyInfoView>();
-
-                if (listFromBatteryService.Count > 0)
+                // Performance (historical) limited to the SAME window
+                var perfItems = await _performanceDataService!.GetList(async set =>
                 {
-                    averageSellingPrice = listFromBatteryService.Average(qi => qi.SellingPrice);
-                    averageBuyingPrice = listFromBatteryService.Average(qi => qi.BuyingPrice);
-                }
-
-                if (ShowAll)
-                {
-                    var now = _timeZoneService!.Now;
-
-                    var quarterTime = now.DateFloorQuarter();
-
-                    var QuarterlyInfoList = listFromBatteryService?
-                        .Where(hi => hi.Time >= quarterTime)
+                    var result = set
+                        .Where(p => p.Time >= from && p.Time < to)
                         .ToList();
 
-                    var performanceList = await _performanceDataService!
-                        .GetList(async (set) =>
-                        {
-                            var result = set.Where(c => c.Time >= selectedDate.Date.AddDays(-1) && c.Time < quarterTime)
-                                            .ToList();
-                            return await Task.FromResult(result);
-                        });
+                    return await Task.FromResult(result);
+                }).ConfigureAwait(false);
 
-                    foreach (var quarterlyInfo in QuarterlyInfoList ?? new List<QuarterlyInfo>())
-                    {
-                        QuarterlyInfos?.Add(await FillQuarterlyInfoView(quarterlyInfo, averageBuyingPrice, averageSellingPrice));
-                    }
+                var totalCapacity = _batteryContainer!.GetTotalCapacity();
 
-                    var totalCapacity = _batteryContainer!.GetTotalCapacity();
-
-                    foreach (var performance in performanceList)
-                    {
-                        QuarterlyInfos?.Add(FillQuarterlyInfoView(performance, totalCapacity));
-                    }
-                }
-                else
-                {
-                    var quarterlyInfoList = listFromBatteryService?
-                        .Where(hi => hi.Time >= selectedDate.DateFloorQuarter())
-                        .ToList();
-
-                    foreach (var quarterlyInfo in quarterlyInfoList!)
-                    {
-                        QuarterlyInfos?.Add(await FillQuarterlyInfoView(quarterlyInfo, averageBuyingPrice, averageSellingPrice));
-                    }
-                }
-
-                ChangeChartStyle(ScreenInfo!.Height - 300);
-
-                await InvokeAsync(() => StateHasChanged());
+                foreach (var p in perfItems)
+                    views.Add(FillQuarterlyInfoView(p, totalCapacity));
             }
-            finally
+            else
             {
-                // IsBusy = false;
+                // Non-showall: just show from now quarter onward, but still clamp to tomorrow to avoid huge lists
+                var nowQ = _timeZoneService!.Now.DateFloorQuarter();
+                var planItems = listFromBatteryService
+                    .Where(q => q.Time >= nowQ && q.Time < nowQ.Date.AddDays(2))
+                    .OrderBy(q => q.Time)
+                    .ToList();
+
+                foreach (var qi in planItems)
+                    views.Add(await FillQuarterlyInfoView(qi, averageBuyingPrice, averageSellingPrice).ConfigureAwait(false));
             }
+
+            // Remove duplicate timestamps (Performance + Plan can overlap)
+            QuarterlyInfos = views
+                .GroupBy(v => v.Time)
+                .Select(g => g.First()) // keep first; or prefer Performance over Plan if you want
+                .OrderBy(v => v.Time)
+                .ToList();
+
+            HandleScreenHeight();
+            await InvokeAsync(StateHasChanged);
         }
 
         public async Task<QuarterlyInfoView> FillQuarterlyInfoView(QuarterlyInfo quarterlyInfo, double averageBuyingPrice, double averageSellingPrice)
         {
-            var session = _batteriesService!.GetSessions().FindSession(quarterlyInfo);
+            // No sessions in solver-based approach.
+            var totalCapacityWh = _batteryContainer!.GetTotalCapacity();
 
-            return new QuarterlyInfoView
+            // If you renamed ChargeLeft/Needed fields differently, adjust here.
+            var chargeLeftWh = quarterlyInfo.ChargeLeftWh;
+            var chargeNeededWh = quarterlyInfo.ChargeNeededWh;
+
+            var chargeLeftPct = totalCapacityWh > 0 ? (chargeLeftWh / totalCapacityWh) * 100.0 : 0.0;
+
+            return await Task.FromResult(new QuarterlyInfoView
             {
                 Time = quarterlyInfo.Time,
-                SessionId = quarterlyInfo.SessionId,
+                SessionId = null, // sessions removed
+
                 BuyingPrice = quarterlyInfo.BuyingPrice,
                 SellingPrice = quarterlyInfo.SellingPrice,
                 MarketPrice = quarterlyInfo.MarketPrice,
+
                 Profit = quarterlyInfo.Profit,
+
                 SmoothedBuyingPrice = quarterlyInfo.SmoothedBuyingPrice,
-                VisualizeInChart = quarterlyInfo.VisualizeInChart(),
                 SmoothedSellingPrice = quarterlyInfo.SmoothedSellingPrice,
-                ChargeLeft = quarterlyInfo.ChargeLeft,
+
+                VisualizeInChart = quarterlyInfo.VisualizeInChart(),
+
+                ChargeLeft = chargeLeftWh,
+                ChargeNeeded = chargeNeededWh,
+
                 EstimatedConsumptionPerQuarterHour = quarterlyInfo.EstimatedConsumptionPerQuarterInWatts,
                 SolarPowerPerQuarterHour = quarterlyInfo.SolarPowerPerQuarterHour,
                 SolarGlobalRadiation = quarterlyInfo.SolarGlobalRadiation,
-                ChargeLeftPercentage = quarterlyInfo.ChargeLeftPercentage,
+
+                ChargeLeftPercentage = chargeLeftPct,
                 DisplayState = quarterlyInfo.GetDisplayMode() ?? string.Empty,
                 Price = quarterlyInfo.Price,
-                ChargeNeeded = quarterlyInfo.ChargeNeeded,
-                ChargeNeededPercentage = quarterlyInfo.ChargeNeededPercentage,
+
+                // Keep existing view fields
+                ChargeNeededPercentage = totalCapacityWh > 0 ? (chargeNeededWh / totalCapacityWh) * 100.0 : 0.0,
                 SmoothedSolarPower = quarterlyInfo.SmoothedSolarPower,
+
                 AverageBuyingPrice = averageBuyingPrice,
                 AverageSellingPrice = averageSellingPrice,
-                SessionCost = session != null ? await session.GetTotalCost() : null,
+
+                SessionCost = null, // sessions removed
                 DeltaLowestPrice = quarterlyInfo.DeltaLowestPrice
-            };
+            });
         }
 
-        public QuarterlyInfoView FillQuarterlyInfoView(Performance performance, double totalCapacity)
+        public QuarterlyInfoView FillQuarterlyInfoView(Performance performance, double totalCapacityWh)
         {
+            // Fix the percentage formula (it was inverted in your old code).
+            var neededPct = totalCapacityWh > 0 ? (performance.ChargeNeeded / totalCapacityWh) * 100.0 : 0.0;
+
             return new QuarterlyInfoView
             {
                 Time = performance.Time,
                 SessionId = null,
+
                 BuyingPrice = performance.BuyingPrice,
                 SellingPrice = performance.SellingPrice,
                 MarketPrice = performance.MarketPrice,
+
                 Profit = performance.Profit,
+
                 SmoothedBuyingPrice = performance.BuyingPrice,
-                VisualizeInChart = performance.VisualizeInChart,
                 SmoothedSellingPrice = performance.SellingPrice,
+
+                VisualizeInChart = performance.VisualizeInChart,
+
                 ChargeLeft = performance.ChargeLeft,
+                ChargeNeeded = performance.ChargeNeeded,
+
                 EstimatedConsumptionPerQuarterHour = performance.EstimatedConsumptionPerQuarterHour,
                 SolarPowerPerQuarterHour = performance.SolarPowerPerQuarterHour,
                 SolarGlobalRadiation = performance.SolarGlobalRadiation,
+
                 ChargeLeftPercentage = performance.ChargeLeftPercentage,
                 DisplayState = performance.DisplayState ?? string.Empty,
                 Price = performance.Price,
-                ChargeNeeded = performance.ChargeNeeded,
-                ChargeNeededPercentage = performance.ChargeNeeded > 0.0 ? totalCapacity / performance.ChargeNeeded / 100 : 0.0,
+
+                ChargeNeededPercentage = neededPct,
                 SmoothedSolarPower = performance.SmoothedSolarPower,
+
                 SessionCost = null,
                 DeltaLowestPrice = 0.0
             };
@@ -374,10 +437,8 @@ namespace SessyWeb.Pages
         public async Task SelectionChanged(DateArgs dateArgs)
         {
             DateSelectionChosen = dateArgs;
-
             await GetQuarterlyInfos();
         }
-
 
         public DateArgs? DateSelectionChosen { get; private set; }
 
@@ -386,40 +447,17 @@ namespace SessyWeb.Pages
         /// </summary>
         private void ChangeChartStyle(int height)
         {
+            // Prevent invalid/negative heights during first render
+            if (height < 250) height = 250;
+
             // 13 pixels per data row (3)
-            var width = QuarterlyInfos?.Count * 3 * 13;
+            var width = (QuarterlyInfos?.Count ?? 0) * 3 * 13;
+
+            // Clamp the width so Radzen doesn't explode on very large datasets
+            if (width < 600) width = 600;
+            if (width > 8000) width = 8000;
 
             GraphStyle = $"min-height: {height}px; width: {width}px; visibility: initial;";
-        }
-
-        /// <summary>
-        /// Format the prices displayed in the X-axis.
-        /// </summary>
-        public string FormatAsPrice(object value)
-        {
-            if (value is double)
-            {
-                var price = (double)value;
-
-                return $"{price:n2}";
-            }
-
-            return "";
-        }
-
-        /// <summary>
-        /// Format the time displayed in the Y-axis.
-        /// </summary>
-        public string FormatAsDayHour(object value)
-        {
-            if (value is DateTime)
-            {
-                var dateTime = (DateTime)value;
-
-                return $"{dateTime.Day}/{dateTime.Month} {dateTime.Hour}:{dateTime.Minute:00}";
-            }
-
-            return "";
         }
 
         private bool _isDisposed = false;
@@ -428,8 +466,27 @@ namespace SessyWeb.Pages
         {
             if (!_isDisposed)
             {
-                _batteriesService!.DataChanged -= BatteriesServiceDataChanged;
-                _batteriesService!.OnHeartBeat -= HeartBeat;
+                _isDisposed = true;
+
+                try
+                {
+                    _batteriesService!.DataChanged -= BatteriesServiceDataChanged;
+                    _batteriesService!.OnHeartBeat -= HeartBeat;
+                }
+                catch
+                {
+                    // ignore dispose races
+                }
+
+                try
+                {
+                    _cts.Cancel();
+                    _cts.Dispose();
+                }
+                catch
+                {
+                    // ignore
+                }
             }
 
             base.Dispose();
