@@ -46,7 +46,7 @@ namespace SessyController.Services
         private TimeZoneService _timeZoneService;
         private ConsumptionMonitorService _consumptionMonitorService;
         private SessyWebControlDataService _sessyWebControlDataService;
-
+        private PerformanceDataService? _performanceDataService;
         private static List<QuarterlyInfo> _quarterlyInfos = new();
         private Dictionary<DateTime, PlanAction> _planByTime = new();
 
@@ -92,6 +92,7 @@ namespace SessyController.Services
             _timeZoneService = _scope.ServiceProvider.GetRequiredService<TimeZoneService>();
             _consumptionMonitorService = _scope.ServiceProvider.GetRequiredService<ConsumptionMonitorService>();
             _sessyWebControlDataService = _scope.ServiceProvider.GetRequiredService<SessyWebControlDataService>();
+            _performanceDataService = _scope.ServiceProvider.GetService<PerformanceDataService>();
 
             _logger.LogInformation("BatteriesService (solver-based) starting");
         }
@@ -111,7 +112,10 @@ namespace SessyController.Services
                 try
                 {
                     await HeartBeatAsync().ConfigureAwait(false);
+
                     await Process(cancellationToken).ConfigureAwait(false);
+
+                    await StorePerformance();
                 }
                 catch (Exception ex)
                 {
@@ -133,6 +137,53 @@ namespace SessyController.Services
             }
 
             _logger.LogWarning("BatteriesService stopped.");
+        }
+
+        private async Task StorePerformance()
+        {
+            var currentQuarterlyInfo = GetNextQuarterlyInfoInPlan();
+
+            if (currentQuarterlyInfo != null)
+            {
+                if (!await _performanceDataService.Exists(async (set) =>
+                {
+                    var result = set.Any(pd => pd.Time == currentQuarterlyInfo.Time);
+                    return await Task.FromResult(result).ConfigureAwait(false);
+                }).ConfigureAwait(false))
+                {
+                    var time = currentQuarterlyInfo.Time;
+                    var totalCapacity = _batteryContainer.GetTotalCapacity();
+
+                    var performanceData = new List<Performance>
+                    {
+                        new Performance
+                        {
+                            Time = currentQuarterlyInfo.Time,
+                            MarketPrice = currentQuarterlyInfo.MarketPrice,
+                            BuyingPrice = currentQuarterlyInfo.BuyingPrice,
+                            SmoothedBuyingPrice = currentQuarterlyInfo.SmoothedBuyingPrice,
+                            SellingPrice = currentQuarterlyInfo.SellingPrice,
+                            SmoothedSellingPrice = currentQuarterlyInfo.SmoothedSellingPrice,
+                            Profit = currentQuarterlyInfo.Profit,
+                            EstimatedConsumptionPerQuarterHour = currentQuarterlyInfo.EstimatedConsumptionPerQuarterInWatts,
+                            ChargeLeft = await _batteryContainer.GetStateOfChargeInWatts(),
+                            ChargeNeeded = currentQuarterlyInfo.ChargeNeededWh,
+                            Charging = currentQuarterlyInfo.Charging,
+                            Discharging = currentQuarterlyInfo.Discharging,
+                            ZeroNetHome = currentQuarterlyInfo.ZeroNetHome,
+                            Disabled = currentQuarterlyInfo.Disabled,
+                            SolarPowerPerQuarterHour = currentQuarterlyInfo.SolarPowerPerQuarterHour,
+                            SmoothedSolarPower = currentQuarterlyInfo.SmoothedSolarPower,
+                            SolarGlobalRadiation = currentQuarterlyInfo.SolarGlobalRadiation,
+                            ChargeLeftPercentage = currentQuarterlyInfo.ChargeLeftPercentage(totalCapacity),
+                            DisplayState = currentQuarterlyInfo.GetDisplayMode(),
+                            VisualizeInChart = currentQuarterlyInfo.VisualizeInChart(),
+                        }
+                    };
+
+                    await _performanceDataService.Add(performanceData).ConfigureAwait(false);
+                }
+            }
         }
 
         public List<QuarterlyInfo> GetQuarterlyInfos()
@@ -698,6 +749,7 @@ namespace SessyController.Services
             await Task.Delay(1).ConfigureAwait(false);
 #endif
         }
+
 
         /// <summary>
         /// Checks who has control. Stores a new record if the controller changes.
