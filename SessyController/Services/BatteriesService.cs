@@ -107,6 +107,8 @@ namespace SessyController.Services
         {
             _logger.LogWarning("BatteriesService (solver-based) started ...");
 
+            var delay = 0;
+
             while (!cancellationToken.IsCancellationRequested)
             {
                 try
@@ -115,7 +117,18 @@ namespace SessyController.Services
 
                     await Process(cancellationToken).ConfigureAwait(false);
 
-                    await StorePerformance();
+                    delay = 60;
+
+                    if (DataChanged == null)
+                    {
+                        delay = 1;
+                    }
+                    else
+                    {
+                        await DataChanged.Invoke().ConfigureAwait(false);
+                    }
+
+                    await StorePerformance().ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
@@ -124,7 +137,7 @@ namespace SessyController.Services
 
                 try
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(false);
+                    await Task.Delay(TimeSpan.FromSeconds(delay), cancellationToken).ConfigureAwait(false);
                 }
                 catch (TaskCanceledException)
                 {
@@ -351,7 +364,7 @@ namespace SessyController.Services
                 QuarterMinutes: 15,
                 ActiveQuarterPenaltyEur: 0.0,
                 ForbidSimultaneousChargeDischarge: true,
-                TimeLimitMs: 10_000
+                TimeLimitMs: 20000
             );
 
             var result = BatteryArbitrageMilp.Solve(pricePoints, spec, opt);

@@ -19,6 +19,16 @@ namespace SessyController.Services
             _calculationService = calculationService;
         }
 
+        public async Task<decimal> GetFinancialResultForDate(DateTime date)
+        {
+            var start = date.Date;
+            var end = start.AddDays(1);
+
+            var histories = await GetFinancialMonthResults(start, end);
+
+            return histories.Sum(hi => hi.TotalCost);
+        }
+
         public async Task<IQueryable<FinancialMonthResult>> GetFinancialMonthResults(DateTime start, DateTime end)
         {
             var histories = await _energyHistoryService.GetList(async (hist) =>

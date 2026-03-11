@@ -18,6 +18,7 @@ namespace SessyWeb.Pages
         [Inject] public SolarService? _solarService { get; set; }
         [Inject] public TimeZoneService? _timeZoneService { get; set; }
         [Inject] public BatteryContainer? _batteryContainer { get; set; }
+        [Inject] FinancialResultsService? _finacialResultsService { get; set; }
 
         public List<QuarterlyInfoView>? QuarterlyInfos { get; set; } = new();
 
@@ -74,6 +75,11 @@ namespace SessyWeb.Pages
             {
                 // Keep it silent.
             }
+        }
+
+        private async Task _batteriesService_DataChanged()
+        {
+            await UpdateLoop();
         }
 
         /// <summary>
@@ -225,7 +231,7 @@ namespace SessyWeb.Pages
                     TotalRevenueYesterday = await GetRealizedRevenueForDate(yesterday).ConfigureAwait(false);
 
                     // Today revenue: expected/planned profit from the current plan (QuarterlyInfos).
-                    TotalRevenueToday = GetPlannedRevenueForDate(today);
+                    TotalRevenueToday = await GetRealizedRevenueForDate(today).ConfigureAwait(false); //GetPlannedRevenueForDate(today);
 
                     BatteryPercentage = await _batteriesService!.getBatteryPercentage().ConfigureAwait(false);
                     BatteryMode = await _batteriesService.GetBatteryMode().ConfigureAwait(false);
@@ -241,35 +247,9 @@ namespace SessyWeb.Pages
 
         private async Task<decimal> GetRealizedRevenueForDate(DateTime date)
         {
-            if (_performanceDataService == null) return 0m;
+            if (_finacialResultsService == null) return 0M;
 
-            var from = date.Date;
-            var to = date.Date.AddDays(1);
-
-            var list = await _performanceDataService.GetList(async set =>
-            {
-                var result = set
-                    .Where(p => p.Time >= from && p.Time < to)
-                    .ToList();
-
-                return await Task.FromResult(result);
-            }).ConfigureAwait(false);
-
-            // Profit is double; store as decimal for UI
-            return (decimal)list.Sum(p => p.Profit);
-        }
-
-        private decimal GetPlannedRevenueForDate(DateTime date)
-        {
-            var from = date.Date;
-            var to = date.Date.AddDays(1);
-
-            var listFromBatteryService = _batteriesService?.GetQuarterlyInfos() ?? new List<QuarterlyInfo>();
-            var planned = listFromBatteryService
-                .Where(q => q.Time >= from && q.Time < to)
-                .Sum(q => q.Profit);
-
-            return (decimal)planned;
+            return await _finacialResultsService.GetFinancialResultForDate(date);
         }
 
         /// <summary>

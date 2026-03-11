@@ -64,6 +64,7 @@ namespace SessyController.Services.Optimization
 
             // Create MILP solver
             var solver = Solver.CreateSolver("CBC_MIXED_INTEGER_PROGRAMMING");
+
             if (solver == null)
                 return new PlanResult(false, 0.0, Array.Empty<PlanStep>());
 

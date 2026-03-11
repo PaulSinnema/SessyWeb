@@ -8,8 +8,7 @@
 @using SessyController.Services.Items
 @using static SessyWeb.Components.DateChooserComponent
 
-@if (QuarterlyInfos != null && QuarterlyInfos.Count() != 0)
-{
+@{
     var desktop = !ScreenInfo?.IsMobile ?? false;
 
     if (desktop)
@@ -136,150 +135,150 @@
             </RadzenTable>
         </RadzenCard>
 
-        <ChargingHoursChartComponent QuarterlyInfos="@QuarterlyInfos" GraphStyle="@GraphStyle" />
+        @if (QuarterlyInfos != null && QuarterlyInfos.Count != 0)
+        {
+            <ChargingHoursChartComponent QuarterlyInfos="@QuarterlyInfos" GraphStyle="@GraphStyle" />                
+        }
     }
     else
     {
-        <RadzenCard Style="padding: 3px 3px 5px 10px;">
-            <RadzenStack Orientation="Orientation.Vertical" Gap="1" AlignItems="AlignItems.Start">
+        @if (QuarterlyInfos != null && QuarterlyInfos.Count != 0)
+        {
+            <RadzenCard Style="padding: 3px 3px 5px 10px;">
+                <RadzenStack Orientation="Orientation.Vertical" Gap="1" AlignItems="AlignItems.Start">
 
-                <RadzenText TextStyle="TextStyle.Overline" style="font-size: 0.9rem;" class="rz-display-flex rz-mt-4 rz-mb-0">Cost</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Overline" style="font-size: 0.9rem;" class="rz-display-flex rz-mt-4 rz-mb-0">Cost</RadzenText>
 
-                <RadzenTable>
-                    <RadzenTableRow>
-                        <RadzenTableCell Style="Width: 100px;">
-                            <RadzenText TextStyle="TextStyle.Body2" class="rz-display-flex rz-mt-4 rz-mb-0"><b>@_timeZoneService!.Now.Date.AddDays(-1).ToString("dd-MM-yyyy")</b></RadzenText>
-                        </RadzenTableCell>
-                        <RadzenTableCell>
-                            <RadzenText TextStyle="TextStyle.Body1" class="rz-display-flex rz-mt-4 rz-mb-0"><b>€ @TotalRevenueExpectedYesterdayVisual</b></RadzenText>
-                        </RadzenTableCell>
-                    </RadzenTableRow>
-                    <RadzenTableRow>
-                        <RadzenTableCell>
-                            <RadzenText TextStyle="TextStyle.Body1" class="rz-display-flex rz-mt-4 rz-mb-0"><b>@_timeZoneService!.Now.Date.ToString("dd-MM-yyyy")</b></RadzenText>
-                        </RadzenTableCell>
-                        <RadzenTableCell>
-                            <RadzenText TextStyle="TextStyle.Body1" class="rz-display-flex rz-mt-4 rz-mb-0"><b>€ @TotalRevenueExpectedTodayVisual</b></RadzenText>
-                        </RadzenTableCell>
-                    </RadzenTableRow>
-                </RadzenTable>
+                    <RadzenTable>
+                        <RadzenTableRow>
+                            <RadzenTableCell Style="Width: 100px;">
+                                <RadzenText TextStyle="TextStyle.Body2" class="rz-display-flex rz-mt-4 rz-mb-0"><b>@_timeZoneService!.Now.Date.AddDays(-1).ToString("dd-MM-yyyy")</b></RadzenText>
+                            </RadzenTableCell>
+                            <RadzenTableCell>
+                                <RadzenText TextStyle="TextStyle.Body1" class="rz-display-flex rz-mt-4 rz-mb-0"><b>€ @TotalRevenueExpectedYesterdayVisual</b></RadzenText>
+                            </RadzenTableCell>
+                        </RadzenTableRow>
+                        <RadzenTableRow>
+                            <RadzenTableCell>
+                                <RadzenText TextStyle="TextStyle.Body1" class="rz-display-flex rz-mt-4 rz-mb-0"><b>@_timeZoneService!.Now.Date.ToString("dd-MM-yyyy")</b></RadzenText>
+                            </RadzenTableCell>
+                            <RadzenTableCell>
+                                <RadzenText TextStyle="TextStyle.Body1" class="rz-display-flex rz-mt-4 rz-mb-0"><b>€ @TotalRevenueExpectedTodayVisual</b></RadzenText>
+                            </RadzenTableCell>
+                        </RadzenTableRow>
+                    </RadzenTable>
 
-                <RadzenText TextStyle="TextStyle.Overline" style="font-size: 0.9rem;" class="rz-display-flex rz-mt-4 rz-mb-0">Solar</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Overline" style="font-size: 0.9rem;" class="rz-display-flex rz-mt-4 rz-mb-0">Solar</RadzenText>
 
-                <RadzenTable>
-                    <RadzenTableRow>
-                        <RadzenTableCell Style="Width: 100px;">
-                            <RadzenText TextStyle="TextStyle.Body1" class="rz-display-flex rz-mt-4 rz-mb-0"><b>@_timeZoneService!.Now.Date.ToString("dd-MM-yyyy")</b></RadzenText>
-                        </RadzenTableCell>
-                        <RadzenTableCell>
-                            <RadzenText TextStyle="TextStyle.Body1" class="rz-display-flex rz-mt-4 rz-mb-0"><b>⚡@TotalSolarPowerExpectedTodayVisual</b></RadzenText>
-                        </RadzenTableCell>
-                    </RadzenTableRow>
-                    <RadzenTableRow>
-                        <RadzenTableCell Style="Width: 100px;">
-                            <RadzenText TextStyle="TextStyle.Body2" class="rz-display-flex rz-mt-4 rz-mb-0"><b>@_timeZoneService!.Now.AddDays(1).Date.ToString("dd-MM-yyyy")</b></RadzenText>
-                        </RadzenTableCell>
-                        <RadzenTableCell>
-                            @if (TotalSolarPowerExpectedTomorrow > 0)
-                            {
-                                <RadzenText TextStyle="TextStyle.Body1" class="rz-display-flex rz-mt-4 rz-mb-0"><b>⚡@TotalSolarPowerExpectedTomorrowVisual</b></RadzenText>
-                            }
-                        </RadzenTableCell>
-                    </RadzenTableRow>
-                </RadzenTable>
+                    <RadzenTable>
+                        <RadzenTableRow>
+                            <RadzenTableCell Style="Width: 100px;">
+                                <RadzenText TextStyle="TextStyle.Body1" class="rz-display-flex rz-mt-4 rz-mb-0"><b>@_timeZoneService!.Now.Date.ToString("dd-MM-yyyy")</b></RadzenText>
+                            </RadzenTableCell>
+                            <RadzenTableCell>
+                                <RadzenText TextStyle="TextStyle.Body1" class="rz-display-flex rz-mt-4 rz-mb-0"><b>⚡@TotalSolarPowerExpectedTodayVisual</b></RadzenText>
+                            </RadzenTableCell>
+                        </RadzenTableRow>
+                        <RadzenTableRow>
+                            <RadzenTableCell Style="Width: 100px;">
+                                <RadzenText TextStyle="TextStyle.Body2" class="rz-display-flex rz-mt-4 rz-mb-0"><b>@_timeZoneService!.Now.AddDays(1).Date.ToString("dd-MM-yyyy")</b></RadzenText>
+                            </RadzenTableCell>
+                            <RadzenTableCell>
+                                @if (TotalSolarPowerExpectedTomorrow > 0)
+                                {
+                                    <RadzenText TextStyle="TextStyle.Body1" class="rz-display-flex rz-mt-4 rz-mb-0"><b>⚡@TotalSolarPowerExpectedTomorrowVisual</b></RadzenText>
+                                }
+                            </RadzenTableCell>
+                        </RadzenTableRow>
+                    </RadzenTable>
 
-                <RadzenText TextStyle="TextStyle.Overline" style="font-size: 0.9rem;" class="rz-display-flex rz-mt-4 rz-mb-0">Batteries</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Overline" style="font-size: 0.9rem;" class="rz-display-flex rz-mt-4 rz-mb-0">Batteries</RadzenText>
 
-                <RadzenTable>
-                    <RadzenTableRow>
-                        <RadzenTableCell Style="Width: 100px;">
-                            <RadzenText TextStyle="TextStyle.Overline" class="rz-display-flex rz-mt-4 rz-mb-0">Storage</RadzenText>
-                        </RadzenTableCell>
-                        <RadzenTableCell>
-                            <RadzenText TextStyle="TextStyle.Body1" class="rz-display-flex rz-mt-4 rz-mb-0"><b>@BatteryPercentageVisual</b></RadzenText>
-                        </RadzenTableCell>
-                    </RadzenTableRow>
+                    <RadzenTable>
+                        <RadzenTableRow>
+                            <RadzenTableCell Style="Width: 100px;">
+                                <RadzenText TextStyle="TextStyle.Overline" class="rz-display-flex rz-mt-4 rz-mb-0">Storage</RadzenText>
+                            </RadzenTableCell>
+                            <RadzenTableCell>
+                                <RadzenText TextStyle="TextStyle.Body1" class="rz-display-flex rz-mt-4 rz-mb-0"><b>@BatteryPercentageVisual</b></RadzenText>
+                            </RadzenTableCell>
+                        </RadzenTableRow>
 
-                    <RadzenTableRow>
-                        <RadzenTableCell Style="Width: 100px;">
-                            <RadzenText TextStyle="TextStyle.Overline" class="rz-display-flex rz-mt-4 rz-mb-0">Statuses</RadzenText>
-                        </RadzenTableCell>
-                        <RadzenTableCell Style="Width: 100px;">
-                            <RadzenStack Orientation="Orientation.Horizontal" Gap="2" AlignItems="AlignItems.Center">
-                                @{
-                                    if (BatteryWithStatusList != null)
-                                    {
-                                        foreach (var battery in BatteryWithStatusList!)
+                        <RadzenTableRow>
+                            <RadzenTableCell Style="Width: 100px;">
+                                <RadzenText TextStyle="TextStyle.Overline" class="rz-display-flex rz-mt-4 rz-mb-0">Statuses</RadzenText>
+                            </RadzenTableCell>
+                            <RadzenTableCell Style="Width: 100px;">
+                                <RadzenStack Orientation="Orientation.Horizontal" Gap="2" AlignItems="AlignItems.Center">
+                                    @{
+                                        if (BatteryWithStatusList != null)
                                         {
-                                            var style = $"background-color: {battery.StatusColor}; padding: 1px; cursor: pointer; width: 20px; text-align: center;";
-                                            var title = $"{battery.StatusTitle}";
+                                            foreach (var battery in BatteryWithStatusList!)
+                                            {
+                                                var style = $"background-color: {battery.StatusColor}; padding: 1px; cursor: pointer; width: 20px; text-align: center;";
+                                                var title = $"{battery.StatusTitle}";
 
-                                            <RadzenPanel style=@style title=@title>@battery.Battery.Id</RadzenPanel>
+                                                <RadzenPanel style=@style title=@title>@battery.Battery.Id</RadzenPanel>
+                                            }
                                         }
                                     }
-                                }
-                            </RadzenStack>
-                        </RadzenTableCell>
-                    </RadzenTableRow>
+                                </RadzenStack>
+                            </RadzenTableCell>
+                        </RadzenTableRow>
 
-                    <RadzenTableRow Visible="@WeAreInControl">
-                        <RadzenTableCell Style="Width: 100px;">
-                            <RadzenText TextStyle="TextStyle.Overline" class="rz-display-flex rz-mt-4 rz-mb-0">Mode</RadzenText>
-                        </RadzenTableCell>
-                        <RadzenTableCell>
-                            <RadzenText TextStyle="TextStyle.Body1" class="rz-display-flex rz-mt-4 rz-mb-0"><b>@BatteryMode</b></RadzenText>
-                        </RadzenTableCell>
-                    </RadzenTableRow>
+                        <RadzenTableRow Visible="@WeAreInControl">
+                            <RadzenTableCell Style="Width: 100px;">
+                                <RadzenText TextStyle="TextStyle.Overline" class="rz-display-flex rz-mt-4 rz-mb-0">Mode</RadzenText>
+                            </RadzenTableCell>
+                            <RadzenTableCell>
+                                <RadzenText TextStyle="TextStyle.Body1" class="rz-display-flex rz-mt-4 rz-mb-0"><b>@BatteryMode</b></RadzenText>
+                            </RadzenTableCell>
+                        </RadzenTableRow>
 
-                    <RadzenTableRow>
-                        <RadzenTableCell Style="Width: 100px;">
-                            <RadzenText TextStyle="TextStyle.Overline" class="rz-display-flex rz-mt-4 rz-mb-0">Heartbeat</RadzenText>
-                        </RadzenTableCell>
-                        <RadzenTableCell>
-                            <div style="height: 20px; width: 20px; display: flex; align-items: center; justify-content: center; margin-left: 10px;">
-                                @if (IsBeating)
-                                {
-                                    <i class="fas fa-heart heartbeat" style="color: indianred; font-size: 24px;"></i>
-                                }
-                                else
-                                {
-                                    <i class="fas fa-heart" style="color: transparent; font-size: 24px;"></i>
-                                }
-                            </div>
-                        </RadzenTableCell>
-                    </RadzenTableRow>
-                </RadzenTable>
+                        <RadzenTableRow>
+                            <RadzenTableCell Style="Width: 100px;">
+                                <RadzenText TextStyle="TextStyle.Overline" class="rz-display-flex rz-mt-4 rz-mb-0">Heartbeat</RadzenText>
+                            </RadzenTableCell>
+                            <RadzenTableCell>
+                                <div style="height: 20px; width: 20px; display: flex; align-items: center; justify-content: center; margin-left: 10px;">
+                                    @if (IsBeating)
+                                    {
+                                        <i class="fas fa-heart heartbeat" style="color: indianred; font-size: 24px;"></i>
+                                    }
+                                    else
+                                    {
+                                        <i class="fas fa-heart" style="color: transparent; font-size: 24px;"></i>
+                                    }
+                                </div>
+                            </RadzenTableCell>
+                        </RadzenTableRow>
+                    </RadzenTable>
 
-                <RadzenText Visible="@WeAreInControl" TextStyle="TextStyle.Overline" style="font-size: 0.9rem;" class="rz-display-flex rz-mt-4 rz-mb-0">Next planned action</RadzenText>
+                    <RadzenText Visible="@WeAreInControl" TextStyle="TextStyle.Overline" style="font-size: 0.9rem;" class="rz-display-flex rz-mt-4 rz-mb-0">Next planned action</RadzenText>
 
-                <RadzenTable Visible="@WeAreInControl">
-                    <RadzenTableRow>
-                        <RadzenTableCell Style="Width: 100px;">
-                            <RadzenText TextStyle="TextStyle.Overline" class="rz-display-flex rz-mt-4 rz-mb-0">Time</RadzenText>
-                        </RadzenTableCell>
-                        <RadzenTableCell>
-                            <RadzenText TextStyle="TextStyle.Body1" class="rz-display-flex rz-mt-4 rz-mb-0"><b>@NextQuarterlyInfoInSession?.Time</b></RadzenText>
-                        </RadzenTableCell>
-                    </RadzenTableRow>
-                    <RadzenTableRow>
-                        <RadzenTableCell>
-                            <RadzenText TextStyle="TextStyle.Overline" class="rz-display-flex rz-mt-4 rz-mb-0">Mode</RadzenText>
-                        </RadzenTableCell>
-                        <RadzenTableCell>
-                            <RadzenText TextStyle="TextStyle.Body1" class="rz-display-flex rz-mt-4 rz-mb-0"><b>@NextQuarterlyInfoInSession?.GetDisplayMode()</b></RadzenText>
-                        </RadzenTableCell>
-                    </RadzenTableRow>
-                </RadzenTable>
+                    <RadzenTable Visible="@WeAreInControl">
+                        <RadzenTableRow>
+                            <RadzenTableCell Style="Width: 100px;">
+                                <RadzenText TextStyle="TextStyle.Overline" class="rz-display-flex rz-mt-4 rz-mb-0">Time</RadzenText>
+                            </RadzenTableCell>
+                            <RadzenTableCell>
+                                <RadzenText TextStyle="TextStyle.Body1" class="rz-display-flex rz-mt-4 rz-mb-0"><b>@NextQuarterlyInfoInSession?.Time</b></RadzenText>
+                            </RadzenTableCell>
+                        </RadzenTableRow>
+                        <RadzenTableRow>
+                            <RadzenTableCell>
+                                <RadzenText TextStyle="TextStyle.Overline" class="rz-display-flex rz-mt-4 rz-mb-0">Mode</RadzenText>
+                            </RadzenTableCell>
+                            <RadzenTableCell>
+                                <RadzenText TextStyle="TextStyle.Body1" class="rz-display-flex rz-mt-4 rz-mb-0"><b>@NextQuarterlyInfoInSession?.GetDisplayMode()</b></RadzenText>
+                            </RadzenTableCell>
+                        </RadzenTableRow>
+                    </RadzenTable>
 
-            </RadzenStack>
-        </RadzenCard>
+                </RadzenStack>
+            </RadzenCard>
+        }
     }
-}
-else
-{
-    <div>
-        No prices yet, just a moment .....
-    </div>
 }
 
 @code {
