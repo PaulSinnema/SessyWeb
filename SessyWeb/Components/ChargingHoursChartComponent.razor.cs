@@ -1,6 +1,5 @@
 ﻿using Microsoft.AspNetCore.Components;
 using Radzen.Blazor;
-using SessyCommon.Services;
 using SessyData.Services;
 using SessyWeb.Pages;
 
@@ -34,7 +33,7 @@ namespace SessyWeb.Components
                 var max = QuarterlyInfos.Max(qi => qi.Price);
                 var min = QuarterlyInfos.Min(qi => qi.Price);
 
-                return Math.Round(Math.Max(max, Math.Abs(min)) + 0.10, 1);
+                return Math.Round(Math.Max(max, Math.Abs(min)) + 0.20, 1);
             }
         }
 
