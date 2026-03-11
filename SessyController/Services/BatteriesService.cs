@@ -12,11 +12,11 @@ using static SessyData.Model.SessyWebControl;
 namespace SessyController.Services
 {
     /// <summary>
-    /// Solver-based batteries controller with explicit support for:
-    /// - day-ahead arbitrage when netting is enabled
-    /// - self-consumption-first behavior when netting is disabled
-    /// - solar surplus capture
-    /// - runtime guards for full/empty batteries
+    /// Battery controller that combines:
+    /// - day-ahead price arbitrage
+    /// - tariff-aware behavior (netting on/off)
+    /// - minimum SOC protection for future expensive consumption
+    /// - maximum SOC protection to preserve headroom for future solar surplus
     /// </summary>
     public sealed class BatteriesService : BackgroundHeartbeatService
     {
@@ -48,9 +48,10 @@ namespace SessyController.Services
         private static List<QuarterlyInfo> _quarterlyInfos = new();
         private Dictionary<DateTime, PlanAction> _planByTime = new();
 
-        // Per-quarter policy context
+        // Per-quarter context
         private Dictionary<DateTime, bool> _nettingByTime = new();
-        private Dictionary<DateTime, double> _reserveWhByTime = new();
+        private Dictionary<DateTime, double> _minSocWhByTime = new();
+        private Dictionary<DateTime, double> _maxSocWhByTime = new();
         private Dictionary<DateTime, double> _futureSelfUseValueByTime = new();
 
         // Rebuild throttling
@@ -69,11 +70,19 @@ namespace SessyController.Services
             public double PowerW;
         }
 
-        // Runtime / planning thresholds (Wh-like)
+        // General thresholds
         private const double ReserveWh = 0.0;
         private const double EmptyHysteresisWh = 50.0;
-        private const double FullThresholdRatio = 0.995; // 99.5% is practically full
+        private const double FullThresholdRatio = 0.995;
         private const double NumericEpsWh = 0.001;
+
+        // Planning heuristics
+        private const int SelfUseLookAheadQuarters = 96;      // 24 hours
+        private const double ReserveSafetyFactor = 1.10;      // keep 10% extra energy
+        private const double SolarHeadroomSafetyFactor = 1.05;
+        private const double CheapRefillToleranceEur = 0.01;
+        private const double CheapGridChargeThresholdEur = 0.05;
+        private const double ExportPremiumEur = 0.05;
 
         public BatteriesService(
             LoggingService<BatteriesService> logger,
@@ -104,7 +113,7 @@ namespace SessyController.Services
             _performanceDataService = _scope.ServiceProvider.GetService<PerformanceDataService>();
             _taxesDataService = _scope.ServiceProvider.GetRequiredService<TaxesDataService>();
 
-            _logger.LogInformation("BatteriesService (solver-based, self-consumption aware) starting");
+            _logger.LogInformation("BatteriesService starting");
         }
 
         public override Task StopAsync(CancellationToken cancellationToken)
@@ -171,21 +180,22 @@ namespace SessyController.Services
                 await _consumptionMonitorService.EstimateConsumptionInWattsPerQuarter(_quarterlyInfos).ConfigureAwait(false);
                 await _solarService.GetExpectedSolarPower(_quarterlyInfos).ConfigureAwait(false);
 
+                // Build per-quarter tariff and SOC bounds from prices + forecasts
+                await BuildTariffContextAsync().ConfigureAwait(false);
+
                 var nowQuarter = _timeZoneService.Now.DateFloorQuarter();
 
+                // Rebuild the base arbitrage plan only when needed
                 await RebuildPlanIfNeeded(nowQuarter).ConfigureAwait(false);
 
-                await BuildTariffContextAsync().ConfigureAwait(false);
-
-                // Economic and policy post-processing
+                // Apply economic gating first
                 ApplyCycleCostToPlan();
+
+                // Apply self-consumption/export restrictions only when netting is disabled
                 ApplySelfConsumptionPolicy();
 
-                // Physical feasibility repair
+                // Final physical feasibility pass with min/max SOC envelopes
                 await EnsureEnergyForPlannedDischargeAsync().ConfigureAwait(false);
-
-                // Rebuild context once more because reserve/self-use value depends on final plan shape
-                await BuildTariffContextAsync().ConfigureAwait(false);
 
                 WritePlanIntoQuarterlyInfos();
                 await WriteBackSocSimulationAsync().ConfigureAwait(false);
@@ -199,8 +209,6 @@ namespace SessyController.Services
                         Math.Abs(plannedNow.PowerW - executable.PowerW) > 0.1)
                     {
                         ApplyRuntimeOverrideToPlan(nowQuarter, executable);
-
-                        await BuildTariffContextAsync().ConfigureAwait(false);
                         WritePlanIntoQuarterlyInfos();
                         await WriteBackSocSimulationAsync().ConfigureAwait(false);
                     }
@@ -238,20 +246,28 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Reads the tax context per quarter and derives:
-        /// - whether netting applies
-        /// - reserve floor needed for later self-consumption
-        /// - realistic future self-use value of stored energy
+        /// Build tariff-aware min/max SOC envelopes for each quarter.
+        ///
+        /// min SOC:
+        /// - when netting is disabled, keep enough energy for future expensive positive-load quarters
+        ///
+        /// max SOC:
+        /// - always keep enough free headroom for the strongest upcoming net solar charging excursion
         /// </summary>
         private async Task BuildTariffContextAsync()
         {
             _nettingByTime.Clear();
-            _reserveWhByTime.Clear();
+            _minSocWhByTime.Clear();
+            _maxSocWhByTime.Clear();
             _futureSelfUseValueByTime.Clear();
 
-            if (_quarterlyInfos.Count == 0) return;
+            if (_quarterlyInfos.Count == 0)
+                return;
 
-            var ordered = _quarterlyInfos.OrderBy(q => q.Time).ToList();
+            var ordered = _quarterlyInfos
+                .OrderBy(q => q.Time)
+                .ToList();
+
             var taxesCacheByDate = new Dictionary<DateTime, Taxes?>();
 
             foreach (var qi in ordered)
@@ -269,76 +285,106 @@ namespace SessyController.Services
 
             double capWh = _batteryContainer.GetTotalCapacity();
 
-            static double Clamp(double v, double min, double max) => v < min ? min : (v > max ? max : v);
-
-            // 1) Reserve floor:
-            // Keep only the amount that is realistically needed for later own use.
-            double requiredWh = 0.0;
-
-            for (int i = ordered.Count - 1; i >= 0; i--)
-            {
-                var qi = ordered[i];
-                bool netting = _nettingByTime[qi.Time];
-
-                if (netting)
-                {
-                    _reserveWhByTime[qi.Time] = ReserveWh;
-                    requiredWh = 0.0;
-                    continue;
-                }
-
-                double netLoadWh = qi.EstimatedConsumptionPerQuarterInWatts - qi.SolarPowerPerQuarterInWatts;
-
-                if (netLoadWh > 0.0)
-                {
-                    requiredWh += netLoadWh;
-                }
-                else
-                {
-                    requiredWh = Math.Max(ReserveWh, requiredWh + netLoadWh);
-                }
-
-                requiredWh = Clamp(requiredWh, ReserveWh, capWh);
-                _reserveWhByTime[qi.Time] = requiredWh;
-            }
-
-            // 2) Self-use value:
-            // Use an average future buying price over positive net-load quarters in a rolling horizon,
-            // instead of the maximum future buy price.
-            int horizonQuarters = 48; // 12 hours
+            static double Clamp(double value, double min, double max)
+                => value < min ? min : (value > max ? max : value);
 
             for (int i = 0; i < ordered.Count; i++)
             {
                 var qi = ordered[i];
                 bool netting = _nettingByTime[qi.Time];
 
-                if (netting)
+                var futureWindow = ordered
+                    .Skip(i + 1)
+                    .Take(SelfUseLookAheadQuarters)
+                    .Select(x => new
+                    {
+                        x.Time,
+                        Buy = x.BuyingPrice,
+                        NetLoadWh = x.EstimatedConsumptionPerQuarterInWatts - x.SolarPowerPerQuarterInWatts
+                    })
+                    .ToList();
+
+                if (futureWindow.Count == 0)
                 {
+                    _minSocWhByTime[qi.Time] = ReserveWh;
+                    _maxSocWhByTime[qi.Time] = capWh;
                     _futureSelfUseValueByTime[qi.Time] = qi.BuyingPrice;
                     continue;
                 }
 
-                var futureWindow = ordered
-                    .Skip(i)
-                    .Take(horizonQuarters)
-                    .Where(q => (q.EstimatedConsumptionPerQuarterInWatts - q.SolarPowerPerQuarterInWatts) > 0.0)
+                // Weighted average future buy price over positive-load quarters
+                var futurePositiveLoad = futureWindow
+                    .Where(x => x.NetLoadWh > 0.0)
                     .ToList();
 
-                double selfUseValue = futureWindow.Count == 0
-                    ? qi.BuyingPrice
-                    : futureWindow.Average(q => q.BuyingPrice);
+                double selfUseValue;
+                if (futurePositiveLoad.Count == 0)
+                {
+                    selfUseValue = qi.BuyingPrice;
+                }
+                else
+                {
+                    double totalLoadWh = futurePositiveLoad.Sum(x => x.NetLoadWh);
+
+                    selfUseValue = totalLoadWh > 0.0
+                        ? futurePositiveLoad.Sum(x => x.Buy * x.NetLoadWh) / totalLoadWh
+                        : qi.BuyingPrice;
+                }
 
                 _futureSelfUseValueByTime[qi.Time] = selfUseValue;
+
+                // Minimum SOC:
+                // only meaningful when netting is disabled
+                double minSocWh = ReserveWh;
+
+                if (!netting)
+                {
+                    minSocWh = futureWindow
+                        .Where(x => x.NetLoadWh > 0.0)
+                        .Where(x => x.Buy > qi.BuyingPrice + CheapRefillToleranceEur)
+                        .Sum(x => x.NetLoadWh);
+
+                    minSocWh *= ReserveSafetyFactor;
+                    minSocWh = Clamp(minSocWh, ReserveWh, capWh);
+                }
+
+                _minSocWhByTime[qi.Time] = minSocWh;
+
+                // Maximum SOC:
+                // reserve empty space for the strongest upcoming contiguous net charging excursion from solar
+                double cumulativeFillWh = 0.0;
+                double maxCumulativeFillWh = 0.0;
+
+                foreach (var future in futureWindow)
+                {
+                    // Natural battery delta under ZeroNetHome:
+                    // negative net load means the battery tends to fill
+                    double naturalFillWh = Math.Max(0.0, -future.NetLoadWh);
+
+                    // Positive net load breaks the fill streak
+                    if (future.NetLoadWh > 0.0)
+                    {
+                        cumulativeFillWh = Math.Max(0.0, cumulativeFillWh - future.NetLoadWh);
+                    }
+                    else
+                    {
+                        cumulativeFillWh += naturalFillWh;
+                    }
+
+                    if (cumulativeFillWh > maxCumulativeFillWh)
+                        maxCumulativeFillWh = cumulativeFillWh;
+                }
+
+                double solarHeadroomWh = Clamp(maxCumulativeFillWh * SolarHeadroomSafetyFactor, 0.0, capWh);
+                double maxSocWh = Clamp(capWh - solarHeadroomWh, ReserveWh, capWh);
+
+                if (maxSocWh < minSocWh)
+                    maxSocWh = minSocWh;
+
+                _maxSocWhByTime[qi.Time] = maxSocWh;
             }
         }
 
-        /// <summary>
-        /// Rebuild plan only when needed:
-        /// - first time
-        /// - new quarter
-        /// - price/signature changed
-        /// Keeps previous plan when MILP does not return a usable plan.
-        /// </summary>
         private async Task<bool> RebuildPlanIfNeeded(DateTime nowQuarter)
         {
             int currentSignature = CalculatePriceSignature(_quarterlyInfos);
@@ -472,7 +518,13 @@ namespace SessyController.Services
                 foreach (var qi in _quarterlyInfos)
                 {
                     if (!newPlan.ContainsKey(qi.Time))
-                        newPlan[qi.Time] = new PlanAction { Mode = ChargingModes.Modes.ZeroNetHome, PowerW = 0 };
+                    {
+                        newPlan[qi.Time] = new PlanAction
+                        {
+                            Mode = ChargingModes.Modes.ZeroNetHome,
+                            PowerW = 0
+                        };
+                    }
                 }
 
                 _planByTime = newPlan;
@@ -487,14 +539,16 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Removes obviously unprofitable discharge quarters.
+        /// Remove obviously unprofitable discharge quarters.
         /// </summary>
         private void ApplyCycleCostToPlan()
         {
-            if (_quarterlyInfos.Count == 0 || _planByTime.Count == 0) return;
+            if (_quarterlyInfos.Count == 0 || _planByTime.Count == 0)
+                return;
 
             double minSpread = _settingsConfig.CycleCost;
-            if (minSpread <= 0.0) return;
+            if (minSpread <= 0.0)
+                return;
 
             double? minBuyOfPlannedChargeSoFar = null;
 
@@ -527,40 +581,51 @@ namespace SessyController.Services
 
         /// <summary>
         /// When netting is disabled:
-        /// - capture solar surplus
-        /// - only discharge if selling is clearly better than keeping energy for future self-use
+        /// - do not force active grid charging except at truly cheap prices
+        /// - solar surplus should be absorbed through ZeroNetHome, not active Charging
+        /// - export-style discharge only when clearly superior to keeping energy
         /// </summary>
         private void ApplySelfConsumptionPolicy()
         {
-            if (_quarterlyInfos.Count == 0 || _planByTime.Count == 0) return;
-
-            double maxChargeW = _batteryContainer.GetChargingCapacityInWattsPerHour();
+            if (_quarterlyInfos.Count == 0 || _planByTime.Count == 0)
+                return;
 
             foreach (var qi in _quarterlyInfos.OrderBy(q => q.Time))
             {
-                if (!_nettingByTime.TryGetValue(qi.Time, out var netting) || netting)
+                bool netting = _nettingByTime.TryGetValue(qi.Time, out var n) ? n : true;
+                if (netting)
                     continue;
 
                 var act = _planByTime[qi.Time];
                 double netLoadWh = qi.EstimatedConsumptionPerQuarterInWatts - qi.SolarPowerPerQuarterInWatts;
+                double selfUseValue = _futureSelfUseValueByTime.TryGetValue(qi.Time, out var suv)
+                    ? suv
+                    : qi.BuyingPrice;
 
-                // Capture solar surplus first
+                // Solar surplus should not trigger active grid charging
                 if (netLoadWh < -1.0)
                 {
-                    act.Mode = ChargingModes.Modes.Charging;
-                    act.PowerW = maxChargeW;
+                    act.Mode = ChargingModes.Modes.ZeroNetHome;
+                    act.PowerW = 0;
+                    continue;
+                }
+
+                if (act.Mode == ChargingModes.Modes.Charging)
+                {
+                    if (qi.BuyingPrice > CheapGridChargeThresholdEur)
+                    {
+                        act.Mode = ChargingModes.Modes.ZeroNetHome;
+                        act.PowerW = 0;
+                    }
+
                     continue;
                 }
 
                 if (act.Mode == ChargingModes.Modes.Discharging)
                 {
-                    double selfUseValue = _futureSelfUseValueByTime.TryGetValue(qi.Time, out var v)
-                        ? v
-                        : qi.BuyingPrice;
+                    double exportThreshold = selfUseValue + _settingsConfig.CycleCost + ExportPremiumEur;
 
-                    double dischargeThreshold = selfUseValue + _settingsConfig.CycleCost;
-
-                    if (qi.SellingPrice < dischargeThreshold)
+                    if (qi.SellingPrice < exportThreshold)
                     {
                         act.Mode = ChargingModes.Modes.ZeroNetHome;
                         act.PowerW = 0;
@@ -570,14 +635,14 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Ensure the final plan is physically feasible:
-        /// - no charging when practically full
-        /// - no discharging below reserve floor
-        /// - if a discharge is infeasible, first try to add an earlier suitable charging slot
+        /// Simulate the plan forward and remove actions that violate:
+        /// - minimum SOC
+        /// - maximum SOC (solar headroom)
         /// </summary>
         private async Task EnsureEnergyForPlannedDischargeAsync()
         {
-            if (_quarterlyInfos.Count == 0 || _planByTime.Count == 0) return;
+            if (_quarterlyInfos.Count == 0 || _planByTime.Count == 0)
+                return;
 
             var now = _timeZoneService.Now.DateFloorQuarter();
 
@@ -588,44 +653,58 @@ namespace SessyController.Services
             double dischargeStepWh = _batteryContainer.GetDischargingCapacityInWattsPerHour() / 4.0;
             double fullThresholdWh = capWh * FullThresholdRatio;
 
-            static double Clamp(double v, double min, double max) => v < min ? min : (v > max ? max : v);
+            static double Clamp(double value, double min, double max)
+                => value < min ? min : (value > max ? max : value);
 
             var future = _quarterlyInfos
                 .OrderBy(q => q.Time)
                 .Where(q => q.Time >= now)
                 .ToList();
 
-            if (future.Count == 0) return;
+            if (future.Count == 0)
+                return;
 
             foreach (var qi in future)
             {
                 if (!_planByTime.ContainsKey(qi.Time))
-                    _planByTime[qi.Time] = new PlanAction { Mode = ChargingModes.Modes.ZeroNetHome, PowerW = 0 };
+                {
+                    _planByTime[qi.Time] = new PlanAction
+                    {
+                        Mode = ChargingModes.Modes.ZeroNetHome,
+                        PowerW = 0
+                    };
+                }
             }
 
             const int maxIterations = 400;
 
             for (int iter = 0; iter < maxIterations; iter++)
             {
-                var socBefore = new Dictionary<DateTime, double>(future.Count);
+                bool changed = false;
                 double soc = Clamp(startSocWh, 0.0, capWh);
-
-                DateTime? violationAt = null;
 
                 foreach (var qi in future)
                 {
-                    socBefore[qi.Time] = soc;
-
                     var act = _planByTime[qi.Time];
                     double netLoadWh = qi.EstimatedConsumptionPerQuarterInWatts - qi.SolarPowerPerQuarterInWatts;
-                    double reserveFloorWh = _reserveWhByTime.TryGetValue(qi.Time, out var floor) ? floor : ReserveWh;
+
+                    double minSocWh = _minSocWhByTime.TryGetValue(qi.Time, out var minSoc)
+                        ? minSoc
+                        : ReserveWh;
+
+                    double maxSocWh = _maxSocWhByTime.TryGetValue(qi.Time, out var maxSoc)
+                        ? maxSoc
+                        : capWh;
+
+                    maxSocWh = Math.Min(maxSocWh, fullThresholdWh);
 
                     if (act.Mode == ChargingModes.Modes.Charging)
                     {
-                        if (soc >= fullThresholdWh || soc + chargeStepWh >= fullThresholdWh)
+                        if (soc + chargeStepWh > maxSocWh + NumericEpsWh)
                         {
                             act.Mode = ChargingModes.Modes.ZeroNetHome;
                             act.PowerW = 0;
+                            changed = true;
                         }
                         else
                         {
@@ -634,48 +713,27 @@ namespace SessyController.Services
                     }
                     else if (act.Mode == ChargingModes.Modes.Discharging)
                     {
-                        if (soc - dischargeStepWh < reserveFloorWh + EmptyHysteresisWh + NumericEpsWh)
+                        if (soc - dischargeStepWh < minSocWh + EmptyHysteresisWh + NumericEpsWh)
                         {
-                            violationAt = qi.Time;
-                            break;
+                            act.Mode = ChargingModes.Modes.ZeroNetHome;
+                            act.PowerW = 0;
+                            changed = true;
                         }
-
-                        soc = Math.Max(0.0, soc - dischargeStepWh);
+                        else
+                        {
+                            soc = Math.Max(0.0, soc - dischargeStepWh);
+                        }
                     }
 
                     soc = Clamp(soc - netLoadWh, 0.0, capWh);
+
+                    // Natural surplus can still fill the battery, but never above capacity
+                    if (soc > capWh)
+                        soc = capWh;
                 }
 
-                if (violationAt == null)
+                if (!changed)
                     return;
-
-                var candidates = future
-                    .Where(q => q.Time < violationAt.Value)
-                    .Select(q => new
-                    {
-                        Qi = q,
-                        Act = _planByTime[q.Time],
-                        SocBefore = socBefore.TryGetValue(q.Time, out var s) ? s : startSocWh,
-                        NetLoadWh = q.EstimatedConsumptionPerQuarterInWatts - q.SolarPowerPerQuarterInWatts
-                    })
-                    .Where(x => x.Act.Mode != ChargingModes.Modes.Discharging)
-                    .Where(x => x.Act.Mode != ChargingModes.Modes.Charging)
-                    .Where(x => x.SocBefore + chargeStepWh < fullThresholdWh)
-                    .OrderBy(x => x.NetLoadWh < 0 ? 0 : 1)
-                    .ThenBy(x => x.Qi.BuyingPrice)
-                    .ToList();
-
-                if (candidates.Count > 0)
-                {
-                    var chosen = candidates[0];
-                    chosen.Act.Mode = ChargingModes.Modes.Charging;
-                    chosen.Act.PowerW = _batteryContainer.GetChargingCapacityInWattsPerHour();
-                    continue;
-                }
-
-                var vAct = _planByTime[violationAt.Value];
-                vAct.Mode = ChargingModes.Modes.ZeroNetHome;
-                vAct.PowerW = 0;
             }
 
             _logger.LogWarning("EnsureEnergyForPlannedDischargeAsync: maxIterations reached; plan may still contain infeasible segments.");
@@ -704,16 +762,18 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Simulate SOC from NOW forward and restore old ChargeNeeded semantics:
-        /// - ChargeLeft = realized SOC after action + household effect
-        /// - ChargeNeeded = target/floor:
-        ///   * Charging => upper target
-        ///   * Discharging => lower target/floor
-        ///   * ZeroNetHome => reserve floor
+        /// Simulate SOC from NOW forward.
+        ///
+        /// ChargeLeft = realized SOC after action + household effect
+        /// ChargeNeeded = current quarter target:
+        /// - Charging => upper target (max SOC)
+        /// - Discharging => lower target (min SOC)
+        /// - ZeroNetHome => lower target (min SOC)
         /// </summary>
         private async Task WriteBackSocSimulationAsync()
         {
-            if (_quarterlyInfos.Count == 0) return;
+            if (_quarterlyInfos.Count == 0)
+                return;
 
             var nowQuarter = _timeZoneService.Now.DateFloorQuarter();
 
@@ -724,57 +784,66 @@ namespace SessyController.Services
             double dischargeStepWh = _batteryContainer.GetDischargingCapacityInWattsPerHour() / 4.0;
             double fullThresholdWh = capWh * FullThresholdRatio;
 
-            static double Clamp(double v, double min, double max) => v < min ? min : (v > max ? max : v);
-
-            foreach (var past in _quarterlyInfos.Where(q => q.Time < nowQuarter))
-            {
-                // Keep past values unchanged
-            }
+            static double Clamp(double value, double min, double max)
+                => value < min ? min : (value > max ? max : value);
 
             foreach (var qi in _quarterlyInfos.OrderBy(q => q.Time).Where(q => q.Time >= nowQuarter))
             {
                 if (!_planByTime.TryGetValue(qi.Time, out var act))
                 {
-                    act = new PlanAction { Mode = ChargingModes.Modes.ZeroNetHome, PowerW = 0 };
+                    act = new PlanAction
+                    {
+                        Mode = ChargingModes.Modes.ZeroNetHome,
+                        PowerW = 0
+                    };
+
                     _planByTime[qi.Time] = act;
                 }
 
-                double netLoadWh = qi.EstimatedConsumptionPerQuarterInWatts - qi.SolarPowerPerQuarterInWatts;
-                double reserveFloorWh = _reserveWhByTime.TryGetValue(qi.Time, out var floor) ? floor : ReserveWh;
+                double minSocWh = _minSocWhByTime.TryGetValue(qi.Time, out var minSoc)
+                    ? minSoc
+                    : ReserveWh;
 
+                double maxSocWh = _maxSocWhByTime.TryGetValue(qi.Time, out var maxSoc)
+                    ? maxSoc
+                    : capWh;
+
+                maxSocWh = Math.Min(maxSocWh, fullThresholdWh);
+
+                double netLoadWh = qi.EstimatedConsumptionPerQuarterInWatts - qi.SolarPowerPerQuarterInWatts;
                 double targetSocWh;
 
                 if (act.Mode == ChargingModes.Modes.Charging)
                 {
-                    if (soc >= fullThresholdWh || soc + chargeStepWh >= fullThresholdWh)
+                    if (soc + chargeStepWh > maxSocWh + NumericEpsWh)
                     {
                         act.Mode = ChargingModes.Modes.ZeroNetHome;
                         act.PowerW = 0;
-                        targetSocWh = reserveFloorWh;
+                        targetSocWh = minSocWh;
                     }
                     else
                     {
-                        targetSocWh = Math.Min(capWh, Math.Max(soc, reserveFloorWh) + chargeStepWh);
                         soc = Math.Min(capWh, soc + chargeStepWh);
+                        targetSocWh = maxSocWh;
                     }
                 }
                 else if (act.Mode == ChargingModes.Modes.Discharging)
                 {
-                    if (soc - dischargeStepWh < reserveFloorWh + EmptyHysteresisWh + NumericEpsWh)
+                    if (soc - dischargeStepWh < minSocWh + EmptyHysteresisWh + NumericEpsWh)
                     {
                         act.Mode = ChargingModes.Modes.ZeroNetHome;
                         act.PowerW = 0;
-                        targetSocWh = reserveFloorWh;
+                        targetSocWh = minSocWh;
                     }
                     else
                     {
-                        targetSocWh = reserveFloorWh;
                         soc = Math.Max(0.0, soc - dischargeStepWh);
+                        targetSocWh = minSocWh;
                     }
                 }
                 else
                 {
-                    targetSocWh = reserveFloorWh;
+                    targetSocWh = minSocWh;
                 }
 
                 soc = Clamp(soc - netLoadWh, 0.0, capWh);
@@ -794,17 +863,18 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Runtime-safe action for NOW:
-        /// - no charge when practically full
-        /// - no discharge below reserve floor
-        /// - when netting is disabled and there is solar surplus, force charging
-        /// - when netting is disabled, do not discharge if self-use value is better
+        /// Runtime-safe action for NOW.
+        /// This enforces the same min/max SOC envelopes as the planner.
         /// </summary>
         private async Task<PlanAction> GetExecutableActionForNowAsync(DateTime nowQuarter)
         {
             if (!_planByTime.TryGetValue(nowQuarter, out var planned))
             {
-                return new PlanAction { Mode = ChargingModes.Modes.ZeroNetHome, PowerW = 0 };
+                return new PlanAction
+                {
+                    Mode = ChargingModes.Modes.ZeroNetHome,
+                    PowerW = 0
+                };
             }
 
             double capWh = _batteryContainer.GetTotalCapacity();
@@ -815,29 +885,58 @@ namespace SessyController.Services
             double fullThresholdWh = capWh * FullThresholdRatio;
 
             bool netting = _nettingByTime.TryGetValue(nowQuarter, out var n) ? n : true;
-            double reserveFloorWh = _reserveWhByTime.TryGetValue(nowQuarter, out var floor) ? floor : ReserveWh;
-            double futureSelfUseValue = _futureSelfUseValueByTime.TryGetValue(nowQuarter, out var f) ? f : 0.0;
+
+            double minSocWh = _minSocWhByTime.TryGetValue(nowQuarter, out var minSoc)
+                ? minSoc
+                : ReserveWh;
+
+            double maxSocWh = _maxSocWhByTime.TryGetValue(nowQuarter, out var maxSoc)
+                ? maxSoc
+                : capWh;
+
+            maxSocWh = Math.Min(maxSocWh, fullThresholdWh);
+
+            double selfUseValue = _futureSelfUseValueByTime.TryGetValue(nowQuarter, out var suv)
+                ? suv
+                : 0.0;
 
             var qi = _quarterlyInfos.FirstOrDefault(q => q.Time == nowQuarter);
 
-            if (!netting && qi != null)
+            // Solar surplus should be handled by ZeroNetHome,
+            // not by active grid charging.
+            if (qi != null)
             {
                 double netLoadWh = qi.EstimatedConsumptionPerQuarterInWatts - qi.SolarPowerPerQuarterInWatts;
-                if (netLoadWh < -1.0 && socWh + chargeStepWh < fullThresholdWh)
+
+                if (netLoadWh < -1.0)
                 {
                     return new PlanAction
                     {
-                        Mode = ChargingModes.Modes.Charging,
-                        PowerW = _batteryContainer.GetChargingCapacityInWattsPerHour()
+                        Mode = ChargingModes.Modes.ZeroNetHome,
+                        PowerW = 0
                     };
                 }
             }
 
             if (planned.Mode == ChargingModes.Modes.Charging)
             {
-                if (socWh >= fullThresholdWh || socWh + chargeStepWh >= fullThresholdWh)
+                if (socWh + chargeStepWh > maxSocWh + NumericEpsWh)
                 {
-                    return new PlanAction { Mode = ChargingModes.Modes.ZeroNetHome, PowerW = 0 };
+                    return new PlanAction
+                    {
+                        Mode = ChargingModes.Modes.ZeroNetHome,
+                        PowerW = 0
+                    };
+                }
+
+                // Only restrict active charging by price when netting is disabled.
+                if (!netting && qi != null && qi.BuyingPrice > CheapGridChargeThresholdEur)
+                {
+                    return new PlanAction
+                    {
+                        Mode = ChargingModes.Modes.ZeroNetHome,
+                        PowerW = 0
+                    };
                 }
 
                 return planned;
@@ -845,20 +944,33 @@ namespace SessyController.Services
 
             if (planned.Mode == ChargingModes.Modes.Discharging)
             {
-                double requiredWh = planned.PowerW > 10 ? planned.PowerW * 0.25 : dischargeStepWh;
+                double requiredWh = planned.PowerW > 10
+                    ? planned.PowerW * 0.25
+                    : dischargeStepWh;
 
-                if (socWh - requiredWh < reserveFloorWh + EmptyHysteresisWh + NumericEpsWh)
+                double socAfterDischarge = socWh - requiredWh;
+
+                if (socAfterDischarge < minSocWh + EmptyHysteresisWh + NumericEpsWh)
                 {
-                    return new PlanAction { Mode = ChargingModes.Modes.ZeroNetHome, PowerW = 0 };
+                    return new PlanAction
+                    {
+                        Mode = ChargingModes.Modes.ZeroNetHome,
+                        PowerW = 0
+                    };
                 }
 
+                // Only restrict export-style discharge when netting is disabled.
                 if (!netting && qi != null)
                 {
-                    double dischargeThreshold = futureSelfUseValue + _settingsConfig.CycleCost;
+                    double exportThreshold = selfUseValue + _settingsConfig.CycleCost + ExportPremiumEur;
 
-                    if (qi.SellingPrice < dischargeThreshold)
+                    if (qi.SellingPrice < exportThreshold)
                     {
-                        return new PlanAction { Mode = ChargingModes.Modes.ZeroNetHome, PowerW = 0 };
+                        return new PlanAction
+                        {
+                            Mode = ChargingModes.Modes.ZeroNetHome,
+                            PowerW = 0
+                        };
                     }
                 }
 
@@ -995,11 +1107,12 @@ namespace SessyController.Services
 
         private async Task StorePerformance()
         {
-            if (_performanceDataService == null) return;
+            if (_performanceDataService == null)
+                return;
 
             var currentQuarterlyInfo = GetNextQuarterlyInfoInPlan();
-
-            if (currentQuarterlyInfo == null) return;
+            if (currentQuarterlyInfo == null)
+                return;
 
             bool exists = await _performanceDataService.Exists(async set =>
             {
@@ -1007,7 +1120,8 @@ namespace SessyController.Services
                 return await Task.FromResult(result).ConfigureAwait(false);
             }).ConfigureAwait(false);
 
-            if (exists) return;
+            if (exists)
+                return;
 
             var totalCapacity = _batteryContainer.GetTotalCapacity();
 
@@ -1066,6 +1180,7 @@ namespace SessyController.Services
         public QuarterlyInfo? GetNextQuarterlyInfoInPlan()
         {
             var now = _timeZoneService.Now.DateFloorQuarter();
+
             return _quarterlyInfos
                 .OrderBy(q => q.Time)
                 .FirstOrDefault(q => q.Time >= now && _planByTime.ContainsKey(q.Time));
@@ -1088,7 +1203,8 @@ namespace SessyController.Services
             _quarterlyInfos.Clear();
             _planByTime.Clear();
             _nettingByTime.Clear();
-            _reserveWhByTime.Clear();
+            _minSocWhByTime.Clear();
+            _maxSocWhByTime.Clear();
             _futureSelfUseValueByTime.Clear();
 
             _scope.Dispose();
