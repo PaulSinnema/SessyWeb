@@ -72,7 +72,7 @@ namespace SessyController.Services
 
         // General thresholds
         private const double ReserveWh = 0.0;
-        private const double EmptyHysteresisWh = 50.0;
+        private const double EmptyHysteresisWh = 300.0;
         private const double FullThresholdRatio = 0.995;
         private const double NumericEpsWh = 0.001;
 
@@ -339,14 +339,27 @@ namespace SessyController.Services
 
                 if (!netting)
                 {
-                    minSocWh = futureWindow
+                    // Find the cheapest future buying price in the look-ahead window
+                    double cheapestFutureBuy = futureWindow.Min(x => x.Buy);
+
+                    // Find the first quarter that is effectively a cheap refill moment
+                    int refillIndex = futureWindow.FindIndex(x =>
+                        x.Buy <= cheapestFutureBuy + CheapRefillToleranceEur);
+
+                    var untilRefill = refillIndex >= 0
+                        ? futureWindow.Take(refillIndex)
+                        : futureWindow;
+
+                    // Keep enough energy for all positive net load until the next cheap refill moment
+                    minSocWh = untilRefill
                         .Where(x => x.NetLoadWh > 0.0)
-                        .Where(x => x.Buy > qi.BuyingPrice + CheapRefillToleranceEur)
                         .Sum(x => x.NetLoadWh);
 
                     minSocWh *= ReserveSafetyFactor;
                     minSocWh = Clamp(minSocWh, ReserveWh, capWh);
                 }
+
+                _minSocWhByTime[qi.Time] = minSocWh;
 
                 _minSocWhByTime[qi.Time] = minSocWh;
 
