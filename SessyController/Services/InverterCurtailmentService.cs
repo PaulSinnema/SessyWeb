@@ -1,5 +1,4 @@
-﻿using Microsoft.Extensions.Options;
-using SessyCommon.Configurations;
+﻿using SessyCommon.Services;
 using SessyController.Managers;
 using SessyController.Services.Items;
 
@@ -80,16 +79,16 @@ namespace SessyController.Services
         // Signal from BatteriesService: should curtailment be active?
         private volatile bool _curtailmentRequested = false;
 
-        public InverterCurtailmentService(LoggingService<InverterCurtailmentService> logger,
-                                          IOptionsMonitor<SessyP1Config> sessyP1ConfigMonitor,
-                                          P1MeterService p1MeterService,
-                                          SolarInverterManager solarInverterManager,
-                                          BatteryContainer batteryContainer)
+        public InverterCurtailmentService(
+            LoggingService<InverterCurtailmentService> logger,
+            SolarInverterManager solarInverterManager,
+            BatteryContainer batteryContainer,
+            P1MeterContainer p1MeterContainer)
         {
             _logger = logger;
             _solarInverterManager = solarInverterManager;
             _batteryContainer = batteryContainer;
-            _p1MeterContainer = new P1MeterContainer(sessyP1ConfigMonitor, p1MeterService);
+            _p1MeterContainer = p1MeterContainer;
         }
 
         // ----------------------------------------------------------------
@@ -152,9 +151,28 @@ namespace SessyController.Services
                 return;
             }
 
-            // Read realtime net saldo from P1 meter.
-            // Positive = consuming from grid, negative = exporting to grid.
-            double netSaldoW = await _p1MeterContainer.GetTotalPowerInWatts().ConfigureAwait(false);
+            // IMPROVEMENT 3: P1-meter aanroep met timeout zodat een trage of
+            // niet-reagerende meter de curtailment-loop niet blokkeert.
+            double netSaldoW;
+
+            try
+            {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+                netSaldoW = await _p1MeterContainer.GetTotalPowerInWatts().WaitAsync(cts.Token)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogWarning("InverterCurtailmentService: P1 meter timeout — skipping cycle.");
+                return;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"InverterCurtailmentService: P1 meter error — skipping cycle. {ex.Message}");
+                return;
+            }
+
+            // netSaldoW: positief = afname van net, negatief = teruglevering aan net.
 
             // Determine current inverter max capacity.
             double maxCapacityW = _solarInverterManager.TotalCapacity;

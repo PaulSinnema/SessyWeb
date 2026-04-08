@@ -106,9 +106,9 @@ namespace SessyController.Services.Optimization
             // Variables
             // ----------------------------------------------------------------
 
-            var chargeKw = new Variable[n];
+            var chargeKw    = new Variable[n];
             var dischargeKw = new Variable[n];
-            var isCharge = new Variable[n];
+            var isCharge    = new Variable[n];
             var isDischarge = new Variable[n];
 
             // soc[t] = SOC at START of quarter t; soc[n] = SOC after last quarter.
@@ -147,14 +147,14 @@ namespace SessyController.Services.Optimization
 
                 soc[t + 1] = solver.MakeNumVar(minSoc, maxSoc, $"soc_{t + 1}");
 
-                chargeKw[t] = solver.MakeNumVar(0.0, spec.MaxChargeKW, $"charge_{t}");
+                chargeKw[t]    = solver.MakeNumVar(0.0, spec.MaxChargeKW,    $"charge_{t}");
                 dischargeKw[t] = solver.MakeNumVar(0.0, spec.MaxDischargeKW, $"discharge_{t}");
 
-                isCharge[t] = solver.MakeIntVar(0.0, 1.0, $"isCharge_{t}");
+                isCharge[t]    = solver.MakeIntVar(0.0, 1.0, $"isCharge_{t}");
                 isDischarge[t] = solver.MakeIntVar(0.0, 1.0, $"isDischarge_{t}");
 
                 // Enforce charge/discharge limits via binary activity flags
-                solver.Add(chargeKw[t] <= spec.MaxChargeKW * isCharge[t]);
+                solver.Add(chargeKw[t]    <= spec.MaxChargeKW    * isCharge[t]);
                 solver.Add(dischargeKw[t] <= spec.MaxDischargeKW * isDischarge[t]);
 
                 // No simultaneous charge + discharge
@@ -186,7 +186,7 @@ namespace SessyController.Services.Optimization
                 solver.Add(
                     soc[t + 1] ==
                     soc[t]
-                    + (chargeKw[t] * dtHours * spec.ChargeEfficiency)
+                    + (chargeKw[t]    * dtHours * spec.ChargeEfficiency)
                     - (dischargeKw[t] * dtHours / spec.DischargeEfficiency)
                     - netLoadKWh
                 );
@@ -200,19 +200,19 @@ namespace SessyController.Services.Optimization
 
             for (int t = 0; t < n; t++)
             {
-                double buy = pricePoints[t].BuyEurPerKWh;
+                double buy  = pricePoints[t].BuyEurPerKWh;
                 double sell = pricePoints[t].SellEurPerKWh;
 
                 // Charging costs money (negative contribution)
-                objective.SetCoefficient(chargeKw[t], -buy * dtHours);
+                objective.SetCoefficient(chargeKw[t],    -buy  * dtHours);
                 // Discharging earns money (positive contribution)
-                objective.SetCoefficient(dischargeKw[t], sell * dtHours);
+                objective.SetCoefficient(dischargeKw[t],  sell * dtHours);
 
                 // Small penalty per active quarter to prefer fewer, larger actions
                 // over many tiny ones (improves battery longevity).
                 if (opt.ActiveQuarterPenaltyEur != 0.0)
                 {
-                    objective.SetCoefficient(isCharge[t], -opt.ActiveQuarterPenaltyEur);
+                    objective.SetCoefficient(isCharge[t],    -opt.ActiveQuarterPenaltyEur);
                     objective.SetCoefficient(isDischarge[t], -opt.ActiveQuarterPenaltyEur);
                 }
             }
@@ -242,10 +242,10 @@ namespace SessyController.Services.Optimization
 
             for (int t = 0; t < n; t++)
             {
-                double cKw = chargeKw[t].SolutionValue();
-                double dKw = dischargeKw[t].SolutionValue();
+                double cKw     = chargeKw[t].SolutionValue();
+                double dKw     = dischargeKw[t].SolutionValue();
                 double socStart = soc[t].SolutionValue();
-                double socEnd = soc[t + 1].SolutionValue();
+                double socEnd   = soc[t + 1].SolutionValue();
 
                 ActionMode mode = ActionMode.Idle;
 
@@ -255,27 +255,27 @@ namespace SessyController.Services.Optimization
                     mode = ActionMode.Discharge;
 
                 plan.Add(new PlanStep(
-                    Start: pricePoints[t].Start,
-                    Mode: mode,
-                    ChargeKW: cKw,
+                    Start:       pricePoints[t].Start,
+                    Mode:        mode,
+                    ChargeKW:    cKw,
                     DischargeKW: dKw,
                     SocStartKWh: socStart,
-                    SocEndKWh: socEnd
+                    SocEndKWh:   socEnd
                 ));
             }
 
             return new PlanResult(
-                Optimal: status == Solver.ResultStatus.OPTIMAL,
+                Optimal:      status == Solver.ResultStatus.OPTIMAL,
                 ObjectiveEur: objectiveValue,
-                Plan: plan
+                Plan:         plan
             );
         }
 
         private static PlanResult EmptyResult() =>
             new PlanResult(
-                Optimal: false,
+                Optimal:      false,
                 ObjectiveEur: 0.0,
-                Plan: new List<PlanStep>()
+                Plan:         new List<PlanStep>()
             );
 
         private static double Clamp(double v, double min, double max)

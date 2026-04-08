@@ -33,10 +33,6 @@ namespace SessyController.Services
 
         private LoggingService<ConsumptionMonitorService> _logger { get; set; }
         private TimeZoneService _timeZoneService { get; set; }
-        private IOptionsMonitor<SessyP1Config> _sessyP1ConfigMonitor { get; set; }
-
-        private SessyP1Config _sessyP1Config { get; set; }
-
         private IOptionsMonitor<SettingsConfig> _settingConfigMonitor { get; set; }
 
         private SettingsConfig _settingConfig { get; set; }
@@ -50,30 +46,14 @@ namespace SessyController.Services
         public ConsumptionMonitorService(LoggingService<ConsumptionMonitorService> logger,
                                          WeatherService weatherService,
                                          TimeZoneService timeZoneService,
-                                         IOptionsMonitor<SessyP1Config> sessyP1ConfigMonitor,
+                                         P1MeterContainer p1MeterContainer,
                                          IOptionsMonitor<SettingsConfig> settingConfigMonitor,
                                          IServiceScopeFactory serviceScopeFactory)
         {
             _logger = logger;
             _weatherService = weatherService;
             _timeZoneService = timeZoneService;
-            _sessyP1ConfigMonitor = sessyP1ConfigMonitor;
-            _sessyP1Config = sessyP1ConfigMonitor.CurrentValue;
             _settingConfigMonitor = settingConfigMonitor;
-
-            _sessyP1ConfigMonitor.OnChange(config =>
-            {
-                _p1Semaphore.Wait();
-
-                try
-                {
-                    _sessyP1Config = config;
-                }
-                finally
-                {
-                    _p1Semaphore.Release();
-                }
-            });
 
             _settingConfig = settingConfigMonitor.CurrentValue;
 
@@ -96,7 +76,7 @@ namespace SessyController.Services
             _scope = _serviceScopeFactory.CreateScope();
 
             _p1MeterService = _scope.ServiceProvider.GetRequiredService<P1MeterService>();
-            _p1MeterContainer = new P1MeterContainer(_sessyP1ConfigMonitor, _p1MeterService);
+            _p1MeterContainer = p1MeterContainer;
             _consumptionDataService = _scope.ServiceProvider.GetRequiredService<ConsumptionDataService>();
             _solarInverterManager = _scope.ServiceProvider.GetRequiredService<SolarInverterManager>();
             _batteryContainer = _scope.ServiceProvider.GetRequiredService<BatteryContainer>();

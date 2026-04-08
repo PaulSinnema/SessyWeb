@@ -49,7 +49,9 @@ namespace SessyController.Services
         // Curtailment: throttles the solar inverter when price is negative and battery is full.
         private InverterCurtailmentService _inverterCurtailmentService;
 
-        private static List<QuarterlyInfo> _quarterlyInfos = new();
+        // IMPROVEMENT 5: Was incorrectly 'static' — multiple instances would share
+        // the same list. Made private instance field.
+        private List<QuarterlyInfo> _quarterlyInfos = new();
         private Dictionary<DateTime, PlanAction> _planByTime = new();
 
         // Per-quarter context
@@ -189,6 +191,11 @@ namespace SessyController.Services
                 await _consumptionMonitorService.EstimateConsumptionInWattsPerQuarter(_quarterlyInfos).ConfigureAwait(false);
                 await _solarService.GetExpectedSolarPower(_quarterlyInfos).ConfigureAwait(false);
 
+                // IMPROVEMENT 4: SOC wordt één keer per cyclus opgehaald en doorgegeven
+                // aan alle methoden. Voorheen werd GetStateOfChargeInWatts() 4× per cyclus
+                // aangeroepen (telkens een netwerkaanroep naar de Sessy).
+                double currentSocWh = await _batteryContainer.GetStateOfChargeInWatts().ConfigureAwait(false);
+
                 // Build per-quarter tariff and SOC bounds from prices + forecasts.
                 await BuildTariffContextAsync().ConfigureAwait(false);
 
@@ -196,7 +203,7 @@ namespace SessyController.Services
 
                 // FIX 1: SOC bounds are now passed into the MILP solver directly,
                 // so the solver already respects min/max SOC per quarter.
-                await RebuildPlanIfNeeded(nowQuarter).ConfigureAwait(false);
+                await RebuildPlanIfNeeded(nowQuarter, currentSocWh).ConfigureAwait(false);
 
                 // FIX 2: ApplyCycleCostToPlan() has been removed. The MILP already
                 // optimises for cycle cost via its objective function. The old
@@ -208,10 +215,10 @@ namespace SessyController.Services
 
                 // Final physical feasibility pass with min/max SOC envelopes.
                 // FIX 3: SOC simulation is now mode-aware (see EnsureEnergyForPlannedDischargeAsync).
-                await EnsureEnergyForPlannedDischargeAsync().ConfigureAwait(false);
+                await EnsureEnergyForPlannedDischargeAsync(currentSocWh).ConfigureAwait(false);
 
                 WritePlanIntoQuarterlyInfos();
-                await WriteBackSocSimulationAsync().ConfigureAwait(false);
+                await WriteBackSocSimulationAsync(currentSocWh).ConfigureAwait(false);
 
                 if (await WeControlTheBatteries().ConfigureAwait(false))
                 {
@@ -253,7 +260,7 @@ namespace SessyController.Services
                     {
                         ApplyRuntimeOverrideToPlan(nowQuarter, executable);
                         WritePlanIntoQuarterlyInfos();
-                        await WriteBackSocSimulationAsync().ConfigureAwait(false);
+                        await WriteBackSocSimulationAsync(currentSocWh).ConfigureAwait(false);
                     }
 
                     await ExecuteAction(executable).ConfigureAwait(false);
@@ -396,18 +403,40 @@ namespace SessyController.Services
                 _minSocWhByTime[qi.Time] = minSocWh;
 
                 // Maximum SOC: reserve empty space for the strongest upcoming
-                // contiguous net charging excursion from solar.
+                // contiguous net solar surplus excursion.
+                //
+                // BUGFIX: Beperk de solar headroom lookahead tot de huidige kalenderdag.
+                // De vorige implementatie keek 24 uur vooruit, waardoor de solar van
+                // morgen al vandaag als headroom werd gereserveerd. Dit leidde tot een
+                // maxSoc van 92%+ terwijl de batterij vol geladen moest worden voor de
+                // dure avonduren. Solar van een volgende dag is irrelevant voor de huidige
+                // laadstrategie — de batterij wordt morgenochtend toch wel bijgeladen.
+                //
+                // Bovendien: alleen netto solar-surplus (solar > verbruik) telt als
+                // werkelijke fill-bijdrage. Een nachtelijke of bewolkte periode breekt
+                // de fill-streak volledig (niet gedeeltelijk zoals voorheen).
+                var solarHeadroomWindow = futureWindow
+                    .Where(x => x.Time.Date == qi.Time.Date)
+                    .ToList();
+
                 double cumulativeFillWh = 0.0;
                 double maxCumulativeFillWh = 0.0;
 
-                foreach (var future in futureWindow)
+                foreach (var future in solarHeadroomWindow)
                 {
-                    double naturalFillWh = Math.Max(0.0, -future.NetLoadWh);
+                    // Netto solar surplus: energie die de batterij in gaat
+                    // (solar > verbruik, onder ZeroNetHome).
+                    double netSurplusWh = Math.Max(0.0, -future.NetLoadWh);
 
-                    if (future.NetLoadWh > 0.0)
-                        cumulativeFillWh = Math.Max(0.0, cumulativeFillWh - future.NetLoadWh);
+                    if (netSurplusWh > 0.0)
+                    {
+                        cumulativeFillWh += netSurplusWh;
+                    }
                     else
-                        cumulativeFillWh += naturalFillWh;
+                    {
+                        // Verbruik > solar: fill-streak breekt volledig.
+                        cumulativeFillWh = 0.0;
+                    }
 
                     if (cumulativeFillWh > maxCumulativeFillWh)
                         maxCumulativeFillWh = cumulativeFillWh;
@@ -423,7 +452,7 @@ namespace SessyController.Services
             }
         }
 
-        private async Task<bool> RebuildPlanIfNeeded(DateTime nowQuarter)
+        private async Task<bool> RebuildPlanIfNeeded(DateTime nowQuarter, double currentSocWh)
         {
             int currentSignature = CalculatePriceSignature(_quarterlyInfos);
 
@@ -437,7 +466,7 @@ namespace SessyController.Services
             if (!needRebuild)
                 return false;
 
-            bool built = BuildMilpPlan();
+            bool built = BuildMilpPlan(currentSocWh);
 
             if (!built)
             {
@@ -470,20 +499,28 @@ namespace SessyController.Services
             }
         }
 
-        private bool BuildMilpPlan()
+        private bool BuildMilpPlan(double socWh)
         {
             try
             {
                 double capacityWh = _batteryContainer.GetTotalCapacity();
                 double capacityKWh = capacityWh / 1000.0;
 
-                double socWh = _batteryContainer.GetStateOfChargeInWatts().GetAwaiter().GetResult();
+                // IMPROVEMENT 4: socWh wordt doorgegeven vanuit Process() —
+                // geen extra netwerkaanroep naar de Sessy nodig.
                 double socKWh = socWh / 1000.0;
 
                 double maxChargeKW = _sessyBatteryConfig.TotalChargingCapacity / 1000.0;
                 double maxDischargeKW = _sessyBatteryConfig.TotalDischargingCapacity / 1000.0;
 
+                // Filter historische kwartieren uit — _quarterlyInfos bevat prijzen van
+                // gisteren, vandaag én morgen. Alleen kwartieren vanaf het huidige
+                // kwartier zijn relevant. Het lopende kwartier wordt meegenomen zodat
+                // GetExecutableActionForNowAsync altijd een geldig plan heeft.
+                var nowQuarterTime = _timeZoneService.Now.DateFloorQuarter();
+
                 var pricePoints = _quarterlyInfos
+                    .Where(q => q.Time >= nowQuarterTime)
                     .OrderBy(q => q.Time)
                     .Select(q =>
                     {
@@ -501,27 +538,23 @@ namespace SessyController.Services
                 // FIX 1: Pass per-quarter SOC bounds into the MILP solver so it
                 // respects solar headroom and self-use reserves during optimisation,
                 // instead of discovering violations only in the post-processing pass.
-                var socBounds = _quarterlyInfos
-                    .OrderBy(q => q.Time)
-                    .Select(q =>
-                    {
-                        double minKWh = (_minSocWhByTime.TryGetValue(q.Time, out var mn) ? mn : 0.0) / 1000.0;
-                        double maxKWh = (_maxSocWhByTime.TryGetValue(q.Time, out var mx) ? mx : capacityWh) / 1000.0;
+                var socBounds = new List<SocBound>();
 
-                        minKWh = Math.Max(0.0, Math.Min(minKWh, capacityKWh));
-                        maxKWh = Math.Max(minKWh, Math.Min(maxKWh, capacityKWh));
+                foreach (var q in _quarterlyInfos
+                    .Where(x => x.Time >= nowQuarterTime)
+                    .OrderBy(x => x.Time))
+                {
+                    double minKWh = (_minSocWhByTime.TryGetValue(q.Time, out var mn) ? mn : 0.0) / 1000.0;
+                    double maxKWh = (_maxSocWhByTime.TryGetValue(q.Time, out var mx) ? mx : capacityWh) / 1000.0;
 
-                        // BUGFIX: maxSocKWh mag nooit onder de huidige SOC zakken.
-                        // De solar headroom berekening kan een maxSoc produceren die
-                        // lager is dan de huidige batterijstand — het MILP-model is dan
-                        // al bij t=0 infeasible omdat soc[0] = currentSoc buiten
-                        // [min, max] valt. We laten de solver altijd minimaal de
-                        // huidige SOC als bovengrens accepteren.
-                        maxKWh = Math.Max(maxKWh, socKWh);
+                    minKWh = Math.Max(0.0, Math.Min(minKWh, capacityKWh));
+                    maxKWh = Math.Max(minKWh, Math.Min(maxKWh, capacityKWh));
 
-                        return new SocBound(q.Time, minKWh, maxKWh);
-                    })
-                    .ToList();
+                    // BUGFIX: maxSocKWh mag nooit onder de huidige SOC zakken.
+                    maxKWh = Math.Max(maxKWh, socKWh);
+
+                    socBounds.Add(new SocBound(q.Time, minKWh, maxKWh));
+                }
 
                 var spec = new BatterySpec(
                     CapacityKWh: capacityKWh,
@@ -534,11 +567,13 @@ namespace SessyController.Services
                     DischargeEfficiency: 0.95
                 );
 
+                // Met een horizon van 24 uur (96 kwartieren) is 2000ms ruim voldoende
+                // voor CBC om de optimale oplossing te vinden.
                 var opt = new SessyOptions(
                     QuarterMinutes: 15,
                     ActiveQuarterPenaltyEur: 0.01,
                     ForbidSimultaneousChargeDischarge: true,
-                    TimeLimitMs: 500
+                    TimeLimitMs: 2000
                 );
 
                 var result = BatteryArbitrageMilp.Solve(pricePoints, spec, opt, socBounds);
@@ -582,16 +617,23 @@ namespace SessyController.Services
                 {
                     if (!newPlan.ContainsKey(qi.Time))
                     {
-                        newPlan[qi.Time] = new PlanAction
-                        {
-                            Mode = Modes.ZeroNetHome,
-                            PowerW = 0
-                        };
+                        // Behoud het bestaande plan voor kwartieren die niet in de MILP
+                        // zitten (bijv. het lopende kwartier als de MILP pas vanaf het
+                        // volgende uur plant). Overschrijven met ZeroNetHome zou een
+                        // lopende Charging-actie afbreken.
+                        if (_planByTime.TryGetValue(qi.Time, out var existing))
+                            newPlan[qi.Time] = existing;
+                        else
+                            newPlan[qi.Time] = new PlanAction
+                            {
+                                Mode = Modes.ZeroNetHome,
+                                PowerW = 0
+                            };
                     }
                 }
 
                 _planByTime = newPlan;
-                _logger.LogInformation($"MILP plan built: optimal={result.Optimal}, objective={result.ObjectiveEur:F4} EUR");
+                _logger.LogWarning($"MILP plan built: optimal={result.Optimal}, objective={result.ObjectiveEur:F4} EUR");
                 return true;
             }
             catch (Exception ex)
@@ -683,7 +725,7 @@ namespace SessyController.Services
         /// ZeroNetHome: Battery tracks net load exactly. Positive net load drains the
         ///              battery; negative net load (solar surplus) fills it.
         /// </summary>
-        private async Task EnsureEnergyForPlannedDischargeAsync()
+        private async Task EnsureEnergyForPlannedDischargeAsync(double startSocWh)
         {
             if (_quarterlyInfos.Count == 0 || _planByTime.Count == 0)
                 return;
@@ -691,7 +733,7 @@ namespace SessyController.Services
             var now = _timeZoneService.Now.DateFloorQuarter();
 
             double capWh = _batteryContainer.GetTotalCapacity();
-            double startSocWh = await _batteryContainer.GetStateOfChargeInWatts().ConfigureAwait(false);
+            // IMPROVEMENT 4: startSocWh doorgegeven vanuit Process() — geen extra netwerkaanroep.
 
             double chargeStepWh = _batteryContainer.GetChargingCapacityInWattsPerHour() / 4.0;
             double dischargeStepWh = _batteryContainer.GetDischargingCapacityInWattsPerHour() / 4.0;
@@ -820,7 +862,7 @@ namespace SessyController.Services
         ///   Discharging → lower target (minSocWh)
         ///   ZeroNetHome → lower target (minSocWh)
         /// </summary>
-        private async Task WriteBackSocSimulationAsync()
+        private async Task WriteBackSocSimulationAsync(double soc)
         {
             if (_quarterlyInfos.Count == 0)
                 return;
@@ -828,7 +870,7 @@ namespace SessyController.Services
             var nowQuarter = _timeZoneService.Now.DateFloorQuarter();
 
             double capWh = _batteryContainer.GetTotalCapacity();
-            double soc = await _batteryContainer.GetStateOfChargeInWatts().ConfigureAwait(false);
+            // IMPROVEMENT 4: soc doorgegeven vanuit Process() — geen extra netwerkaanroep.
 
             double chargeStepWh = _batteryContainer.GetChargingCapacityInWattsPerHour() / 4.0;
             double dischargeStepWh = _batteryContainer.GetDischargingCapacityInWattsPerHour() / 4.0;

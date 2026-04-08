@@ -15,7 +15,6 @@ namespace SessyController.Services
         public WeatherService? _weatherService { get; set; }
         public DayAheadMarketService? _dayAheadMarketService { get; set; }
         private P1MeterContainer _p1MeterContainer { get; set; }
-        private IOptionsMonitor<SessyP1Config> _sessyP1ConfigMonitor { get; set; }
         private TimeZoneService _timeZoneService { get; set; }
         private P1MeterService _p1MeterService { get; set; }
 
@@ -34,11 +33,10 @@ namespace SessyController.Services
         public EnergyMonitorService(LoggingService<EnergyMonitorService> logger,
                                     WeatherService weatherService,
                                     TimeZoneService timeZoneService,
-                                    IOptionsMonitor<SessyP1Config> sessyP1ConfigMonitor,
+                                    P1MeterContainer p1meterContainer,
                                     IServiceScopeFactory serviceScopeFactory)
         {
             _logger = logger;
-            _sessyP1ConfigMonitor = sessyP1ConfigMonitor;
             _weatherService = weatherService;
             _timeZoneService = timeZoneService;
             _serviceScopeFactory = serviceScopeFactory;
@@ -49,7 +47,7 @@ namespace SessyController.Services
             _p1MeterService = _scope.ServiceProvider.GetRequiredService<P1MeterService>();
             _dayAheadMarketService = _scope.ServiceProvider.GetRequiredService<DayAheadMarketService>();
 
-            _p1MeterContainer = new P1MeterContainer(_sessyP1ConfigMonitor, _p1MeterService);
+            _p1MeterContainer = p1meterContainer;
         }
 
         public override Task StopAsync(CancellationToken cancellationToken)

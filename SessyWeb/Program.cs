@@ -119,6 +119,7 @@ builder.Services.AddSingleton<TaxesDataService>();
 builder.Services.AddSingleton<ConsumptionMonitorService>();
 builder.Services.AddSingleton<DatabaseBackupService>();
 builder.Services.AddSingleton<DatabaseBackupDataService>();
+builder.Services.AddSingleton<P1MeterContainer>();
 
 // Solar inverters
 builder.Services.AddSingleton<SolarInverterManager>();
