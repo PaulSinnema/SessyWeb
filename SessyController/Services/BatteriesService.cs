@@ -89,9 +89,6 @@ namespace SessyController.Services
         private const double CheapRefillToleranceEur = 0.01;
         private const double CheapGridChargeThresholdEur = 0.05;
 
-        // FIX 4: Reduced from 0.05 to 0.02 to avoid over-blocking profitable discharge
-        // quarters when netting is disabled. The old 0.05 stacked on top of CycleCost
-        // (~0.09) creating a combined threshold of ~0.14 €/kWh above selfUseValue.
         private const double ExportPremiumEur = 0.02;
 
         public BatteriesService(
@@ -201,20 +198,12 @@ namespace SessyController.Services
 
                 var nowQuarter = _timeZoneService.Now.DateFloorQuarter();
 
-                // FIX 1: SOC bounds are now passed into the MILP solver directly,
-                // so the solver already respects min/max SOC per quarter.
                 await RebuildPlanIfNeeded(nowQuarter, currentSocWh).ConfigureAwait(false);
-
-                // FIX 2: ApplyCycleCostToPlan() has been removed. The MILP already
-                // optimises for cycle cost via its objective function. The old
-                // post-processing incorrectly overwrote MILP decisions and could block
-                // profitable discharge quarters due to a faulty basis calculation.
 
                 // Apply self-consumption/export restrictions only when netting is disabled.
                 ApplySelfConsumptionPolicy();
 
                 // Final physical feasibility pass with min/max SOC envelopes.
-                // FIX 3: SOC simulation is now mode-aware (see EnsureEnergyForPlannedDischargeAsync).
                 await EnsureEnergyForPlannedDischargeAsync(currentSocWh).ConfigureAwait(false);
 
                 WritePlanIntoQuarterlyInfos();
@@ -404,17 +393,6 @@ namespace SessyController.Services
 
                 // Maximum SOC: reserve empty space for the strongest upcoming
                 // contiguous net solar surplus excursion.
-                //
-                // BUGFIX: Beperk de solar headroom lookahead tot de huidige kalenderdag.
-                // De vorige implementatie keek 24 uur vooruit, waardoor de solar van
-                // morgen al vandaag als headroom werd gereserveerd. Dit leidde tot een
-                // maxSoc van 92%+ terwijl de batterij vol geladen moest worden voor de
-                // dure avonduren. Solar van een volgende dag is irrelevant voor de huidige
-                // laadstrategie — de batterij wordt morgenochtend toch wel bijgeladen.
-                //
-                // Bovendien: alleen netto solar-surplus (solar > verbruik) telt als
-                // werkelijke fill-bijdrage. Een nachtelijke of bewolkte periode breekt
-                // de fill-streak volledig (niet gedeeltelijk zoals voorheen).
                 var solarHeadroomWindow = futureWindow
                     .Where(x => x.Time.Date == qi.Time.Date)
                     .ToList();
@@ -535,9 +513,6 @@ namespace SessyController.Services
                     })
                     .ToList();
 
-                // FIX 1: Pass per-quarter SOC bounds into the MILP solver so it
-                // respects solar headroom and self-use reserves during optimisation,
-                // instead of discovering violations only in the post-processing pass.
                 var socBounds = new List<SocBound>();
 
                 foreach (var q in _quarterlyInfos
@@ -550,7 +525,6 @@ namespace SessyController.Services
                     minKWh = Math.Max(0.0, Math.Min(minKWh, capacityKWh));
                     maxKWh = Math.Max(minKWh, Math.Min(maxKWh, capacityKWh));
 
-                    // BUGFIX: maxSocKWh mag nooit onder de huidige SOC zakken.
                     maxKWh = Math.Max(maxKWh, socKWh);
 
                     socBounds.Add(new SocBound(q.Time, minKWh, maxKWh));
@@ -643,17 +617,6 @@ namespace SessyController.Services
             }
         }
 
-        // FIX 2: ApplyCycleCostToPlan() has been removed entirely.
-        //
-        // The MILP objective already accounts for cycle cost through the spread between
-        // buying and selling prices. The old method had two bugs:
-        //
-        //   (a) It tracked minBuyOfPlannedChargeSoFar only forward in time, so discharge
-        //       quarters before a later recharge saw basis = null and fell back to
-        //       qi.BuyingPrice — almost always too low, blocking valid discharge.
-        //
-        //   (b) It silently overwrote MILP decisions, defeating the purpose of the solver.
-
         /// <summary>
         /// When netting is disabled:
         /// - do not force active grid charging except at truly cheap prices
@@ -698,7 +661,6 @@ namespace SessyController.Services
 
                 if (act.Mode == Modes.Discharging)
                 {
-                    // FIX 4: ExportPremiumEur reduced from 0.05 to 0.02.
                     double exportThreshold = selfUseValue + _settingsConfig.CycleCost + ExportPremiumEur;
 
                     if (qi.SellingPrice < exportThreshold)
@@ -712,18 +674,6 @@ namespace SessyController.Services
 
         /// <summary>
         /// Simulate the plan forward and remove actions that violate min/max SOC envelopes.
-        ///
-        /// FIX 3: SOC simulation is now mode-aware.
-        ///
-        /// Previously netLoadWh was always subtracted from SOC regardless of mode,
-        /// which double-counted household consumption for Charging/Discharging quarters
-        /// and produced an incorrect (too pessimistic) SOC forecast.
-        ///
-        /// Charging:    Battery draws from grid. Net household load is covered by the
-        ///              grid simultaneously, so only the charge step affects battery SOC.
-        /// Discharging: Battery supplies power. The full discharge step leaves the battery.
-        /// ZeroNetHome: Battery tracks net load exactly. Positive net load drains the
-        ///              battery; negative net load (solar surplus) fills it.
         /// </summary>
         private async Task EnsureEnergyForPlannedDischargeAsync(double startSocWh)
         {
@@ -784,7 +734,6 @@ namespace SessyController.Services
 
                     maxSocWh = Math.Min(maxSocWh, fullThresholdWh);
 
-                    // FIX 3: Mode-aware SOC update.
                     if (act.Mode == Modes.Charging)
                     {
                         if (soc + chargeStepWh > maxSocWh + NumericEpsWh)
@@ -853,14 +802,6 @@ namespace SessyController.Services
 
         /// <summary>
         /// Simulate SOC from NOW forward for visualization and diagnostics.
-        ///
-        /// FIX 3: SOC simulation is now mode-aware (mirrors EnsureEnergyForPlannedDischargeAsync).
-        ///
-        /// ChargeLeft   = realised SOC after this quarter
-        /// ChargeNeeded = quarter target:
-        ///   Charging    → upper target (maxSocWh)
-        ///   Discharging → lower target (minSocWh)
-        ///   ZeroNetHome → lower target (minSocWh)
         /// </summary>
         private async Task WriteBackSocSimulationAsync(double soc)
         {
@@ -870,7 +811,6 @@ namespace SessyController.Services
             var nowQuarter = _timeZoneService.Now.DateFloorQuarter();
 
             double capWh = _batteryContainer.GetTotalCapacity();
-            // IMPROVEMENT 4: soc doorgegeven vanuit Process() — geen extra netwerkaanroep.
 
             double chargeStepWh = _batteryContainer.GetChargingCapacityInWattsPerHour() / 4.0;
             double dischargeStepWh = _batteryContainer.GetDischargingCapacityInWattsPerHour() / 4.0;
@@ -900,7 +840,6 @@ namespace SessyController.Services
                 double netLoadWh = qi.EstimatedConsumptionPerQuarterInWatts - qi.SolarPowerPerQuarterInWatts;
                 double targetSocWh;
 
-                // FIX 3: Mode-aware SOC update (mirrors EnsureEnergyForPlannedDischargeAsync).
                 if (act.Mode == Modes.Charging)
                 {
                     if (soc + chargeStepWh > maxSocWh + NumericEpsWh)
@@ -1018,7 +957,6 @@ namespace SessyController.Services
                     return new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
 
                 // Only restrict export-style discharge when netting is disabled.
-                // FIX 4: ExportPremiumEur is now 0.02 (was 0.05).
                 if (!netting && qi != null)
                 {
                     double exportThreshold = selfUseValue + _settingsConfig.CycleCost + ExportPremiumEur;
