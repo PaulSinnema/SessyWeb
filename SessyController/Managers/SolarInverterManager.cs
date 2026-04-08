@@ -14,7 +14,7 @@ namespace SessyController.Managers
 
         private PowerSystemsConfig? _powerSystemsConfig { get; set; }
         private List<ISolarInverterService> _activeInverterServices { get; set; } = new();
-        private double TotalCapacity => _activeInverterServices.Sum(serv => serv.Endpoints.Sum(ep => ep.Value.InverterMaxCapacity));
+        public double TotalCapacity => _activeInverterServices.Sum(serv => serv.Endpoints.Sum(ep => ep.Value.InverterMaxCapacity));
 
         public SolarInverterManager(IEnumerable<ISolarInverterService> inverterServices,
                                     TimeZoneService timezoneService,

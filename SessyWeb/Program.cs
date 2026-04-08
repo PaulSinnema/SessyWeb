@@ -122,6 +122,8 @@ builder.Services.AddSingleton<DatabaseBackupDataService>();
 
 // Solar inverters
 builder.Services.AddSingleton<SolarInverterManager>();
+builder.Services.AddSingleton<InverterCurtailmentService>();
+
 // For now only the SolarEdge inverter is implemented (for obvious reasons :-), I don't have the other inverters.
 builder.Services.AddSingleton<ISolarInverterService, SolarEdgeInverterService>();
 // These are not implemented yet, but the interfaces are there for future use.
@@ -140,7 +142,9 @@ builder.Services.AddHostedService(provider => provider.GetRequiredService<P1Mete
 builder.Services.AddHostedService(provider => provider.GetRequiredService<SolarInverterManager>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<ConsumptionMonitorService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<DatabaseBackupService>());
+builder.Services.AddHostedService(provider => provider.GetRequiredService<InverterCurtailmentService>());
 
+// (was AddScoped, nu AddHostedService omdat het een BackgroundService is)
 builder.Services.AddRazorPages(options =>
 {
     options.Conventions.ConfigureFilter(new IgnoreAntiforgeryTokenAttribute());
