@@ -543,7 +543,7 @@ namespace SessyController.Services
 
                 var opt = new SessyOptions(
                     QuarterMinutes: 15,
-                    ActiveQuarterPenaltyEur: 0.01,
+                    ActiveQuarterPenaltyEur: 0.00,
                     ForbidSimultaneousChargeDischarge: true,
                     TimeLimitMs: 2000
                 );
