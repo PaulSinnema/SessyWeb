@@ -151,8 +151,8 @@ namespace SessyController.Services
                 return;
             }
 
-            // IMPROVEMENT 3: P1-meter aanroep met timeout zodat een trage of
-            // niet-reagerende meter de curtailment-loop niet blokkeert.
+            // IMPROVEMENT 3: P1 meter call with timeout so that a slow or
+            // unresponsive meter does not block the curtailment loop.
             double netSaldoW;
 
             try
@@ -172,7 +172,7 @@ namespace SessyController.Services
                 return;
             }
 
-            // netSaldoW: positief = afname van net, negatief = teruglevering aan net.
+            // netSaldoW: positive = consuming from grid, negative = exporting to grid.
 
             // Determine current inverter max capacity.
             double maxCapacityW = _solarInverterManager.TotalCapacity;

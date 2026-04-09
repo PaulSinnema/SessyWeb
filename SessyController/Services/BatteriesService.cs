@@ -188,9 +188,9 @@ namespace SessyController.Services
                 await _consumptionMonitorService.EstimateConsumptionInWattsPerQuarter(_quarterlyInfos).ConfigureAwait(false);
                 await _solarService.GetExpectedSolarPower(_quarterlyInfos).ConfigureAwait(false);
 
-                // IMPROVEMENT 4: SOC wordt één keer per cyclus opgehaald en doorgegeven
-                // aan alle methoden. Voorheen werd GetStateOfChargeInWatts() 4× per cyclus
-                // aangeroepen (telkens een netwerkaanroep naar de Sessy).
+                // IMPROVEMENT 4: SOC is fetched once per cycle and passed to all methods.
+                // Previously GetStateOfChargeInWatts() was called 4 times per cycle
+                // (each call is a network request to the Sessy).
                 double currentSocWh = await _batteryContainer.GetStateOfChargeInWatts().ConfigureAwait(false);
 
                 // Build per-quarter tariff and SOC bounds from prices + forecasts.
@@ -412,7 +412,7 @@ namespace SessyController.Services
                     }
                     else
                     {
-                        // Verbruik > solar: fill-streak breekt volledig.
+                        // Consumption > solar: fill streak resets completely.
                         cumulativeFillWh = 0.0;
                     }
 
@@ -484,17 +484,17 @@ namespace SessyController.Services
                 double capacityWh = _batteryContainer.GetTotalCapacity();
                 double capacityKWh = capacityWh / 1000.0;
 
-                // IMPROVEMENT 4: socWh wordt doorgegeven vanuit Process() —
-                // geen extra netwerkaanroep naar de Sessy nodig.
+                // IMPROVEMENT 4: socWh is passed in from Process() —
+                // no additional network call to the Sessy needed.
                 double socKWh = socWh / 1000.0;
 
                 double maxChargeKW = _sessyBatteryConfig.TotalChargingCapacity / 1000.0;
                 double maxDischargeKW = _sessyBatteryConfig.TotalDischargingCapacity / 1000.0;
 
-                // Filter historische kwartieren uit — _quarterlyInfos bevat prijzen van
-                // gisteren, vandaag én morgen. Alleen kwartieren vanaf het huidige
-                // kwartier zijn relevant. Het lopende kwartier wordt meegenomen zodat
-                // GetExecutableActionForNowAsync altijd een geldig plan heeft.
+                // Filter out historic quarters — _quarterlyInfos contains prices for
+                // yesterday, today and tomorrow. Only quarters from the current quarter
+                // onwards are relevant. The current quarter is included so that
+                // GetExecutableActionForNowAsync always has a valid plan.
                 var nowQuarterTime = _timeZoneService.Now.DateFloorQuarter();
 
                 var pricePoints = _quarterlyInfos
@@ -589,10 +589,10 @@ namespace SessyController.Services
                 {
                     if (!newPlan.ContainsKey(qi.Time))
                     {
-                        // Behoud het bestaande plan voor kwartieren die niet in de MILP
-                        // zitten (bijv. het lopende kwartier als de MILP pas vanaf het
-                        // volgende kwartier plant). Overschrijven met ZeroNetHome zou een
-                        // lopende Charging-actie afbreken.
+                        // Preserve the existing plan for quarters not covered by the MILP
+                        // (e.g. the current quarter when the MILP only plans from the next
+                        // quarter onwards). Overwriting with ZeroNetHome would interrupt
+                        // an active Charging action.
                         if (_planByTime.TryGetValue(qi.Time, out var existing))
                             newPlan[qi.Time] = existing;
                         else
