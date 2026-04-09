@@ -393,6 +393,8 @@ namespace SessyController.Services
 
                 // Maximum SOC: reserve empty space for the strongest upcoming
                 // contiguous net solar surplus excursion.
+                // Only look at the current calendar day to avoid reserving headroom
+                // for tomorrow's solar today.
                 var solarHeadroomWindow = futureWindow
                     .Where(x => x.Time.Date == qi.Time.Date)
                     .ToList();
@@ -402,8 +404,6 @@ namespace SessyController.Services
 
                 foreach (var future in solarHeadroomWindow)
                 {
-                    // Netto solar surplus: energie die de batterij in gaat
-                    // (solar > verbruik, onder ZeroNetHome).
                     double netSurplusWh = Math.Max(0.0, -future.NetLoadWh);
 
                     if (netSurplusWh > 0.0)
@@ -533,7 +533,7 @@ namespace SessyController.Services
                 var spec = new BatterySpec(
                     CapacityKWh: capacityKWh,
                     InitialSocKWh: socKWh,
-                    MinSocKWh: 0.0,         // global floor — per-quarter bounds handled via socBounds
+                    MinSocKWh: 0.0,
                     MaxSocKWh: capacityKWh,
                     MaxChargeKW: maxChargeKW,
                     MaxDischargeKW: maxDischargeKW,
@@ -541,8 +541,6 @@ namespace SessyController.Services
                     DischargeEfficiency: 0.95
                 );
 
-                // Met een horizon van 24 uur (96 kwartieren) is 2000ms ruim voldoende
-                // voor CBC om de optimale oplossing te vinden.
                 var opt = new SessyOptions(
                     QuarterMinutes: 15,
                     ActiveQuarterPenaltyEur: 0.01,
@@ -593,7 +591,7 @@ namespace SessyController.Services
                     {
                         // Behoud het bestaande plan voor kwartieren die niet in de MILP
                         // zitten (bijv. het lopende kwartier als de MILP pas vanaf het
-                        // volgende uur plant). Overschrijven met ZeroNetHome zou een
+                        // volgende kwartier plant). Overschrijven met ZeroNetHome zou een
                         // lopende Charging-actie afbreken.
                         if (_planByTime.TryGetValue(qi.Time, out var existing))
                             newPlan[qi.Time] = existing;
@@ -622,6 +620,10 @@ namespace SessyController.Services
         /// - do not force active grid charging except at truly cheap prices
         /// - solar surplus should be absorbed through ZeroNetHome, not active Charging
         /// - export-style discharge only when clearly superior to keeping energy
+        ///
+        /// For all quarters (netting on or off):
+        /// - ZeroNetHome is only used when the buying price justifies it via NetZeroHomeMinProfit.
+        ///   If the price is too low, Disabled is used instead to avoid unnecessary battery cycling.
         /// </summary>
         private void ApplySelfConsumptionPolicy()
         {
@@ -631,8 +633,6 @@ namespace SessyController.Services
             foreach (var qi in _quarterlyInfos.OrderBy(q => q.Time))
             {
                 bool netting = _nettingByTime.TryGetValue(qi.Time, out var n) ? n : true;
-                if (netting)
-                    continue;
 
                 var act = _planByTime[qi.Time];
                 double netLoadWh = qi.EstimatedConsumptionPerQuarterInWatts - qi.SolarPowerPerQuarterInWatts;
@@ -640,34 +640,48 @@ namespace SessyController.Services
                     ? suv
                     : qi.BuyingPrice;
 
-                // Solar surplus should not trigger active grid charging.
-                if (netLoadWh < -1.0)
+                // No-netting specific checks: may downgrade Charging/Discharging to ZeroNetHome.
+                if (!netting)
                 {
-                    act.Mode = Modes.ZeroNetHome;
+                    // Solar surplus should not trigger active grid charging.
+                    if (netLoadWh < -1.0 && act.Mode == Modes.Charging)
+                    {
+                        act.Mode = Modes.ZeroNetHome;
+                        act.PowerW = 0;
+                    }
+                    else if (act.Mode == Modes.Charging && qi.BuyingPrice > CheapGridChargeThresholdEur)
+                    {
+                        act.Mode = Modes.ZeroNetHome;
+                        act.PowerW = 0;
+                    }
+                    else if (act.Mode == Modes.Discharging)
+                    {
+                        double exportThreshold = selfUseValue + _settingsConfig.CycleCost + ExportPremiumEur;
+
+                        if (qi.SellingPrice < exportThreshold)
+                        {
+                            act.Mode = Modes.ZeroNetHome;
+                            act.PowerW = 0;
+                        }
+                    }
+                }
+
+                bool hasSolarSurplus = netLoadWh < 0.0;
+
+                // For all quarters: downgrade ZeroNetHome to Disabled when using the
+                // battery for self-consumption is not economically justified.
+                //
+                // NOM is only worthwhile when the selling price covers the cycle cost
+                // plus the minimum profit margin. Solar surplus is always free so NOM
+                // is always justified when solar is producing more than consumption.
+                //
+                // Example: CycleCost=0.09, margin=0.02 → NOM only when SellingPrice >= 0.11
+                if (act.Mode == Modes.ZeroNetHome &&
+                    !hasSolarSurplus &&
+                    qi.SellingPrice < _settingsConfig.CycleCost + _settingsConfig.NetZeroHomeMinProfit)
+                {
+                    act.Mode = Modes.Disabled;
                     act.PowerW = 0;
-                    continue;
-                }
-
-                if (act.Mode == Modes.Charging)
-                {
-                    if (qi.BuyingPrice > CheapGridChargeThresholdEur)
-                    {
-                        act.Mode = Modes.ZeroNetHome;
-                        act.PowerW = 0;
-                    }
-
-                    continue;
-                }
-
-                if (act.Mode == Modes.Discharging)
-                {
-                    double exportThreshold = selfUseValue + _settingsConfig.CycleCost + ExportPremiumEur;
-
-                    if (qi.SellingPrice < exportThreshold)
-                    {
-                        act.Mode = Modes.ZeroNetHome;
-                        act.PowerW = 0;
-                    }
                 }
             }
         }
@@ -683,7 +697,6 @@ namespace SessyController.Services
             var now = _timeZoneService.Now.DateFloorQuarter();
 
             double capWh = _batteryContainer.GetTotalCapacity();
-            // IMPROVEMENT 4: startSocWh doorgegeven vanuit Process() — geen extra netwerkaanroep.
 
             double chargeStepWh = _batteryContainer.GetChargingCapacityInWattsPerHour() / 4.0;
             double dischargeStepWh = _batteryContainer.GetDischargingCapacityInWattsPerHour() / 4.0;
@@ -745,7 +758,6 @@ namespace SessyController.Services
                         }
                         else
                         {
-                            // Grid charging: SOC rises by chargeStep; house load covered by grid.
                             soc = Clamp(soc + chargeStepWh, 0.0, capWh);
                         }
                     }
@@ -760,13 +772,11 @@ namespace SessyController.Services
                         }
                         else
                         {
-                            // Discharging: full discharge step leaves the battery.
                             soc = Clamp(soc - dischargeStepWh, 0.0, capWh);
                         }
                     }
                     else
                     {
-                        // ZeroNetHome: battery absorbs net load (positive = drain, negative = solar fill).
                         soc = Clamp(soc - netLoadWh, 0.0, capWh);
                     }
                 }
@@ -872,7 +882,6 @@ namespace SessyController.Services
                 }
                 else
                 {
-                    // ZeroNetHome: battery tracks net load.
                     targetSocWh = minSocWh;
                     soc = Clamp(soc - netLoadWh, 0.0, capWh);
                 }
@@ -966,6 +975,22 @@ namespace SessyController.Services
                 }
 
                 return planned;
+            }
+
+            // Runtime guard for ZeroNetHome / Disabled:
+            // NOM is only worthwhile when the selling price covers the cycle cost
+            // plus the minimum profit margin. Solar surplus is always free.
+            if (planned.Mode == Modes.ZeroNetHome || planned.Mode == Modes.Disabled)
+            {
+                if (qi != null)
+                {
+                    double netLoadWh = qi.EstimatedConsumptionPerQuarterInWatts - qi.SolarPowerPerQuarterInWatts;
+                    bool hasSolarSurplus = netLoadWh < 0.0;
+
+                    if (!hasSolarSurplus &&
+                        qi.SellingPrice < _settingsConfig.CycleCost + _settingsConfig.NetZeroHomeMinProfit)
+                        return new PlanAction { Mode = Modes.Disabled, PowerW = 0 };
+                }
             }
 
             return planned;
