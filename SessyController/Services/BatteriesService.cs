@@ -6,6 +6,7 @@ using SessyController.Services.Items;
 using SessyController.Services.Optimization;
 using SessyData.Model;
 using SessyData.Services;
+using System.Diagnostics;
 using static SessyController.Services.Items.ChargingModes;
 using static SessyData.Model.SessyWebControl;
 
@@ -63,6 +64,17 @@ namespace SessyController.Services
         // Rebuild throttling
         private DateTime? _lastPlannedQuarter;
         private int? _lastPriceSignature;
+
+        // Dynamic MILP time limit: self-calibrates based on whether previous solves were optimal.
+        private int _milpTimeLimitMs = 2000;
+        private const int MilpTimeLimitMin = 500;
+        private const int MilpTimeLimitMax = 5000;
+        private const int MilpTimeLimitStep = 200;
+
+        // Split time search parameters (hours from now).
+        private const int SplitSearchMinHours = 8;
+        private const int SplitSearchMaxHours = 24;
+        private const int SplitSearchStepHours = 1;
 
         public bool IsManualOverride => _settingsConfig.ManualOverride;
         public bool WeAreInControl { get; private set; } = true;
@@ -444,7 +456,7 @@ namespace SessyController.Services
             if (!needRebuild)
                 return false;
 
-            bool built = BuildMilpPlan(currentSocWh);
+            bool built = await BuildMilpPlanAsync(currentSocWh).ConfigureAwait(false);
 
             if (!built)
             {
@@ -477,7 +489,7 @@ namespace SessyController.Services
             }
         }
 
-        private bool BuildMilpPlan(double socWh)
+        private async Task<bool> BuildMilpPlanAsync(double socWh)
         {
             try
             {
@@ -497,92 +509,155 @@ namespace SessyController.Services
                 // GetExecutableActionForNowAsync always has a valid plan.
                 var nowQuarterTime = _timeZoneService.Now.DateFloorQuarter();
 
-                var pricePoints = _quarterlyInfos
+                var allQuarters = _quarterlyInfos
                     .Where(q => q.Time >= nowQuarterTime)
                     .OrderBy(q => q.Time)
-                    .Select(q =>
-                    {
-                        double netLoadWh = q.EstimatedConsumptionPerQuarterInWatts - q.SolarPowerPerQuarterInWatts;
-
-                        return new PricePoint(
-                            q.Time,
-                            q.BuyingPrice,
-                            q.SellingPrice,
-                            netLoadWh
-                        );
-                    })
                     .ToList();
 
-                var socBounds = new List<SocBound>();
-
-                foreach (var q in _quarterlyInfos
-                    .Where(x => x.Time >= nowQuarterTime)
-                    .OrderBy(x => x.Time))
-                {
-                    double minKWh = (_minSocWhByTime.TryGetValue(q.Time, out var mn) ? mn : 0.0) / 1000.0;
-                    double maxKWh = (_maxSocWhByTime.TryGetValue(q.Time, out var mx) ? mx : capacityWh) / 1000.0;
-
-                    minKWh = Math.Max(0.0, Math.Min(minKWh, capacityKWh));
-                    maxKWh = Math.Max(minKWh, Math.Min(maxKWh, capacityKWh));
-
-                    maxKWh = Math.Max(maxKWh, socKWh);
-
-                    socBounds.Add(new SocBound(q.Time, minKWh, maxKWh));
-                }
-
-                var spec = new BatterySpec(
-                    CapacityKWh: capacityKWh,
-                    InitialSocKWh: socKWh,
-                    MinSocKWh: 0.0,
-                    MaxSocKWh: capacityKWh,
-                    MaxChargeKW: maxChargeKW,
-                    MaxDischargeKW: maxDischargeKW,
-                    ChargeEfficiency: 0.95,
-                    DischargeEfficiency: 0.95
-                );
-
-                var opt = new SessyOptions(
-                    QuarterMinutes: 15,
-                    ActiveQuarterPenaltyEur: 0.00,
-                    ForbidSimultaneousChargeDischarge: true,
-                    TimeLimitMs: 2000
-                );
-
-                var result = BatteryArbitrageMilp.Solve(pricePoints, spec, opt, socBounds);
-
-                if (result == null || result.Plan == null || result.Plan.Count == 0)
+                if (allQuarters.Count == 0)
                     return false;
 
-                var newPlan = new Dictionary<DateTime, PlanAction>(result.Plan.Count);
+                // ── Parallel split search ─────────────────────────────────────────
+                // Each task solves two plan segments (split at a different hour) and
+                // returns the combined objective. All tasks run concurrently so the
+                // total wall time ≈ a single solve. The split with the highest
+                // combined objective is selected as the final plan.
+                var tasks = Enumerable
+                    .Range(SplitSearchMinHours, SplitSearchMaxHours - SplitSearchMinHours + 1)
+                    .Select(hours => Task.Run(() =>
+                    {
+                        var splitTime = nowQuarterTime.AddHours(hours);
 
-                foreach (var p in result.Plan)
+                        var seg1 = allQuarters.Where(q => q.Time < splitTime).ToList();
+                        var seg2 = allQuarters.Where(q => q.Time >= splitTime).ToList();
+
+                        if (seg1.Count == 0)
+                            return (SplitTime: splitTime, Combined: double.MinValue, Plan1: (PlanResult?)null, Plan2: (PlanResult?)null, SuggestedTimeLimitMs: _milpTimeLimitMs);
+
+                        // Each task starts with the current shared time limit and
+                        // self-calibrates based on its own solve results.
+                        int timeLimitMs = _milpTimeLimitMs;
+
+                        var opt = new SessyOptions(
+                            QuarterMinutes: 15,
+                            ActiveQuarterPenaltyEur: 0.0,
+                            ForbidSimultaneousChargeDischarge: true,
+                            TimeLimitMs: timeLimitMs,
+                            CycleCostEurPerKWh: _settingsConfig.CycleCost
+                        );
+
+                        var r1 = SolvePlanSegment(seg1, socKWh, capacityKWh, maxChargeKW, maxDischargeKW, opt);
+                        if (r1 == null)
+                            return (SplitTime: splitTime, Combined: double.MinValue, Plan1: (PlanResult?)null, Plan2: (PlanResult?)null, SuggestedTimeLimitMs: timeLimitMs);
+
+                        // Adjust time limit based on plan 1 result.
+                        if (r1.Optimal)
+                            timeLimitMs = Math.Max(MilpTimeLimitMin, timeLimitMs - MilpTimeLimitStep);
+                        else
+                            timeLimitMs = Math.Min(MilpTimeLimitMax, timeLimitMs + MilpTimeLimitStep * 2);
+
+                        double socAfterSeg1 = r1.Plan.Count > 0
+                            ? r1.Plan[r1.Plan.Count - 1].SocEndKWh
+                            : socKWh;
+
+                        double combined = r1.ObjectiveEur;
+                        PlanResult? r2 = null;
+
+                        if (seg2.Count > 0)
+                        {
+                            // Use the adjusted time limit for plan 2.
+                            var opt2 = opt with { TimeLimitMs = timeLimitMs };
+
+                            r2 = SolvePlanSegment(seg2, socAfterSeg1, capacityKWh, maxChargeKW, maxDischargeKW, opt2);
+                            if (r2 != null)
+                            {
+                                combined += r2.ObjectiveEur;
+
+                                // Adjust again based on plan 2 result.
+                                if (r2.Optimal)
+                                    timeLimitMs = Math.Max(MilpTimeLimitMin, timeLimitMs - MilpTimeLimitStep);
+                                else
+                                    timeLimitMs = Math.Min(MilpTimeLimitMax, timeLimitMs + MilpTimeLimitStep * 2);
+                            }
+                        }
+
+                        return (SplitTime: splitTime, Combined: combined, Plan1: (PlanResult?)r1, Plan2: (PlanResult?)r2, SuggestedTimeLimitMs: timeLimitMs);
+                    }))
+                    .ToList();
+
+                var sw = new Stopwatch();
+
+                sw.Start();
+
+                var results = await Task.WhenAll(tasks).ConfigureAwait(false);
+
+                sw.Stop();
+
+                _logger.LogWarning($"MILP Solve finished in {sw.ElapsedMilliseconds} ms");
+
+                // Pick the split with the highest combined objective.
+                var best = results
+                    .OrderByDescending(r => r.Combined)
+                    .FirstOrDefault();
+
+                if (best.Plan1 == null)
+                    return false;
+
+                _logger.LogWarning($"MILP split search: best split={best.SplitTime:HH:mm}, " +
+                    $"combined={best.Combined:F4} EUR | timeLimit={_milpTimeLimitMs}ms");
+
+                // ── Dynamic time limit adjustment ────────────────────────────────
+                // Average the suggested time limits from all tasks that produced a result,
+                // then clamp to the allowed range. This converges to the time limit that
+                // makes most splits optimal without wasting time.
+                var suggestedLimits = results
+                    .Where(r => r.Plan1 != null)
+                    .Select(r => r.SuggestedTimeLimitMs)
+                    .ToList();
+
+                if (suggestedLimits.Count > 0)
+                    _milpTimeLimitMs = Math.Clamp(
+                        (int)suggestedLimits.Average(),
+                        MilpTimeLimitMin,
+                        MilpTimeLimitMax);
+
+                // ── Merge both plan segments into _planByTime ────────────────────
+                var newPlan = new Dictionary<DateTime, PlanAction>();
+
+                foreach (var result in new[] { best.Plan1, best.Plan2 })
                 {
-                    double powerW;
-                    Modes mode;
+                    if (result?.Plan == null)
+                        continue;
 
-                    switch (p.Mode)
+                    foreach (var p in result.Plan)
                     {
-                        case ActionMode.Charge:
-                            mode = Modes.Charging;
-                            powerW = Math.Round(p.ChargeKW * 1000.0, 0);
-                            break;
+                        double powerW;
+                        Modes mode;
 
-                        case ActionMode.Discharge:
-                            mode = Modes.Discharging;
-                            powerW = Math.Round(p.DischargeKW * 1000.0, 0);
-                            break;
+                        switch (p.Mode)
+                        {
+                            case ActionMode.Charge:
+                                mode = Modes.Charging;
+                                powerW = Math.Round(p.ChargeKW * 1000.0, 0);
+                                break;
 
-                        default:
-                            mode = Modes.ZeroNetHome;
-                            powerW = 0.0;
-                            break;
+                            case ActionMode.Discharge:
+                                mode = Modes.Discharging;
+                                powerW = Math.Round(p.DischargeKW * 1000.0, 0);
+                                break;
+
+                            default:
+                                mode = Modes.ZeroNetHome;
+                                powerW = 0.0;
+                                break;
+                        }
+
+                        newPlan[p.Start] = new PlanAction
+                        {
+                            Mode = mode,
+                            PowerW = powerW
+                        };
                     }
-
-                    newPlan[p.Start] = new PlanAction
-                    {
-                        Mode = mode,
-                        PowerW = powerW
-                    };
                 }
 
                 foreach (var qi in _quarterlyInfos)
@@ -605,7 +680,9 @@ namespace SessyController.Services
                 }
 
                 _planByTime = newPlan;
-                _logger.LogWarning($"MILP plan built: optimal={result.Optimal}, objective={result.ObjectiveEur:F4} EUR");
+                _logger.LogWarning($"MILP plan built: plan1={best.Plan1.Optimal}, obj1={best.Plan1.ObjectiveEur:F4} EUR" +
+                    (best.Plan2 != null ? $" | plan2={best.Plan2.Optimal}, obj2={best.Plan2.ObjectiveEur:F4} EUR" : "") +
+                    $" | split={best.SplitTime:HH:mm} | timeLimit={_milpTimeLimitMs}ms");
                 return true;
             }
             catch (Exception ex)
@@ -613,6 +690,66 @@ namespace SessyController.Services
                 _logger.LogError($"BuildMilpPlan failed: {ex.ToDetailedString()}");
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Solves a single MILP segment for the given quarters and initial SOC.
+        /// Returns null if the solve failed or produced no usable plan.
+        /// </summary>
+        private PlanResult? SolvePlanSegment(
+            List<QuarterlyInfo> quarters,
+            double initialSocKWh,
+            double capacityKWh,
+            double maxChargeKW,
+            double maxDischargeKW,
+            SessyOptions opt)
+        {
+            if (quarters.Count == 0)
+                return null;
+
+            double capacityWh = capacityKWh * 1000.0;
+
+            var pricePoints = quarters
+                .Select(q =>
+                {
+                    double netLoadWh = q.EstimatedConsumptionPerQuarterInWatts - q.SolarPowerPerQuarterInWatts;
+                    return new PricePoint(q.Time, q.BuyingPrice, q.SellingPrice, netLoadWh);
+                })
+                .ToList();
+
+            var socBounds = new List<SocBound>();
+
+            foreach (var q in quarters)
+            {
+                double minKWh = (_minSocWhByTime.TryGetValue(q.Time, out var mn) ? mn : 0.0) / 1000.0;
+                double maxKWh = (_maxSocWhByTime.TryGetValue(q.Time, out var mx) ? mx : capacityWh) / 1000.0;
+
+                minKWh = Math.Max(0.0, Math.Min(minKWh, capacityKWh));
+                maxKWh = Math.Max(minKWh, Math.Min(maxKWh, capacityKWh));
+
+                // BUGFIX: maxSocKWh must never fall below the initial SOC.
+                maxKWh = Math.Max(maxKWh, initialSocKWh);
+
+                socBounds.Add(new SocBound(q.Time, minKWh, maxKWh));
+            }
+
+            var spec = new BatterySpec(
+                CapacityKWh: capacityKWh,
+                InitialSocKWh: initialSocKWh,
+                MinSocKWh: 0.0,
+                MaxSocKWh: capacityKWh,
+                MaxChargeKW: maxChargeKW,
+                MaxDischargeKW: maxDischargeKW,
+                ChargeEfficiency: 0.95,
+                DischargeEfficiency: 0.95
+            );
+
+            var result = BatteryArbitrageMilp.Solve(pricePoints, spec, opt, socBounds);
+
+            if (result == null || result.Plan == null || result.Plan.Count == 0)
+                return null;
+
+            return result;
         }
 
         /// <summary>
