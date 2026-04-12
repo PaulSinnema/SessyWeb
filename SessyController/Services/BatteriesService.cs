@@ -6,7 +6,6 @@ using SessyController.Services.Items;
 using SessyController.Services.Optimization;
 using SessyData.Model;
 using SessyData.Services;
-using System.Diagnostics;
 using static SessyController.Services.Items.ChargingModes;
 using static SessyData.Model.SessyWebControl;
 
@@ -66,15 +65,10 @@ namespace SessyController.Services
         private int? _lastPriceSignature;
 
         // Dynamic MILP time limit: self-calibrates based on whether previous solves were optimal.
-        private int _milpTimeLimitMs = 2000;
-        private const int MilpTimeLimitMin = 500;
+        private int _milpTimeLimitMs = 300;
+        private const int MilpTimeLimitMin = 100;
         private const int MilpTimeLimitMax = 5000;
         private const int MilpTimeLimitStep = 200;
-
-        // Split time search parameters (hours from now).
-        private const int SplitSearchMinHours = 8;
-        private const int SplitSearchMaxHours = 24;
-        private const int SplitSearchStepHours = 1;
 
         public bool IsManualOverride => _settingsConfig.ManualOverride;
         public bool WeAreInControl { get; private set; } = true;
@@ -518,18 +512,22 @@ namespace SessyController.Services
                     return false;
 
                 // ── Parallel split search ─────────────────────────────────────────
-                // Each task solves two plan segments (split at a different hour) and
+                // Each task solves two plan segments (split at a different quarter) and
                 // returns the combined objective. All tasks run concurrently so the
                 // total wall time ≈ a single solve. The split with the highest
                 // combined objective is selected as the final plan.
-                var tasks = Enumerable
-                    .Range(SplitSearchMinHours, SplitSearchMaxHours - SplitSearchMinHours + 1)
-                    .Select(hours => Task.Run(() =>
-                    {
-                        var splitTime = nowQuarterTime.AddHours(hours);
+                // The search runs over ALL available quarters — no artificial horizon
+                // limit is imposed so the solver finds the globally optimal split.
+                int totalQuarters = allQuarters.Count;
 
-                        var seg1 = allQuarters.Where(q => q.Time < splitTime).ToList();
-                        var seg2 = allQuarters.Where(q => q.Time >= splitTime).ToList();
+                var tasks = Enumerable
+                    .Range(1, totalQuarters - 1)
+                    .Select(splitIndex => Task.Run(() =>
+                    {
+                        var splitTime = allQuarters[splitIndex].Time;
+
+                        var seg1 = allQuarters.Take(splitIndex).ToList();
+                        var seg2 = allQuarters.Skip(splitIndex).ToList();
 
                         if (seg1.Count == 0)
                             return (SplitTime: splitTime, Combined: double.MinValue, Plan1: (PlanResult?)null, Plan2: (PlanResult?)null, SuggestedTimeLimitMs: _milpTimeLimitMs);
@@ -585,15 +583,11 @@ namespace SessyController.Services
                     }))
                     .ToList();
 
-                var sw = new Stopwatch();
-
-                sw.Start();
-
+                var sw = System.Diagnostics.Stopwatch.StartNew();
                 var results = await Task.WhenAll(tasks).ConfigureAwait(false);
-
                 sw.Stop();
 
-                _logger.LogWarning($"MILP Solve finished in {sw.ElapsedMilliseconds} ms");
+                _logger.LogWarning($"MILP parallel search: {tasks.Count} splits evaluated in {sw.ElapsedMilliseconds}ms");
 
                 // Pick the split with the highest combined objective.
                 var best = results
@@ -1072,12 +1066,15 @@ namespace SessyController.Services
 
             var qi = _quarterlyInfos.FirstOrDefault(q => q.Time == nowQuarter);
 
-            // Solar surplus should be handled by ZeroNetHome, not active grid charging.
-            if (qi != null)
+            // Only block active grid charging when solar surplus is large enough to
+            // fill the battery by itself via ZeroNetHome. If surplus is smaller than
+            // the charge capacity, active charging is still worthwhile on top of the
+            // free solar energy — especially when prices are low or negative.
+            if (qi != null && planned.Mode == Modes.Charging)
             {
                 double netLoadWh = qi.EstimatedConsumptionPerQuarterInWatts - qi.SolarPowerPerQuarterInWatts;
 
-                if (netLoadWh < -1.0)
+                if (netLoadWh < -chargeStepWh)
                     return new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
             }
 
