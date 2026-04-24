@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Options;
+﻿using Microsoft.EntityFrameworkCore.Diagnostics.Internal;
+using Microsoft.Extensions.Options;
 using SessyCommon.Configurations;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
@@ -65,9 +66,7 @@ namespace SessyController.Services
         private int? _lastPriceSignature;
 
         // Dynamic MILP time limit: self-calibrates based on whether previous solves were optimal.
-        private int _milpTimeLimitMs = 300;
         private const int MilpTimeLimitMin = 100;
-        private const int MilpTimeLimitMax = 5000;
         private const int MilpTimeLimitStep = 200;
 
         public bool IsManualOverride => _settingsConfig.ManualOverride;
@@ -83,6 +82,7 @@ namespace SessyController.Services
         }
 
         // General thresholds
+        private const int _milpTimeLimit = 10000;
         private const double ReserveWh = 0.0;
         private const double EmptyHysteresisWh = 50.0;
         private const double FullThresholdRatio = 0.995;
@@ -521,7 +521,7 @@ namespace SessyController.Services
                 int totalQuarters = allQuarters.Count;
 
                 var tasks = Enumerable
-                    .Range(1, totalQuarters - 1)
+                    .Range(0, totalQuarters)
                     .Select(splitIndex => Task.Run(() =>
                     {
                         var splitTime = allQuarters[splitIndex].Time;
@@ -530,29 +530,19 @@ namespace SessyController.Services
                         var seg2 = allQuarters.Skip(splitIndex).ToList();
 
                         if (seg1.Count == 0)
-                            return (SplitTime: splitTime, Combined: double.MinValue, Plan1: (PlanResult?)null, Plan2: (PlanResult?)null, SuggestedTimeLimitMs: _milpTimeLimitMs);
-
-                        // Each task starts with the current shared time limit and
-                        // self-calibrates based on its own solve results.
-                        int timeLimitMs = _milpTimeLimitMs;
+                            return (SplitTime: splitTime, Combined: double.MinValue, Plan1: (PlanResult?)null, Plan2: (PlanResult?)null, SuggestedTimeLimitMs: _milpTimeLimit);
 
                         var opt = new SessyOptions(
                             QuarterMinutes: 15,
                             ActiveQuarterPenaltyEur: 0.0,
                             ForbidSimultaneousChargeDischarge: true,
-                            TimeLimitMs: timeLimitMs,
+                            TimeLimitMs: _milpTimeLimit,
                             CycleCostEurPerKWh: _settingsConfig.CycleCost
                         );
 
                         var r1 = SolvePlanSegment(seg1, socKWh, capacityKWh, maxChargeKW, maxDischargeKW, opt);
                         if (r1 == null)
-                            return (SplitTime: splitTime, Combined: double.MinValue, Plan1: (PlanResult?)null, Plan2: (PlanResult?)null, SuggestedTimeLimitMs: timeLimitMs);
-
-                        // Adjust time limit based on plan 1 result.
-                        if (r1.Optimal)
-                            timeLimitMs = Math.Max(MilpTimeLimitMin, timeLimitMs - MilpTimeLimitStep);
-                        else
-                            timeLimitMs = Math.Min(MilpTimeLimitMax, timeLimitMs + MilpTimeLimitStep * 2);
+                            return (SplitTime: splitTime, Combined: double.MinValue, Plan1: (PlanResult?)null, Plan2: (PlanResult?)null, SuggestedTimeLimitMs: _milpTimeLimit);
 
                         double socAfterSeg1 = r1.Plan.Count > 0
                             ? r1.Plan[r1.Plan.Count - 1].SocEndKWh
@@ -563,57 +553,41 @@ namespace SessyController.Services
 
                         if (seg2.Count > 0)
                         {
-                            // Use the adjusted time limit for plan 2.
-                            var opt2 = opt with { TimeLimitMs = timeLimitMs };
-
-                            r2 = SolvePlanSegment(seg2, socAfterSeg1, capacityKWh, maxChargeKW, maxDischargeKW, opt2);
+                            r2 = SolvePlanSegment(seg2, socAfterSeg1, capacityKWh, maxChargeKW, maxDischargeKW, opt);
                             if (r2 != null)
                             {
                                 combined += r2.ObjectiveEur;
-
-                                // Adjust again based on plan 2 result.
-                                if (r2.Optimal)
-                                    timeLimitMs = Math.Max(MilpTimeLimitMin, timeLimitMs - MilpTimeLimitStep);
-                                else
-                                    timeLimitMs = Math.Min(MilpTimeLimitMax, timeLimitMs + MilpTimeLimitStep * 2);
                             }
                         }
 
-                        return (SplitTime: splitTime, Combined: combined, Plan1: (PlanResult?)r1, Plan2: (PlanResult?)r2, SuggestedTimeLimitMs: timeLimitMs);
+                        return (SplitTime: splitTime, Combined: combined, Plan1: (PlanResult?)r1, Plan2: (PlanResult?)r2, SuggestedTimeLimitMs: _milpTimeLimit);
                     }))
                     .ToList();
 
                 var sw = System.Diagnostics.Stopwatch.StartNew();
-                var results = await Task.WhenAll(tasks).ConfigureAwait(false);
+                var list = (await Task.WhenAll(tasks).ConfigureAwait(false)).ToList();
                 sw.Stop();
 
-                _logger.LogWarning($"MILP parallel search: {tasks.Count} splits evaluated in {sw.ElapsedMilliseconds}ms");
+                _logger.LogWarning($"MILP parallel search: {list.Count} splits evaluated in {sw.ElapsedMilliseconds}ms");
 
                 // Pick the split with the highest combined objective.
-                var best = results
+                var best = list
                     .OrderByDescending(r => r.Combined)
                     .FirstOrDefault();
 
                 if (best.Plan1 == null)
                     return false;
 
-                _logger.LogWarning($"MILP split search: best split={best.SplitTime:HH:mm}, " +
-                    $"combined={best.Combined:F4} EUR | timeLimit={_milpTimeLimitMs}ms");
+                _logger.LogWarning($"MILP split search: best split={best.SplitTime}, combined={best.Combined:F4} EUR |");
 
                 // ── Dynamic time limit adjustment ────────────────────────────────
                 // Average the suggested time limits from all tasks that produced a result,
                 // then clamp to the allowed range. This converges to the time limit that
                 // makes most splits optimal without wasting time.
-                var suggestedLimits = results
+                var suggestedLimits = list
                     .Where(r => r.Plan1 != null)
                     .Select(r => r.SuggestedTimeLimitMs)
                     .ToList();
-
-                if (suggestedLimits.Count > 0)
-                    _milpTimeLimitMs = Math.Clamp(
-                        (int)suggestedLimits.Average(),
-                        MilpTimeLimitMin,
-                        MilpTimeLimitMax);
 
                 // ── Merge both plan segments into _planByTime ────────────────────
                 var newPlan = new Dictionary<DateTime, PlanAction>();
@@ -676,7 +650,7 @@ namespace SessyController.Services
                 _planByTime = newPlan;
                 _logger.LogWarning($"MILP plan built: plan1={best.Plan1.Optimal}, obj1={best.Plan1.ObjectiveEur:F4} EUR" +
                     (best.Plan2 != null ? $" | plan2={best.Plan2.Optimal}, obj2={best.Plan2.ObjectiveEur:F4} EUR" : "") +
-                    $" | split={best.SplitTime:HH:mm} | timeLimit={_milpTimeLimitMs}ms");
+                    $" | split={best.SplitTime:HH:mm}");
                 return true;
             }
             catch (Exception ex)
@@ -1144,7 +1118,6 @@ namespace SessyController.Services
 
         private async Task ExecuteAction(PlanAction action)
         {
-#if !DEBUG
             if (_dayAheadMarketService.IsInitialized())
             {
                 if (_settingsConfig.ManualOverride)
@@ -1157,25 +1130,51 @@ namespace SessyController.Services
                 {
                     case Modes.Charging:
                         if (action.PowerW > 10)
+                        {
+                            _logger.LogWarning($"Charging: _batteryContainer.StartCharging({(int)Math.Round(action.PowerW)}).ConfigureAwait(false);");
+#if !DEBUG
                             await _batteryContainer.StartCharging((int)Math.Round(action.PowerW)).ConfigureAwait(false);
+#endif
+                        }
                         else
+                        {
+                            _logger.LogWarning($"Charging: _batteryContainer.StopAll().ConfigureAwait(false);");
+#if !DEBUG
                             await _batteryContainer.StopAll().ConfigureAwait(false);
+#endif
+                        }
                         break;
 
                     case Modes.Discharging:
                         if (action.PowerW > 10)
+                        {
+                            _logger.LogWarning($"Charging:_batteryContainer.StartDisharging({(int)Math.Round(action.PowerW)}).ConfigureAwait(false);");
+#if !DEBUG
                             await _batteryContainer.StartDisharging((int)Math.Round(action.PowerW)).ConfigureAwait(false);
+#endif
+                        }
                         else
+                        {
+                            _logger.LogWarning($"Charging: _batteryContainer.StopAll().ConfigureAwait(false);");
+#if !DEBUG
                             await _batteryContainer.StopAll().ConfigureAwait(false);
+#endif
+                        }
                         break;
 
                     case Modes.ZeroNetHome:
+                        _logger.LogWarning($"ZeroNetHome: _batteryContainer.StartNetZeroHome().ConfigureAwait(false)");
+#if !DEBUG
                         await _batteryContainer.StartNetZeroHome().ConfigureAwait(false);
+#endif
                         break;
 
                     case Modes.Disabled:
                     default:
+                        _logger.LogWarning($"Disabled: _batteryContainer.StopAll().ConfigureAwait(false);");
+#if !DEBUG
                         await _batteryContainer.StopAll().ConfigureAwait(false);
+#endif
                         break;
                 }
             }
@@ -1183,9 +1182,6 @@ namespace SessyController.Services
             {
                 await ExecuteManualOverride().ConfigureAwait(false);
             }
-#else
-            await Task.Delay(1).ConfigureAwait(false);
-#endif
         }
 
         private async Task ExecuteManualOverride()

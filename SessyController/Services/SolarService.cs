@@ -17,6 +17,8 @@ namespace SessyController.Services
 
         private WeatherService _weatherService { get; set; }
 
+        private BatteryContainer _batteryContainer;
+
         private DayAheadMarketService _dayAheadMarketService { get; set; }
 
         private SolarDataService _solarDataService { get; set; }
@@ -38,6 +40,7 @@ namespace SessyController.Services
                             TimeZoneService timeZoneService,
                             LoggingService<SolarEdgeInverterService> logger,
                             IOptions<PowerSystemsConfig> powerSystemsConfig,
+                            BatteryContainer batteryContainer,
                             WeatherService weatherService,
                             DayAheadMarketService dayAheadMarketService,
                             SolarDataService solarDataService,
@@ -50,6 +53,7 @@ namespace SessyController.Services
             _logger = logger;
             _powerSystemsConfig = powerSystemsConfig.Value;
             _weatherService = weatherService;
+            _batteryContainer = batteryContainer;
             _dayAheadMarketService = dayAheadMarketService;
             _solarDataService = solarDataService;
             _solarEdgeDataService = solarEdgeDataService;
@@ -139,7 +143,7 @@ namespace SessyController.Services
 
             await ApplyPerformanceFactor(hourlyInfos, _timeZoneService.Now);
 
-             AddSmoothedSolarPower(hourlyInfos, 8);
+            AddSmoothedSolarPower(hourlyInfos, 8);
         }
 
         private void AddSmoothedSolarPower(List<QuarterlyInfo> hourlyInfos, int windowSize = 6)
@@ -295,7 +299,12 @@ namespace SessyController.Services
             if (!_settingsConfig.SolarSystemShutsDownDuringNegativePrices)
                 return true;
 
+            var totalCapacity = _batteryContainer.GetTotalCapacity();
+
             if (currentHourlyInfo.SellingPriceIsPositive)
+                return true;
+
+            if (currentHourlyInfo.PriceIsNegative && currentHourlyInfo.ChargeLeftPercentage(totalCapacity) < 100.0)
                 return true;
 
             return false;
