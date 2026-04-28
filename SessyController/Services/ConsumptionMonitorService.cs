@@ -27,6 +27,7 @@ namespace SessyController.Services
         private P1MeterContainer _p1MeterContainer { get; set; }
 
         private ConsumptionDataService _consumptionDataService { get; set; }
+        private EPEXPricesDataService _epexPricesDataService { get; set; }
 
         private SolarInverterManager _solarInverterManager { get; set; }
         private BatteryContainer _batteryContainer { get; set; }
@@ -78,9 +79,11 @@ namespace SessyController.Services
             _p1MeterService = _scope.ServiceProvider.GetRequiredService<P1MeterService>();
             _p1MeterContainer = p1MeterContainer;
             _consumptionDataService = _scope.ServiceProvider.GetRequiredService<ConsumptionDataService>();
+            _epexPricesDataService = _scope.ServiceProvider.GetRequiredService<EPEXPricesDataService>();
             _solarInverterManager = _scope.ServiceProvider.GetRequiredService<SolarInverterManager>();
             _batteryContainer = _scope.ServiceProvider.GetRequiredService<BatteryContainer>();
         }
+
         protected override async Task ExecuteAsync(CancellationToken cancelationToken)
         {
             _logger.LogWarning("Consumption monitor service started ...");
@@ -146,7 +149,6 @@ namespace SessyController.Services
                 {
                     await StoreConsumption(p1Meter);
                 }
-
             }
             finally
             {
@@ -187,7 +189,7 @@ namespace SessyController.Services
 
             if (nextQuarter == null)
             {
-                // Initialize first time
+                // Initialize first time.
                 nextQuarter = _timeZoneService.Now.DateCeilingQuarter();
             }
 
@@ -199,7 +201,8 @@ namespace SessyController.Services
                 if (_consumptionData.Count > 0)
                 {
                     var list = _consumptionData
-                                                .Where(c => !double.IsNaN(c.ConsumptionWh) && !double.IsInfinity(c.ConsumptionWh));
+                        .Where(c => !double.IsNaN(c.ConsumptionWh) && !double.IsInfinity(c.ConsumptionWh));
+
                     var averageConsumptionWh = list.Count() > 0 ? list.Average(c => c.ConsumptionWh) : 0.0;
 
                     if (averageConsumptionWh > 0)
@@ -319,12 +322,34 @@ namespace SessyController.Services
             var currentWeather = await _weatherService.GetWeatherData();
             List<Consumption> consumptions = await GetDataForAYear();
 
-            var taskList = quarterlyInfos.Select(qi => CalculateEstimatedConsumptionForAQuarterHour(consumptions, currentWeather!, qi)).ToList();
+            // Fetch EPEX prices for the same period and build a lookup by quarter time.
+            var now = _timeZoneService.Now;
+            var priceStart = now.AddDays(-365);
+            var priceEnd = now.AddDays(2);
+
+            var epexPrices = await _epexPricesDataService.GetList(async (set) =>
+            {
+                var result = set
+                    .Where(p => p.Time >= priceStart && p.Time <= priceEnd && p.Price.HasValue)
+                    .ToList();
+                return await Task.FromResult(result);
+            });
+
+            var priceLookup = epexPrices
+                .ToDictionary(p => p.Time, p => p.Price!.Value);
+
+            var taskList = quarterlyInfos
+                .Select(qi => CalculateEstimatedConsumptionForAQuarterHour(consumptions, priceLookup, currentWeather!, qi))
+                .ToList();
 
             await Task.WhenAll(taskList);
         }
 
-        public async Task CalculateEstimatedConsumptionForAQuarterHour(List<Consumption> consumptions, WeerData currentWeather, QuarterlyInfo quarterlyInfo)
+        public async Task CalculateEstimatedConsumptionForAQuarterHour(
+            List<Consumption> consumptions,
+            Dictionary<DateTime, double> priceLookup,
+            WeerData currentWeather,
+            QuarterlyInfo quarterlyInfo)
         {
             var minHour = quarterlyInfo.Time.Hour - _hourDelta;
             var maxHour = quarterlyInfo.Time.Hour + _hourDelta;
@@ -347,36 +372,65 @@ namespace SessyController.Services
                     double? minGlobalRadiation = uurverwachting.GlobalRadiation - _globalRadiationDelta;
                     double? maxGlobalRadiation = uurverwachting.GlobalRadiation + _globalRadiationDelta;
 
+                    double currentPrice = quarterlyInfo.BuyingPrice;
+
+                    // Base filter: time window, day of week, positive consumption.
                     var list = consumptions
-                            .Where(c => c.Time.Year >= minYear &&
-                                        c.Time.Hour >= minHour &&
-                                        c.Time.Hour <= maxHour &&
-                                        c.Time.DayOfWeek == dayOfWeek &&
-                                        c.ConsumptionWh > 0.0)
-                            .ToList();
+                        .Where(c => c.Time.Year >= minYear &&
+                                    c.Time.Hour >= minHour &&
+                                    c.Time.Hour <= maxHour &&
+                                    c.Time.DayOfWeek == dayOfWeek &&
+                                    c.ConsumptionWh > 0.0)
+                        .ToList();
 
-                    var subset = list.Where(c => c.Temperature >= minTemperature &&
-                                                 c.Temperature <= maxTemperature &&
-                                                 c.Humidity >= minHumidity &&
-                                                 c.Humidity <= maxHumidity &&
-                                                 c.GlobalRadiation >= minGlobalRadiation &&
-                                                 c.GlobalRadiation <= maxGlobalRadiation)
-                                     .ToList();
+                    // Fallback chain: progressively relax filters until a match is found.
+                    // Price is used as a soft tie-breaker within each subset — records with
+                    // a closer historical price are ranked higher but never fully excluded.
+                    // This avoids over-filtering when few historical records exist at
+                    // extreme prices (e.g. very low or negative prices).
 
-                    if (subset == null || subset.Count == 0)
+                    List<Consumption>? subset = null;
+
+                    // 1. Full match: temperature + humidity + global radiation.
+                    var candidates = list
+                        .Where(c => c.Temperature >= minTemperature &&
+                                    c.Temperature <= maxTemperature &&
+                                    c.Humidity >= minHumidity &&
+                                    c.Humidity <= maxHumidity &&
+                                    c.GlobalRadiation >= minGlobalRadiation &&
+                                    c.GlobalRadiation <= maxGlobalRadiation)
+                        .ToList();
+
+                    // 2. Without humidity.
+                    if (candidates.Count == 0)
                     {
-                        subset = list.Where(c => c.Temperature >= minTemperature &&
-                                                 c.Temperature <= maxTemperature &&
-                                                 c.GlobalRadiation >= minGlobalRadiation &&
-                                                 c.GlobalRadiation <= maxGlobalRadiation)
-                                    .ToList();
+                        candidates = list
+                            .Where(c => c.Temperature >= minTemperature &&
+                                        c.Temperature <= maxTemperature &&
+                                        c.GlobalRadiation >= minGlobalRadiation &&
+                                        c.GlobalRadiation <= maxGlobalRadiation)
+                            .ToList();
                     }
 
-                    if (subset == null || subset.Count == 0)
+                    // 3. Only temperature.
+                    if (candidates.Count == 0)
                     {
-                        subset = list.Where(c => c.Temperature >= minTemperature &&
-                                                 c.Temperature <= maxTemperature)
-                                    .ToList();
+                        candidates = list
+                            .Where(c => c.Temperature >= minTemperature &&
+                                        c.Temperature <= maxTemperature)
+                            .ToList();
+                    }
+
+                    // Apply soft price weighting: sort by price proximity and take the
+                    // closest matches. Records without a known historical price are ranked last.
+                    if (candidates.Count > 0)
+                    {
+                        subset = candidates
+                            .OrderBy(c => priceLookup.TryGetValue(c.Time, out var p)
+                                ? Math.Abs(p - currentPrice)
+                                : double.MaxValue)
+                            .Take(10)
+                            .ToList();
                     }
 
                     if (subset != null && subset.Count > 0)
@@ -393,7 +447,6 @@ namespace SessyController.Services
 
                 quarterlyInfo.EstimatedConsumptionPerQuarterInWatts = _settingConfig.EnergyNeedsPerMonth / 96.0; // Default to average monthly consumption
             }
-
         }
 
         private async Task<List<Consumption>> GetDataForAYear()

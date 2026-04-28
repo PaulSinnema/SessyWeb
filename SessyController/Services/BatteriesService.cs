@@ -1,5 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore.Diagnostics.Internal;
-using Microsoft.Extensions.Options;
+﻿using Microsoft.Extensions.Options;
 using SessyCommon.Configurations;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
@@ -65,9 +64,8 @@ namespace SessyController.Services
         private DateTime? _lastPlannedQuarter;
         private int? _lastPriceSignature;
 
-        // Dynamic MILP time limit: self-calibrates based on whether previous solves were optimal.
-        private const int MilpTimeLimitMin = 100;
-        private const int MilpTimeLimitStep = 200;
+        // Fixed MILP time limit per solve segment.
+        private const int MilpTimeLimitMs = 5000;
 
         public bool IsManualOverride => _settingsConfig.ManualOverride;
         public bool WeAreInControl { get; private set; } = true;
@@ -82,7 +80,6 @@ namespace SessyController.Services
         }
 
         // General thresholds
-        private const int _milpTimeLimit = 10000;
         private const double ReserveWh = 0.0;
         private const double EmptyHysteresisWh = 50.0;
         private const double FullThresholdRatio = 0.995;
@@ -212,6 +209,45 @@ namespace SessyController.Services
                 // Final physical feasibility pass with min/max SOC envelopes.
                 await EnsureEnergyForPlannedDischargeAsync(currentSocWh).ConfigureAwait(false);
 
+                // Zero out solar forecast for quarters where the inverter will be shut
+                // down: only during Charging quarters with negative prices. During those
+                // quarters we get paid to consume from the grid, so our own solar
+                // production directly reduces that benefit.
+                // SmoothedSolarPower is recalculated after zeroing so the smoothing
+                // window does not pull down adjacent quarters.
+                if (_settingsConfig.SolarSystemShutsDownDuringNegativePrices)
+                {
+                    foreach (var qi in _quarterlyInfos.Where(q => q.PriceIsNegative &&
+                        _planByTime.TryGetValue(q.Time, out var act) &&
+                        act.Mode == Modes.Charging))
+                    {
+                        qi.SolarPowerPerQuarterHour = 0.0;
+                    }
+
+                    // Recalculate smoothed solar power after zeroing.
+                    // Only average over quarters with the same solar state (zero or non-zero)
+                    // to prevent the smoothing window from pulling down adjacent quarters.
+                    var ordered = _quarterlyInfos.OrderBy(q => q.Time).ToList();
+                    int windowSize = 8;
+
+                    for (int i = 0; i < ordered.Count; i++)
+                    {
+                        bool isZero = ordered[i].SolarPowerPerQuarterHour == 0.0;
+                        int start = Math.Max(0, i - windowSize / 2);
+                        int end = Math.Min(ordered.Count - 1, i + windowSize / 2);
+
+                        var range = ordered
+                            .Skip(start)
+                            .Take(end - start + 1)
+                            .Where(h => (h.SolarPowerPerQuarterHour == 0.0) == isZero)
+                            .ToList();
+
+                        ordered[i].SmoothedSolarPower = range.Any()
+                            ? range.Average(h => h.SolarPowerPerQuarterHour)
+                            : 0.0;
+                    }
+                }
+
                 WritePlanIntoQuarterlyInfos();
                 await WriteBackSocSimulationAsync(currentSocWh).ConfigureAwait(false);
 
@@ -232,14 +268,30 @@ namespace SessyController.Services
                     // discharge the battery to compensate for the reduced inverter output —
                     // directly fighting the curtailment logic.
                     var nowQi = _quarterlyInfos.FirstOrDefault(q => q.Time == nowQuarter);
-
                     bool priceIsNegative = nowQi?.PriceIsNegative ?? false;
                     bool batteryIsFull = await BatteryIsFullAsync().ConfigureAwait(false);
-                    bool curtailmentRequested = priceIsNegative && batteryIsFull;
 
-                    _inverterCurtailmentService.SetCurtailmentRequested(curtailmentRequested);
+                    _inverterCurtailmentService.SetCurtailmentRequested(priceIsNegative, batteryIsFull);
 
-                    if (_inverterCurtailmentService.IsCurtailmentActive)
+                    // When the inverter is shut down (price negative, battery not full),
+                    // zero out the solar forecast in QuarterlyInfos so the chart reflects
+                    // the actual situation — no solar production during shutdown periods.
+                    if (priceIsNegative && !batteryIsFull)
+                    {
+                        foreach (var qi in _quarterlyInfos.Where(q => q.PriceIsNegative))
+                        {
+                            qi.SolarPowerPerQuarterHour = 0.0;
+                            qi.SmoothedSolarPower = 0.0;
+                        }
+                    }
+
+                    // Curtailment is active in both shutdown (battery not full) and
+                    // throttle (battery full) modes. In both cases the Sessy must be
+                    // Disabled so NOM does not fight the inverter curtailment.
+                    // Only force Disabled when the price is actually still negative —
+                    // if the price turned positive but IsCurtailmentActive is still true
+                    // due to a Modbus error, we should not block Charging.
+                    if (_inverterCurtailmentService.IsCurtailmentActive && priceIsNegative)
                     {
                         executable = new PlanAction
                         {
@@ -265,7 +317,7 @@ namespace SessyController.Services
 #if !DEBUG
                     // Release curtailment when we lose control so the inverter
                     // is not left throttled if e.g. the supplier takes over.
-                    _inverterCurtailmentService.SetCurtailmentRequested(false);
+                    _inverterCurtailmentService.SetCurtailmentRequested(false, false);
                     await _batteryContainer.StopAll().ConfigureAwait(false);
 #endif
                 }
@@ -518,10 +570,14 @@ namespace SessyController.Services
                 // combined objective is selected as the final plan.
                 // The search runs over ALL available quarters — no artificial horizon
                 // limit is imposed so the solver finds the globally optimal split.
+                // A full-horizon (no split) solve is always included as a candidate.
+                // Split index starts at 4 (= 1 hour) so seg1 always has enough quarters
+                // to produce a meaningful plan for the current and near-future quarters.
                 int totalQuarters = allQuarters.Count;
+                int minSplitIndex = Math.Min(4, totalQuarters - 1);
 
                 var tasks = Enumerable
-                    .Range(0, totalQuarters)
+                    .Range(minSplitIndex, totalQuarters - minSplitIndex)
                     .Select(splitIndex => Task.Run(() =>
                     {
                         var splitTime = allQuarters[splitIndex].Time;
@@ -530,19 +586,19 @@ namespace SessyController.Services
                         var seg2 = allQuarters.Skip(splitIndex).ToList();
 
                         if (seg1.Count == 0)
-                            return (SplitTime: splitTime, Combined: double.MinValue, Plan1: (PlanResult?)null, Plan2: (PlanResult?)null, SuggestedTimeLimitMs: _milpTimeLimit);
+                            return (SplitTime: splitTime, Combined: double.MinValue, Plan1: (PlanResult?)null, Plan2: (PlanResult?)null);
 
                         var opt = new SessyOptions(
                             QuarterMinutes: 15,
                             ActiveQuarterPenaltyEur: 0.0,
                             ForbidSimultaneousChargeDischarge: true,
-                            TimeLimitMs: _milpTimeLimit,
+                            TimeLimitMs: MilpTimeLimitMs,
                             CycleCostEurPerKWh: _settingsConfig.CycleCost
                         );
 
                         var r1 = SolvePlanSegment(seg1, socKWh, capacityKWh, maxChargeKW, maxDischargeKW, opt);
                         if (r1 == null)
-                            return (SplitTime: splitTime, Combined: double.MinValue, Plan1: (PlanResult?)null, Plan2: (PlanResult?)null, SuggestedTimeLimitMs: _milpTimeLimit);
+                            return (SplitTime: splitTime, Combined: double.MinValue, Plan1: (PlanResult?)null, Plan2: (PlanResult?)null);
 
                         double socAfterSeg1 = r1.Plan.Count > 0
                             ? r1.Plan[r1.Plan.Count - 1].SocEndKWh
@@ -555,39 +611,29 @@ namespace SessyController.Services
                         {
                             r2 = SolvePlanSegment(seg2, socAfterSeg1, capacityKWh, maxChargeKW, maxDischargeKW, opt);
                             if (r2 != null)
-                            {
                                 combined += r2.ObjectiveEur;
-                            }
                         }
 
-                        return (SplitTime: splitTime, Combined: combined, Plan1: (PlanResult?)r1, Plan2: (PlanResult?)r2, SuggestedTimeLimitMs: _milpTimeLimit);
+                        return (SplitTime: splitTime, Combined: combined, Plan1: (PlanResult?)r1, Plan2: (PlanResult?)r2);
                     }))
                     .ToList();
 
                 var sw = System.Diagnostics.Stopwatch.StartNew();
-                var list = (await Task.WhenAll(tasks).ConfigureAwait(false)).ToList();
+                var results = await Task.WhenAll(tasks).ConfigureAwait(false);
                 sw.Stop();
 
-                _logger.LogWarning($"MILP parallel search: {list.Count} splits evaluated in {sw.ElapsedMilliseconds}ms");
+                _logger.LogWarning($"MILP parallel search: {tasks.Count} splits evaluated in {sw.ElapsedMilliseconds}ms");
 
                 // Pick the split with the highest combined objective.
-                var best = list
+                var best = results
                     .OrderByDescending(r => r.Combined)
                     .FirstOrDefault();
 
                 if (best.Plan1 == null)
                     return false;
 
-                _logger.LogWarning($"MILP split search: best split={best.SplitTime}, combined={best.Combined:F4} EUR |");
-
-                // ── Dynamic time limit adjustment ────────────────────────────────
-                // Average the suggested time limits from all tasks that produced a result,
-                // then clamp to the allowed range. This converges to the time limit that
-                // makes most splits optimal without wasting time.
-                var suggestedLimits = list
-                    .Where(r => r.Plan1 != null)
-                    .Select(r => r.SuggestedTimeLimitMs)
-                    .ToList();
+                _logger.LogWarning($"MILP split search: best split={best.SplitTime:HH:mm}, " +
+                    $"combined={best.Combined:F4} EUR | timeLimit={MilpTimeLimitMs}ms");
 
                 // ── Merge both plan segments into _planByTime ────────────────────
                 var newPlan = new Dictionary<DateTime, PlanAction>();
@@ -650,7 +696,7 @@ namespace SessyController.Services
                 _planByTime = newPlan;
                 _logger.LogWarning($"MILP plan built: plan1={best.Plan1.Optimal}, obj1={best.Plan1.ObjectiveEur:F4} EUR" +
                     (best.Plan2 != null ? $" | plan2={best.Plan2.Optimal}, obj2={best.Plan2.ObjectiveEur:F4} EUR" : "") +
-                    $" | split={best.SplitTime:HH:mm}");
+                    $" | split={best.SplitTime:HH:mm} | timeLimit={MilpTimeLimitMs}ms");
                 return true;
             }
             catch (Exception ex)
@@ -1118,6 +1164,7 @@ namespace SessyController.Services
 
         private async Task ExecuteAction(PlanAction action)
         {
+#if !DEBUG
             if (_dayAheadMarketService.IsInitialized())
             {
                 if (_settingsConfig.ManualOverride)
@@ -1130,51 +1177,25 @@ namespace SessyController.Services
                 {
                     case Modes.Charging:
                         if (action.PowerW > 10)
-                        {
-                            _logger.LogWarning($"Charging: _batteryContainer.StartCharging({(int)Math.Round(action.PowerW)}).ConfigureAwait(false);");
-#if !DEBUG
                             await _batteryContainer.StartCharging((int)Math.Round(action.PowerW)).ConfigureAwait(false);
-#endif
-                        }
                         else
-                        {
-                            _logger.LogWarning($"Charging: _batteryContainer.StopAll().ConfigureAwait(false);");
-#if !DEBUG
                             await _batteryContainer.StopAll().ConfigureAwait(false);
-#endif
-                        }
                         break;
 
                     case Modes.Discharging:
                         if (action.PowerW > 10)
-                        {
-                            _logger.LogWarning($"Charging:_batteryContainer.StartDisharging({(int)Math.Round(action.PowerW)}).ConfigureAwait(false);");
-#if !DEBUG
                             await _batteryContainer.StartDisharging((int)Math.Round(action.PowerW)).ConfigureAwait(false);
-#endif
-                        }
                         else
-                        {
-                            _logger.LogWarning($"Charging: _batteryContainer.StopAll().ConfigureAwait(false);");
-#if !DEBUG
                             await _batteryContainer.StopAll().ConfigureAwait(false);
-#endif
-                        }
                         break;
 
                     case Modes.ZeroNetHome:
-                        _logger.LogWarning($"ZeroNetHome: _batteryContainer.StartNetZeroHome().ConfigureAwait(false)");
-#if !DEBUG
                         await _batteryContainer.StartNetZeroHome().ConfigureAwait(false);
-#endif
                         break;
 
                     case Modes.Disabled:
                     default:
-                        _logger.LogWarning($"Disabled: _batteryContainer.StopAll().ConfigureAwait(false);");
-#if !DEBUG
                         await _batteryContainer.StopAll().ConfigureAwait(false);
-#endif
                         break;
                 }
             }
@@ -1182,6 +1203,9 @@ namespace SessyController.Services
             {
                 await ExecuteManualOverride().ConfigureAwait(false);
             }
+#else
+            await Task.Delay(1).ConfigureAwait(false);
+#endif
         }
 
         private async Task ExecuteManualOverride()

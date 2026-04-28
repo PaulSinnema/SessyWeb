@@ -36,6 +36,9 @@ namespace SessyController.Services
         private PowerSystemsConfig _powerSystemsConfig { get; set; }
         private TimeZoneService _timeZoneService { get; set; }
 
+        // Number of past days to use for global radiation extrapolation.
+        private const int ExtrapolationLookbackDays = 14;
+
         public SolarService(IConfiguration configuration,
                             TimeZoneService timeZoneService,
                             LoggingService<SolarEdgeInverterService> logger,
@@ -169,6 +172,8 @@ namespace SessyController.Services
         ///     - Solar panels
         ///     - Position (longitude, latitude)
         /// - Negative prices assessment
+        /// For quarters beyond the WeerOnline 24h forecast window, global radiation
+        /// is extrapolated from historical averages for the same hour and day of week.
         /// </summary>
         private async Task GetEstimatesForSolarPower(List<QuarterlyInfo> hourlyInfos)
         {
@@ -187,9 +192,12 @@ namespace SessyController.Services
                     return await Task.FromResult(result);
                 });
 
+                // Build a lookup of quarters that have weather forecast data.
+                var coveredTimes = new HashSet<DateTime>(
+                    data.Where(sd => sd.Time.HasValue).Select(sd => sd.Time!.Value));
+
                 if (data != null)
                 {
-
                     foreach (SolarData solarData in data)
                     {
                         var currentHourlyInfo = hourlyInfos.Where(hi => hi.Time == solarData.Time).FirstOrDefault();
@@ -217,7 +225,97 @@ namespace SessyController.Services
                         }
                     }
                 }
+
+                // Extrapolate solar power for quarters not covered by the 24h forecast.
+                // Uses the average global radiation of the same hour from the past
+                // ExtrapolationLookbackDays days as a proxy for expected radiation.
+                var uncoveredInfos = hourlyInfos
+                    .Where(hi => !coveredTimes.Contains(hi.Time) && hi.SolarPowerPerQuarterHour == 0.0)
+                    .ToList();
+
+                if (uncoveredInfos.Count > 0)
+                {
+                    await ExtrapolateSolarPowerAsync(hourlyInfos, uncoveredInfos);
+                }
             }
+        }
+
+        /// <summary>
+        /// Extrapolates global radiation and solar power for quarters that fall outside
+        /// the WeerOnline 24h forecast window.
+        ///
+        /// Strategy: for each uncovered quarter, look up all historical SolarData records
+        /// from the past ExtrapolationLookbackDays days that share the same hour of day.
+        /// The average global radiation of those records is used as the estimate.
+        /// Solar power is then calculated using the existing panel geometry methods.
+        /// </summary>
+        private async Task ExtrapolateSolarPowerAsync(
+            List<QuarterlyInfo> allInfos,
+            List<QuarterlyInfo> uncoveredInfos)
+        {
+            var now = _timeZoneService.Now;
+            var lookbackStart = now.Date.AddDays(-ExtrapolationLookbackDays);
+
+            // Fetch all historical radiation records for the lookback window.
+            var historicalData = await _solarDataService.GetList(async (set) =>
+            {
+                var result = set
+                    .Where(sd => sd.Time >= lookbackStart && sd.Time < now.Date)
+                    .OrderBy(sd => sd.Time)
+                    .ToList();
+
+                return await Task.FromResult(result);
+            });
+
+            // Group by hour of day for fast lookup.
+            var radiationByHour = historicalData
+                .Where(sd => sd.Time.HasValue)
+                .GroupBy(sd => sd.Time!.Value.Hour)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Average(sd => sd.GlobalRadiation));
+
+            int extrapolatedCount = 0;
+
+            foreach (var qi in uncoveredInfos)
+            {
+                int hour = qi.Time.Hour;
+
+                if (!radiationByHour.TryGetValue(hour, out double estimatedRadiation))
+                    continue; // No historical data for this hour — leave at zero (night).
+
+                // Create a synthetic SolarData record with the estimated radiation.
+                var syntheticSolarData = new SolarData
+                {
+                    Time = qi.Time,
+                    GlobalRadiation = estimatedRadiation
+                };
+
+                qi.SolarGlobalRadiation = estimatedRadiation;
+                qi.SolarPowerPerQuarterHour = 0.0;
+
+                if (SolarSystemRunning(qi))
+                {
+                    foreach (var config in _powerSystemsConfig.Endpoints.Values)
+                    {
+                        foreach (var id in config.Keys)
+                        {
+                            CalculateSolarPerArray(syntheticSolarData, qi, config, id);
+                        }
+                    }
+                }
+
+                // Propagate to the other three quarter-hour slots within the same hour.
+                AddSolarPowerToHourlyInfosFor15MinuteResolution(allInfos, qi, 15);
+                AddSolarPowerToHourlyInfosFor15MinuteResolution(allInfos, qi, 30);
+                AddSolarPowerToHourlyInfosFor15MinuteResolution(allInfos, qi, 45);
+
+                extrapolatedCount++;
+            }
+
+            if (extrapolatedCount > 0)
+                _logger.LogInformation(
+                    $"Solar extrapolation: {extrapolatedCount} quarters estimated from {ExtrapolationLookbackDays}-day average radiation.");
         }
 
         private async Task ApplyPerformanceFactor(List<QuarterlyInfo> hourlyInfos, DateTime now)
@@ -241,7 +339,7 @@ namespace SessyController.Services
                 return;
             }
 
-            // Som forecast
+            // Sum forecast
             var forecastToNow = pastInfos.Sum(q => q.SolarPowerPerQuarterHour);
 
             // Sum of measured solar power
@@ -256,15 +354,15 @@ namespace SessyController.Services
                 return;
             }
 
-            // Performance factor berekenen
+            // Calculate performance factor.
             var factor = realizedToNow / forecastToNow;
 
-            // Clampen
+            // Clamp to a reasonable range to avoid extreme corrections.
             factor = Math.Max(0.2, Math.Min(5.0, factor));
 
-            _logger.LogInformation($"Performance factor toegepast: {factor:F2} (Realized={realizedToNow:F2} kWh, Forecast={forecastToNow:F2} kWh)");
+            _logger.LogInformation($"Performance factor applied: {factor:F2} (Realized={realizedToNow:F2} kWh, Forecast={forecastToNow:F2} kWh)");
 
-            // Adjust quarterInfos
+            // Adjust quarterInfos for today only.
             foreach (var q in todayInfos)
             {
                 q.SolarPowerPerQuarterHour *= factor;
@@ -342,7 +440,7 @@ namespace SessyController.Services
 
         private void CalculateSolarPosition(DateTime dateTime, double latitude, double longitude, out double altitude, out double azimuth)
         {
-            // Tijdzone offset automatisch bepalen
+            // Determine timezone offset automatically.
             TimeZoneInfo tz = TimeZoneInfo.FindSystemTimeZoneById("W. Europe Standard Time");
             TimeSpan offset = tz.GetUtcOffset(dateTime);
             int timezoneOffset = (int)offset.TotalHours;
@@ -395,7 +493,7 @@ namespace SessyController.Services
 
             double cosThetaI = Math.Sin(alphaRad) * Math.Cos(betaRad) + Math.Cos(alphaRad) * Math.Sin(betaRad) * Math.Cos(gammaRad);
 
-            // Sun behind solarpanel, factor becomes zero
+            // Sun behind solar panel — factor becomes zero.
             var factor = Math.Max(0, cosThetaI);
 
             return factor * _settingsConfig.SolarCorrection;

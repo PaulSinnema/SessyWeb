@@ -32,6 +32,11 @@ namespace SessyController.Services.InverterServices
         private TimeZoneService _timeZoneService;
         private SolarInverterDataService _solarEdgeDataService;
 
+        // Serializes all Modbus operations to prevent transaction ID mismatches
+        // when multiple callers (curtailment loop, power read loop) access the
+        // inverter concurrently over the same TCP connection.
+        private readonly SemaphoreSlim _modbusSemaphore = new SemaphoreSlim(1, 1);
+
         public SunspecInverterService(LoggingService<SolarEdgeInverterService> logger,
                                       string providerName,
                                       IHttpClientFactory httpClientFactory,
@@ -78,7 +83,7 @@ namespace SessyController.Services.InverterServices
 
                 try
                 {
-                    int delayTime = 1; // Check again every seconds
+                    int delayTime = 1; // Check again every second
 
                     await Task.Delay(TimeSpan.FromSeconds(delayTime), cancelationToken).ConfigureAwait(false);
                 }
@@ -120,7 +125,7 @@ namespace SessyController.Services.InverterServices
                     if (level == SolCalc.Data.SunlightLevel.Daylight)
                     {
                         // The sun is visible (over the horizon).
-                        ActualSolarPowerInWatts = await GetACPowerInWatts(config.Key);
+                        ActualSolarPowerInWatts = await GetACPowerInWatts(config.Key).ConfigureAwait(false);
                         var date = _timeZoneService.Now;
 
                         if (!CollectedPowerData.ContainsKey(config.Key))
@@ -130,12 +135,42 @@ namespace SessyController.Services.InverterServices
 
                         CollectedPowerData[config.Key].Add(date, ActualSolarPowerInWatts);
 
-                        await StoreData(CollectedPowerData);
+                        await StoreData(CollectedPowerData).ConfigureAwait(false);
                     }
                 }
             }
         }
 
+        /// <summary>
+        /// Get the AC lifetime energy production in Wh.
+        /// </summary>
+        public async Task<double> GetACEnergyInWh(string id)
+        {
+            return await ExecuteModbusAsync(async () =>
+            {
+                using var client = await GetModbusClient(id).ConfigureAwait(false);
+
+                var energy = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.Acc32>(SunspecConsts.I_AC_Energy_WH).ConfigureAwait(false);
+                var scaleFactor = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.Int16>(SunspecConsts.I_AC_Energy_WH_SF).ConfigureAwait(false);
+
+                return energy.Value * Math.Pow(10, scaleFactor.Value);
+            }).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Get the total AC lifetime energy production in Wh for all endpoints.
+        /// </summary>
+        public async Task<double> GetTotalACEnergyInWh()
+        {
+            var energy = 0.0;
+
+            foreach (var endpoint in Endpoints)
+            {
+                energy += await GetACEnergyInWh(endpoint.Key).ConfigureAwait(false);
+            }
+
+            return energy;
+        }
         /// <summary>
         /// Get the total power output for all configured solar arrays.
         /// </summary>
@@ -236,6 +271,7 @@ namespace SessyController.Services.InverterServices
 
         /// <summary>
         /// Get a SolarEdge Modbus client for id.
+        /// All callers must hold _modbusSemaphore before calling this method.
         /// </summary>
         private async Task<ModbusClient> GetModbusClient(string id)
         {
@@ -260,48 +296,77 @@ namespace SessyController.Services.InverterServices
         }
 
         /// <summary>
-        /// Get the AC power output from the inverter.
+        /// Executes a Modbus operation exclusively, preventing concurrent access
+        /// that would cause transaction ID mismatches.
         /// </summary>
-        /// <returns>Unscaled AC Power output</returns>
-        public async Task<ushort> GetACPower(string id)
+        private async Task<T> ExecuteModbusAsync<T>(Func<Task<T>> operation)
         {
-            var tries = 0;
-            Exception? exception = null;
-
-            while (tries < 10)
+            await _modbusSemaphore.WaitAsync().ConfigureAwait(false);
+            try
             {
-                try
-                {
-                    using var client = await GetModbusClient(id).ConfigureAwait(false);
-                    {
-                        var result = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.UInt16>(SunspecConsts.I_AC_Power).ConfigureAwait(false);
-
-                        return result.Value;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    exception = ex;
-                }
-
-                await Task.Delay(1000);
-                tries++;
+                return await operation().ConfigureAwait(false);
             }
+            finally
+            {
+                _modbusSemaphore.Release();
+            }
+        }
 
-            throw new InvalidOperationException($"Failed to get modbus data for AC Power after 10 retries", exception);
+        private async Task ExecuteModbusAsync(Func<Task> operation)
+        {
+            await _modbusSemaphore.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                await operation().ConfigureAwait(false);
+            }
+            finally
+            {
+                _modbusSemaphore.Release();
+            }
         }
 
         /// <summary>
-        /// Gets the scaling factor to be used to convert AC power to watts
+        /// Get the AC power output from the inverter.
         /// </summary>
-        /// <returns>Scaling factor</returns>
+        public async Task<ushort> GetACPower(string id)
+        {
+            return await ExecuteModbusAsync(async () =>
+            {
+                var tries = 0;
+                Exception? exception = null;
+
+                while (tries < 10)
+                {
+                    try
+                    {
+                        using var client = await GetModbusClient(id).ConfigureAwait(false);
+                        var result = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.UInt16>(SunspecConsts.I_AC_Power).ConfigureAwait(false);
+                        return result.Value;
+                    }
+                    catch (Exception ex)
+                    {
+                        exception = ex;
+                    }
+
+                    await Task.Delay(1000);
+                    tries++;
+                }
+
+                throw new InvalidOperationException($"Failed to get modbus data for AC Power after 10 retries", exception);
+            }).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Gets the scaling factor to be used to convert AC power to watts.
+        /// </summary>
         public async Task<short> GetACPowerScaleFactor(string id)
         {
-            using var client = await GetModbusClient(id).ConfigureAwait(false);
-
-            var result = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.Int16>(SunspecConsts.I_AC_Power_SF).ConfigureAwait(false);
-
-            return result.Value;
+            return await ExecuteModbusAsync(async () =>
+            {
+                using var client = await GetModbusClient(id).ConfigureAwait(false);
+                var result = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.Int16>(SunspecConsts.I_AC_Power_SF).ConfigureAwait(false);
+                return result.Value;
+            }).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -324,12 +389,11 @@ namespace SessyController.Services.InverterServices
                 catch (Exception ex)
                 {
                     lastException = ex;
-
                     await Task.Delay(1000);
-                }  
+                }
             }
 
-            if(lastException != null)
+            if (lastException != null)
                 _logger.LogException(lastException, "GetACPowerInWatts failed after 10 retries.");
 
             return 0.0;
@@ -340,22 +404,25 @@ namespace SessyController.Services.InverterServices
         /// </summary>
         public async Task<ushort> GetStatus(string id)
         {
-            using var client = await GetModbusClient(id).ConfigureAwait(false);
-
-            var result = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.UInt16>(SunspecConsts.I_Status).ConfigureAwait(false);
-
-            return result.Value;
+            return await ExecuteModbusAsync(async () =>
+            {
+                using var client = await GetModbusClient(id).ConfigureAwait(false);
+                var result = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.UInt16>(SunspecConsts.I_Status).ConfigureAwait(false);
+                return result.Value;
+            }).ConfigureAwait(false);
         }
 
         public async Task<bool> IsDynamicPowerEnabled(string id)
         {
-            uint reactivePwrConfigValue = 4;
+            return await ExecuteModbusAsync(async () =>
+            {
+                uint reactivePwrConfigValue = 4;
 
-            using var client = await GetModbusClient(id).ConfigureAwait(false);
-            
-            var enableDynamicPowerControlRead = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.Int32>(SunspecConsts.ReactivePwrConfig).ConfigureAwait(false);
+                using var client = await GetModbusClient(id).ConfigureAwait(false);
+                var enableDynamicPowerControlRead = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.Int32>(SunspecConsts.ReactivePwrConfig).ConfigureAwait(false);
 
-            return enableDynamicPowerControlRead.Value == reactivePwrConfigValue;
+                return enableDynamicPowerControlRead.Value == reactivePwrConfigValue;
+            }).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -364,29 +431,32 @@ namespace SessyController.Services.InverterServices
         /// </summary>
         public async Task EnableDynamicPower(string id)
         {
-            uint advancedPwrControlEnValue = 1;
-            uint reactivePwrConfigValue = 4;
-
-            try
+            await ExecuteModbusAsync(async () =>
             {
-                using var client = await GetModbusClient(id).ConfigureAwait(false);
+                uint advancedPwrControlEnValue = 1;
+                uint reactivePwrConfigValue = 4;
 
-                await client.WriteSingleRegister(SunspecConsts.AdvancedPwrControlEn, advancedPwrControlEnValue).ConfigureAwait(false);
-                await client.WriteSingleRegister(SunspecConsts.ReactivePwrConfig, reactivePwrConfigValue).ConfigureAwait(false);
+                try
+                {
+                    using var client = await GetModbusClient(id).ConfigureAwait(false);
 
-                await CommitValues(client).ConfigureAwait(false);
+                    await client.WriteSingleRegister(SunspecConsts.AdvancedPwrControlEn, advancedPwrControlEnValue).ConfigureAwait(false);
+                    await client.WriteSingleRegister(SunspecConsts.ReactivePwrConfig, reactivePwrConfigValue).ConfigureAwait(false);
 
-                var enableDynamicPowerControlRead = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.Int32>(SunspecConsts.AdvancedPwrControlEn).ConfigureAwait(false);
-                var reactivePwrConfigRead = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.Int32>(SunspecConsts.ReactivePwrConfig).ConfigureAwait(false);
+                    await CommitValues(client).ConfigureAwait(false);
 
-                if (enableDynamicPowerControlRead.Value != advancedPwrControlEnValue ||
-                    reactivePwrConfigRead.Value != reactivePwrConfigValue)
-                    throw new InvalidOperationException($"Enabling advanced power control failed");
-            }
-            catch (Exception ex)
-            {
-                throw new InvalidOperationException($"Enable advanced power control failed {ex.ToDetailedString()}");
-            }
+                    var enableDynamicPowerControlRead = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.Int32>(SunspecConsts.AdvancedPwrControlEn).ConfigureAwait(false);
+                    var reactivePwrConfigRead = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.Int32>(SunspecConsts.ReactivePwrConfig).ConfigureAwait(false);
+
+                    if (enableDynamicPowerControlRead.Value != advancedPwrControlEnValue ||
+                        reactivePwrConfigRead.Value != reactivePwrConfigValue)
+                        throw new InvalidOperationException($"Enabling advanced power control failed");
+                }
+                catch (Exception ex)
+                {
+                    throw new InvalidOperationException($"Enable advanced power control failed {ex.ToDetailedString()}");
+                }
+            }).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -417,35 +487,37 @@ namespace SessyController.Services.InverterServices
         }
 
         /// <summary>
-        /// Disables the dynamic power mode. After this routine is called you can no longer 
-        /// set the power limit.
+        /// Disables the dynamic power mode.
         /// It will take several minutes for the Inverter to restart after calling this routine.
         /// </summary>
         public async Task RestoreDynamicPowerSettings(string id)
         {
-            uint advancedPwrControlEnValue = 1;
-            uint reactivePwrConfigValue = 0;
-            ushort restorePowerControlDefaultSettingsValue = 1;
-
-            try
+            await ExecuteModbusAsync(async () =>
             {
-                using var client = await GetModbusClient(id).ConfigureAwait(false);
+                uint advancedPwrControlEnValue = 1;
+                uint reactivePwrConfigValue = 0;
+                ushort restorePowerControlDefaultSettingsValue = 1;
 
-                await client.WriteSingleRegister(SunspecConsts.RestorePowerControlDefaultSettings, restorePowerControlDefaultSettingsValue).ConfigureAwait(false);
+                try
+                {
+                    using var client = await GetModbusClient(id).ConfigureAwait(false);
 
-                await CommitValues(client).ConfigureAwait(false);
+                    await client.WriteSingleRegister(SunspecConsts.RestorePowerControlDefaultSettings, restorePowerControlDefaultSettingsValue).ConfigureAwait(false);
 
-                var enableDynamicPowerControlRead = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.Int32>(SunspecConsts.AdvancedPwrControlEn).ConfigureAwait(false);
-                var reactivePwrConfigRead = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.Int32>(SunspecConsts.ReactivePwrConfig).ConfigureAwait(false);
+                    await CommitValues(client).ConfigureAwait(false);
 
-                if (enableDynamicPowerControlRead.Value != advancedPwrControlEnValue ||
-                    reactivePwrConfigRead.Value != reactivePwrConfigValue)
-                    throw new InvalidOperationException($"Restore advanced power settings failed");
-            }
-            catch (Exception ex)
-            {
-                throw new InvalidOperationException($"Restore advanced power control settings failed {ex.ToDetailedString()}");
-            }
+                    var enableDynamicPowerControlRead = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.Int32>(SunspecConsts.AdvancedPwrControlEn).ConfigureAwait(false);
+                    var reactivePwrConfigRead = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.Int32>(SunspecConsts.ReactivePwrConfig).ConfigureAwait(false);
+
+                    if (enableDynamicPowerControlRead.Value != advancedPwrControlEnValue ||
+                        reactivePwrConfigRead.Value != reactivePwrConfigValue)
+                        throw new InvalidOperationException($"Restore advanced power settings failed");
+                }
+                catch (Exception ex)
+                {
+                    throw new InvalidOperationException($"Restore advanced power control settings failed {ex.ToDetailedString()}");
+                }
+            }).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -453,11 +525,12 @@ namespace SessyController.Services.InverterServices
         /// </summary>
         public async Task<float> GetActivePowerLimit(string id)
         {
-            using var client = await GetModbusClient(id).ConfigureAwait(false);
-
-            var powerSet = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.UInt16>(SunspecConsts.ActivePowerLimit).ConfigureAwait(false);
-
-            return powerSet.Value;
+            return await ExecuteModbusAsync(async () =>
+            {
+                using var client = await GetModbusClient(id).ConfigureAwait(false);
+                var powerSet = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.UInt16>(SunspecConsts.ActivePowerLimit).ConfigureAwait(false);
+                return (float)powerSet.Value;
+            }).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -469,9 +542,11 @@ namespace SessyController.Services.InverterServices
         {
             if (power < 0 || power > 100) throw new ArgumentOutOfRangeException(nameof(power));
 
-            using var client = await GetModbusClient(id).ConfigureAwait(false);
-
-            await client.WriteSingleRegister(0xF001, power).ConfigureAwait(false);
+            await ExecuteModbusAsync(async () =>
+            {
+                using var client = await GetModbusClient(id).ConfigureAwait(false);
+                await client.WriteSingleRegister(0xF001, power).ConfigureAwait(false);
+            }).ConfigureAwait(false);
         }
     }
 }

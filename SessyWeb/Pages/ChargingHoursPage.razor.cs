@@ -2,6 +2,7 @@
 using Radzen;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
+using SessyController.Managers;
 using SessyController.Services;
 using SessyController.Services.Items;
 using SessyData.Model;
@@ -19,6 +20,8 @@ namespace SessyWeb.Pages
         [Inject] public TimeZoneService? _timeZoneService { get; set; }
         [Inject] public BatteryContainer? _batteryContainer { get; set; }
         [Inject] FinancialResultsService? _finacialResultsService { get; set; }
+        [Inject] InverterCurtailmentService? _inverterCurtailmentService { get; set; }
+        [Inject] SolarInverterManager? _solarInverterManager { get; set; }
 
         public List<QuarterlyInfoView>? QuarterlyInfos { get; set; } = new();
 
@@ -112,6 +115,10 @@ namespace SessyWeb.Pages
                     foreach (var battery in batteryContainer!.Batteries!)
                     {
                         var powerStatus = await battery.GetPowerStatus().ConfigureAwait(false);
+
+                        currentThrottlePercentage = _inverterCurtailmentService?.CurrentThrottleW >= double.MaxValue 
+                            ? 100.0
+                            : Math.Round(_inverterCurtailmentService?.CurrentThrottleW / _solarInverterManager?.TotalCapacity ?? 1.0 * 100.0, 1);
 
                         newStatuses.Add(new BatteryWithStatus
                         {
@@ -441,6 +448,7 @@ namespace SessyWeb.Pages
         }
 
         private bool _isDisposed = false;
+        private object currentThrottlePercentage;
 
         public override void Dispose()
         {

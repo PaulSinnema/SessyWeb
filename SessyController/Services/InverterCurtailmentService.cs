@@ -11,30 +11,23 @@ namespace SessyController.Services
     /// the inverter output tracks real-time household consumption instead of a
     /// slow estimate.
     ///
-    /// Strategy:
-    ///   When BatteriesService signals that curtailment should be active
-    ///   (negative buying price + battery full), this service:
+    /// Two curtailment modes:
     ///
-    ///   1. Reads the actual net power from the P1 meter every 5 seconds.
-    ///   2. Adjusts the inverter output in steps so that net export ≈ 0 W.
-    ///   3. Sets Sessy to Disabled (StopAll) via the IsCurtailmentActive flag,
-    ///      preventing NOM from fighting the curtailment.
+    ///   1. SHUTDOWN (price negative, battery not full):
+    ///      The inverter is set to 0W. Free solar energy from the grid is more
+    ///      valuable than generating our own — we get paid to consume, so our
+    ///      own production only reduces that benefit.
     ///
-    ///   When curtailment is no longer needed the inverter is restored to 100%.
+    ///   2. THROTTLE (price negative, battery full):
+    ///      The inverter output is proportionally reduced to keep net export ≈ 0W.
+    ///      The battery cannot absorb more energy, so we limit production to
+    ///      exactly what the house consumes at that moment.
     ///
-    /// Control logic (proportional step controller):
-    ///   netSaldo = P1.PowerTotal   (positive = consuming from grid,
-    ///                               negative = exporting to grid)
-    ///
-    ///   Target: netSaldo ≥ 0  (never export)
-    ///
-    ///   If netSaldo < -DeadBandW  → too much export → reduce inverter output
-    ///   If netSaldo >  DeadBandW  → consuming from grid → increase inverter output
-    ///   Within dead band          → do nothing (avoids Modbus chatter)
+    /// When neither condition applies, the inverter is restored to 100%.
     ///
     /// Interaction with BatteriesService:
-    ///   BatteriesService calls SetCurtailmentRequested(true/false) each cycle.
-    ///   This service acts on that signal in its own loop.
+    ///   BatteriesService calls SetCurtailmentRequested(priceIsNegative, batteryIsFull)
+    ///   each cycle. This service acts on that signal in its own 5-second loop.
     ///   BatteriesService reads IsCurtailmentActive to decide whether to use
     ///   Disabled instead of ZeroNetHome for the Sessy.
     /// </summary>
@@ -49,23 +42,16 @@ namespace SessyController.Services
         private const int LoopIntervalSeconds = 5;
 
         // Dead band: ignore net saldo fluctuations smaller than this (W).
-        // Prevents constant Modbus writes for minor load variations.
         private const double DeadBandW = 50.0;
 
         // Step size for each adjustment cycle (W).
-        // Smaller = smoother but slower to converge.
-        // Larger = faster but may overshoot.
         private const double StepW = 100.0;
 
-        // Minimum inverter output during curtailment (W).
-        // Keeps the inverter in a healthy operating state.
-        private const double MinOutputW = 100.0;
-
-        // SOC threshold for battery-full detection.
-        private const double FullThresholdRatio = 0.995;
+        // Minimum inverter output during throttle mode (W).
+        private const double MinThrottleOutputW = 100.0;
 
         /// <summary>
-        /// True when the inverter is currently being curtailed.
+        /// True when the inverter is currently being curtailed (shutdown or throttle).
         /// BatteriesService reads this to substitute Disabled for ZeroNetHome
         /// so Sessy NOM does not fight the curtailment.
         /// </summary>
@@ -76,8 +62,9 @@ namespace SessyController.Services
         /// </summary>
         public double CurrentThrottleW { get; private set; } = double.MaxValue;
 
-        // Signal from BatteriesService: should curtailment be active?
-        private volatile bool _curtailmentRequested = false;
+        // Signals from BatteriesService.
+        private volatile bool _priceIsNegative = false;
+        private volatile bool _batteryIsFull = false;
 
         public InverterCurtailmentService(
             LoggingService<InverterCurtailmentService> logger,
@@ -96,15 +83,17 @@ namespace SessyController.Services
         // ----------------------------------------------------------------
 
         /// <summary>
-        /// Called every cycle by BatteriesService to signal whether curtailment
-        /// should be active based on price and battery SOC.
+        /// Called every cycle by BatteriesService to signal the current price
+        /// and battery state. The actual inverter control happens in the
+        /// background loop at 5-second intervals.
         ///
-        /// The actual inverter throttling happens in the background loop at 5-second
-        /// intervals so it can react to real-time load changes (heat pump, AC, etc.).
+        /// priceIsNegative: true when the current buying price is negative.
+        /// batteryIsFull:   true when SOC >= 99.5% of capacity.
         /// </summary>
-        public void SetCurtailmentRequested(bool requested)
+        public void SetCurtailmentRequested(bool priceIsNegative, bool batteryIsFull)
         {
-            _curtailmentRequested = requested;
+            _priceIsNegative = priceIsNegative;
+            _batteryIsFull = batteryIsFull;
         }
 
         // ----------------------------------------------------------------
@@ -124,6 +113,16 @@ namespace SessyController.Services
                 catch (Exception ex)
                 {
                     _logger.LogError($"InverterCurtailmentService error: {ex.Message}");
+
+                    // If curtailment should not be active but an error occurred,
+                    // reset the active flag so BatteriesService does not keep
+                    // forcing Disabled mode indefinitely.
+                    if (!_priceIsNegative && IsCurtailmentActive)
+                    {
+                        _logger.LogWarning("InverterCurtailmentService: resetting IsCurtailmentActive after error.");
+                        CurrentThrottleW = double.MaxValue;
+                        IsCurtailmentActive = false;
+                    }
                 }
 
                 try
@@ -145,12 +144,58 @@ namespace SessyController.Services
 
         private async Task ControlCycleAsync()
         {
-            if (!_curtailmentRequested)
+            // ── Mode selection ────────────────────────────────────────────────
+            //
+            // SHUTDOWN: price negative, battery not full.
+            //   Consuming from the grid is profitable (we get paid), so our own
+            //   solar production only reduces that benefit. Switch inverter off.
+            //
+            // THROTTLE: price negative, battery full.
+            //   Battery cannot absorb more. Limit production to house consumption
+            //   via proportional P1-based control so we never export.
+            //
+            // RELEASE: price positive.
+            //   Normal operation — restore inverter to 100%.
+
+            if (!_priceIsNegative)
             {
                 await ReleaseCurtailmentAsync().ConfigureAwait(false);
                 return;
             }
 
+            if (!_batteryIsFull)
+            {
+                await ShutdownInverterAsync().ConfigureAwait(false);
+                return;
+            }
+
+            await ThrottleInverterAsync().ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Shutdown mode: set inverter output to 0W.
+        /// Used when price is negative and battery is not full — consuming from
+        /// the grid is more profitable than generating our own solar power.
+        /// </summary>
+        private async Task ShutdownInverterAsync()
+        {
+            if (!IsCurtailmentActive || CurrentThrottleW != 0.0)
+            {
+                _logger.LogInformation("Curtailment SHUTDOWN — inverter set to 0W (price negative, battery not full).");
+
+                await _solarInverterManager.ThrottleInverterToWatts(0.0).ConfigureAwait(false);
+
+                CurrentThrottleW = 0.0;
+                IsCurtailmentActive = true;
+            }
+        }
+
+        /// <summary>
+        /// Throttle mode: proportionally reduce inverter output to keep net export ≈ 0W.
+        /// Used when price is negative and battery is full.
+        /// </summary>
+        private async Task ThrottleInverterAsync()
+        {
             // IMPROVEMENT 3: P1 meter call with timeout so that a slow or
             // unresponsive meter does not block the curtailment loop.
             double netSaldoW;
@@ -174,7 +219,6 @@ namespace SessyController.Services
 
             // netSaldoW: positive = consuming from grid, negative = exporting to grid.
 
-            // Determine current inverter max capacity.
             double maxCapacityW = _solarInverterManager.TotalCapacity;
             if (maxCapacityW <= 0.0)
             {
@@ -182,57 +226,43 @@ namespace SessyController.Services
                 return;
             }
 
-            // On first activation, start at full capacity and let the controller
-            // step down to the right level.
-            if (!IsCurtailmentActive)
+            // On first activation (or transition from shutdown mode), start at full
+            // capacity and let the controller step down to the right level.
+            if (!IsCurtailmentActive || CurrentThrottleW == 0.0)
             {
-                _logger.LogInformation("Curtailment ACTIVATED — starting control loop.");
+                _logger.LogInformation("Curtailment THROTTLE — starting proportional control loop.");
                 CurrentThrottleW = maxCapacityW;
                 IsCurtailmentActive = true;
             }
 
-            // ── Proportional step controller ─────────────────────────────
-            //
-            // netSaldoW < -DeadBandW → exporting too much → reduce output
-            // netSaldoW >  DeadBandW → consuming from grid → we can increase output
-            // Within dead band       → stable, no change needed
-            //
+            // ── Proportional step controller ──────────────────────────────────
             double newThrottleW = CurrentThrottleW;
 
             if (netSaldoW < -DeadBandW)
             {
-                // Exporting: reduce inverter output by one step.
-                // Scale step proportionally to how far outside the dead band we are,
-                // so we converge faster when the imbalance is large.
                 double overshootW = Math.Abs(netSaldoW) - DeadBandW;
                 double adjustW = Math.Max(StepW, overshootW * 0.5);
-
                 newThrottleW = CurrentThrottleW - adjustW;
 
                 _logger.LogInformation(
-                    $"Curtailment: net={netSaldoW:F0} W (exporting) → reduce by {adjustW:F0} W");
+                    $"Curtailment throttle: net={netSaldoW:F0} W (exporting) → reduce by {adjustW:F0} W");
             }
             else if (netSaldoW > DeadBandW)
             {
-                // Consuming from grid: we can allow more inverter output.
                 double shortfallW = netSaldoW - DeadBandW;
                 double adjustW = Math.Min(StepW, shortfallW);
-
                 newThrottleW = CurrentThrottleW + adjustW;
 
                 _logger.LogInformation(
-                    $"Curtailment: net={netSaldoW:F0} W (consuming) → increase by {adjustW:F0} W");
+                    $"Curtailment throttle: net={netSaldoW:F0} W (consuming) → increase by {adjustW:F0} W");
             }
             else
             {
-                // Within dead band — stable.
-                return;
+                return; // Within dead band — stable.
             }
 
-            // Clamp to [MinOutputW, maxCapacityW].
-            newThrottleW = Math.Clamp(newThrottleW, MinOutputW, maxCapacityW);
+            newThrottleW = Math.Clamp(newThrottleW, MinThrottleOutputW, maxCapacityW);
 
-            // Only write to inverter if setpoint actually changed.
             if (Math.Abs(newThrottleW - CurrentThrottleW) > 1.0)
             {
                 await _solarInverterManager.ThrottleInverterToWatts(newThrottleW).ConfigureAwait(false);
@@ -247,8 +277,26 @@ namespace SessyController.Services
 
             _logger.LogInformation("Curtailment RELEASED — restoring inverter to 100%.");
 
-            await _solarInverterManager.ThrottleInverterToWatts(double.MaxValue).ConfigureAwait(false);
+            // Retry the restore in case of transient Modbus errors.
+            for (int attempt = 1; attempt <= 3; attempt++)
+            {
+                try
+                {
+                    await _solarInverterManager.ThrottleInverterToWatts(double.MaxValue).ConfigureAwait(false);
+                    CurrentThrottleW = double.MaxValue;
+                    IsCurtailmentActive = false;
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning($"InverterCurtailmentService: release attempt {attempt} failed: {ex.Message}");
+                    await Task.Delay(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+                }
+            }
 
+            // Even if restore failed, reset the active flag so BatteriesService
+            // does not keep forcing Disabled mode.
+            _logger.LogWarning("InverterCurtailmentService: release failed after 3 attempts — resetting IsCurtailmentActive.");
             CurrentThrottleW = double.MaxValue;
             IsCurtailmentActive = false;
         }

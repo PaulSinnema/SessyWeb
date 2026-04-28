@@ -37,6 +37,8 @@ namespace SessyController.Managers
             });
         }
 
+        public IReadOnlyList<ISolarInverterService> ActiveInverterServices => _activeInverterServices;
+
         private void UpdatePowersystemConfig(IEnumerable<ISolarInverterService> inverterServices, PowerSystemsConfig config)
         {
             _powerSystemsConfig = config;

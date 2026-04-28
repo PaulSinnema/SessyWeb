@@ -12,7 +12,7 @@ namespace SessyController.Interfaces
         Task<short> GetACPowerScaleFactor(string id);
         Task<ushort> GetStatus(string id);
         Task ThrottleInverterToPercentage(ushort percentage);
-
+        double ActualSolarPowerInWatts { get; }
         Dictionary<string, Endpoint> Endpoints { get; }
         string ProviderName { get; }
     }

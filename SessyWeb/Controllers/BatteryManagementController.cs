@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
+using SessyController.Interfaces;
+using SessyController.Managers;
 using SessyController.Services;
-using SessyController.Services.InverterServices;
 using SessyController.Services.Items;
 using static P1MeterService;
 using static SessyController.Services.WeatherService;
@@ -18,14 +19,15 @@ namespace SessyWeb.Controllers
         private readonly BatteriesService _batteriesService;
         private readonly DayAheadMarketService _dayAheadMarketService;
         private readonly SessyService _sessyService;
-        private readonly SolarEdgeInverterService _solarEdgeService;
+        private readonly SolarInverterManager _solarInverterManager;
+        private readonly ISolarInverterService _solarEdgeService;
         private readonly P1MeterService _p1MeterService;
         private readonly WeatherService _weatherService;
 
         public BatteryManagementController(DayAheadMarketService DayAheadMarketService,
                                            BatteriesService batteriesService,
                                            SessyService sessyService,
-                                           SolarEdgeInverterService solarEdgeService,
+                                           SolarInverterManager solarInverterManager,
                                            P1MeterService p1MeterService,
                                            WeatherService weatherService,
                                            ILogger<BatteryManagementController> logger)
@@ -34,7 +36,7 @@ namespace SessyWeb.Controllers
             _batteriesService = batteriesService;
             _dayAheadMarketService = DayAheadMarketService;
             _sessyService = sessyService;
-            _solarEdgeService = solarEdgeService;
+            _solarInverterManager = solarInverterManager;
             _p1MeterService = p1MeterService;
             _weatherService = weatherService;
         }
@@ -179,6 +181,28 @@ namespace SessyWeb.Controllers
             return Ok(weatherData);
         }
 
+        #endregion
+
+        // Add these endpoints to BatteryManagementController.cs
+        // Place them in a new #region Solar Inverter block, before the #region WeerOnline block.
+        //
+        // These endpoints expose solar inverter data via HTTP so that Loxone and other
+        // external systems can retrieve it without polling Modbus directly.
+        // Direct Modbus polling from multiple clients causes transaction ID conflicts.
+
+        #region Solar Inverter
+
+        /// <summary>
+        /// Gets the current AC power output of the solar inverter in Watts.
+        /// Used by Loxone and other external systems as a single point of truth,
+        /// avoiding direct Modbus polling which causes transaction ID conflicts.
+        /// </summary>
+        [HttpGet("Inverter/AcPower", Name = "GetAcPower")]
+        public double GetAcPower()
+        {
+            return _solarInverterManager.ActiveInverterServices
+                .Sum(s => s.ActualSolarPowerInWatts);
+        }
         #endregion
     }
 }
