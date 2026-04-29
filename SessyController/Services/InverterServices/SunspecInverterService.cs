@@ -1,5 +1,6 @@
 ﻿using Djohnnie.SolarEdge.ModBus.TCP;
 using Djohnnie.SolarEdge.ModBus.TCP.Constants;
+using Types = Djohnnie.SolarEdge.ModBus.TCP.Types;
 using Microsoft.Extensions.Options;
 using SessyCommon.Configurations;
 using SessyCommon.Extensions;
@@ -284,6 +285,10 @@ namespace SessyController.Services.InverterServices
                 {
                     return await _tcpClientProvider.GetModbusClient(ProviderName, id).ConfigureAwait(false);
                 }
+                catch (System.Net.Sockets.SocketException)
+                {
+                    throw;
+                }
                 catch (Exception ex)
                 {
                     exception = ex;
@@ -292,7 +297,7 @@ namespace SessyController.Services.InverterServices
                 }
             } while (tries < 10);
 
-            throw new InvalidOperationException($"Could not get Modbus client for 'SolarEdge' with id: {id}", exception);
+            throw exception;
         }
 
         /// <summary>
@@ -326,77 +331,43 @@ namespace SessyController.Services.InverterServices
         }
 
         /// <summary>
-        /// Get the AC power output from the inverter.
+        /// Get the AC power output in Watts from the inverter.
         /// </summary>
-        public async Task<ushort> GetACPower(string id)
+        /// <summary>
+        /// Gets the AC power output in Watts by reading I_AC_Power and I_AC_Power_SF
+        /// in a single Modbus transaction, preventing race conditions between the
+        /// value and scale factor reads.
+        /// </summary>
+        public async Task<double> GetACPowerInWatts(string id)
         {
-            return await ExecuteModbusAsync(async () =>
+            return await ExecuteModbusAsync(async Task<double> () =>
             {
-                var tries = 0;
-                Exception? exception = null;
+                int tries = 0;
+                Exception? lastException = null;
 
-                while (tries < 10)
+                while (tries++ < 10)
                 {
                     try
                     {
                         using var client = await GetModbusClient(id).ConfigureAwait(false);
-                        var result = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.UInt16>(SunspecConsts.I_AC_Power).ConfigureAwait(false);
-                        return result.Value;
+
+                        var (power, scaleFactor) = await client.ReadHoldingRegistersBlock<Types.Int16, Types.Int16>(
+                                                                SunspecConsts.I_AC_Power,
+                                                                SunspecConsts.I_AC_Power_SF).ConfigureAwait(false);
+
+                        return power.Value * Math.Pow(10, scaleFactor.Value);
                     }
                     catch (Exception ex)
                     {
-                        exception = ex;
+                        lastException = ex;
                     }
-
-                    await Task.Delay(1000);
-                    tries++;
                 }
 
-                throw new InvalidOperationException($"Failed to get modbus data for AC Power after 10 retries", exception);
+                if (lastException != null && lastException is System.Net.Sockets.SocketException)
+                    return 0.0;
+
+                throw new InvalidOperationException($"Failed to get modbus data for AC Power", lastException);
             }).ConfigureAwait(false);
-        }
-
-        /// <summary>
-        /// Gets the scaling factor to be used to convert AC power to watts.
-        /// </summary>
-        public async Task<short> GetACPowerScaleFactor(string id)
-        {
-            return await ExecuteModbusAsync(async () =>
-            {
-                using var client = await GetModbusClient(id).ConfigureAwait(false);
-                var result = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.Int16>(SunspecConsts.I_AC_Power_SF).ConfigureAwait(false);
-                return result.Value;
-            }).ConfigureAwait(false);
-        }
-
-        /// <summary>
-        /// Get the inverters power output in Watts.
-        /// </summary>
-        public async Task<double> GetACPowerInWatts(string id)
-        {
-            var tries = 0;
-            Exception? lastException = null;
-
-            while (tries++ < 10)
-            {
-                try
-                {
-                    var powerOutput = await GetACPower(id).ConfigureAwait(false);
-                    var scaleFactor = await GetACPowerScaleFactor(id).ConfigureAwait(false);
-
-                    return powerOutput * Math.Pow(10, scaleFactor);
-                }
-                catch (Exception ex)
-                {
-                    lastException = ex;
-                    await Task.Delay(1000);
-                }
-            }
-
-            if (lastException != null)
-                _logger.LogException(lastException, "GetACPowerInWatts failed after 10 retries.");
-
-            return 0.0;
         }
 
         /// <summary>

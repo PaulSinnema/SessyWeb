@@ -8,8 +8,6 @@ namespace SessyController.Interfaces
         Task Stop(CancellationToken cancelationToken);
         Task<double> GetTotalACPowerInWatts();
         Task<double> GetACPowerInWatts(string id);
-        Task<ushort> GetACPower(string id);
-        Task<short> GetACPowerScaleFactor(string id);
         Task<ushort> GetStatus(string id);
         Task ThrottleInverterToPercentage(ushort percentage);
         double ActualSolarPowerInWatts { get; }

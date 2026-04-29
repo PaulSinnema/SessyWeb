@@ -37,6 +37,10 @@ namespace SessyController.Providers
 
                 return client;
             }
+            catch (System.Net.Sockets.SocketException)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 throw new InvalidOperationException($"Could not connect to client {ex.ToDetailedString()}");

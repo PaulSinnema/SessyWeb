@@ -28,49 +28,38 @@
         <a class="dismiss">🗙</a>
     </div>
 
-    <script src="_framework/blazor.server.js"></script>
-
+    <!--
+        Autostart disabled so we can configure reconnect behavior manually.
+        Improves reliability on iPhone with OpenVPN: Safari suspends the WebSocket
+        when the app goes to the background, causing slow or failed reconnects.
+    -->
+    <script src="_framework/blazor.server.js" autostart="false"></script>
     <script>
-        const observeBlazorConnection = () => {
-            const modalId = 'components-reconnect-modal';
-            const failedId = 'components-reconnect-failed';
-            const rejectedId = 'components-reconnect-rejected';
-
-            const observer = new MutationObserver((mutationsList, observerInstance) => {
-                const modal = document.getElementById(modalId);
-                if (modal) {
-                    // Check if the modal indicates a permanent failure state
-                    const failedElement = document.getElementById(failedId);
-                    const rejectedElement = document.getElementById(rejectedId);
-
-                    const isFailed = failedElement && failedElement.style.display !== 'none';
-                    const isRejected = rejectedElement && rejectedElement.style.display !== 'none';
-
-                    if (isFailed || isRejected) {
-                        console.log('Blazor Server connection lost permanently. Attempting to reload...');
-                        observerInstance.disconnect(); // Stop observing to prevent multiple reload attempts
-                        window.location.reload();
-                    }
-                }
-            });
-
-            // Start observing the body for additions of nodes or changes in attributes/subtree
-            // This is broad, but ensures we catch the modal when Blazor adds/modifies it.
-            observer.observe(document.body, {
-                childList: true,
-                subtree: true,
-                attributes: true, // Needed to detect style changes if elements are reused
-                attributeFilter: ['style', 'class'] // Focus on relevant attributes
-             });
-        };
-
-        // Start observing once the DOM is ready, or slightly after Blazor initializes.
-        // A simple timeout can also work if DOMContentLoaded fires too early for Blazor's UI.
-        if (document.readyState === "complete" || document.readyState === "interactive") {
-            observeBlazorConnection();
-        } else {
-            document.addEventListener('DOMContentLoaded', observeBlazorConnection);
+        Blazor.start({
+        configureSignalR: function (builder) {
+        // Match the server-side HubOptions values set in Program.cs
+        builder.withKeepAliveInterval(15000);  // 15 seconds
+        builder.withServerTimeout(60000);       // 60 seconds
+        },
+        reconnectionOptions: {
+        // 12 retries gives ~60 seconds of attempts, enough for a VPN reconnect
+        maxRetries: 12,
+        retryIntervalMilliseconds: function (previousAttempts) {
+        // Fast retries first, then slow down to avoid hammering the server
+        // Attempt 0=0s, 1=1s, 2=2s, 3=3s, 4+=5s
+        return previousAttempts < 4
+        ? previousAttempts * 1000
+        : 5000;
         }
+        }
+        }).then(function () {
+        // Blazor.start() must complete before defaultReconnectionHandler is available
+        Blazor.defaultReconnectionHandler.onReconnectionFailed = function () {
+        // If all reconnect attempts fail, reload the page automatically.
+        // Prevents the user from being stuck on a dead screen after a VPN drop.
+        window.location.reload();
+        };
+        });
     </script>
 </body>
 </html>

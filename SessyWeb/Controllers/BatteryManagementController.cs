@@ -197,8 +197,8 @@ namespace SessyWeb.Controllers
         /// Used by Loxone and other external systems as a single point of truth,
         /// avoiding direct Modbus polling which causes transaction ID conflicts.
         /// </summary>
-        [HttpGet("Inverter/AcPower", Name = "GetAcPower")]
-        public double GetAcPower()
+        [HttpGet("Inverter/AcPowerInWatts", Name = "GetAcPowerInWatts")]
+        public double GetAcPowerInWatts()
         {
             return _solarInverterManager.ActiveInverterServices
                 .Sum(s => s.ActualSolarPowerInWatts);
