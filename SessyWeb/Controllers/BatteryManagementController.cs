@@ -198,10 +198,10 @@ namespace SessyWeb.Controllers
         /// avoiding direct Modbus polling which causes transaction ID conflicts.
         /// </summary>
         [HttpGet("Inverter/AcPowerInWatts", Name = "GetAcPowerInWatts")]
-        public double GetAcPowerInWatts()
+        public async Task<double> GetAcPowerInWatts()
         {
-            return _solarInverterManager.ActiveInverterServices
-                .Sum(s => s.ActualSolarPowerInWatts);
+            return await _solarInverterManager.GetTotalACPowerInWatts();
+                
         }
         #endregion
     }

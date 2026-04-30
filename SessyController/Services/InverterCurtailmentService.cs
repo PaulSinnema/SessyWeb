@@ -1,4 +1,4 @@
-﻿using SessyCommon.Services;
+﻿using SessyCommon.Extensions;
 using SessyController.Managers;
 using SessyController.Services.Items;
 
@@ -213,7 +213,7 @@ namespace SessyController.Services
             }
             catch (Exception ex)
             {
-                _logger.LogWarning($"InverterCurtailmentService: P1 meter error — skipping cycle. {ex.Message}");
+                _logger.LogError($"InverterCurtailmentService: P1 meter error — skipping cycle. {ex.ToDetailedString()}");
                 return;
             }
 
