@@ -200,7 +200,7 @@ namespace SessyWeb.Controllers
         [HttpGet("Inverter/AcPowerInWatts", Name = "GetAcPowerInWatts")]
         public async Task<double> GetAcPowerInWatts()
         {
-            return await _solarInverterManager.GetTotalACPowerInWatts();
+            return await _solarInverterManager.GetActualSolarPowerInWatts();
                 
         }
         #endregion

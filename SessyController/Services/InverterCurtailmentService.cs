@@ -1,4 +1,4 @@
-﻿using SessyCommon.Extensions;
+﻿using SessyCommon.Services;
 using SessyController.Managers;
 using SessyController.Services.Items;
 
@@ -179,12 +179,23 @@ namespace SessyController.Services
         /// </summary>
         private async Task ShutdownInverterAsync()
         {
+            if (!_solarInverterManager.IsAvailable)
+            {
+                // Inverter offline — cannot shut down. Log and skip so
+                // BatteriesService does not force Disabled mode.
+                if (IsCurtailmentActive)
+                {
+                    _logger.LogWarning("Curtailment SHUTDOWN skipped — inverter offline.");
+                    IsCurtailmentActive = false;
+                    CurrentThrottleW = double.MaxValue;
+                }
+                return;
+            }
+
             if (!IsCurtailmentActive || CurrentThrottleW != 0.0)
             {
                 _logger.LogInformation("Curtailment SHUTDOWN — inverter set to 0W (price negative, battery not full).");
-
                 await _solarInverterManager.ThrottleInverterToWatts(0.0).ConfigureAwait(false);
-
                 CurrentThrottleW = 0.0;
                 IsCurtailmentActive = true;
             }
@@ -213,7 +224,7 @@ namespace SessyController.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError($"InverterCurtailmentService: P1 meter error — skipping cycle. {ex.ToDetailedString()}");
+                _logger.LogWarning($"InverterCurtailmentService: P1 meter error — skipping cycle. {ex.Message}");
                 return;
             }
 

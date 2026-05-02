@@ -555,8 +555,12 @@ namespace SessyController.Services
                 // GetExecutableActionForNowAsync always has a valid plan.
                 var nowQuarterTime = _timeZoneService.Now.DateFloorQuarter();
 
+                // Filter out historic quarters AND the current quarter.
+                // The current quarter is already executing — including it allows the MILP
+                // to plan actions (e.g. discharge at high prices) that are already partially
+                // or fully in the past, leading to incorrect execution in the next cycle.
                 var allQuarters = _quarterlyInfos
-                    .Where(q => q.Time >= nowQuarterTime)
+                    .Where(q => q.Time >= nowQuarterTime.AddMinutes(15))
                     .OrderBy(q => q.Time)
                     .ToList();
 
@@ -622,7 +626,7 @@ namespace SessyController.Services
                 var results = await Task.WhenAll(tasks).ConfigureAwait(false);
                 sw.Stop();
 
-                _logger.LogWarning($"MILP parallel search: {tasks.Count} splits evaluated in {sw.ElapsedMilliseconds}ms");
+                _logger.LogWarning($"MILP parallel search: {tasks.Count} splits evaluated in {sw.ElapsedMilliseconds}ms | now={nowQuarterTime:HH:mm}");
 
                 // Pick the split with the highest combined objective.
                 var best = results
@@ -633,7 +637,7 @@ namespace SessyController.Services
                     return false;
 
                 _logger.LogWarning($"MILP split search: best split={best.SplitTime:HH:mm}, " +
-                    $"combined={best.Combined:F4} EUR | timeLimit={MilpTimeLimitMs}ms");
+                    $"combined={best.Combined:F4} EUR | timeLimit={MilpTimeLimitMs}ms | now={nowQuarterTime:HH:mm}");
 
                 // ── Merge both plan segments into _planByTime ────────────────────
                 var newPlan = new Dictionary<DateTime, PlanAction>();
@@ -696,7 +700,7 @@ namespace SessyController.Services
                 _planByTime = newPlan;
                 _logger.LogWarning($"MILP plan built: plan1={best.Plan1.Optimal}, obj1={best.Plan1.ObjectiveEur:F4} EUR" +
                     (best.Plan2 != null ? $" | plan2={best.Plan2.Optimal}, obj2={best.Plan2.ObjectiveEur:F4} EUR" : "") +
-                    $" | split={best.SplitTime:HH:mm} | timeLimit={MilpTimeLimitMs}ms");
+                    $" | split={best.SplitTime:HH:mm} | timeLimit={MilpTimeLimitMs}ms | now={nowQuarterTime:HH:mm} | quarters={allQuarters.Count}");
                 return true;
             }
             catch (Exception ex)

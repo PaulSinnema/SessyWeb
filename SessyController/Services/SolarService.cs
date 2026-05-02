@@ -3,6 +3,7 @@ using SessyCommon.Configurations;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
 using SessyCommon.Services.Items;
+using SessyController.Managers;
 using SessyController.Services.InverterServices;
 using SessyController.Services.Items;
 using SessyData.Model;
@@ -24,6 +25,8 @@ namespace SessyController.Services
         private SolarDataService _solarDataService { get; set; }
 
         private SolarInverterDataService _solarEdgeDataService { get; set; }
+
+        private SolarInverterManager _solarInverterManager { get; set; }
 
         private SettingsConfig _settingsConfig { get; set; }
 
@@ -48,6 +51,7 @@ namespace SessyController.Services
                             DayAheadMarketService dayAheadMarketService,
                             SolarDataService solarDataService,
                             SolarInverterDataService solarEdgeDataService,
+                            SolarInverterManager solarInverterManager,
                             IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
                             IServiceScopeFactory serviceScopeFactory)
         {
@@ -60,6 +64,7 @@ namespace SessyController.Services
             _dayAheadMarketService = dayAheadMarketService;
             _solarDataService = solarDataService;
             _solarEdgeDataService = solarEdgeDataService;
+            _solarInverterManager = solarInverterManager;
             _settingsConfigMonitor = settingsConfigMonitor;
             _serviceScopeFactory = serviceScopeFactory;
 
@@ -320,6 +325,14 @@ namespace SessyController.Services
 
         private async Task ApplyPerformanceFactor(List<QuarterlyInfo> hourlyInfos, DateTime now)
         {
+            // Skip performance factor correction when no inverter is available.
+            // Without live solar data the forecast cannot be corrected reliably.
+            if (!_solarInverterManager.IsAvailable && !_solarInverterManager.ActiveInverterServices.Any(s => s.SupportsFallback))
+            {
+                _logger.LogInformation("All inverters offline with no fallback — skipping performance factor, using forecast as-is.");
+                return;
+            }
+
             // Only quarter hours of today
             var todayInfos = hourlyInfos
                 .Where(q => q.Time.Date == now.Date)
@@ -327,10 +340,6 @@ namespace SessyController.Services
 
             var pastInfos = todayInfos
                 .Where(q => q.Time < now)
-                .ToList();
-
-            var futureInfos = todayInfos
-                .Where(q => q.Time >= now)
                 .ToList();
 
             if (pastInfos.Count == 0)
@@ -342,15 +351,18 @@ namespace SessyController.Services
             // Sum forecast
             var forecastToNow = pastInfos.Sum(q => q.SolarPowerPerQuarterHour);
 
-            // Sum of measured solar power
-            var realizedToNow = await GetRealizedSolarPower(
-                pastInfos.Min(q => q.Time),
-                pastInfos.Max(q => q.Time.AddMinutes(15))
-            );
-
             if (forecastToNow <= 0.0)
             {
                 _logger.LogInformation("Forecast is zero until now, performance will not be applied.");
+                return;
+            }
+
+            // Sum of measured solar power — use fallback if primary channel is down.
+            var realizedToNow = await _solarInverterManager.GetActualSolarPowerInWatts().ConfigureAwait(false);
+
+            if (realizedToNow <= 0.0)
+            {
+                _logger.LogInformation("No realized solar data available — skipping performance factor.");
                 return;
             }
 
