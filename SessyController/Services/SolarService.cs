@@ -357,8 +357,13 @@ namespace SessyController.Services
                 return;
             }
 
-            // Sum of measured solar power — use fallback if primary channel is down.
-            var realizedToNow = await _solarInverterManager.GetActualSolarPowerInWatts().ConfigureAwait(false);
+            // Sum of measured solar power from database for past quarters today.
+            // This is the total realized energy from midnight until now,
+            // used to calculate the performance factor against the forecast.
+            var realizedToNow = await GetRealizedSolarPower(
+                pastInfos.Min(q => q.Time),
+                pastInfos.Max(q => q.Time.AddMinutes(15))
+            ).ConfigureAwait(false);
 
             if (realizedToNow <= 0.0)
             {

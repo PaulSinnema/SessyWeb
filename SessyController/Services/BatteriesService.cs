@@ -133,9 +133,16 @@ namespace SessyController.Services
             return base.StopAsync(cancellationToken);
         }
 
+        private async Task CleanUpWrongData()
+        {
+            await _performanceDataService.RemoveWrongData().ConfigureAwait(false);
+        }
+
         protected override async Task ExecuteAsync(CancellationToken cancellationToken)
         {
             _logger.LogWarning("BatteriesService started ...");
+
+            await CleanUpWrongData();
 
             var delaySeconds = 60;
 

@@ -173,6 +173,15 @@ namespace SessyController.Services.InverterServices
             }
         }
 
+        // In SunspecInverterService:
+        public async Task CheckAvailabilityAsync()
+        {
+            // Deliberately bypasses IsAvailable — used by health check to detect recovery.
+            using var client = await GetModbusClient(Endpoints.First().Key).ConfigureAwait(false);
+            await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.Int16>(
+                SunspecConsts.I_AC_Power).ConfigureAwait(false);
+        }
+
         /// <summary>
         /// Get the total power output in Watts for all configured endpoints.
         /// Used by SolarInverterManager health check.
@@ -236,8 +245,6 @@ namespace SessyController.Services.InverterServices
                 }
                 catch (Exception ex)
                 {
-                    IsAvailable = false;
-
                     throw new InvalidOperationException($"Failed to get AC power for endpoint {id}", ex);
                 }
             }).ConfigureAwait(false);
@@ -342,15 +349,29 @@ namespace SessyController.Services.InverterServices
         /// </summary>
         private async Task<T> ExecuteModbusAsync<T>(Func<Task<T>> operation)
         {
-            await _modbusSemaphore.WaitAsync().ConfigureAwait(false);
-            try
+            var tries = 0;
+            Exception? exception = null;
+
+            while (tries++ < 10)
             {
-                return await operation().ConfigureAwait(false);
+                await _modbusSemaphore.WaitAsync().ConfigureAwait(false);
+
+                try
+                {
+                    return await operation().ConfigureAwait(false);
+                }
+                catch(Exception ex)
+                {
+                    exception = ex;
+                    await Task.Delay(1000);
+                }
+                finally
+                {
+                    _modbusSemaphore.Release();
+                }
             }
-            finally
-            {
-                _modbusSemaphore.Release();
-            }
+
+            throw new InvalidOperationException($"Execute Modbus async failed", exception);
         }
 
         private async Task ExecuteModbusAsync(Func<Task> operation)

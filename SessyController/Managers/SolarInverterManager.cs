@@ -10,7 +10,6 @@ namespace SessyController.Managers
     {
         private readonly LoggingService<SolarInverterManager> _logger;
         private TimeZoneService _timeZoneService;
-        private ConsumptionMonitorService _consumptionMonitorService;
         private IOptionsMonitor<SettingsConfig> _settingsConfigMonitor;
         private SettingsConfig _settingsConfig;
         private IOptionsMonitor<PowerSystemsConfig> _powerSystemConfigMonitor;
@@ -68,13 +67,11 @@ namespace SessyController.Managers
         public SolarInverterManager(IEnumerable<ISolarInverterService> inverterServices,
                                     LoggingService<SolarInverterManager> logger,
                                     TimeZoneService timezoneService,
-                                    ConsumptionMonitorService consumptionMonitorService,
                                     IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
                                     IOptionsMonitor<PowerSystemsConfig> powerSystemsConfigMonitor)
         {
             _logger = logger;
             _timeZoneService = timezoneService;
-            _consumptionMonitorService = consumptionMonitorService;
             _settingsConfigMonitor = settingsConfigMonitor;
             _settingsConfig = settingsConfigMonitor.CurrentValue;
             _settingsConfigMonitor.OnChange((config) =>
@@ -171,7 +168,9 @@ namespace SessyController.Managers
 
                 try
                 {
-                    await service.GetTotalACPowerInWatts().ConfigureAwait(false);
+                    // Use internal method that bypasses the IsAvailable check,
+                    // so we can detect when an offline inverter comes back online.
+                    await service.CheckAvailabilityAsync().ConfigureAwait(false);
 
                     service.IsAvailable = true;
 

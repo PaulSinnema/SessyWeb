@@ -14,6 +14,7 @@ namespace SessyController.Interfaces
         Dictionary<string, Endpoint> Endpoints { get; }
         string ProviderName { get; }
         double TotalCapacity { get; }
+        Task CheckAvailabilityAsync();
 
         /// <summary>
         /// True when the inverter is reachable via its primary communication channel

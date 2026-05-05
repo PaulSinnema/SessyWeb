@@ -82,6 +82,7 @@ builder.Services.Configure<SessyP1Config>(builder.Configuration.GetSection("Sess
 builder.Services.Configure<PowerSystemsConfig>(builder.Configuration.GetSection("PowerSystems"));
 builder.Services.Configure<SettingsConfig>(builder.Configuration.GetSection("ManagementSettings"));
 builder.Services.Configure<WeatherExpectancyConfig>(builder.Configuration.GetSection("WeerOnline"));
+builder.Services.Configure<SolarEdgeCloudConfig>(builder.Configuration.GetSection("SolarEdgeCloud"));
 
 // Voeg services en providers toe aan de DI-container
 builder.Services.AddHttpClient();
