@@ -5,6 +5,7 @@
         public DateTime Time { get; set; }
         public int? SessionId { get; set; }
         public string DisplayState { get; set; } = string.Empty;
+        public bool IsPriceExpected { get; set; }
         public double Price { get; set; }
         public double BuyingPrice { get; set; }
         public double SellingPrice { get; set; }
@@ -33,7 +34,7 @@
 
         public override string ToString()
         {
-            return $"Time: {Time}, VisualizeInChart: {VisualizeInChart}, Buying Price: {BuyingPrice}, Selling Price: {SellingPrice}, " +
+            return $"Time: {Time}, IsPriceExpected: {IsPriceExpected}, VisualizeInChart: {VisualizeInChart}, Buying Price: {BuyingPrice}, Selling Price: {SellingPrice}, " +
                    $"Market Price: {MarketPrice}, Profit: {Profit}, Charge Left: {ChargeLeft}, " +
                    $"Estimated Consumption Per Quarter Hour: {EstimatedConsumptionPerQuarterHour}, " +
                    $"Solar Power Per Quarter Hour: {SolarPowerPerQuarterHour}, " +

@@ -45,6 +45,9 @@ namespace SessyController.Services
         private BatteryContainer _batteryContainer { get; set; }
         private IServiceScopeFactory _serviceScopeFactory { get; set; }
         private EPEXPricesDataService _epexPricesDataService { get; set; }
+
+        private ExpectedPriceService _expectedPriceService;
+
         private IOptionsMonitor<SettingsConfig> _settingsConfigMonitor { get; set; }
 
         private IHttpClientFactory _httpClientFactory { get; set; }
@@ -68,6 +71,7 @@ namespace SessyController.Services
                                     TimeZoneService timeZoneService,
                                     BatteryContainer batteryContainer,
                                     EPEXPricesDataService epexPricesDataService,
+                                    ExpectedPriceService expectedPriceService,
                                     IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
                                     TaxesDataService taxesService,
                                     SolarInverterManager solarInverterManager,
@@ -82,6 +86,7 @@ namespace SessyController.Services
             _batteryContainer = batteryContainer;
             _serviceScopeFactory = serviceScopeFactory;
             _epexPricesDataService = epexPricesDataService;
+            _expectedPriceService = expectedPriceService;
             _solarInverterManager = solarInverterManager;
             _settingsConfigMonitor = settingsConfigMonitor;
             _httpClientFactory = httpClientFactory;
@@ -205,6 +210,9 @@ namespace SessyController.Services
 
         /// <summary>
         /// Get the fetched prices for yesterday, today and tomorrow (if present) as a sorted list.
+        /// When tomorrow's prices are not yet available from the day-ahead market,
+        /// fills them in with historical averages so the MILP planner can make
+        /// informed decisions about today's battery management.
         /// </summary>
         public async Task<List<QuarterlyInfo>> GetPrices()
         {
@@ -212,8 +220,6 @@ namespace SessyController.Services
 
             try
             {
-                List<QuarterlyInfo> quarterlyInfos = new List<QuarterlyInfo>();
-
                 var now = _timeZoneService.Now;
                 var start = now.AddDays(-1).Date;
                 var end = now.AddDays(1).Date.AddHours(23).AddMinutes(45);
@@ -227,14 +233,47 @@ namespace SessyController.Services
                     return await Task.FromResult(result);
                 });
 
-                if (data != null)
-                {
-                    quarterlyInfos = await BuildQuarterliesAsync(data);
+                if (data == null)
+                    return new List<QuarterlyInfo>();
 
-                    return quarterlyInfos;
+                // Check if tomorrow's prices are available.
+                // Use explicit range comparison to avoid DateTimeKind mismatches.
+                var tomorrow = _timeZoneService.Now.AddDays(1).Date;
+                var tomorrowStart = tomorrow;
+                var tomorrowEnd = tomorrow.AddDays(1);
+                var tomorrowPrices = data
+                    .Where(ep => ep.Time >= tomorrowStart && ep.Time < tomorrowEnd)
+                    .ToList();
+
+                if (tomorrowPrices.Count == 0)
+                {
+                    // Tomorrow's real prices are not yet available.
+                    // Fill in with historical averages for planning purposes only.
+                    var expectedPrices = await _expectedPriceService
+                        .GetExpectedPricesForDateAsync(tomorrow)
+                        .ConfigureAwait(false);
+
+                    data.AddRange(expectedPrices);
+
+                    // Pre-load into CalculationService cache so CalculateEnergyPrice()
+                    // can find the expected prices without querying the database.
+                    // Expected prices are never written to the database.
+                    _calculationService.PreloadExpectedPrices(expectedPrices);
+
+                    _logger.LogInformation(
+                        $"Tomorrow's prices not yet available — using {expectedPrices.Count} " +
+                        $"expected prices for {tomorrow:dd-MM-yyyy}.");
+                }
+                else
+                {
+                    // Real prices are available — clear any expected prices from cache
+                    // so the real prices are used going forward.
+                    _calculationService.InvalidateExpectedPrices();
                 }
 
-                return new List<QuarterlyInfo>();
+                var quarterlyInfos = await BuildQuarterliesAsync(data).ConfigureAwait(false);
+
+                return quarterlyInfos;
             }
             finally
             {
@@ -258,6 +297,21 @@ namespace SessyController.Services
                     _calculationService));
 
             var hourlyInfos = (await Task.WhenAll(tasks)).ToList();
+
+            // Mark quarters that use expected prices for visualization.
+            // When HasExpectedPrices is true, all tomorrow's quarters are marked
+            // so the UI can display them in a different color.
+            if (_calculationService.HasExpectedPrices)
+            {
+                var tomorrow = _timeZoneService.Now.AddDays(1).Date;
+
+                var tomorrowEnd = tomorrow.AddDays(1);
+
+                foreach (var qi in hourlyInfos.Where(q => q.Time >= tomorrow && q.Time < tomorrowEnd))
+                    qi.SetPriceExpected(true);
+
+                _logger.LogWarning($"Marked as expected: {hourlyInfos.Count(q => q.IsPriceExpected)}");
+            }
 
             return hourlyInfos;
         }

@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Components;
 using Radzen.Blazor;
+using SessyController.Services.Items;
 using SessyData.Services;
 using SessyWeb.Pages;
 
@@ -22,6 +23,23 @@ namespace SessyWeb.Components
 
         public double ChartMin => -ChartMinMax;
         public double ChartMax => ChartMinMax;
+
+        private string GetBuyingPriceFill(object obj)
+        {
+            var qi = (QuarterlyInfo)obj;
+            return qi.IsPriceExpected ? "#324ab255" : "#324ab2";
+        }
+
+        private string GetSellingPriceFill(object obj)
+        {
+            var qi = (QuarterlyInfo)obj;
+            return qi.IsPriceExpected ? "#00aae455" : "#00aae4";
+        }
+
+        private bool IsExpected(List<QuarterlyInfoView> quarterlyInfos)
+        {
+            return quarterlyInfos != null && quarterlyInfos.Any(q => q.IsPriceExpected);
+        }
 
         public double ChartMinMax
         {

@@ -705,6 +705,33 @@ namespace SessyController.Services
                 }
 
                 _planByTime = newPlan;
+
+                // Override the last quarter of each day to ZeroNetHome unless the price
+                // is negative. The MILP sometimes plans unnecessary Charging in the last
+                // quarter because there are no future quarters to use the energy, making
+                // the cycle cost appear neutral. This is always suboptimal.
+                var lastQuartersByDay = _planByTime.Keys
+                    .GroupBy(t => t.Date)
+                    .Select(g => g.Max())
+                    .ToHashSet();
+
+                foreach (var lastQuarter in lastQuartersByDay)
+                {
+                    if (_planByTime.TryGetValue(lastQuarter, out var lastAct) &&
+                        lastAct.Mode == Modes.Charging)
+                    {
+                        var lastQi = _quarterlyInfos.FirstOrDefault(q => q.Time == lastQuarter);
+
+                        if (lastQi == null || !lastQi.PriceIsNegative)
+                        {
+                            _planByTime[lastQuarter] = new PlanAction
+                            {
+                                Mode = Modes.ZeroNetHome,
+                                PowerW = 0
+                            };
+                        }
+                    }
+                }
                 _logger.LogWarning($"MILP plan built: plan1={best.Plan1.Optimal}, obj1={best.Plan1.ObjectiveEur:F4} EUR" +
                     (best.Plan2 != null ? $" | plan2={best.Plan2.Optimal}, obj2={best.Plan2.ObjectiveEur:F4} EUR" : "") +
                     $" | split={best.SplitTime:HH:mm} | timeLimit={MilpTimeLimitMs}ms | now={nowQuarterTime:HH:mm} | quarters={allQuarters.Count}");

@@ -347,6 +347,7 @@ namespace SessyWeb.Pages
                 Time = quarterlyInfo.Time,
                 SessionId = null, // sessions removed
 
+                IsPriceExpected = quarterlyInfo.IsPriceExpected,
                 BuyingPrice = quarterlyInfo.BuyingPrice,
                 SellingPrice = quarterlyInfo.SellingPrice,
                 MarketPrice = quarterlyInfo.MarketPrice,
@@ -391,6 +392,7 @@ namespace SessyWeb.Pages
                 Time = performance.Time,
                 SessionId = null,
 
+                IsPriceExpected = false,
                 BuyingPrice = performance.BuyingPrice,
                 SellingPrice = performance.SellingPrice,
                 MarketPrice = performance.MarketPrice,

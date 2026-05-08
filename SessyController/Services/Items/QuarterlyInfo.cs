@@ -114,6 +114,18 @@ namespace SessyController.Services.Items
             => totalCapacityWh > 0 ? (ChargeNeededWh / totalCapacityWh) * 100.0 : 0.0;
 
         /// <summary>
+        /// True when the price is based on historical averages because the real
+        /// day-ahead price is not yet available from the market.
+        /// Used for visualization — e.g. to show expected prices in a different color.
+        /// </summary>
+        public bool IsPriceExpected { get; private set; }
+
+        public void SetPriceExpected(bool isExpected)
+        {
+            IsPriceExpected = isExpected;
+        }
+ 
+        /// <summary>
         /// Primary mode used by BatteriesService execution.
         /// </summary>
         public Modes Mode { get; private set; }
@@ -238,7 +250,7 @@ namespace SessyController.Services.Items
 
         public override string ToString()
         {
-            return $"{Time}: Mode={Mode}, Buy={BuyingPrice}, Sell={SellingPrice}, " +
+            return $"{Time}: Mode={Mode}, Buy={BuyingPrice}, Sell={SellingPrice}, IsPriceExpected={IsPriceExpected}, " +
                    $"PlanC(W)={PlannedChargePowerW}, PlanD(W)={PlannedDischargePowerW}, " +
                    $"ChargeLeftWh={ChargeLeftWh}, ChargeNeededWh={ChargeNeededWh}, " +
                    $"Solar(kWh/q)={SolarPowerPerQuarterHour}, Cons(W/q)={EstimatedConsumptionPerQuarterInWatts}, Profit={Profit}";
@@ -266,6 +278,8 @@ namespace SessyController.Services.Items
             DeltaLowestPrice = 0.0;
             SmoothedBuyingPrice = 0.0;
             SmoothedSellingPrice = 0.0;
+
+            IsPriceExpected = false;
         }
     }
 }

@@ -115,6 +115,7 @@ builder.Services.AddSingleton<SessyMonitorService>();
 builder.Services.AddSingleton<EnergyMonitorService>();
 builder.Services.AddSingleton<SolarDataService>();
 builder.Services.AddSingleton<EPEXPricesDataService>();
+builder.Services.AddSingleton<ExpectedPriceService>();
 builder.Services.AddSingleton<SessyWebControlDataService>();
 builder.Services.AddSingleton<TaxesDataService>();
 builder.Services.AddSingleton<ConsumptionMonitorService>();

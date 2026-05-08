@@ -62,6 +62,47 @@ namespace SessyController.Services
         private SemaphoreSlim _calcuculateEnergyPriceSemaphore = new SemaphoreSlim(1);
 
         /// <summary>
+        /// Pre-populates the EPEX prices cache with expected prices for dates
+        /// not yet available in the database. Must be called before
+        /// BuildQuarterliesAsync when using expected prices.
+        /// Expected prices are never stored in the database — they are only
+        /// used for planning purposes until real prices become available.
+        /// </summary>
+        public void PreloadExpectedPrices(IEnumerable<EPEXPrices> expectedPrices)
+        {
+            foreach (var price in expectedPrices)
+            {
+                // TryAdd ensures existing real prices are never overwritten.
+                _epexPricesCache.TryAdd(price.Time, price);
+            }
+
+            _hasExpectedPrices = true;
+        }
+
+        /// <summary>
+        /// Clears expected prices from the cache when real prices become available.
+        /// The cache will be repopulated from the database on the next request.
+        /// </summary>
+        public void InvalidateExpectedPrices()
+        {
+            if (_hasExpectedPrices)
+            {
+                _epexPricesCache.Clear();
+                _invalidateEpexPricesCacheDateTime = DateTime.MinValue;
+                _hasExpectedPrices = false;
+            }
+        }
+
+        // Flag to track whether expected prices have been preloaded.
+        private bool _hasExpectedPrices = false;
+
+        /// <summary>
+        /// True when expected prices have been preloaded into the cache.
+        /// Used by BuildQuarterliesAsync to mark quarters for visualization.
+        /// </summary>
+        public bool HasExpectedPrices => _hasExpectedPrices;
+
+        /// <summary>
         /// Calculate the energy price. Includes overhead cost if includeOverheadCosts = true.
         /// Returns null if prices, taxes or overhead cost are missing.
         /// </summary>
@@ -117,6 +158,9 @@ namespace SessyController.Services
         /// Retrieves the EPEXPrice from cache if present.
         /// If not present in the cache it is fetched from the table and added to the cache.
         /// The cache is invalidated every 24 hours.
+        /// Note: expected prices preloaded via PreloadExpectedPrices() are never
+        /// overwritten by database values — they are cleared via InvalidateExpectedPrices()
+        /// when real prices become available.
         /// </summary>
         private async Task<(EPEXPrices? epexPrice, Taxes taxes)> GetEpexPriceFromCache(DateTime time)
         {
@@ -124,7 +168,13 @@ namespace SessyController.Services
 
             if (_invalidateEpexPricesCacheDateTime < _timezoneService.Now)
             {
-                _epexPricesCache.Clear();
+                // Only clear if no expected prices are loaded — clearing the cache
+                // while expected prices are active would lose them until the next
+                // PreloadExpectedPrices() call.
+                if (!_hasExpectedPrices)
+                {
+                    _epexPricesCache.Clear();
+                }
 
                 _invalidateEpexPricesCacheDateTime = _timezoneService.Now.AddHours(24);
             }
@@ -142,7 +192,8 @@ namespace SessyController.Services
                     return await Task.FromResult(result);
                 });
 
-                _epexPricesCache.TryAdd(time, epexPrice!);
+                if (epexPrice != null)
+                    _epexPricesCache.TryAdd(time, epexPrice);
             }
 
             var cache = _taxesCache.Where(tx => tx.Key <= time)
@@ -256,11 +307,11 @@ namespace SessyController.Services
             switch (mode)
             {
                 case Modes.Charging:
-                    roomInWatt = performance.ChargeNeeded - performance.ChargeLeft; // + performance.SolarPowerPerQuarterHour - performance.EstimatedConsumptionPerQuarterHour;
+                    roomInWatt = performance.ChargeNeeded - performance.ChargeLeft;
                     break;
 
                 case Modes.Discharging:
-                    roomInWatt = performance.ChargeLeft - performance.ChargeNeeded; // + performance.SolarPowerPerQuarterHour - performance.EstimatedConsumptionPerQuarterHour;
+                    roomInWatt = performance.ChargeLeft - performance.ChargeNeeded;
                     break;
 
                 case Modes.ZeroNetHome:
@@ -270,8 +321,8 @@ namespace SessyController.Services
                 case Modes.Disabled:
                     break;
 
-            case Modes.Unknown:
-            default:
+                case Modes.Unknown:
+                default:
                     break;
             }
 
