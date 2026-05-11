@@ -14,13 +14,20 @@ namespace SessyController.Interfaces
         Dictionary<string, Endpoint> Endpoints { get; }
         string ProviderName { get; }
         double TotalCapacity { get; }
-        Task CheckAvailabilityAsync();
 
         /// <summary>
         /// True when the inverter is reachable via its primary communication channel
         /// (e.g. Modbus TCP). Updated periodically by the health check in SolarInverterManager.
         /// </summary>
         bool IsAvailable { get; set; }
+
+        /// <summary>
+        /// Timestamp of the last successful Modbus read in UTC.
+        /// Used by SolarInverterManager health check to determine availability
+        /// without making a new Modbus connection that would conflict with the
+        /// Process() loop reading every second.
+        /// </summary>
+        DateTime LastSuccessfulReadUtc { get; }
 
         /// <summary>
         /// True when this inverter supports a cloud-based fallback for reading

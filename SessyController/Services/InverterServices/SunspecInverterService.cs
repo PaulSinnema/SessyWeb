@@ -52,6 +52,14 @@ namespace SessyController.Services.InverterServices
         public bool IsAvailable { get; set; } = true;
 
         /// <summary>
+        /// Timestamp of the last successful Modbus read in UTC.
+        /// Updated by GetACPowerInWatts on every successful read.
+        /// Used by SolarInverterManager health check to determine availability
+        /// without making a new Modbus connection.
+        /// </summary>
+        public DateTime LastSuccessfulReadUtc { get; private set; } = DateTime.MinValue;
+
+        /// <summary>
         /// Base implementation does not support a cloud fallback.
         /// Override in provider-specific subclasses (e.g. SolarEdgeInverterService).
         /// </summary>
@@ -173,15 +181,6 @@ namespace SessyController.Services.InverterServices
             }
         }
 
-        // In SunspecInverterService:
-        public async Task CheckAvailabilityAsync()
-        {
-            // Deliberately bypasses IsAvailable — used by health check to detect recovery.
-            using var client = await GetModbusClient(Endpoints.First().Key).ConfigureAwait(false);
-            await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.Int16>(
-                SunspecConsts.I_AC_Power).ConfigureAwait(false);
-        }
-
         /// <summary>
         /// Get the total power output in Watts for all configured endpoints.
         /// Used by SolarInverterManager health check.
@@ -241,7 +240,13 @@ namespace SessyController.Services.InverterServices
                             SunspecConsts.I_AC_Power,
                             SunspecConsts.I_AC_Power_SF).ConfigureAwait(false);
 
-                    return power.Value * Math.Pow(10, scaleFactor.Value);
+                    var result = power.Value * Math.Pow(10, scaleFactor.Value);
+
+                    // Update timestamp so health check can determine availability
+                    // without making a separate Modbus connection.
+                    LastSuccessfulReadUtc = DateTime.UtcNow;
+
+                    return result;
                 }
                 catch (Exception ex)
                 {
@@ -360,7 +365,7 @@ namespace SessyController.Services.InverterServices
                 {
                     return await operation().ConfigureAwait(false);
                 }
-                catch(Exception ex)
+                catch (Exception ex)
                 {
                     exception = ex;
                     await Task.Delay(1000);

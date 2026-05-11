@@ -120,16 +120,14 @@ namespace SessyController.Managers
 
         protected override async Task ExecuteAsync(CancellationToken cancellationToken)
         {
-            // Start all inverter services and the health check loop in parallel.
-            // service.Start() contains an infinite loop and never returns,
-            // so we must not await it sequentially before starting the health check.
-            var tasks = _activeInverterServices
-                .Select(service => service.Start(cancellationToken))
-                .ToList();
+            // Start all inverter services.
+            foreach (var service in _activeInverterServices)
+            {
+                await service.Start(cancellationToken);
+            }
 
-            tasks.Add(RunHealthCheckLoopAsync(cancellationToken));
-
-            await Task.WhenAll(tasks).ConfigureAwait(false);
+            // Run health check loop in parallel.
+            await RunHealthCheckLoopAsync(cancellationToken);
         }
 
         /// <summary>
@@ -142,8 +140,6 @@ namespace SessyController.Managers
             {
                 try
                 {
-                    await CheckAvailabilityAsync().ConfigureAwait(false);
-
                     await Task.Delay(TimeSpan.FromSeconds(HealthCheckIntervalSeconds), cancellationToken)
                         .ConfigureAwait(false);
                 }
@@ -151,40 +147,38 @@ namespace SessyController.Managers
                 {
                     return;
                 }
+
+                await CheckAvailabilityAsync().ConfigureAwait(false);
             }
         }
 
         /// <summary>
+        // Inverter is considered offline when no successful read within this timeout.
+        private const int AvailabilityTimeoutSeconds = 60;
+
         /// <summary>
-        /// Checks availability of each inverter individually by attempting a lightweight
-        /// Modbus read. Sets IsAvailable on each service based on whether the read succeeds.
-        /// Logs only on transitions between online and offline.
+        /// Checks availability of each inverter by inspecting the timestamp of the
+        /// last successful Modbus read. This avoids making a new Modbus connection
+        /// that would conflict with the Process() loop reading every second and
+        /// cause "Connection reset by peer" flip-flop behavior.
         /// </summary>
-        private async Task CheckAvailabilityAsync()
+        private Task CheckAvailabilityAsync()
         {
             foreach (var service in _activeInverterServices)
             {
                 bool wasAvailable = service.IsAvailable;
+                bool isNowAvailable = (DateTime.UtcNow - service.LastSuccessfulReadUtc).TotalSeconds
+                                      < AvailabilityTimeoutSeconds;
 
-                try
-                {
-                    // Use internal method that bypasses the IsAvailable check,
-                    // so we can detect when an offline inverter comes back online.
-                    await service.CheckAvailabilityAsync().ConfigureAwait(false);
+                service.IsAvailable = isNowAvailable;
 
-                    service.IsAvailable = true;
-
-                    if (!wasAvailable)
-                        _logger.LogWarning($"Inverter '{service.ProviderName}' is back online.");
-                }
-                catch (Exception ex)
-                {
-                    service.IsAvailable = false;
-
-                    if (wasAvailable)
-                        _logger.LogWarning($"Inverter '{service.ProviderName}' is offline — Modbus TCP unreachable: {ex.Message}");
-                }
+                if (isNowAvailable && !wasAvailable)
+                    _logger.LogWarning($"Inverter '{service.ProviderName}' is back online.");
+                else if (!isNowAvailable && wasAvailable)
+                    _logger.LogWarning($"Inverter '{service.ProviderName}' is offline — no successful read in {AvailabilityTimeoutSeconds}s.");
             }
+
+            return Task.CompletedTask;
         }
 
         public override async Task StopAsync(CancellationToken cancellationToken)

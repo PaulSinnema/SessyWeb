@@ -7,8 +7,21 @@
     {
         public Dictionary<string, SessyBatteryEndpoint>? Batteries { get; set; }
 
-        public double TotalChargingCapacity => Batteries == null ? 0 : Batteries.Sum(bat => bat.Value.MaxCharge);
-        public double TotalDischargingCapacity => Batteries == null ? 0 : Batteries.Sum(bat => bat.Value.MaxDischarge);
+        /// <summary>
+        /// Total effective charging capacity across all batteries in Watts.
+        /// Takes ChargingEfficiencyFactor per battery into account.
+        /// </summary>
+        public double TotalChargingCapacity => Batteries == null ? 0 : Batteries.Sum(bat => bat.Value.EffectiveMaxCharge);
+
+        /// <summary>
+        /// Total effective discharging capacity across all batteries in Watts.
+        /// Takes DischargingEfficiencyFactor per battery into account.
+        /// </summary>
+        public double TotalDischargingCapacity => Batteries == null ? 0 : Batteries.Sum(bat => bat.Value.EffectiveMaxDischarge);
+
+        /// <summary>
+        /// Total energy capacity across all batteries in Wh.
+        /// </summary>
         public double TotalCapacity => Batteries == null ? 0 : Batteries.Sum(bat => bat.Value.Capacity);
     }
 }
