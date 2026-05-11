@@ -148,7 +148,7 @@ namespace SessyWeb.Pages
 
         private async Task OnCreateRow(EPEXPrices epexPrices)
         {
-            await _epexPricesDataService!.Add(new List<EPEXPrices> { epexPrices }, (item, set) => set.Where(eh => eh.Id == item.Id).FirstOrDefault());
+            await _epexPricesDataService!.Add(new List<EPEXPrices> { epexPrices }, (item, set) => set.Contains(item));
         }
     }
 }

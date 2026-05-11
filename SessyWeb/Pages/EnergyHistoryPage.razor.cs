@@ -128,9 +128,9 @@ namespace SessyWeb.Pages
             await energyGrid.InsertAfterRow(energyHistory, row);
         }
 
-        void OnCreateRow(EnergyHistory energyHistory)
+        async Task OnCreateRow(EnergyHistory energyHistory)
         {
-            _energyHistoryService!.Add(new List<EnergyHistory> { energyHistory }, (item, set) => set.Where(eh => eh.Id == item.Id).FirstOrDefault());
+            await _energyHistoryService!.Add(new List<EnergyHistory> { energyHistory }, (item, set) => set.Contains(item));
         }
     }
 }
