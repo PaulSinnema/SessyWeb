@@ -1,0 +1,202 @@
+﻿namespace SessyController.Services.Statistics
+{
+    /// <summary>
+    /// Energy flow statistics for a given period.
+    /// All energy values are in kWh, all financial values in EUR.
+    /// </summary>
+    public class EnergyStatistics
+    {
+        public DateTime PeriodStart { get; set; }
+        public DateTime PeriodEnd { get; set; }
+
+        // ── Energy flows ─────────────────────────────────────────────────────
+
+        /// <summary>Total energy consumed from the grid (kWh).</summary>
+        public double TotalGridImportKWh { get; set; }
+
+        /// <summary>Total energy exported to the grid (kWh).</summary>
+        public double TotalGridExportKWh { get; set; }
+
+        /// <summary>Total solar energy produced (kWh).</summary>
+        public double TotalSolarProductionKWh { get; set; }
+
+        /// <summary>Total household consumption (kWh).</summary>
+        public double TotalConsumptionKWh { get; set; }
+
+        /// <summary>Energy consumed directly from solar without going through grid or battery (kWh).</summary>
+        public double SelfConsumedSolarKWh { get; set; }
+
+        /// <summary>
+        /// Percentage of total consumption covered by own solar + battery.
+        /// 100% = fully self-sufficient.
+        /// </summary>
+        public double SelfSufficiencyPct => TotalConsumptionKWh > 0
+            ? Math.Min(100.0, (TotalConsumptionKWh - TotalGridImportKWh) / TotalConsumptionKWh * 100.0)
+            : 0.0;
+
+        /// <summary>
+        /// Percentage of solar production consumed on-site (not exported).
+        /// 100% = all solar used locally.
+        /// </summary>
+        public double SelfConsumptionPct => TotalSolarProductionKWh > 0
+            ? Math.Min(100.0, SelfConsumedSolarKWh / TotalSolarProductionKWh * 100.0)
+            : 0.0;
+
+        /// <summary>Percentage of total energy that came from the grid.</summary>
+        public double GridDependencyPct => TotalConsumptionKWh > 0
+            ? TotalGridImportKWh / TotalConsumptionKWh * 100.0
+            : 0.0;
+
+        // ── Battery statistics ───────────────────────────────────────────────
+
+        /// <summary>Total energy charged into batteries (kWh).</summary>
+        public double TotalBatteryChargedKWh { get; set; }
+
+        /// <summary>Total energy discharged from batteries (kWh).</summary>
+        public double TotalBatteryDischargedKWh { get; set; }
+
+        /// <summary>Number of full equivalent battery cycles.</summary>
+        public double BatteryCycles { get; set; }
+
+        /// <summary>Average battery cycles per day.</summary>
+        public double BatteryCyclesPerDay => PeriodDays > 0 ? BatteryCycles / PeriodDays : 0.0;
+
+        /// <summary>
+        /// Battery round-trip efficiency (discharged / charged).
+        /// Theoretical max is ~95% for Sessy.
+        /// </summary>
+        public double BatteryRoundTripEfficiencyPct => TotalBatteryChargedKWh > 0
+            ? TotalBatteryDischargedKWh / TotalBatteryChargedKWh * 100.0
+            : 0.0;
+
+        /// <summary>Average state of charge percentage.</summary>
+        public double AverageSocPct { get; set; }
+
+        // ── Financial statistics ─────────────────────────────────────────────
+
+        /// <summary>Actual energy cost paid (EUR).</summary>
+        public double ActualEnergyCostEur { get; set; }
+
+        /// <summary>
+        /// Estimated energy cost without solar/battery — based on same consumption
+        /// at average grid price (EUR).
+        /// </summary>
+        public double BaselineEnergyCostEur { get; set; }
+
+        /// <summary>Total savings vs baseline (EUR).</summary>
+        public double TotalSavingsEur => BaselineEnergyCostEur - ActualEnergyCostEur;
+
+        /// <summary>Revenue from grid export (EUR).</summary>
+        public double GridExportRevenueEur { get; set; }
+
+        /// <summary>Battery arbitrage profit (buy low, sell high) (EUR).</summary>
+        public double ArbitrageProfitEur { get; set; }
+
+        /// <summary>Weighted average buy price per kWh (EUR/kWh).</summary>
+        public double WeightedAvgBuyPriceEurPerKWh { get; set; }
+
+        /// <summary>Weighted average sell price per kWh (EUR/kWh).</summary>
+        public double WeightedAvgSellPriceEurPerKWh { get; set; }
+
+        /// <summary>Monthly savings extrapolated from period (EUR/month).</summary>
+        public double MonthlySavingsEur => PeriodDays > 0 ? TotalSavingsEur / PeriodDays * 30.0 : 0.0;
+
+        /// <summary>Annual savings extrapolated from period (EUR/year).</summary>
+        public double AnnualSavingsEur => PeriodDays > 0 ? TotalSavingsEur / PeriodDays * 365.0 : 0.0;
+
+        // ── Solar statistics ─────────────────────────────────────────────────
+
+        /// <summary>Average daily solar production (kWh/day).</summary>
+        public double AvgDailySolarProductionKWh => PeriodDays > 0 ? TotalSolarProductionKWh / PeriodDays : 0.0;
+
+        /// <summary>Peak solar production in a single day (kWh).</summary>
+        public double PeakDailySolarProductionKWh { get; set; }
+
+        /// <summary>Solar performance ratio (actual vs expected based on radiation).</summary>
+        public double SolarPerformanceRatio { get; set; }
+
+        // ── Consumption statistics ───────────────────────────────────────────
+
+        /// <summary>Average daily consumption (kWh/day).</summary>
+        public double AvgDailyConsumptionKWh => PeriodDays > 0 ? TotalConsumptionKWh / PeriodDays : 0.0;
+
+        /// <summary>Peak daily consumption (kWh).</summary>
+        public double PeakDailyConsumptionKWh { get; set; }
+
+        /// <summary>Weekday vs weekend consumption ratio.</summary>
+        public double WeekdayConsumptionKWh { get; set; }
+        public double WeekendConsumptionKWh { get; set; }
+
+        // ── Period helpers ───────────────────────────────────────────────────
+
+        public double PeriodDays => (PeriodEnd - PeriodStart).TotalDays;
+    }
+
+    /// <summary>
+    /// ROI and payback period statistics.
+    /// </summary>
+    public class InvestmentStatistics
+    {
+        public DateTime PeriodStart { get; set; }
+        public DateTime PeriodEnd { get; set; }
+
+        /// <summary>Total net investment (after subsidies) in EUR.</summary>
+        public double TotalNetInvestmentEur { get; set; }
+
+        /// <summary>Total savings realized since purchase date (EUR).</summary>
+        public double TotalRealizedSavingsEur { get; set; }
+
+        /// <summary>Remaining investment to recover (EUR).</summary>
+        public double RemainingInvestmentEur => Math.Max(0, TotalNetInvestmentEur - TotalRealizedSavingsEur);
+
+        /// <summary>Percentage of investment recovered so far.</summary>
+        public double RecoveredPct => TotalNetInvestmentEur > 0
+            ? Math.Min(100.0, TotalRealizedSavingsEur / TotalNetInvestmentEur * 100.0)
+            : 0.0;
+
+        /// <summary>Projected annual savings based on recent trend (EUR/year).</summary>
+        public double ProjectedAnnualSavingsEur { get; set; }
+
+        /// <summary>Projected payback period in years based on current savings rate.</summary>
+        public double ProjectedPaybackYears => ProjectedAnnualSavingsEur > 0
+            ? TotalNetInvestmentEur / ProjectedAnnualSavingsEur
+            : double.MaxValue;
+
+        /// <summary>Projected break-even date.</summary>
+        public DateTime? ProjectedBreakEvenDate { get; set; }
+
+        /// <summary>Per-category investment breakdown.</summary>
+        public List<InvestmentCategoryStats> CategoryBreakdown { get; set; } = new();
+    }
+
+    /// <summary>
+    /// Statistics per investment category.
+    /// </summary>
+    public class InvestmentCategoryStats
+    {
+        public string Category { get; set; } = string.Empty;
+        public double TotalAmountEur { get; set; }
+        public double TotalSubsidyEur { get; set; }
+        public double NetAmountEur => TotalAmountEur - TotalSubsidyEur;
+        public int ExpectedLifetimeYears { get; set; }
+        public double AnnualDepreciationEur => ExpectedLifetimeYears > 0 ? NetAmountEur / ExpectedLifetimeYears : 0.0;
+    }
+
+    /// <summary>
+    /// Monthly trend entry for visualization.
+    /// </summary>
+    public class MonthlyTrend
+    {
+        public int Year { get; set; }
+        public int Month { get; set; }
+        public DateTime PeriodStart => new DateTime(Year, Month, 1);
+        public double SolarProductionKWh { get; set; }
+        public double ConsumptionKWh { get; set; }
+        public double GridImportKWh { get; set; }
+        public double GridExportKWh { get; set; }
+        public double SavingsEur { get; set; }
+        public double ArbitrageProfitEur { get; set; }
+        public double SelfSufficiencyPct { get; set; }
+        public double BatteryCycles { get; set; }
+    }
+}

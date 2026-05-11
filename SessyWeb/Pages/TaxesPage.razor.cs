@@ -163,9 +163,9 @@ namespace SessyWeb.Pages
             count++;
         }
 
-        void OnCreateRow(Taxes taxes)
+        async Task OnCreateRow(Taxes taxes)
         {
-            _taxesService!.Add(new List<Taxes> { taxes }, (item, set) => set.Where(eh => eh.Id == item.Id).FirstOrDefault());
+            await _taxesService!.Add(new List<Taxes> { taxes }, (item, set) => set.Contains(taxes));
         }
     }
 }
