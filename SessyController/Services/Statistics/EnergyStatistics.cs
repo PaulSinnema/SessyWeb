@@ -31,7 +31,10 @@
         /// 100% = fully self-sufficient.
         /// </summary>
         public double SelfSufficiencyPct => TotalConsumptionKWh > 0
-            ? Math.Min(100.0, (TotalConsumptionKWh - TotalGridImportKWh) / TotalConsumptionKWh * 100.0)
+            // Self-sufficiency = share of consumption covered by own sources (solar + battery).
+            // Clamp to [0, 100]: grid import can exceed consumption when battery charges from grid,
+            // which would otherwise produce a negative percentage.
+            ? Math.Clamp((TotalConsumptionKWh - TotalGridImportKWh) / TotalConsumptionKWh * 100.0, 0.0, 100.0)
             : 0.0;
 
         /// <summary>
@@ -49,11 +52,24 @@
 
         // ── Battery statistics ───────────────────────────────────────────────
 
-        /// <summary>Total energy charged into batteries (kWh).</summary>
+        /// <summary>Total energy charged into batteries (kWh) — all periods.</summary>
         public double TotalBatteryChargedKWh { get; set; }
 
-        /// <summary>Total energy discharged from batteries (kWh).</summary>
+        /// <summary>Total energy discharged from batteries (kWh) — all periods.</summary>
         public double TotalBatteryDischargedKWh { get; set; }
+
+        /// <summary>
+        /// Energy charged over reliable periods only (kWh).
+        /// Used for round-trip efficiency to exclude periods with known data quality issues
+        /// (e.g. battery overheating causing premature shutdown mid-cycle).
+        /// </summary>
+        public double ReliableBatteryChargedKWh { get; set; }
+
+        /// <summary>
+        /// Energy discharged over reliable periods only (kWh).
+        /// Used for round-trip efficiency to exclude periods with known data quality issues.
+        /// </summary>
+        public double ReliableBatteryDischargedKWh { get; set; }
 
         /// <summary>Number of full equivalent battery cycles.</summary>
         public double BatteryCycles { get; set; }
@@ -63,12 +79,13 @@
 
         /// <summary>
         /// Battery round-trip efficiency (discharged / charged).
+        /// Calculated from reliable periods only to exclude overheating/shutdown distortion.
         /// Only meaningful when at least 1 kWh has been charged AND discharged.
         /// Returns 0 when insufficient data to avoid misleading values.
         /// </summary>
         public double BatteryRoundTripEfficiencyPct =>
-            TotalBatteryChargedKWh >= 1.0 && TotalBatteryDischargedKWh > 0
-                ? Math.Min(100.0, TotalBatteryDischargedKWh / TotalBatteryChargedKWh * 100.0)
+            ReliableBatteryChargedKWh >= 1.0 && ReliableBatteryDischargedKWh > 0
+                ? Math.Min(100.0, ReliableBatteryDischargedKWh / ReliableBatteryChargedKWh * 100.0)
                 : 0.0;
 
         /// <summary>Average state of charge percentage.</summary>
@@ -131,7 +148,39 @@
 
         // ── Period helpers ───────────────────────────────────────────────────
 
-        public double PeriodDays => (PeriodEnd - PeriodStart).TotalDays;
+        /// <summary>
+        /// The actual start of the data used in this statistics object.
+        /// Set by EnergyStatisticsService after querying the data.
+        /// Used to calculate PeriodDays correctly when PeriodStart is DateTime.MinValue.
+        /// </summary>
+        public DateTime ActualDataStart { get; set; }
+
+        /// <summary>
+        /// The actual end of the data used in this statistics object.
+        /// Set by EnergyStatisticsService after querying the data.
+        /// Used to calculate PeriodDays correctly when PeriodEnd is DateTime.MaxValue.
+        /// </summary>
+        public DateTime ActualDataEnd { get; set; }
+
+        /// <summary>
+        /// Number of days in the period, based on actual data range.
+        /// Falls back to PeriodStart/PeriodEnd when ActualDataStart/End are not set.
+        /// Prevents division by astronomical values when DateTime.MinValue/MaxValue are used.
+        /// </summary>
+        public double PeriodDays
+        {
+            get
+            {
+                var start = ActualDataStart != default ? ActualDataStart : PeriodStart;
+                var end = ActualDataEnd != default ? ActualDataEnd : PeriodEnd;
+
+                // Guard against MinValue/MaxValue being passed through.
+                if (start == DateTime.MinValue || end == DateTime.MaxValue)
+                    return 0.0;
+
+                return Math.Max(1.0, (end - start).TotalDays);
+            }
+        }
     }
 
     /// <summary>

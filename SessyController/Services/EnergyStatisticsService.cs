@@ -27,6 +27,7 @@ namespace SessyController.Services
         private readonly InvestmentDataService _investmentDataService;
         private readonly TimeZoneService _timeZoneService;
         private readonly HeatPumpConfig _heatPumpConfig;
+        private readonly SettingsConfig _settingsConfig;
 
         // Total battery capacity in kWh for cycle calculation (3x Sessy 5.4 kWh).
         private const double BatteryCapacityKWh = 16.2;
@@ -57,9 +58,15 @@ namespace SessyController.Services
             // Common aliases.
             return normalized switch
             {
-                "solar" or "zonnepanelen" or "panelen" => CategorySolar,
-                "batterij" or "batteries" or "sessy" => CategoryBattery,
-                "warmtepomp" or "heatpump" or "hp" or "daikin" => CategoryHeatPump,
+                // Solar aliases — including inverter brand names.
+                "solar" or "zonnepanelen" or "panelen" or "solaredge" or "enphase" or "huawei" or "sma" => CategorySolar,
+                // Battery aliases — including brand names with numbers e.g. "Sessy 1", "Sessy 2 + 3".
+                "batterij" or "batteries" or "battery"
+                    or "sessy" or "sessy1" or "sessy2" or "sessy3"
+                    or "sessy2+3" or "sessy1+2" or "sessy1+2+3" => CategoryBattery,
+                // Heat pump aliases — including brand names.
+                "warmtepomp" or "heatpump" or "hp" or "daikin" or "daikinaltherma"
+                    or "mitsubishi" or "lg" or "vaillant" or "nibe" => CategoryHeatPump,
                 _ => normalized
             };
         }
@@ -68,27 +75,48 @@ namespace SessyController.Services
                                        PerformanceDataService performanceDataService,
                                        InvestmentDataService investmentDataService,
                                        TimeZoneService timeZoneService,
-                                       IOptions<HeatPumpConfig> heatPumpConfig)
+                                       IOptions<HeatPumpConfig> heatPumpConfig,
+                                       IOptions<SettingsConfig> settingsConfig)
         {
             _energyHistoryDataService = energyHistoryDataService;
             _performanceDataService = performanceDataService;
             _investmentDataService = investmentDataService;
             _timeZoneService = timeZoneService;
             _heatPumpConfig = heatPumpConfig.Value;
+            _settingsConfig = settingsConfig.Value;
         }
 
         /// <summary>
         /// Calculates comprehensive energy statistics for the given period.
+        /// When StatisticsFromDate is configured, the start date is clamped to that date
+        /// so unreliable historical data is automatically excluded.
         /// </summary>
         public async Task<EnergyStatistics> GetEnergyStatisticsAsync(DateTime start, DateTime end)
         {
+            // Clamp start to StatisticsFromDate when configured.
+            // This excludes unreliable historical data without touching the database.
+            if (_settingsConfig.StatisticsFromDate.HasValue)
+            {
+                var fromDate = _settingsConfig.StatisticsFromDate.Value;
+                if (start == DateTime.MinValue || start < fromDate)
+                    start = fromDate;
+            }
+
             var energyHistory = await GetEnergyHistoryAsync(start, end);
             var performance = await GetPerformanceAsync(start, end);
 
             var stats = new EnergyStatistics
             {
                 PeriodStart = start,
-                PeriodEnd = end
+                PeriodEnd = end,
+                // Set actual data range so PeriodDays reflects real data instead of
+                // DateTime.MinValue/MaxValue when the caller requests "all" data.
+                ActualDataStart = energyHistory.Any() ? energyHistory.Min(h => h.Time)
+                                : performance.Any() ? performance.Min(p => p.Time)
+                                : start,
+                ActualDataEnd = energyHistory.Any() ? energyHistory.Max(h => h.Time)
+                                : performance.Any() ? performance.Max(p => p.Time)
+                                : end,
             };
 
             // Order matters: consumption depends on grid flows and solar.
@@ -458,9 +486,17 @@ namespace SessyController.Services
                 .DefaultIfEmpty(0)
                 .Max();
 
-            // Self-consumed solar = production - export (what did not go to the grid).
-            stats.SelfConsumedSolarKWh = Math.Max(0,
-                stats.TotalSolarProductionKWh - stats.TotalGridExportKWh);
+            // Self-consumed solar = solar energy used locally per quarter-hour.
+            // Calculated per quarter to avoid the total-level ambiguity where grid export
+            // includes both solar surplus and battery discharge to grid — making it
+            // impossible to isolate solar-only export from aggregated totals.
+            // Per quarter: self-consumed = min(solar_produced, estimated_consumption).
+            // EstimatedConsumptionPerQuarterHour is in Watts → kWh = * 0.25 / 1000.
+            stats.SelfConsumedSolarKWh = performance
+                .Where(p => p.SolarPowerPerQuarterHour > 0)
+                .Sum(p => Math.Min(
+                    p.SolarPowerPerQuarterHour,
+                    p.EstimatedConsumptionPerQuarterHour * 0.25 / 1000.0));
 
             // Solar performance ratio: actual vs theoretical based on global radiation.
             // Theoretical = radiation (W/m²) integrated over time * system kWp / 1000.
@@ -523,46 +559,79 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Calculates battery charge/discharge energy from ChargeLeft deltas.
-        /// ChargeLeft is stored in Wh → divide by 1000 for kWh.
+        /// Calculates battery charge/discharge energy from measured BatteryPowerWatts.
+        /// BatteryPowerWatts is the actual power reported by the Sessy API per quarter:
+        ///   positive = discharging (energy out of battery)
+        ///   negative = charging (energy into battery)
+        /// Energy per quarter = |power| * 0.25h / 1000 → kWh.
+        ///
+        /// Falls back to the ChargeLeft delta method for historical records that
+        /// predate the BatteryPowerWatts column (value will be 0.0 for those rows).
         /// </summary>
         private void CalculateBatteryStats(List<Performance> performance, EnergyStatistics stats)
         {
             if (!performance.Any())
                 return;
 
-            // Sum energy throughput per charging/discharging quarter.
-            // During Charging: delta ChargeLeft between consecutive quarters = energy stored (Wh → kWh).
-            // During Discharging: delta ChargeLeft = energy released (Wh → kWh).
-            var ordered = performance.OrderBy(p => p.Time).ToList();
+            // Calculate totals over ALL records for energy balance (self-consumption etc.).
+            // Reliable-only totals are calculated separately for round-trip efficiency,
+            // which would otherwise be distorted by overheating/shutdown periods.
+            stats.TotalBatteryChargedKWh = SumBatteryEnergy(performance, charging: true);
+            stats.TotalBatteryDischargedKWh = SumBatteryEnergy(performance, charging: false);
 
-            double totalChargedKWh = 0.0;
-            double totalDischargedKWh = 0.0;
-
-            for (int i = 1; i < ordered.Count; i++)
-            {
-                var prev = ordered[i - 1];
-                var curr = ordered[i];
-
-                double deltaWh = curr.ChargeLeft - prev.ChargeLeft;
-
-                if (curr.Charging && deltaWh > 0)
-                    totalChargedKWh += deltaWh / 1000.0;
-                else if (curr.Discharging && deltaWh < 0)
-                    totalDischargedKWh += Math.Abs(deltaWh) / 1000.0;
-            }
-
-            stats.TotalBatteryChargedKWh = totalChargedKWh;
-            stats.TotalBatteryDischargedKWh = totalDischargedKWh;
+            // Reliable-only totals for round-trip efficiency calculation.
+            var reliable = performance.Where(p => p.IsReliable).ToList();
+            stats.ReliableBatteryChargedKWh = SumBatteryEnergy(reliable, charging: true);
+            stats.ReliableBatteryDischargedKWh = SumBatteryEnergy(reliable, charging: false);
 
             // Battery cycles = total charged energy / full battery capacity.
             stats.BatteryCycles = BatteryCapacityKWh > 0
                 ? stats.TotalBatteryChargedKWh / BatteryCapacityKWh
                 : 0.0;
 
-            // Round-trip efficiency only meaningful when both charged and discharged > 0.1 kWh.
-            // Below that threshold the delta method is too noisy.
             stats.AverageSocPct = performance.Average(p => p.ChargeLeftPercentage);
+        }
+
+        /// <summary>
+        /// Sums battery energy (charged or discharged) over the given records.
+        /// Primary: BatteryPowerWatts (measured). Fallback: ChargeLeft delta (estimated).
+        /// </summary>
+        private static double SumBatteryEnergy(List<Performance> records, bool charging)
+        {
+            double total = 0.0;
+
+            // Primary: BatteryPowerWatts measured by the Sessy API.
+            foreach (var p in records.Where(p => p.BatteryPowerWatts != 0.0))
+            {
+                if (charging && p.BatteryPowerWatts < 0)
+                    total += Math.Abs(p.BatteryPowerWatts) * 0.25 / 1000.0;
+                else if (!charging && p.BatteryPowerWatts > 0)
+                    total += p.BatteryPowerWatts * 0.25 / 1000.0;
+            }
+
+            // Fallback: ChargeLeft delta for legacy records without BatteryPowerWatts.
+            // Only apply delta between consecutive records that are exactly one quarter apart
+            // (≤ 16 minutes) to avoid inflated values when records are hours or days apart.
+            var legacy = records
+                .Where(p => p.BatteryPowerWatts == 0.0 && (p.Charging || p.Discharging))
+                .OrderBy(p => p.Time)
+                .ToList();
+
+            for (int i = 1; i < legacy.Count; i++)
+            {
+                var gapMinutes = (legacy[i].Time - legacy[i - 1].Time).TotalMinutes;
+                if (gapMinutes > 16)
+                    continue; // Skip: records too far apart, delta would be unreliable.
+
+                double deltaWh = legacy[i].ChargeLeft - legacy[i - 1].ChargeLeft;
+
+                if (charging && legacy[i].Charging && deltaWh > 0)
+                    total += deltaWh / 1000.0;
+                else if (!charging && legacy[i].Discharging && deltaWh < 0)
+                    total += Math.Abs(deltaWh) / 1000.0;
+            }
+
+            return total;
         }
 
         /// <summary>

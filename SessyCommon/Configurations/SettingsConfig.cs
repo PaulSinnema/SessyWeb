@@ -40,7 +40,7 @@ namespace SessyCommon.Configurations
         /// <summary>
         /// Estimated cost for one whole cycle of (dis)charging.
         /// </summary>
-        public double CycleCost {  get; set; }
+        public double CycleCost { get; set; }
 
         /// <summary>
         /// Minimum profit for Net Zero Home to be enabled in non (dis)charging hours
@@ -67,5 +67,14 @@ namespace SessyCommon.Configurations
         public double SolarCorrection { get; set; }
 
         public string? DatabaseBackupDirectory { get; set; }
+
+        /// <summary>
+        /// Optional earliest date from which statistics are calculated.
+        /// Use this to exclude unreliable historical data (e.g. caused by hardware
+        /// issues or firmware bugs) without deleting records from the database.
+        /// When not set, statistics are calculated over all available data.
+        /// Format: "yyyy-MM-dd" in appsettings.json, e.g. "2026-03-01".
+        /// </summary>
+        public DateTime? StatisticsFromDate { get; set; }
     }
 }

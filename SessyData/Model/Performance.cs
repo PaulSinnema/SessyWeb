@@ -33,13 +33,29 @@ namespace SessyData.Model
         public double VisualizeInChart { get; set; }
         public double SmoothedSolarPower { get; set; }
 
+        /// <summary>
+        /// Actual battery power in Watts as measured by the Sessy API.
+        /// Positive = discharging (energy flowing out of battery).
+        /// Negative = charging (energy flowing into battery).
+        /// Zero = idle / ZeroNetHome.
+        /// </summary>
+        public double BatteryPowerWatts { get; set; }
+
+        /// <summary>
+        /// Indicates whether the battery data in this record is reliable.
+        /// Set to false for periods with known data quality issues
+        /// (e.g. battery overheating causing premature shutdown mid-cycle).
+        /// Battery statistics are only calculated over reliable records.
+        /// </summary>
+        public bool IsReliable { get; set; } = true;
+
         public void Update(Performance updateInfo)
         {
             this.Copy(updateInfo);
         }
         public override string ToString()
         {
-            return $"Time: {Time}, State: {DisplayState} " + 
+            return $"Time: {Time}, State: {DisplayState} " +
                    $"Buying Price: {BuyingPrice}, Selling Price: {SellingPrice}, Profit: {Profit}, " +
                    $"Estimated Consumption Per Quarter Hour: {EstimatedConsumptionPerQuarterHour}, " +
                    $"Charge Left: {ChargeLeft}, Charge Needed: {ChargeNeeded}, " +

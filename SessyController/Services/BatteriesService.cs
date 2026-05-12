@@ -1340,6 +1340,12 @@ namespace SessyController.Services
 
             var totalCapacity = _batteryContainer.GetTotalCapacity();
 
+            // Fetch SOC and actual battery power in a single pass to avoid
+            // multiple sequential network calls to the Sessy API.
+            // BatteryPowerWatts: positive = discharging, negative = charging.
+            var socWh = await _batteryContainer.GetStateOfChargeInWatts().ConfigureAwait(false);
+            var batteryPowerWatts = await _batteryContainer.GetTotalPowerInWatts().ConfigureAwait(false);
+
             var performanceData = new List<Performance>
             {
                 new Performance
@@ -1352,7 +1358,7 @@ namespace SessyController.Services
                     SmoothedSellingPrice = currentQuarterlyInfo.SmoothedSellingPrice,
                     Profit = currentQuarterlyInfo.Profit,
                     EstimatedConsumptionPerQuarterHour = currentQuarterlyInfo.EstimatedConsumptionPerQuarterInWatts,
-                    ChargeLeft = await _batteryContainer.GetStateOfChargeInWatts().ConfigureAwait(false),
+                    ChargeLeft = socWh,
                     ChargeNeeded = currentQuarterlyInfo.ChargeNeededWh,
                     Charging = currentQuarterlyInfo.Charging,
                     Discharging = currentQuarterlyInfo.Discharging,
@@ -1364,6 +1370,7 @@ namespace SessyController.Services
                     ChargeLeftPercentage = currentQuarterlyInfo.ChargeLeftPercentage(totalCapacity),
                     DisplayState = currentQuarterlyInfo.GetDisplayMode(),
                     VisualizeInChart = currentQuarterlyInfo.VisualizeInChart(),
+                    BatteryPowerWatts = batteryPowerWatts,
                 }
             };
 

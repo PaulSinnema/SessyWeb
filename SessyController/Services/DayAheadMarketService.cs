@@ -310,7 +310,7 @@ namespace SessyController.Services
                 foreach (var qi in hourlyInfos.Where(q => q.Time >= tomorrow && q.Time < tomorrowEnd))
                     qi.SetPriceExpected(true);
 
-                _logger.LogWarning($"Marked as expected: {hourlyInfos.Count(q => q.IsPriceExpected)}");
+                _logger.LogInformation($"Marked as expected: {hourlyInfos.Count(q => q.IsPriceExpected)}");
             }
 
             return hourlyInfos;
