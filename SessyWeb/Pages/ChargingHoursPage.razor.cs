@@ -450,7 +450,7 @@ namespace SessyWeb.Pages
         }
 
         private bool _isDisposed = false;
-        private object currentThrottlePercentage;
+        private double? currentThrottlePercentage;
 
         public override void Dispose()
         {

@@ -83,6 +83,7 @@ builder.Services.Configure<PowerSystemsConfig>(builder.Configuration.GetSection(
 builder.Services.Configure<SettingsConfig>(builder.Configuration.GetSection("ManagementSettings"));
 builder.Services.Configure<WeatherExpectancyConfig>(builder.Configuration.GetSection("WeerOnline"));
 builder.Services.Configure<SolarEdgeCloudConfig>(builder.Configuration.GetSection("SolarEdgeCloud"));
+builder.Services.Configure<HeatPumpConfig>(builder.Configuration.GetSection("HeatPumpConfig"));
 
 // Voeg services en providers toe aan de DI-container
 builder.Services.AddHttpClient();
@@ -101,6 +102,7 @@ builder.Services.AddScoped<FinancialResultsService>();
 builder.Services.AddScoped<SolarInverterDataService>();
 builder.Services.AddScoped<ConsumptionDataService>();
 builder.Services.AddScoped<InvestmentDataService>();
+builder.Services.AddScoped<EnergyStatisticsService>();
 
 builder.Services.AddSingleton<PerformanceDataService>();
 builder.Services.AddSingleton<CalculationService>();

@@ -1,4 +1,6 @@
-﻿using Moq;
+﻿using Microsoft.Extensions.Options;
+using Moq;
+using SessyCommon.Configurations;
 using SessyCommon.Services;
 using SessyController.Services;
 using SessyController.Services.Statistics;
@@ -28,11 +30,20 @@ namespace SessyTests.Services
 
             _timeZoneMock.Setup(t => t.Now).Returns(new DateTime(2026, 5, 31, 12, 0, 0));
 
+            var heatPumpConfig = Options.Create(new HeatPumpConfig
+            {
+                AnnualGasConsumptionM3 = 950,
+                GasPriceEurPerM3 = 1.45,
+                GasStandingChargeEurPerYear = 185.0,
+                InstallationDate = new DateTime(2024, 3, 1)
+            });
+
             _sut = new EnergyStatisticsService(
                 _energyHistoryMock.Object,
                 _performanceMock.Object,
                 _investmentMock.Object,
-                _timeZoneMock.Object);
+                _timeZoneMock.Object,
+                heatPumpConfig);
         }
 
         // ── Grid flow tests ──────────────────────────────────────────────────

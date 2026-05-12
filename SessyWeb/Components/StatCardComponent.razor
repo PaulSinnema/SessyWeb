@@ -1,0 +1,15 @@
+﻿@* StatCard.razor — small statistic display card *@
+@using Radzen
+
+<RadzenCard Style="@($"padding: 8px; background: {(Highlight ? "var(--rz-success-lighter)" : "inherit")}")">
+    <RadzenText TextStyle="TextStyle.Caption" style="color: var(--rz-text-secondary-color);">@Title</RadzenText>
+    <RadzenText TextStyle="TextStyle.H6" style="@(Highlight ? "color: var(--rz-success);" : "")">@Value</RadzenText>
+</RadzenCard>
+
+@code {
+    [Parameter] public string Title { get; set; } = string.Empty;
+    [Parameter] public string Value { get; set; } = string.Empty;
+
+    /// <summary>When true, renders the card with a green highlight (for key metrics).</summary>
+    [Parameter] public bool Highlight { get; set; } = false;
+}

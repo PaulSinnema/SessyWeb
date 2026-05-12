@@ -63,11 +63,13 @@
 
         /// <summary>
         /// Battery round-trip efficiency (discharged / charged).
-        /// Theoretical max is ~95% for Sessy.
+        /// Only meaningful when at least 1 kWh has been charged AND discharged.
+        /// Returns 0 when insufficient data to avoid misleading values.
         /// </summary>
-        public double BatteryRoundTripEfficiencyPct => TotalBatteryChargedKWh > 0
-            ? TotalBatteryDischargedKWh / TotalBatteryChargedKWh * 100.0
-            : 0.0;
+        public double BatteryRoundTripEfficiencyPct =>
+            TotalBatteryChargedKWh >= 1.0 && TotalBatteryDischargedKWh > 0
+                ? Math.Min(100.0, TotalBatteryDischargedKWh / TotalBatteryChargedKWh * 100.0)
+                : 0.0;
 
         /// <summary>Average state of charge percentage.</summary>
         public double AverageSocPct { get; set; }
@@ -143,15 +145,32 @@
         /// <summary>Total net investment (after subsidies) in EUR.</summary>
         public double TotalNetInvestmentEur { get; set; }
 
-        /// <summary>Total savings realized since purchase date (EUR).</summary>
+        /// <summary>
+        /// Realized savings based on available data period.
+        /// </summary>
         public double TotalRealizedSavingsEur { get; set; }
 
+        /// <summary>
+        /// Projected total savings extrapolated back to earliest installation date,
+        /// using seasonal monthly averages from available data.
+        /// </summary>
+        public double ProjectedTotalSavingsEur { get; set; }
+
+        /// <summary>
+        /// Projected savings used for ROI — uses ProjectedTotalSavings when
+        /// data period is shorter than installation period.
+        /// </summary>
+        public double EffectiveTotalSavingsEur =>
+            ProjectedTotalSavingsEur > TotalRealizedSavingsEur
+                ? ProjectedTotalSavingsEur
+                : TotalRealizedSavingsEur;
+
         /// <summary>Remaining investment to recover (EUR).</summary>
-        public double RemainingInvestmentEur => Math.Max(0, TotalNetInvestmentEur - TotalRealizedSavingsEur);
+        public double RemainingInvestmentEur => Math.Max(0, TotalNetInvestmentEur - EffectiveTotalSavingsEur);
 
         /// <summary>Percentage of investment recovered so far.</summary>
         public double RecoveredPct => TotalNetInvestmentEur > 0
-            ? Math.Min(100.0, TotalRealizedSavingsEur / TotalNetInvestmentEur * 100.0)
+            ? Math.Min(100.0, EffectiveTotalSavingsEur / TotalNetInvestmentEur * 100.0)
             : 0.0;
 
         /// <summary>Projected annual savings based on recent trend (EUR/year).</summary>
@@ -165,12 +184,23 @@
         /// <summary>Projected break-even date.</summary>
         public DateTime? ProjectedBreakEvenDate { get; set; }
 
+        /// <summary>
+        /// Start date of the available data used for projections.
+        /// </summary>
+        public DateTime DataAvailableFrom { get; set; }
+
+        /// <summary>
+        /// True when the data period is shorter than the installation period,
+        /// meaning projections are used instead of measured values.
+        /// </summary>
+        public bool UsesProjection => DataAvailableFrom > PeriodStart;
+
         /// <summary>Per-category investment breakdown.</summary>
         public List<InvestmentCategoryStats> CategoryBreakdown { get; set; } = new();
     }
 
     /// <summary>
-    /// Statistics per investment category.
+    /// Statistics per investment category including per-component savings calculation.
     /// </summary>
     public class InvestmentCategoryStats
     {
@@ -180,6 +210,37 @@
         public double NetAmountEur => TotalAmountEur - TotalSubsidyEur;
         public int ExpectedLifetimeYears { get; set; }
         public double AnnualDepreciationEur => ExpectedLifetimeYears > 0 ? NetAmountEur / ExpectedLifetimeYears : 0.0;
+
+        /// <summary>Installation date of the earliest component in this category.</summary>
+        public DateTime InstallationDate { get; set; }
+
+        /// <summary>Number of months since installation.</summary>
+        public double MonthsSinceInstallation { get; set; }
+
+        /// <summary>Calculated or estimated annual savings for this category (EUR/year).</summary>
+        public double AnnualSavingsEur { get; set; }
+
+        /// <summary>Monthly savings (EUR/month).</summary>
+        public double MonthlySavingsEur => AnnualSavingsEur / 12.0;
+
+        /// <summary>Total projected savings since installation (EUR).</summary>
+        public double ProjectedTotalSavingsEur => MonthlySavingsEur * MonthsSinceInstallation;
+
+        /// <summary>Simple payback period in years.</summary>
+        public double PaybackYears => AnnualSavingsEur > 0 ? NetAmountEur / AnnualSavingsEur : double.MaxValue;
+
+        /// <summary>Projected break-even date for this component.</summary>
+        public DateTime? BreakEvenDate => AnnualSavingsEur > 0
+            ? InstallationDate.AddDays(PaybackYears * 365.0)
+            : null;
+
+        /// <summary>Percentage of investment recovered so far.</summary>
+        public double RecoveredPct => NetAmountEur > 0
+            ? Math.Min(100.0, ProjectedTotalSavingsEur / NetAmountEur * 100.0)
+            : 0.0;
+
+        /// <summary>Description of how savings are calculated.</summary>
+        public string SavingsSource { get; set; } = string.Empty;
     }
 
     /// <summary>

@@ -53,6 +53,20 @@ namespace SessyData.Model
         public int ExpectedLifetimeYears { get; set; } = 25;
 
         /// <summary>
+        /// Optional: manually estimated annual savings in EUR for components
+        /// where automatic calculation is not possible (e.g. heat pump vs gas).
+        /// When set, this overrides the automatic savings calculation.
+        /// Leave at 0 to use automatic calculation.
+        /// </summary>
+        public double EstimatedAnnualSavingsEur { get; set; } = 0.0;
+
+        /// <summary>
+        /// Optional: description of how savings are calculated for this component.
+        /// E.g. "950 m³ gas * €1.45/m³ + €185 standing charge"
+        /// </summary>
+        public string? SavingsDescription { get; set; }
+
+        /// <summary>
         /// Optional notes.
         /// </summary>
         public string? Notes { get; set; }

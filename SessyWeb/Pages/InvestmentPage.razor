@@ -69,6 +69,16 @@
                 <RadzenTextBox @bind-Value="inv.Notes" Style="width:100%" />
             </EditTemplate>
         </RadzenDataGridColumn>
+        <RadzenDataGridColumn Property="@nameof(Investment.EstimatedAnnualSavingsEur)" Title="Est. savings (€/yr)" FormatString="{0:F2}">
+            <EditTemplate Context="inv">
+                <RadzenNumeric @bind-Value="inv.EstimatedAnnualSavingsEur" Style="width:100%" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn Property="@nameof(Investment.SavingsDescription)" Title="Savings description">
+            <EditTemplate Context="inv">
+                <RadzenTextBox @bind-Value="inv.SavingsDescription" Style="width:100%" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
         <RadzenDataGridColumn Context="order" Filterable="false" Sortable="false" TextAlign="TextAlign.Right" Frozen="true" FrozenPosition="FrozenColumnPosition.Right">
             <Template Context="inv">
                 <RadzenButton Icon="add_circle"

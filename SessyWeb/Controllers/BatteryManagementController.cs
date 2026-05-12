@@ -20,7 +20,6 @@ namespace SessyWeb.Controllers
         private readonly DayAheadMarketService _dayAheadMarketService;
         private readonly SessyService _sessyService;
         private readonly SolarInverterManager _solarInverterManager;
-        private readonly ISolarInverterService _solarEdgeService;
         private readonly P1MeterService _p1MeterService;
         private readonly WeatherService _weatherService;
 
