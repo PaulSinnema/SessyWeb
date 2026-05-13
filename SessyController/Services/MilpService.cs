@@ -267,17 +267,26 @@ namespace SessyController.Services
 
                 _futureSelfUseValueByTime[qi.Time] = selfUseValue;
 
-                // Minimum SOC: only meaningful when netting is disabled.
+                // Minimum SOC: reserve energy for future expensive consumption.
+                // Strategy differs by netting status:
+                //
+                // Netting ON: minSoc = 0 (export is valuable, no need to hold reserves)
+                //
+                // Netting OFF: hold enough energy to cover future positive-load quarters
+                //   where buy price > current price + tolerance. This avoids importing
+                //   expensive energy when we could have kept the battery charged.
+                //   Additionally, reserve energy for evening consumption after solar drops.
                 double minSocWh = ReserveWh;
 
                 if (!netting)
                 {
-                    minSocWh = futureWindow
+                    // Energy needed for future expensive positive-load quarters.
+                    double reserveForExpensiveImport = futureWindow
                         .Where(x => x.NetLoadWh > 0.0)
                         .Where(x => x.Buy > qi.BuyingPrice + CheapRefillToleranceEur)
                         .Sum(x => x.NetLoadWh);
 
-                    minSocWh *= ReserveSafetyFactor;
+                    minSocWh = reserveForExpensiveImport * ReserveSafetyFactor;
                     minSocWh = Clamp(minSocWh, ReserveWh, capWh);
                 }
 
@@ -569,7 +578,18 @@ namespace SessyController.Services
                 .Select(q =>
                 {
                     double netLoadWh = q.EstimatedConsumptionPerQuarterInWatts - q.SolarPowerPerQuarterInWatts;
-                    return new PricePoint(q.Time, q.BuyingPrice, q.SellingPrice, netLoadWh);
+                    bool netting = _nettingByTime.TryGetValue(q.Time, out var n) ? n : true;
+
+                    // When netting is disabled, use the future weighted average buy price
+                    // as the self-use value. This rewards discharging for own consumption
+                    // (avoided import cost) even when the export rate is very low.
+                    // When netting is active, self-use value equals the sell price —
+                    // the MILP already optimises correctly in that case.
+                    double selfUseValue = netting
+                        ? q.SellingPrice
+                        : (_futureSelfUseValueByTime.TryGetValue(q.Time, out var suv) ? suv : q.BuyingPrice);
+
+                    return new PricePoint(q.Time, q.BuyingPrice, q.SellingPrice, netLoadWh, selfUseValue);
                 })
                 .ToList();
 
@@ -647,12 +667,22 @@ namespace SessyController.Services
                     }
                     else if (act.Mode == Modes.Discharging)
                     {
-                        double exportThreshold = selfUseValue + _settingsConfig.CycleCost + ExportPremiumEur;
+                        // When netting is disabled: allow discharging for own consumption
+                        // (positive net load = household needs more than solar produces).
+                        // Only block pure export-style discharge where net load is zero or
+                        // negative (solar already covers consumption) and sell price is too
+                        // low to justify the cycle cost.
+                        bool dischargingForOwnConsumption = netLoadWh > 0.0;
 
-                        if (qi.SellingPrice < exportThreshold)
+                        if (!dischargingForOwnConsumption)
                         {
-                            act.Mode = Modes.ZeroNetHome;
-                            act.PowerW = 0;
+                            double exportThreshold = selfUseValue + _settingsConfig.CycleCost + ExportPremiumEur;
+
+                            if (qi.SellingPrice < exportThreshold)
+                            {
+                                act.Mode = Modes.ZeroNetHome;
+                                act.PowerW = 0;
+                            }
                         }
                     }
                 }
@@ -933,10 +963,18 @@ namespace SessyController.Services
 
                 if (!netting && qi != null)
                 {
-                    double exportThreshold = selfUseValue + _settingsConfig.CycleCost + ExportPremiumEur;
+                    // Allow discharging for own consumption (positive net load).
+                    // Only block pure export-style discharge when sell price is too low.
+                    double netLoadWh = qi.EstimatedConsumptionPerQuarterInWatts - qi.SolarPowerPerQuarterInWatts;
+                    bool dischargingForOwnConsumption = netLoadWh > 0.0;
 
-                    if (qi.SellingPrice < exportThreshold)
-                        return new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
+                    if (!dischargingForOwnConsumption)
+                    {
+                        double exportThreshold = selfUseValue + _settingsConfig.CycleCost + ExportPremiumEur;
+
+                        if (qi.SellingPrice < exportThreshold)
+                            return new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
+                    }
                 }
 
                 return planned;

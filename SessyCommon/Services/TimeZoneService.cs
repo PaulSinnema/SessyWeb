@@ -27,12 +27,13 @@ namespace SessyCommon.Services
 
         /// <summary>
         /// Gets the local time using the time zone set in appsettings.json.
+        /// Virtual so it can be overridden in unit tests via Moq.
         /// </summary>
 #if DEBUG
-        public DateTime Now => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _timeZone!); //.AddMinutes(-5);
+        public virtual DateTime Now => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _timeZone!); //.AddMinutes(-5);
 
 #else
-        public DateTime Now => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _timeZone!);
+        public virtual DateTime Now => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _timeZone!);
 #endif
 
         /// <summary>
@@ -52,7 +53,7 @@ namespace SessyCommon.Services
         }
 
         public static DateTime FromUnixTime(long? unixTime)
-        { 
+        {
             if (unixTime.HasValue)
             {
                 return FromUnixTime(unixTime.Value);

@@ -19,7 +19,7 @@ namespace SessyData.Services
             _dbHelper = _scope.ServiceProvider.GetRequiredService<DbHelper>();
         }
 
-        public async Task AddRange(List<T> list)
+        public virtual async Task AddRange(List<T> list)
         {
             await _dbHelper.ExecuteTransaction(async db =>
             {
@@ -29,7 +29,7 @@ namespace SessyData.Services
             });
         }
 
-        public async Task Add(List<T> list, Func<T, DbSet<T>, bool>? contains = null)
+        public virtual async Task Add(List<T> list, Func<T, DbSet<T>, bool>? contains = null)
         {
             await _dbHelper.ExecuteTransaction(async db =>
             {
@@ -51,7 +51,7 @@ namespace SessyData.Services
                 throw new InvalidCastException($"For StoreOrUpdate the type {typeof(T).Name} must implement IUpdatable<{typeof(T).Name}>");
         }
 
-        public async Task Add(List<T> list, Func<T, DbSet<T>, T?> contains, bool checkDuplicate = true)
+        public virtual async Task Add(List<T> list, Func<T, DbSet<T>, T?> contains, bool checkDuplicate = true)
         {
             await _dbHelper.ExecuteTransaction(async db =>
             {
@@ -86,7 +86,7 @@ namespace SessyData.Services
         /// provide the code to fetch the item.
         /// if 'contains' is null the routine fetches the item for you using it's 'Id'.
         /// </param>
-        public async Task AddOrUpdate(List<T> list, Func<T, DbSet<T>, T?>? contains = null)
+        public virtual async Task AddOrUpdate(List<T> list, Func<T, DbSet<T>, T?>? contains = null)
         {
             EnsureUpdatable();
 
@@ -114,7 +114,7 @@ namespace SessyData.Services
             });
         }
 
-        public async Task Update(List<T> list, Func<T, DbSet<T>, T?> contains)
+        public virtual async Task Update(List<T> list, Func<T, DbSet<T>, T?> contains)
         {
             EnsureUpdatable();
 
@@ -142,7 +142,7 @@ namespace SessyData.Services
             });
         }
 
-        public async Task Remove(List<T> list, Func<T, DbSet<T>, T?> contains)
+        public virtual async Task Remove(List<T> list, Func<T, DbSet<T>, T?> contains)
         {
             EnsureUpdatable();
 
@@ -198,7 +198,7 @@ namespace SessyData.Services
             return await db.Set<T>().FindAsync(key);
         }
 
-        public async Task<bool> Exists(Func<DbSet<T>, Task<bool>> func)
+        public virtual async Task<bool> Exists(Func<DbSet<T>, Task<bool>> func)
         {
             return await _dbHelper.ExecuteQuery(async (ModelContext db) =>
             {
@@ -206,7 +206,7 @@ namespace SessyData.Services
             });
         }
 
-        public async Task<T?> Get(Func<IQueryable<T>, Task<T?>> func)
+        public virtual async Task<T?> Get(Func<IQueryable<T>, Task<T?>> func)
         {
             return await _dbHelper.ExecuteQuery(async (ModelContext db) =>
             {
@@ -214,7 +214,7 @@ namespace SessyData.Services
             });
         }
 
-        public async Task<List<T>> GetList(Func<IQueryable<T>, Task<List<T>>> func)
+        public virtual async Task<List<T>> GetList(Func<IQueryable<T>, Task<List<T>>> func)
         {
             return await _dbHelper.ExecuteQuery(async (ModelContext db) =>
             {

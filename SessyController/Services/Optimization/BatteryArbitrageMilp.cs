@@ -58,12 +58,18 @@ namespace SessyController.Services.Optimization
     /// <summary>
     /// One quarter-hour price point for the MILP solver.
     /// Prices are in EUR/kWh.
+    /// SelfUseValueEurPerKWh: value of discharging for own consumption instead of exporting.
+    /// When netting is active this equals SellEurPerKWh (no distinction).
+    /// When netting is disabled this equals the future weighted average buy price,
+    /// reflecting the avoided import cost — which is typically much higher than the
+    /// low export rate.
     /// </summary>
     public sealed record PricePoint(
         DateTime Start,
         double BuyEurPerKWh,
         double SellEurPerKWh,
-        double NetLoadWh
+        double NetLoadWh,
+        double SelfUseValueEurPerKWh = 0.0
     );
 
     public static class BatteryArbitrageMilp
@@ -196,6 +202,19 @@ namespace SessyController.Services.Optimization
             // ----------------------------------------------------------------
             // Objective: maximise profit = revenue from discharge - cost of charge
             // ----------------------------------------------------------------
+            //
+            // When netting is active:
+            //   discharge coefficient = sell price (export revenue)
+            //
+            // When netting is disabled (SelfUseValueEurPerKWh > SellEurPerKWh):
+            //   discharge coefficient = max(sell, selfUseValue)
+            //   This rewards discharging for own consumption (avoided import cost)
+            //   even when the export rate is low.
+            //
+            // The MILP does not explicitly model whether discharged energy goes to
+            // the household or to the grid — that is determined by NetLoadWh.
+            // Using max(sell, selfUseValue) as the coefficient ensures the solver
+            // values discharge correctly in both netting-on and netting-off scenarios.
 
             Objective objective = solver.Objective();
 
@@ -203,18 +222,19 @@ namespace SessyController.Services.Optimization
             {
                 double buy = pricePoints[t].BuyEurPerKWh;
                 double sell = pricePoints[t].SellEurPerKWh;
+                double selfUse = pricePoints[t].SelfUseValueEurPerKWh;
+
+                // Effective discharge value: use the higher of export rate and
+                // self-use value so the solver picks the best option automatically.
+                double dischargeValue = Math.Max(sell, selfUse);
 
                 // Charging costs money (negative contribution).
-                // Cycle cost is added to the effective buy price so the solver
-                // only charges when the future sell price exceeds buy + cycleCost.
                 objective.SetCoefficient(chargeKw[t], -(buy + opt.CycleCostEurPerKWh) * dtHours);
 
                 // Discharging earns money (positive contribution).
-                // Cycle cost is already accounted for on the charge side.
-                objective.SetCoefficient(dischargeKw[t], sell * dtHours);
+                objective.SetCoefficient(dischargeKw[t], dischargeValue * dtHours);
 
-                // Small penalty per active quarter to prefer fewer, larger actions
-                // over many tiny ones (improves battery longevity).
+                // Small penalty per active quarter to prefer fewer, larger actions.
                 if (opt.ActiveQuarterPenaltyEur != 0.0)
                 {
                     objective.SetCoefficient(isCharge[t], -opt.ActiveQuarterPenaltyEur);
