@@ -124,7 +124,7 @@ namespace SessyController.Services.Items
         {
             IsPriceExpected = isExpected;
         }
- 
+
         /// <summary>
         /// Primary mode used by BatteriesService execution.
         /// </summary>
@@ -166,6 +166,16 @@ namespace SessyController.Services.Items
         public bool ZeroNetHome => Mode == Modes.ZeroNetHome || (!(Charging || Discharging || Disabled));
 
         public double SolarPowerPerQuarterInWatts => SolarPowerPerQuarterHour * 1000.0;
+
+        /// <summary>
+        /// Net household load in Wh for this quarter-hour.
+        /// Positive = household needs more than solar produces (grid import or battery discharge needed).
+        /// Negative = solar surplus (battery can charge or export to grid).
+        /// EstimatedConsumptionPerQuarterInWatts is in Watts (average power) → × 0.25h = Wh per quarter.
+        /// SolarPowerPerQuarterHour is already in kWh → × 1000 = Wh per quarter.
+        /// </summary>
+        public double NetLoadWh =>
+            EstimatedConsumptionPerQuarterInWatts * 0.25 - SolarPowerPerQuarterHour * 1000.0;
 
         public bool PriceIsNegative => BuyingPrice < 0.0;
         public bool BuyingPriceIsPositive => BuyingPrice >= 0.0;

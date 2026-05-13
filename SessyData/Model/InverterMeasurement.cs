@@ -13,7 +13,7 @@ namespace SessyData.Model
     /// </summary>
     [Index(nameof(Time))]
     [Index(nameof(InverterId))]
-    public class InverterMeasurement
+    public class InverterMeasurement : IUpdatable<InverterMeasurement>
     {
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
@@ -39,5 +39,11 @@ namespace SessyData.Model
 
         public override string ToString() =>
             $"{Time:yyyy-MM-dd HH:mm} | Inverter={InverterId} ({ProviderName}) | {SolarProductionKWh:F4} kWh";
+
+        public void Update(InverterMeasurement updateInfo)
+        {
+            ProviderName = updateInfo.ProviderName;
+            SolarProductionKWh = updateInfo.SolarProductionKWh;
+        }
     }
 }

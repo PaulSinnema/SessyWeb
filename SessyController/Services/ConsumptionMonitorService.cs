@@ -435,7 +435,7 @@ namespace SessyController.Services
 
                     if (subset != null && subset.Count > 0)
                     {
-                        var average = subset.Average(c => c.ConsumptionWh) / 4.0; // Per quarter hour
+                        var average = subset.Average(c => c.ConsumptionWh); // Already in Watts
 
                         if (average > 0)
                         {
@@ -445,7 +445,7 @@ namespace SessyController.Services
                     }
                 }
 
-                quarterlyInfo.EstimatedConsumptionPerQuarterInWatts = _settingConfig.EnergyNeedsPerMonth / 96.0; // Default to average monthly consumption
+                quarterlyInfo.EstimatedConsumptionPerQuarterInWatts = _settingConfig.EnergyNeedsPerMonth / 24.0; // Wh/day ÷ 24 hours = average Watts
             }
         }
 

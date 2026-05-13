@@ -233,7 +233,7 @@ namespace SessyController.Services
                     {
                         x.Time,
                         Buy = x.BuyingPrice,
-                        NetLoadWh = x.EstimatedConsumptionPerQuarterInWatts - x.SolarPowerPerQuarterInWatts
+                        NetLoadWh = x.NetLoadWh
                     })
                     .ToList();
 
@@ -577,7 +577,7 @@ namespace SessyController.Services
             var pricePoints = quarters
                 .Select(q =>
                 {
-                    double netLoadWh = q.EstimatedConsumptionPerQuarterInWatts - q.SolarPowerPerQuarterInWatts;
+                    double netLoadWh = q.NetLoadWh;
                     bool netting = _nettingByTime.TryGetValue(q.Time, out var n) ? n : true;
 
                     // When netting is disabled, use the future weighted average buy price
@@ -647,7 +647,7 @@ namespace SessyController.Services
             {
                 bool netting = _nettingByTime.TryGetValue(qi.Time, out var n) ? n : true;
                 var act = _planByTime[qi.Time];
-                double netLoadWh = qi.EstimatedConsumptionPerQuarterInWatts - qi.SolarPowerPerQuarterInWatts;
+                double netLoadWh = qi.NetLoadWh;
                 double selfUseValue = _futureSelfUseValueByTime.TryGetValue(qi.Time, out var suv)
                     ? suv
                     : qi.BuyingPrice;
@@ -741,7 +741,7 @@ namespace SessyController.Services
                 foreach (var qi in future)
                 {
                     var act = _planByTime[qi.Time];
-                    double netLoadWh = qi.EstimatedConsumptionPerQuarterInWatts - qi.SolarPowerPerQuarterInWatts;
+                    double netLoadWh = qi.NetLoadWh;
 
                     double minSocWh = _minSocWhByTime.TryGetValue(qi.Time, out var minSoc)
                         ? minSoc
@@ -851,7 +851,7 @@ namespace SessyController.Services
 
                 maxSocWh = Math.Min(maxSocWh, fullThresholdWh);
 
-                double netLoadWh = qi.EstimatedConsumptionPerQuarterInWatts - qi.SolarPowerPerQuarterInWatts;
+                double netLoadWh = qi.NetLoadWh;
                 double targetSocWh;
 
                 if (act.Mode == Modes.Charging)
@@ -935,7 +935,7 @@ namespace SessyController.Services
             // the battery by itself via ZeroNetHome.
             if (qi != null && planned.Mode == Modes.Charging)
             {
-                double netLoadWh = qi.EstimatedConsumptionPerQuarterInWatts - qi.SolarPowerPerQuarterInWatts;
+                double netLoadWh = qi.NetLoadWh;
 
                 if (netLoadWh < -chargeStepWh)
                     return new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
@@ -965,7 +965,7 @@ namespace SessyController.Services
                 {
                     // Allow discharging for own consumption (positive net load).
                     // Only block pure export-style discharge when sell price is too low.
-                    double netLoadWh = qi.EstimatedConsumptionPerQuarterInWatts - qi.SolarPowerPerQuarterInWatts;
+                    double netLoadWh = qi.NetLoadWh;
                     bool dischargingForOwnConsumption = netLoadWh > 0.0;
 
                     if (!dischargingForOwnConsumption)
@@ -985,7 +985,7 @@ namespace SessyController.Services
             {
                 if (qi != null)
                 {
-                    double netLoadWh = qi.EstimatedConsumptionPerQuarterInWatts - qi.SolarPowerPerQuarterInWatts;
+                    double netLoadWh = qi.NetLoadWh;
                     bool hasSolarSurplus = netLoadWh < 0.0;
 
                     if (!hasSolarSurplus &&

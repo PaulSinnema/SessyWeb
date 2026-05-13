@@ -19,7 +19,7 @@ namespace SessyData.Model
     ///   GlobalRadiation          — W/m² (KNMI)
     /// </summary>
     [Index(nameof(Time))]
-    public class QuarterlyMeasurement
+    public class QuarterlyMeasurement : IUpdatable<QuarterlyMeasurement>
     {
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
@@ -113,6 +113,20 @@ namespace SessyData.Model
             $"Solar={SolarProductionKWh:F4}kWh | " +
             $"Import={GridImportWh:F0}Wh Export={GridExportWh:F0}Wh | " +
             $"Buy={BuyingPriceEur:F4} Sell={SellingPriceEur:F4}";
+
+        public void Update(QuarterlyMeasurement updateInfo)
+        {
+            BatteryPowerWatts = updateInfo.BatteryPowerWatts;
+            BatteryStateOfChargeWh = updateInfo.BatteryStateOfChargeWh;
+            BatteryMode = updateInfo.BatteryMode;
+            IsReliable = updateInfo.IsReliable;
+            SolarProductionKWh = updateInfo.SolarProductionKWh;
+            GridImportWh = updateInfo.GridImportWh;
+            GridExportWh = updateInfo.GridExportWh;
+            BuyingPriceEur = updateInfo.BuyingPriceEur;
+            SellingPriceEur = updateInfo.SellingPriceEur;
+            GlobalRadiation = updateInfo.GlobalRadiation;
+        }
     }
 
     /// <summary>Battery operating mode for a quarter-hour.</summary>
