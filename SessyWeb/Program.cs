@@ -113,6 +113,7 @@ builder.Services.AddSingleton<BatteryContainer>();
 builder.Services.AddSingleton<TimeZoneService>();
 builder.Services.AddSingleton<WeatherService>();
 builder.Services.AddSingleton<DayAheadMarketService>();
+builder.Services.AddSingleton<MilpService>();
 builder.Services.AddSingleton<BatteriesService>();
 builder.Services.AddSingleton<SessyMonitorService>();
 builder.Services.AddSingleton<EnergyMonitorService>();
@@ -233,7 +234,7 @@ using (var scope = app.Services.CreateScope())
         Console.WriteLine("Database has pending model changes, backing up database...");
 
         var databaseScope = scope.ServiceProvider.GetRequiredService<DbHelper>();
-        
+
         databaseScope.BackupDatabase().GetAwaiter().GetResult();
     }
 
