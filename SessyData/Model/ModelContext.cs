@@ -40,7 +40,9 @@ namespace SessyData.Model
 
         public DbSet<Consumption> Consumption => Set<Consumption>();
 
-        public DbSet<Performance> Performance => Set<Performance>();
+        public DbSet<QuarterlyMeasurement> QuarterlyMeasurements => Set<QuarterlyMeasurement>();
+
+        public DbSet<InverterMeasurement> InverterMeasurements => Set<InverterMeasurement>();
 
         public DbSet<Investment> Investment => Set<Investment>();
 
@@ -52,16 +54,15 @@ namespace SessyData.Model
         {
             options
                 .UseSqlite(_connectionString);
-                //.LogTo(log =>
-                //{
-                //    if (log.Contains("EPEXPrices", StringComparison.OrdinalIgnoreCase) &&
-                //        log.Contains("UPDATE", StringComparison.OrdinalIgnoreCase))
-                //    {
-                //        Console.WriteLine(log);
-                //    }
-                //})  // log SQL
-                //.EnableSensitiveDataLogging();                   // ook parameterwaarden
+            //.LogTo(log =>
+            //{
+            //    if (log.Contains("EPEXPrices", StringComparison.OrdinalIgnoreCase) &&
+            //        log.Contains("UPDATE", StringComparison.OrdinalIgnoreCase))
+            //    {
+            //        Console.WriteLine(log);
+            //    }
+            //})  // log SQL
+            //.EnableSensitiveDataLogging();                   // ook parameterwaarden
         }
     }
 }
-

@@ -10,6 +10,11 @@ using static SessyController.Services.WeatherService;
 
 namespace SessyController.Services
 {
+    /// <summary>
+    /// Monitors the P1 meter each quarter-hour and stores grid import/export deltas
+    /// plus weather data into QuarterlyMeasurement records.
+    /// Battery and solar data are filled in by BatteriesService.StoreQuarterlyMeasurement().
+    /// </summary>
     public class EnergyMonitorService : BackgroundService
     {
         public WeatherService? _weatherService { get; set; }
@@ -18,13 +23,17 @@ namespace SessyController.Services
         private TimeZoneService _timeZoneService { get; set; }
         private P1MeterService _p1MeterService { get; set; }
 
-        private EnergyHistoryDataService _energyHistoryService { get; set; }
+        private QuarterlyMeasurementDataService _measurementService { get; set; }
 
         private IServiceScopeFactory _serviceScopeFactory { get; set; }
 
         private IServiceScope _scope;
 
         private LoggingService<EnergyMonitorService> _logger { get; set; }
+
+        // Cache the previous P1 reading to calculate deltas.
+        private P1Details? _previousP1Details { get; set; }
+        private DateTime? _previousP1Time { get; set; }
 
         public delegate Task DataChangedDelegate();
 
@@ -43,7 +52,7 @@ namespace SessyController.Services
 
             _scope = _serviceScopeFactory.CreateScope();
 
-            _energyHistoryService = _scope.ServiceProvider.GetRequiredService<EnergyHistoryDataService>();
+            _measurementService = _scope.ServiceProvider.GetRequiredService<QuarterlyMeasurementDataService>();
             _p1MeterService = _scope.ServiceProvider.GetRequiredService<P1MeterService>();
             _dayAheadMarketService = _scope.ServiceProvider.GetRequiredService<DayAheadMarketService>();
 
@@ -74,7 +83,7 @@ namespace SessyController.Services
 
                 var now = _timeZoneService.Now;
                 var dateCeiling = now.DateCeilingQuarter();
-                var delayTime = (dateCeiling - now).TotalSeconds + 5; // 5 extra to be sure.
+                var delayTime = (dateCeiling - now).TotalSeconds + 5;
 
                 try
                 {
@@ -82,8 +91,7 @@ namespace SessyController.Services
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogException(ex, $"An error occurred during delay of thread. Now {now}, Date ceiling: {dateCeiling}, Delay time: {delayTime}.");
-                    // Ignore exception during delay
+                    _logger.LogException(ex, $"An error occurred during delay. Now {now}, Ceiling: {dateCeiling}.");
                 }
             }
 
@@ -99,23 +107,31 @@ namespace SessyController.Services
                 var now = _timeZoneService.Now;
                 var selectTime = now.DateFloorQuarter();
 
-                if (await GetEnergyHistory(selectTime) == null)
+                // Skip if already stored for this quarter.
+                bool exists = await _measurementService.Exists(async set =>
                 {
-                    var p1Details = await _p1MeterContainer.GetDetails(p1Meter.Id!);
-                    var weatherData = await _weatherService.GetWeatherData();
-                    var prices = await _dayAheadMarketService.GetPrices();
+                    var result = set.Any(m => m.Time == selectTime);
+                    return await Task.FromResult(result);
+                });
 
-                    var weatherHourData = weatherData.UurVerwachting
-                        .FirstOrDefault(uv => uv.TimeStamp == selectTime.DateHour());
-                    var quarterlyInfo = prices
-                        .FirstOrDefault(hi => hi.Time.DateFloorQuarter() == selectTime);
+                if (exists)
+                    continue;
 
-                    await StoreEnergyHistory(p1Meter, p1Details!, quarterlyInfo, selectTime, weatherHourData);
+                var p1Details = await _p1MeterContainer.GetDetails(p1Meter.Id!);
+                var weatherData = await _weatherService.GetWeatherData();
+                var prices = await _dayAheadMarketService.GetPrices();
 
-                    DataChanged?.Invoke();
+                var weatherHourData = weatherData.UurVerwachting
+                    .FirstOrDefault(uv => uv.TimeStamp == selectTime.DateHour());
 
-                    _logger.LogInformation($"Energy data stored at {now} for {selectTime}");
-                }
+                var quarterlyInfo = prices
+                    .FirstOrDefault(hi => hi.Time.DateFloorQuarter() == selectTime);
+
+                await StoreMeasurement(p1Details!, quarterlyInfo, selectTime, weatherHourData);
+
+                DataChanged?.Invoke();
+
+                _logger.LogInformation($"Energy data stored at {now} for {selectTime}");
             }
         }
 
@@ -138,41 +154,50 @@ namespace SessyController.Services
             if (!(_dayAheadMarketService.IsInitialized() && _weatherService.IsInitialized()))
                 throw new InvalidOperationException("Day ahead service or weather service not initialized");
         }
-        
-        private async Task<EnergyHistory?> GetEnergyHistory(DateTime selectTime)
+
+        private async Task StoreMeasurement(
+            P1Details p1Details,
+            QuarterlyInfo? quarterlyInfo,
+            DateTime time,
+            UurVerwachting? hourExpectancy)
         {
-            var energyHistory = await _energyHistoryService.Get(async (set) =>
+            // Calculate grid import/export deltas from cumulative P1 meter tands.
+            // Previous reading is cached; first reading of the session has no delta.
+            double gridImportWh = 0.0;
+            double gridExportWh = 0.0;
+
+            if (_previousP1Details != null && _previousP1Time != null)
             {
-                var result = set
-                    .Where(eh => eh.Time == selectTime)
-                    .FirstOrDefault();
+                var gapMinutes = (time - _previousP1Time.Value).TotalMinutes;
 
-                return await Task.FromResult(result);
-            });
+                // Only use delta when readings are exactly one quarter apart (≤ 16 min).
+                if (gapMinutes <= 16)
+                {
+                    gridImportWh = Math.Max(0,
+                        (p1Details.PowerConsumedTariff1 - _previousP1Details.PowerConsumedTariff1) +
+                        (p1Details.PowerConsumedTariff2 - _previousP1Details.PowerConsumedTariff2));
 
-            return energyHistory;
-        }
+                    gridExportWh = Math.Max(0,
+                        (p1Details.PowerProducedTariff1 - _previousP1Details.PowerProducedTariff1) +
+                        (p1Details.PowerProducedTariff2 - _previousP1Details.PowerProducedTariff2));
+                }
+            }
 
-        private async Task StoreEnergyHistory(P1Meter p1Meter, P1Details p1Details, QuarterlyInfo? quarterlyInfo, DateTime time, UurVerwachting? hourExpectancy)
-        {
-            var energyHistoryList = new List<EnergyHistory>();
+            _previousP1Details = p1Details;
+            _previousP1Time = time;
 
-            energyHistoryList.Add(new EnergyHistory
+            var measurement = new QuarterlyMeasurement
             {
                 Time = time,
-                MeterId = p1Meter.Id,
-                ConsumedTariff1 = p1Details.PowerConsumedTariff1,
-                ConsumedTariff2 = p1Details.PowerConsumedTariff2,
-                ProducedTariff1 = p1Details.PowerProducedTariff1,
-                ProducedTariff2 = p1Details.PowerProducedTariff2,
-                TarrifIndicator = p1Details.TariffIndicator,
-                // In case no weather data is present we store a large negative number.
-                Temperature = hourExpectancy?.Temp ?? -999, 
-                GlobalRadiation = hourExpectancy?.GlobalRadiation ?? -999
-            });
+                GridImportWh = gridImportWh,
+                GridExportWh = gridExportWh,
+                BuyingPriceEur = quarterlyInfo?.BuyingPrice ?? 0.0,
+                SellingPriceEur = quarterlyInfo?.SellingPrice ?? 0.0,
+                GlobalRadiation = hourExpectancy?.GlobalRadiation ?? 0.0,
+                // Battery and solar fields are filled in by BatteriesService.
+            };
 
-            await _energyHistoryService.AddRange(energyHistoryList);
+            await _measurementService.Add(new List<QuarterlyMeasurement> { measurement });
         }
     }
 }
-

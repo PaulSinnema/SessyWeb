@@ -14,7 +14,7 @@ namespace SessyWeb.Pages
     public partial class SolarPowerPage : PageBase
     {
         [Inject]
-        SolarInverterDataService? _solarEdgeDataService { get; set; }
+        InverterMeasurementDataService? _measurementService { get; set; }
 
         [Inject]
         TimeZoneService? _timeZoneService { get; set; }
@@ -23,7 +23,7 @@ namespace SessyWeb.Pages
         SolarService? _solarService { get; set; }
 
         private List<string> ProviderNames { get; set; } = new();
-        public List<SolarInverterData> SolarInverterData { get; set; } = new();
+        public List<InverterMeasurement> SolarData { get; set; } = new();
 
         public string SelectedProvider { get; set; } = "All";
 
@@ -126,7 +126,7 @@ namespace SessyWeb.Pages
                 {
                     case PeriodsEnums.Day:
                         {
-                            var result = await _solarEdgeDataService!.GetList(async (set) =>
+                            var result = await _measurementService!.GetList(async (set) =>
                             {
                                 var result = set
                                     .Where(sed => sed.Time.Date == DateChosen.Date)
@@ -149,14 +149,14 @@ namespace SessyWeb.Pages
 
                                 foreach (var quarters in dates)
                                 {
-                                    dateData.Add(quarters, result.Where(sid => sid.ProviderName == providerName && sid.Time == quarters).Sum(sid => sid.Power) / 4000);
+                                    dateData.Add(quarters, result.Where(sid => sid.ProviderName == providerName && sid.Time == quarters).Sum(sid => sid.SolarProductionKWh));
                                 }
                             }
 
                             DetermineTickDistance(result);
                         }
                         //{
-                        //    var result = await _solarEdgeDataService!.GetList(async (set) =>
+                        //    var result = await _measurementService!.GetList(async (set) =>
                         //    {
                         //        var result = set
                         //            .Where(sed => sed.Time.Date == DateChosen.Date)
@@ -172,7 +172,7 @@ namespace SessyWeb.Pages
                         //                   {
                         //                       ProviderName = g.ProviderName,
                         //                       Time = g.Time,
-                        //                       Power = g.Power
+                        //                       Power = g.SolarProductionKWh
                         //                   }).ToList());
 
                         //    DetermineTickDistance(SolarDayData);
@@ -183,7 +183,7 @@ namespace SessyWeb.Pages
 
                     case PeriodsEnums.Week:
                         {
-                            var result = await _solarEdgeDataService!.GetList(async (set) =>
+                            var result = await _measurementService!.GetList(async (set) =>
                             {
                                 var result = set
                                     .Where(sed => DateChosen.StartOfWeek() <= sed.Time && DateChosen!.EndOfWeek().AddDays(1).AddSeconds(-1) >= sed.Time)
@@ -206,7 +206,7 @@ namespace SessyWeb.Pages
 
                                 foreach (var date in dates)
                                 {
-                                    dateData.Add(date.Date, result.Where(sid => sid.ProviderName == providerName && sid.Time.Date == date).Sum(sid => sid.Power) / 4000);
+                                    dateData.Add(date.Date, result.Where(sid => sid.ProviderName == providerName && sid.Time.Date == date).Sum(sid => sid.SolarProductionKWh));
                                 }
                             }
 
@@ -217,7 +217,7 @@ namespace SessyWeb.Pages
 
                     case PeriodsEnums.Month:
                         {
-                            var result = await _solarEdgeDataService!.GetList(async (set) =>
+                            var result = await _measurementService!.GetList(async (set) =>
                             {
                                 var result = set
                                     .Where(sed => DateChosen.StartOfMonth() <= sed.Time && DateChosen!.EndOfMonth().AddDays(1).AddSeconds(-1) >= sed.Time)
@@ -242,7 +242,7 @@ namespace SessyWeb.Pages
                                 {
                                     var subset = result.Where(sid => sid.ProviderName == providerName && sid.Time.Date == date);
 
-                                    var kWh = subset.Sum(sid => sid.Power) / 4000;
+                                    var kWh = subset.Sum(sid => sid.SolarProductionKWh);
 
                                     dateData.Add(date.Date, kWh);
                                 }
@@ -258,7 +258,7 @@ namespace SessyWeb.Pages
                             var startDate = new DateTime(DateChosen.Year, 1, 1);
                             var endDate = new DateTime(DateChosen.Year, 12, 31, 23, 59, 59);
 
-                            var result = await _solarEdgeDataService!.GetList(async (set) =>
+                            var result = await _measurementService!.GetList(async (set) =>
                             {
                                 var result = set
                                     .Where(sed => startDate <= sed.Time && endDate >= sed.Time)
@@ -283,7 +283,7 @@ namespace SessyWeb.Pages
                                 {
                                     var subset = result.Where(sid => sid.ProviderName == providerName && sid.Time.Month == month);
 
-                                    var kWh = subset.Sum(sid => sid.Power) / 4000;
+                                    var kWh = subset.Sum(sid => sid.SolarProductionKWh);
 
                                     dateData.Add(month, kWh);
                                 }
@@ -299,7 +299,7 @@ namespace SessyWeb.Pages
                             var startDate = DateTime.MinValue;
                             var endDate = DateTime.MaxValue;
 
-                            var result = await _solarEdgeDataService!.GetList(async (set) =>
+                            var result = await _measurementService!.GetList(async (set) =>
                             {
                                 var result = set
                                     .Where(sed => startDate <= sed.Time && endDate >= sed.Time)
@@ -324,7 +324,7 @@ namespace SessyWeb.Pages
                                 {
                                     var subset = result.Where(sid => sid.ProviderName == providerName && sid.Time.Year == year);
 
-                                    var kWh = subset.Sum(sid => sid.Power) / 4000;
+                                    var kWh = subset.Sum(sid => sid.SolarProductionKWh);
 
                                     dateData.Add(year, kWh);
                                 }
@@ -355,14 +355,14 @@ namespace SessyWeb.Pages
             }
         }
 
-        private void DetermineTickDistance(List<SolarInverterData>? solarInverterData)
+        private void DetermineTickDistance(List<InverterMeasurement>? solarData)
         {
             TickDistance = SolarPowerChartWidth;
 
-            if (solarInverterData != null && solarInverterData.Count > 0)
+            if (solarData != null && solarData.Count > 0)
             {
-                var start = solarInverterData.Min(list => list.Time);
-                var end = solarInverterData.Max(list => list.Time).AddDays(1).AddSeconds(-1);
+                var start = solarData.Min(list => list.Time);
+                var end = solarData.Max(list => list.Time).AddDays(1).AddSeconds(-1);
 
                 switch (DateSelectionChosen!.PeriodChosen)
                 {

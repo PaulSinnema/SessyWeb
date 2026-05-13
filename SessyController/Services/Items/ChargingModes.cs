@@ -41,13 +41,16 @@ namespace SessyController.Services.Items
             return Modes.Unknown;
         }
 
-        public static Modes GetMode(Performance performance)
+        public static Modes GetMode(SessyData.Model.BatteryMode batteryMode)
         {
-            if (performance.Charging) return Modes.Charging;
-            if (performance.Discharging) return Modes.Discharging;
-            if (performance.ZeroNetHome) return Modes.ZeroNetHome;
-            if (performance.Disabled) return Modes.Disabled;
-            return Modes.Unknown;
+            return batteryMode switch
+            {
+                SessyData.Model.BatteryMode.Charging => Modes.Charging,
+                SessyData.Model.BatteryMode.Discharging => Modes.Discharging,
+                SessyData.Model.BatteryMode.ZeroNetHome => Modes.ZeroNetHome,
+                SessyData.Model.BatteryMode.Disabled => Modes.Disabled,
+                _ => Modes.Unknown
+            };
         }
     }
 }

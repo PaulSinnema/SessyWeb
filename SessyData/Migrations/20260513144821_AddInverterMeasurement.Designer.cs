@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SessyData.Model;
 
@@ -10,9 +11,11 @@ using SessyData.Model;
 namespace SessyData.Migrations
 {
     [DbContext(typeof(ModelContext))]
-    partial class ModelContextModelSnapshot : ModelSnapshot
+    [Migration("20260513144821_AddInverterMeasurement")]
+    partial class AddInverterMeasurement
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.7");
@@ -190,6 +193,85 @@ namespace SessyData.Migrations
                     b.HasIndex("PurchaseDate");
 
                     b.ToTable("Investment");
+                });
+
+            modelBuilder.Entity("SessyData.Model.Performance", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double>("BatteryPowerWatts")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("BuyingPrice")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("ChargeLeft")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("ChargeLeftPercentage")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("ChargeNeeded")
+                        .HasColumnType("REAL");
+
+                    b.Property<bool>("Charging")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Disabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Discharging")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("DisplayState")
+                        .HasColumnType("TEXT");
+
+                    b.Property<double>("EstimatedConsumptionPerQuarterHour")
+                        .HasColumnType("REAL");
+
+                    b.Property<bool>("IsReliable")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double>("MarketPrice")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("Profit")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("SellingPrice")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("SmoothedBuyingPrice")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("SmoothedSellingPrice")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("SmoothedSolarPower")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("SolarGlobalRadiation")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("SolarPowerPerQuarterHour")
+                        .HasColumnType("REAL");
+
+                    b.Property<DateTime>("Time")
+                        .HasColumnType("TEXT");
+
+                    b.Property<double>("VisualizeInChart")
+                        .HasColumnType("REAL");
+
+                    b.Property<bool>("ZeroNetHome")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Time");
+
+                    b.ToTable("Performance");
                 });
 
             modelBuilder.Entity("SessyData.Model.QuarterlyMeasurement", b =>

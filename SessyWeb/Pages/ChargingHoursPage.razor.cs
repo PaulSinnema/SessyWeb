@@ -15,7 +15,7 @@ namespace SessyWeb.Pages
     public partial class ChargingHoursPage : PageBase
     {
         [Inject] public TooltipService? tooltipService { get; set; }
-        [Inject] public PerformanceDataService? _performanceDataService { get; set; }
+        [Inject] public QuarterlyMeasurementDataService? _measurementDataService { get; set; }
         [Inject] public SolarService? _solarService { get; set; }
         [Inject] public TimeZoneService? _timeZoneService { get; set; }
         [Inject] public BatteryContainer? _batteryContainer { get; set; }
@@ -116,7 +116,7 @@ namespace SessyWeb.Pages
                     {
                         var powerStatus = await battery.GetPowerStatus().ConfigureAwait(false);
 
-                        currentThrottlePercentage = _inverterCurtailmentService?.CurrentThrottleW >= double.MaxValue 
+                        currentThrottlePercentage = _inverterCurtailmentService?.CurrentThrottleW >= double.MaxValue
                             ? 100.0
                             : Math.Round(_inverterCurtailmentService?.CurrentThrottleW / _solarInverterManager?.TotalCapacity ?? 1.0 * 100.0, 1);
 
@@ -292,20 +292,18 @@ namespace SessyWeb.Pages
                 foreach (var qi in planItems)
                     views.Add(await FillQuarterlyInfoView(qi, averageBuyingPrice, averageSellingPrice).ConfigureAwait(false));
 
-                // Performance (historical) limited to the SAME window
-                var perfItems = await _performanceDataService!.GetList(async set =>
+                // Historical measurements limited to the SAME window
+                var measurements = await _measurementDataService!.GetList(async set =>
                 {
                     var result = set
-                        .Where(p => p.Time >= from && p.Time < to)
+                        .Where(m => m.Time >= from && m.Time < to)
                         .ToList();
 
                     return await Task.FromResult(result);
                 }).ConfigureAwait(false);
 
-                var totalCapacity = _batteryContainer!.GetTotalCapacity();
-
-                foreach (var p in perfItems)
-                    views.Add(FillQuarterlyInfoView(p, totalCapacity));
+                foreach (var m in measurements)
+                    views.Add(FillQuarterlyInfoView(m));
             }
             else
             {
@@ -382,41 +380,53 @@ namespace SessyWeb.Pages
             });
         }
 
-        public QuarterlyInfoView FillQuarterlyInfoView(Performance performance, double totalCapacityWh)
+        public QuarterlyInfoView FillQuarterlyInfoView(QuarterlyMeasurement measurement)
         {
-            // Fix the percentage formula (it was inverted in your old code).
-            var neededPct = totalCapacityWh > 0 ? (performance.ChargeNeeded / totalCapacityWh) * 100.0 : 0.0;
+            double totalCapacityWh = _batteryContainer!.GetTotalCapacity();
+            double chargeLeftPct = totalCapacityWh > 0
+                ? measurement.BatteryStateOfChargeWh / totalCapacityWh * 100.0
+                : 0.0;
+
+            string displayState = measurement.BatteryMode switch
+            {
+                SessyData.Model.BatteryMode.Charging => "Charging",
+                SessyData.Model.BatteryMode.Discharging => "Discharging",
+                SessyData.Model.BatteryMode.ZeroNetHome => "ZeroNetHome",
+                _ => "Disabled"
+            };
 
             return new QuarterlyInfoView
             {
-                Time = performance.Time,
+                Time = measurement.Time,
                 SessionId = null,
 
                 IsPriceExpected = false,
-                BuyingPrice = performance.BuyingPrice,
-                SellingPrice = performance.SellingPrice,
-                MarketPrice = performance.MarketPrice,
+                BuyingPrice = measurement.BuyingPriceEur,
+                SellingPrice = measurement.SellingPriceEur,
+                MarketPrice = 0.0,
 
-                Profit = performance.Profit,
+                Profit = 0.0,
 
-                SmoothedBuyingPrice = performance.BuyingPrice,
-                SmoothedSellingPrice = performance.SellingPrice,
+                SmoothedBuyingPrice = measurement.BuyingPriceEur,
+                SmoothedSellingPrice = measurement.SellingPriceEur,
 
-                VisualizeInChart = performance.VisualizeInChart,
+                VisualizeInChart = 1.0,
 
-                ChargeLeft = performance.ChargeLeft,
-                ChargeNeeded = performance.ChargeNeeded,
+                ChargeLeft = measurement.BatteryStateOfChargeWh,
+                ChargeNeeded = 0.0,
 
-                EstimatedConsumptionPerQuarterHour = performance.EstimatedConsumptionPerQuarterHour,
-                SolarPowerPerQuarterHour = performance.SolarPowerPerQuarterHour,
-                SolarGlobalRadiation = performance.SolarGlobalRadiation,
+                EstimatedConsumptionPerQuarterHour = 0.0,
+                SolarPowerPerQuarterHour = measurement.SolarProductionKWh,
+                SolarGlobalRadiation = measurement.GlobalRadiation,
 
-                ChargeLeftPercentage = performance.ChargeLeftPercentage,
-                DisplayState = performance.DisplayState ?? string.Empty,
-                Price = performance.Price,
+                ChargeLeftPercentage = chargeLeftPct,
+                DisplayState = displayState,
+                Price = measurement.BatteryMode == SessyData.Model.BatteryMode.Charging
+                    ? measurement.BuyingPriceEur
+                    : measurement.SellingPriceEur,
 
-                ChargeNeededPercentage = neededPct,
-                SmoothedSolarPower = performance.SmoothedSolarPower,
+                ChargeNeededPercentage = 0.0,
+                SmoothedSolarPower = measurement.SolarProductionKWh,
 
                 SessionCost = null,
                 DeltaLowestPrice = 0.0

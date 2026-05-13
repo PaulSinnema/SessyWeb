@@ -43,7 +43,7 @@ namespace SessyController.Services
         private TimeZoneService _timeZoneService;
         private ConsumptionMonitorService _consumptionMonitorService;
         private SessyWebControlDataService _sessyWebControlDataService;
-        private PerformanceDataService? _performanceDataService;
+        private QuarterlyMeasurementDataService? _measurementService;
         private TaxesDataService _taxesDataService;
         private MilpService _milpService;
 
@@ -86,7 +86,7 @@ namespace SessyController.Services
             _timeZoneService = _scope.ServiceProvider.GetRequiredService<TimeZoneService>();
             _consumptionMonitorService = _scope.ServiceProvider.GetRequiredService<ConsumptionMonitorService>();
             _sessyWebControlDataService = _scope.ServiceProvider.GetRequiredService<SessyWebControlDataService>();
-            _performanceDataService = _scope.ServiceProvider.GetService<PerformanceDataService>();
+            _measurementService = _scope.ServiceProvider.GetService<QuarterlyMeasurementDataService>();
             _taxesDataService = _scope.ServiceProvider.GetRequiredService<TaxesDataService>();
             _inverterCurtailmentService = _scope.ServiceProvider.GetRequiredService<InverterCurtailmentService>();
             _milpService = _scope.ServiceProvider.GetRequiredService<MilpService>();
@@ -100,16 +100,9 @@ namespace SessyController.Services
             return base.StopAsync(cancellationToken);
         }
 
-        private async Task CleanUpWrongData()
-        {
-            await _performanceDataService.RemoveWrongData().ConfigureAwait(false);
-        }
-
         protected override async Task ExecuteAsync(CancellationToken cancellationToken)
         {
             _logger.LogWarning("BatteriesService started ...");
-
-            await CleanUpWrongData();
 
             var delaySeconds = 60;
 
@@ -126,7 +119,7 @@ namespace SessyController.Services
                     if (DataChanged != null)
                         await DataChanged.Invoke().ConfigureAwait(false);
 
-                    await StorePerformance().ConfigureAwait(false);
+                    await StoreQuarterlyMeasurement().ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
@@ -439,61 +432,65 @@ namespace SessyController.Services
             return false;
         }
 
-        private async Task StorePerformance()
+        private async Task StoreQuarterlyMeasurement()
         {
-            if (_performanceDataService == null)
+            if (_measurementService == null)
                 return;
 
             var currentQuarterlyInfo = GetNextQuarterlyInfoInPlan();
             if (currentQuarterlyInfo == null)
                 return;
 
-            bool exists = await _performanceDataService.Exists(async set =>
-            {
-                var result = set.Any(pd => pd.Time == currentQuarterlyInfo.Time);
-                return await Task.FromResult(result).ConfigureAwait(false);
-            }).ConfigureAwait(false);
-
-            if (exists)
-                return;
-
-            var totalCapacity = _batteryContainer.GetTotalCapacity();
-
-            // Fetch SOC and actual battery power in a single pass to avoid
-            // multiple sequential network calls to the Sessy API.
-            // BatteryPowerWatts: positive = discharging, negative = charging.
+            // Fetch battery data from the Sessy API.
+            // BatteryPowerWatts: negative = charging, positive = discharging.
             var socWh = await _batteryContainer.GetStateOfChargeInWatts().ConfigureAwait(false);
             var batteryPowerWatts = await _batteryContainer.GetTotalPowerInWatts().ConfigureAwait(false);
 
-            var performanceData = new List<Performance>
+            var mode = currentQuarterlyInfo switch
             {
-                new Performance
-                {
-                    Time = currentQuarterlyInfo.Time,
-                    MarketPrice = currentQuarterlyInfo.MarketPrice,
-                    BuyingPrice = currentQuarterlyInfo.BuyingPrice,
-                    SmoothedBuyingPrice = currentQuarterlyInfo.SmoothedBuyingPrice,
-                    SellingPrice = currentQuarterlyInfo.SellingPrice,
-                    SmoothedSellingPrice = currentQuarterlyInfo.SmoothedSellingPrice,
-                    Profit = currentQuarterlyInfo.Profit,
-                    EstimatedConsumptionPerQuarterHour = currentQuarterlyInfo.EstimatedConsumptionPerQuarterInWatts,
-                    ChargeLeft = socWh,
-                    ChargeNeeded = currentQuarterlyInfo.ChargeNeededWh,
-                    Charging = currentQuarterlyInfo.Charging,
-                    Discharging = currentQuarterlyInfo.Discharging,
-                    ZeroNetHome = currentQuarterlyInfo.ZeroNetHome,
-                    Disabled = currentQuarterlyInfo.Disabled,
-                    SolarPowerPerQuarterHour = currentQuarterlyInfo.SolarPowerPerQuarterHour,
-                    SmoothedSolarPower = currentQuarterlyInfo.SmoothedSolarPower,
-                    SolarGlobalRadiation = currentQuarterlyInfo.SolarGlobalRadiation,
-                    ChargeLeftPercentage = currentQuarterlyInfo.ChargeLeftPercentage(totalCapacity),
-                    DisplayState = currentQuarterlyInfo.GetDisplayMode(),
-                    VisualizeInChart = currentQuarterlyInfo.VisualizeInChart(),
-                    BatteryPowerWatts = batteryPowerWatts,
-                }
+                { Charging: true } => BatteryMode.Charging,
+                { Discharging: true } => BatteryMode.Discharging,
+                { ZeroNetHome: true } => BatteryMode.ZeroNetHome,
+                _ => BatteryMode.Disabled
             };
 
-            await _performanceDataService.Add(performanceData).ConfigureAwait(false);
+            // Update the existing QuarterlyMeasurement record created by EnergyMonitorService,
+            // or create a new one if it does not exist yet (e.g. on first startup).
+            var existing = await _measurementService.Get(async set =>
+            {
+                var result = set.FirstOrDefault(m => m.Time == currentQuarterlyInfo.Time);
+                return await Task.FromResult(result);
+            }).ConfigureAwait(false);
+
+            if (existing != null)
+            {
+                existing.BatteryPowerWatts = batteryPowerWatts;
+                existing.BatteryStateOfChargeWh = socWh;
+                existing.BatteryMode = mode;
+                existing.SolarProductionKWh = currentQuarterlyInfo.SolarPowerPerQuarterHour;
+
+                await _measurementService.Update(
+                    new List<QuarterlyMeasurement> { existing },
+                    (item, set) => set.FirstOrDefault(m => m.Id == item.Id))
+                    .ConfigureAwait(false);
+            }
+            else
+            {
+                // EnergyMonitorService hasn't stored a record yet — create one now.
+                var measurement = new QuarterlyMeasurement
+                {
+                    Time = currentQuarterlyInfo.Time,
+                    BatteryPowerWatts = batteryPowerWatts,
+                    BatteryStateOfChargeWh = socWh,
+                    BatteryMode = mode,
+                    SolarProductionKWh = currentQuarterlyInfo.SolarPowerPerQuarterHour,
+                    BuyingPriceEur = currentQuarterlyInfo.BuyingPrice,
+                    SellingPriceEur = currentQuarterlyInfo.SellingPrice,
+                };
+
+                await _measurementService.Add(new List<QuarterlyMeasurement> { measurement })
+                    .ConfigureAwait(false);
+            }
         }
 
         public List<QuarterlyInfo> GetQuarterlyInfos()

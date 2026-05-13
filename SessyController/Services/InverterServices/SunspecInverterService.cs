@@ -38,7 +38,7 @@ namespace SessyController.Services.InverterServices
         private bool _IsRunning { get; set; } = false;
 
         private TimeZoneService _timeZoneService;
-        private SolarInverterDataService _solarEdgeDataService;
+        private InverterMeasurementDataService _inverterMeasurementService;
 
         // Serializes all Modbus operations to prevent transaction ID mismatches
         // when multiple callers (curtailment loop, power read loop) access the
@@ -93,7 +93,7 @@ namespace SessyController.Services.InverterServices
 
             _tcpClientProvider = _scope.ServiceProvider.GetRequiredService<TcpClientProvider>();
             _timeZoneService = _scope.ServiceProvider.GetRequiredService<TimeZoneService>();
-            _solarEdgeDataService = _scope.ServiceProvider.GetRequiredService<SolarInverterDataService>();
+            _inverterMeasurementService = _scope.ServiceProvider.GetRequiredService<InverterMeasurementDataService>();
         }
 
         public async Task Start(CancellationToken cancelationToken)
@@ -140,7 +140,7 @@ namespace SessyController.Services.InverterServices
 
         private async Task CleanUpWrongData()
         {
-            await _solarEdgeDataService.RemoveWrongData(ProviderName).ConfigureAwait(false);
+            // Data cleanup not needed for InverterMeasurementDataService.
         }
 
         private Dictionary<string, Dictionary<DateTime, double>> CollectedPowerData { get; set; } = new();
@@ -557,15 +557,20 @@ namespace SessyController.Services.InverterServices
                     if (values.Count < 1)
                         continue;
 
-                    var entry = new SolarInverterData
+                    // Convert average Watts over the quarter to kWh:
+                    // kWh = W * 0.25h / 1000
+                    var avgWatts = values.Average();
+                    var kWh = avgWatts * 0.25 / 1000.0;
+
+                    var entry = new InverterMeasurement
                     {
                         ProviderName = ProviderName,
                         InverterId = id,
                         Time = quarter,
-                        Power = values.Average()
+                        SolarProductionKWh = kWh
                     };
 
-                    await _solarEdgeDataService.Add(new List<SolarInverterData> { entry }).ConfigureAwait(false);
+                    await _inverterMeasurementService.Add(new List<InverterMeasurement> { entry }).ConfigureAwait(false);
 
                     foreach (var item in quarterGroup)
                         collection.Remove(item.Key);

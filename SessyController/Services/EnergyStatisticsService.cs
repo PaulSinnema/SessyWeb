@@ -9,21 +9,17 @@ namespace SessyController.Services
 {
     /// <summary>
     /// Calculates energy and financial statistics for a given period.
-    /// Uses EnergyHistory (P1 meter data), Performance (battery/solar data)
-    /// and Investment (purchase costs) as data sources.
+    /// Uses QuarterlyMeasurement as the single source of truth.
     ///
     /// Unit conventions:
-    ///   EnergyHistory.ConsumedTariff1/2  — P1 meter stands in Wh  → divide by 1000 for kWh
-    ///   EnergyHistory.ProducedTariff1/2  — P1 meter stands in Wh  → divide by 1000 for kWh
-    ///   Performance.SolarPowerPerQuarterHour — kWh per quarter-hour (already kWh)
-    ///   Performance.EstimatedConsumptionPerQuarterHour — Watts (average power) → * 0.25 / 1000 for kWh
-    ///   Performance.ChargeLeft           — Wh
-    ///   Performance.ChargeLeftPercentage — % (0-100)
+    ///   QuarterlyMeasurement.GridImportWh/GridExportWh  — Wh per quarter → / 1000 for kWh
+    ///   QuarterlyMeasurement.SolarProductionKWh         — kWh per quarter (already kWh)
+    ///   QuarterlyMeasurement.BatteryPowerWatts           — Watts; negative=charging, positive=discharging
+    ///   QuarterlyMeasurement.BatteryStateOfChargeWh      — Wh
     /// </summary>
     public class EnergyStatisticsService
     {
-        private readonly EnergyHistoryDataService _energyHistoryDataService;
-        private readonly PerformanceDataService _performanceDataService;
+        private readonly QuarterlyMeasurementDataService _measurementDataService;
         private readonly InvestmentDataService _investmentDataService;
         private readonly TimeZoneService _timeZoneService;
         private readonly HeatPumpConfig _heatPumpConfig;
@@ -35,19 +31,11 @@ namespace SessyController.Services
         // Solar installation peak power in kWp — used for performance ratio.
         private const double SolarInstallationKWp = 5.54;
 
-        // P1 meter tand unit: Wh → kWh conversion factor.
-        private const double WhToKWh = 1000.0;
-
         // Category name constants for per-component savings routing.
-        // Matching is case-insensitive — see NormalizeCategory().
         private const string CategorySolar = "solarpanels";
         private const string CategoryBattery = "battery";
         private const string CategoryHeatPump = "heatpump";
 
-        /// <summary>
-        /// Normalizes a category name for matching — lowercase, no spaces or hyphens.
-        /// Supports common aliases: "solar", "zonnepanelen", "batterij", "warmtepomp" etc.
-        /// </summary>
         private static string NormalizeCategory(string category)
         {
             var normalized = category.ToLowerInvariant()
@@ -55,31 +43,25 @@ namespace SessyController.Services
                 .Replace("-", "")
                 .Replace("_", "");
 
-            // Common aliases.
             return normalized switch
             {
-                // Solar aliases — including inverter brand names.
                 "solar" or "zonnepanelen" or "panelen" or "solaredge" or "enphase" or "huawei" or "sma" => CategorySolar,
-                // Battery aliases — including brand names with numbers e.g. "Sessy 1", "Sessy 2 + 3".
                 "batterij" or "batteries" or "battery"
                     or "sessy" or "sessy1" or "sessy2" or "sessy3"
                     or "sessy2+3" or "sessy1+2" or "sessy1+2+3" => CategoryBattery,
-                // Heat pump aliases — including brand names.
                 "warmtepomp" or "heatpump" or "hp" or "daikin" or "daikinaltherma"
                     or "mitsubishi" or "lg" or "vaillant" or "nibe" => CategoryHeatPump,
                 _ => normalized
             };
         }
 
-        public EnergyStatisticsService(EnergyHistoryDataService energyHistoryDataService,
-                                       PerformanceDataService performanceDataService,
+        public EnergyStatisticsService(QuarterlyMeasurementDataService measurementDataService,
                                        InvestmentDataService investmentDataService,
                                        TimeZoneService timeZoneService,
                                        IOptions<HeatPumpConfig> heatPumpConfig,
                                        IOptions<SettingsConfig> settingsConfig)
         {
-            _energyHistoryDataService = energyHistoryDataService;
-            _performanceDataService = performanceDataService;
+            _measurementDataService = measurementDataService;
             _investmentDataService = investmentDataService;
             _timeZoneService = timeZoneService;
             _heatPumpConfig = heatPumpConfig.Value;
@@ -88,13 +70,10 @@ namespace SessyController.Services
 
         /// <summary>
         /// Calculates comprehensive energy statistics for the given period.
-        /// When StatisticsFromDate is configured, the start date is clamped to that date
-        /// so unreliable historical data is automatically excluded.
+        /// When StatisticsFromDate is configured, the start date is clamped to that date.
         /// </summary>
         public async Task<EnergyStatistics> GetEnergyStatisticsAsync(DateTime start, DateTime end)
         {
-            // Clamp start to StatisticsFromDate when configured.
-            // This excludes unreliable historical data without touching the database.
             if (_settingsConfig.StatisticsFromDate.HasValue)
             {
                 var fromDate = _settingsConfig.StatisticsFromDate.Value;
@@ -102,43 +81,31 @@ namespace SessyController.Services
                     start = fromDate;
             }
 
-            var energyHistory = await GetEnergyHistoryAsync(start, end);
-            var performance = await GetPerformanceAsync(start, end);
+            var measurements = await GetMeasurementsAsync(start, end);
 
             var stats = new EnergyStatistics
             {
                 PeriodStart = start,
                 PeriodEnd = end,
-                // Set actual data range so PeriodDays reflects real data instead of
-                // DateTime.MinValue/MaxValue when the caller requests "all" data.
-                ActualDataStart = energyHistory.Any() ? energyHistory.Min(h => h.Time)
-                                : performance.Any() ? performance.Min(p => p.Time)
-                                : start,
-                ActualDataEnd = energyHistory.Any() ? energyHistory.Max(h => h.Time)
-                                : performance.Any() ? performance.Max(p => p.Time)
-                                : end,
+                ActualDataStart = measurements.Any() ? measurements.Min(m => m.Time) : start,
+                ActualDataEnd = measurements.Any() ? measurements.Max(m => m.Time) : end,
             };
 
-            // Order matters: consumption and self-consumed solar depend on grid flows,
-            // battery totals and solar production all being calculated first.
-            CalculateGridFlows(energyHistory, stats);
-            CalculateSolarStats(performance, stats);
-            CalculateConsumptionStats(performance, energyHistory, stats);
-            CalculateBatteryStats(performance, stats);
+            // Order matters: self-consumed solar depends on battery totals.
+            CalculateGridFlows(measurements, stats);
+            CalculateSolarStats(measurements, stats);
+            CalculateConsumptionStats(measurements, stats);
+            CalculateBatteryStats(measurements, stats);
             CalculateSelfConsumedSolar(stats);
-            CalculateFinancialStats(performance, stats);
+            CalculateFinancialStats(measurements, stats);
 
             return stats;
         }
 
-        /// <summary>
-        /// Calculates monthly trends for the given period.
-        /// </summary>
         public async Task<List<MonthlyTrend>> GetMonthlyTrendsAsync(DateTime start, DateTime end)
         {
             var trends = new List<MonthlyTrend>();
 
-            // Clamp extreme values to avoid DateTime overflow in AddMonths/AddTicks.
             var clampedStart = start == DateTime.MinValue ? new DateTime(2020, 1, 1) : start;
             var clampedEnd = end == DateTime.MaxValue ? _timeZoneService.Now : end;
 
@@ -171,15 +138,6 @@ namespace SessyController.Services
             return trends;
         }
 
-        /// <summary>
-        /// Calculates ROI and payback period statistics per investment component.
-        /// - Solar panels: based on measured export revenue + self-consumption value
-        /// - Batteries: based on measured arbitrage profit
-        /// - Heat pump: based on HeatPumpConfig (gas savings)
-        /// - Other: uses EstimatedAnnualSavingsEur from Investment record
-        /// ROI is always calculated from PurchaseDate regardless of selected period.
-        /// When historical data is incomplete, uses seasonal extrapolation.
-        /// </summary>
         public async Task<InvestmentStatistics> GetInvestmentStatisticsAsync()
         {
             var investments = await _investmentDataService.GetList(async set =>
@@ -196,15 +154,11 @@ namespace SessyController.Services
 
             var now = _timeZoneService.Now;
             var earliestPurchase = investments.Min(i => i.PurchaseDate);
-
-            // ── Get data availability range ───────────────────────────────────
             var dataStart = await GetEarliestDataDateAsync();
 
-            // ── Build seasonal monthly averages from available data ────────────
             var monthlySolarSavings = await BuildSeasonalSolarSavingsAsync(dataStart, now);
             var monthlyArbitrageSavings = await BuildSeasonalArbitrageSavingsAsync(dataStart, now);
 
-            // ── Build per-category stats ──────────────────────────────────────
             var categoryBreakdown = investments
                 .GroupBy(i => i.Category)
                 .Select(g =>
@@ -214,12 +168,7 @@ namespace SessyController.Services
                                       (now.Month - installDate.Month);
 
                     double annualSavings = CalculateCategoryAnnualSavings(
-                        g.Key,
-                        g.First(),
-                        monthlySolarSavings,
-                        monthlyArbitrageSavings);
-
-                    string savingsSource = GetSavingsSource(g.Key, g.First());
+                        g.Key, g.First(), monthlySolarSavings, monthlyArbitrageSavings);
 
                     return new InvestmentCategoryStats
                     {
@@ -230,26 +179,22 @@ namespace SessyController.Services
                         InstallationDate = installDate,
                         MonthsSinceInstallation = monthsSince,
                         AnnualSavingsEur = annualSavings,
-                        SavingsSource = savingsSource
+                        SavingsSource = GetSavingsSource(g.Key, g.First())
                     };
                 })
                 .OrderByDescending(c => c.NetAmountEur)
                 .ToList();
 
-            // ── Totals ────────────────────────────────────────────────────────
             double totalNetInvestment = categoryBreakdown.Sum(c => c.NetAmountEur);
             double totalProjectedSavings = categoryBreakdown.Sum(c => c.ProjectedTotalSavingsEur);
             double totalAnnualSavings = categoryBreakdown.Sum(c => c.AnnualSavingsEur);
 
-            // Realized savings = only from actual measured data period.
             var realizedStats = await GetEnergyStatisticsAsync(dataStart, now);
             double realizedSavings = realizedStats.TotalSavingsEur +
                                      (realizedStats.ArbitrageProfitEur > 0 ? realizedStats.ArbitrageProfitEur : 0) +
                                      CalculateHeatPumpSavings(dataStart, now);
 
-            // ── Break-even date ───────────────────────────────────────────────
             DateTime? breakEvenDate = null;
-
             if (totalAnnualSavings > 0)
             {
                 double remaining = totalNetInvestment - totalProjectedSavings;
@@ -272,16 +217,14 @@ namespace SessyController.Services
             };
         }
 
-        /// <summary>
-        /// Calculates annual savings for a specific investment category.
-        /// </summary>
+        // ── Private helpers ──────────────────────────────────────────────────
+
         private double CalculateCategoryAnnualSavings(
             string category,
             Investment representative,
             Dictionary<int, double> monthlySolarSavings,
             Dictionary<int, double> monthlyArbitrageSavings)
         {
-            // Manual override takes precedence.
             if (representative.EstimatedAnnualSavingsEur > 0)
                 return representative.EstimatedAnnualSavingsEur;
 
@@ -289,9 +232,7 @@ namespace SessyController.Services
             {
                 CategorySolar => monthlySolarSavings.Values.Sum(),
                 CategoryBattery => monthlyArbitrageSavings.Values.Sum(),
-                CategoryHeatPump => _heatPumpConfig.IsConfigured
-                    ? _heatPumpConfig.TotalAnnualSavingsEur
-                    : 0.0,
+                CategoryHeatPump => _heatPumpConfig.IsConfigured ? _heatPumpConfig.TotalAnnualSavingsEur : 0.0,
                 _ => 0.0
             };
         }
@@ -312,9 +253,6 @@ namespace SessyController.Services
             };
         }
 
-        /// <summary>
-        /// Calculates heat pump savings for a specific period.
-        /// </summary>
         private double CalculateHeatPumpSavings(DateTime start, DateTime end)
         {
             if (!_heatPumpConfig.IsConfigured)
@@ -333,44 +271,33 @@ namespace SessyController.Services
             return _heatPumpConfig.MonthlyAverageSavingsEur * months;
         }
 
-        /// <summary>
-        /// Builds a dictionary of average monthly solar savings (export revenue + self-consumption)
-        /// per calendar month (1-12) from available Performance data.
-        /// </summary>
         private async Task<Dictionary<int, double>> BuildSeasonalSolarSavingsAsync(
             DateTime dataStart, DateTime dataEnd)
         {
             var allMonthly = new Dictionary<int, List<double>>();
-
             var current = new DateTime(dataStart.Year, dataStart.Month, 1);
 
             while (current <= dataEnd)
             {
-                var monthEnd = current.AddMonths(1).AddTicks(-1);
-                var clampedEnd = monthEnd > dataEnd ? dataEnd : monthEnd;
+                var clampedEnd = Math.Min(current.AddMonths(1).AddTicks(-1).Ticks, dataEnd.Ticks);
+                var measurements = await GetMeasurementsAsync(current, new DateTime(clampedEnd));
 
-                var perf = await GetPerformanceAsync(current, clampedEnd);
+                double exportRevenue = measurements
+                    .Where(m => m.BatteryMode == BatteryMode.Discharging)
+                    .Sum(m => m.SellingPriceEur * m.BatteryDischargedKWh);
 
-                // Solar savings = export revenue + self-consumed solar value.
-                double exportRevenue = perf
-                    .Where(p => p.Discharging)
-                    .Sum(p => p.SellingPrice * p.EstimatedConsumptionPerQuarterHour * 0.25 / 1000.0);
-
-                double solarKWh = perf.Sum(p => p.SolarPowerPerQuarterHour);
-                double avgBuyPrice = perf.Any() ? perf.Average(p => p.BuyingPrice) : 0.0;
+                double solarKWh = measurements.Sum(m => m.SolarProductionKWh);
+                double avgBuyPrice = measurements.Any() ? measurements.Average(m => m.BuyingPriceEur) : 0.0;
                 double selfConsumedValue = solarKWh * avgBuyPrice;
-
-                double monthlySaving = exportRevenue + selfConsumedValue;
 
                 int month = current.Month;
                 if (!allMonthly.ContainsKey(month))
                     allMonthly[month] = new List<double>();
 
-                allMonthly[month].Add(monthlySaving);
+                allMonthly[month].Add(exportRevenue + selfConsumedValue);
                 current = current.AddMonths(1);
             }
 
-            // Average per calendar month, fill missing with overall average.
             var result = new Dictionary<int, double>();
             double overallAvg = allMonthly.Values.SelectMany(v => v).DefaultIfEmpty(0).Average();
 
@@ -380,39 +307,30 @@ namespace SessyController.Services
             return result;
         }
 
-        /// <summary>
-        /// Builds a dictionary of average monthly arbitrage profit
-        /// per calendar month (1-12) from available Performance data.
-        /// </summary>
         private async Task<Dictionary<int, double>> BuildSeasonalArbitrageSavingsAsync(
             DateTime dataStart, DateTime dataEnd)
         {
             var allMonthly = new Dictionary<int, List<double>>();
-
             var current = new DateTime(dataStart.Year, dataStart.Month, 1);
 
             while (current <= dataEnd)
             {
-                var monthEnd = current.AddMonths(1).AddTicks(-1);
-                var clampedEnd = monthEnd > dataEnd ? dataEnd : monthEnd;
+                var clampedEnd = Math.Min(current.AddMonths(1).AddTicks(-1).Ticks, dataEnd.Ticks);
+                var measurements = await GetMeasurementsAsync(current, new DateTime(clampedEnd));
 
-                var perf = await GetPerformanceAsync(current, clampedEnd);
+                double revenue = measurements
+                    .Where(m => m.BatteryMode == BatteryMode.Discharging)
+                    .Sum(m => m.SellingPriceEur * m.BatteryDischargedKWh);
 
-                double dischargingRevenue = perf
-                    .Where(p => p.Discharging)
-                    .Sum(p => p.SellingPrice * p.EstimatedConsumptionPerQuarterHour * 0.25 / 1000.0);
-
-                double chargingCost = perf
-                    .Where(p => p.Charging)
-                    .Sum(p => p.BuyingPrice * p.EstimatedConsumptionPerQuarterHour * 0.25 / 1000.0);
-
-                double arbitrage = dischargingRevenue - chargingCost;
+                double cost = measurements
+                    .Where(m => m.BatteryMode == BatteryMode.Charging)
+                    .Sum(m => m.BuyingPriceEur * m.BatteryChargedKWh);
 
                 int month = current.Month;
                 if (!allMonthly.ContainsKey(month))
                     allMonthly[month] = new List<double>();
 
-                allMonthly[month].Add(arbitrage);
+                allMonthly[month].Add(revenue - cost);
                 current = current.AddMonths(1);
             }
 
@@ -425,95 +343,56 @@ namespace SessyController.Services
             return result;
         }
 
-        /// <summary>
-        /// Returns the earliest date for which we have Performance data.
-        /// Falls back to 1 year ago if no data is available.
-        /// </summary>
         private async Task<DateTime> GetEarliestDataDateAsync()
         {
-            var earliest = await _performanceDataService.Get(async set =>
+            var earliest = await _measurementDataService.Get(async set =>
             {
-                var result = set.OrderBy(p => p.Time).FirstOrDefault();
+                var result = set.OrderBy(m => m.Time).FirstOrDefault();
                 return await Task.FromResult(result);
             });
 
             return earliest?.Time ?? _timeZoneService.Now.AddYears(-1);
         }
 
-        // ── Private calculation methods ──────────────────────────────────────
+        // ── Calculation methods ──────────────────────────────────────────────
 
         /// <summary>
-        /// Calculates grid import and export from P1 meter tand deltas.
-        /// P1 meter tands are stored in Wh → divide by 1000 for kWh.
+        /// Grid flows = sum of per-quarter deltas stored in GridImportWh / GridExportWh.
         /// </summary>
-        private void CalculateGridFlows(List<EnergyHistory> history, EnergyStatistics stats)
+        private static void CalculateGridFlows(
+            List<QuarterlyMeasurement> measurements, EnergyStatistics stats)
         {
-            if (history.Count < 2)
-                return;
-
-            var ordered = history.OrderBy(h => h.Time).ToList();
-            var first = ordered.First();
-            var last = ordered.Last();
-
-            // Delta of cumulative P1 meter tands (Wh) → kWh.
-            stats.TotalGridImportKWh =
-                ((last.ConsumedTariff1 - first.ConsumedTariff1) +
-                 (last.ConsumedTariff2 - first.ConsumedTariff2)) / WhToKWh;
-
-            stats.TotalGridExportKWh =
-                ((last.ProducedTariff1 - first.ProducedTariff1) +
-                 (last.ProducedTariff2 - first.ProducedTariff2)) / WhToKWh;
-
-            // Clamp to zero — negative deltas indicate meter resets.
-            stats.TotalGridImportKWh = Math.Max(0, stats.TotalGridImportKWh);
-            stats.TotalGridExportKWh = Math.Max(0, stats.TotalGridExportKWh);
+            stats.TotalGridImportKWh = measurements.Sum(m => m.GridImportKWh);
+            stats.TotalGridExportKWh = measurements.Sum(m => m.GridExportKWh);
         }
 
-        /// <summary>
-        /// Calculates solar production statistics from Performance records.
-        /// SolarPowerPerQuarterHour is already in kWh per quarter-hour.
-        /// </summary>
-        private void CalculateSolarStats(List<Performance> performance, EnergyStatistics stats)
+        private static void CalculateSolarStats(
+            List<QuarterlyMeasurement> measurements, EnergyStatistics stats)
         {
-            if (!performance.Any())
+            if (!measurements.Any())
                 return;
 
-            // SolarPowerPerQuarterHour is kWh per quarter → sum directly.
-            stats.TotalSolarProductionKWh = performance
-                .Sum(p => p.SolarPowerPerQuarterHour);
+            stats.TotalSolarProductionKWh = measurements.Sum(m => m.SolarProductionKWh);
 
-            stats.PeakDailySolarProductionKWh = performance
-                .GroupBy(p => p.Time.Date)
-                .Select(g => g.Sum(p => p.SolarPowerPerQuarterHour))
+            stats.PeakDailySolarProductionKWh = measurements
+                .GroupBy(m => m.Time.Date)
+                .Select(g => g.Sum(m => m.SolarProductionKWh))
                 .DefaultIfEmpty(0)
                 .Max();
 
-            // Self-consumed solar is calculated separately in CalculateSelfConsumedSolar()
-            // after battery totals are available.
+            // Performance ratio: actual vs theoretical based on KNMI global radiation.
+            double theoreticalKWh = measurements
+                .Sum(m => m.GlobalRadiation / 1000.0 * SolarInstallationKWp * 0.25);
 
-            // Solar performance ratio: actual vs theoretical based on global radiation.
-            // Theoretical = radiation (W/m²) integrated over time * system kWp / 1000.
-            // Each quarter-hour radiation value is averaged W/m² → integrate: * (15min / 60) hours.
-            double theoreticalProductionKWh = performance
-                .Sum(p => p.SolarGlobalRadiation / 1000.0 * SolarInstallationKWp * 0.25);
-
-            stats.SolarPerformanceRatio = theoreticalProductionKWh > 0
-                ? stats.TotalSolarProductionKWh / theoreticalProductionKWh
+            stats.SolarPerformanceRatio = theoreticalKWh > 0
+                ? stats.TotalSolarProductionKWh / theoreticalKWh
                 : 0.0;
         }
 
         /// <summary>
-        /// Calculates self-consumed solar energy using the energy balance method.
-        ///
-        /// Solar exported = max(0, GridExport - BatteryDischarged)
-        ///   Grid export contains both solar surplus and battery discharge to grid.
-        ///   Subtracting battery discharge isolates the solar-only export.
-        ///
-        /// SelfConsumedSolar = max(0, TotalSolar - SolarExported)
-        ///   Clamped to [0, TotalSolar] to stay physically plausible.
-        ///
-        /// This method must be called AFTER CalculateBatteryStats so that
-        /// TotalBatteryDischargedKWh is available.
+        /// Self-consumed solar = solar - solar exported to grid.
+        /// Solar exported = max(0, grid export - battery discharged).
+        /// Must be called AFTER CalculateBatteryStats.
         /// </summary>
         private static void CalculateSelfConsumedSolar(EnergyStatistics stats)
         {
@@ -523,223 +402,125 @@ namespace SessyController.Services
                 return;
             }
 
-            // Portion of grid export attributable to battery discharge.
-            // Capped at grid export: battery cannot export more than the total export.
             double batteryContributionToExport = Math.Min(
                 stats.TotalBatteryDischargedKWh,
                 stats.TotalGridExportKWh);
 
-            // Remaining export is solar surplus sent to the grid.
             double solarExportedKWh = Math.Max(0,
                 stats.TotalGridExportKWh - batteryContributionToExport);
 
-            // Self-consumed = solar not exported, clamped to solar production.
             stats.SelfConsumedSolarKWh = Math.Max(0, Math.Min(
                 stats.TotalSolarProductionKWh - solarExportedKWh,
                 stats.TotalSolarProductionKWh));
         }
 
-        /// <summary>
-        /// Calculates total consumption and weekday/weekend split.
-        /// Total consumption = grid import + solar production - grid export (energy balance).
-        /// Weekday/weekend split uses P1 meter deltas between consecutive readings.
-        /// </summary>
-        private void CalculateConsumptionStats(
-            List<Performance> performance,
-            List<EnergyHistory> history,
-            EnergyStatistics stats)
+        private static void CalculateConsumptionStats(
+            List<QuarterlyMeasurement> measurements, EnergyStatistics stats)
         {
-            // Total consumption via energy balance (kWh).
+            // Total consumption via energy balance.
             stats.TotalConsumptionKWh = Math.Max(0,
                 stats.TotalGridImportKWh +
                 stats.TotalSolarProductionKWh -
                 stats.TotalGridExportKWh);
 
-            // Peak daily consumption from P1 meter deltas.
-            if (history.Count >= 2)
-            {
-                var ordered = history.OrderBy(h => h.Time).ToList();
+            // Peak daily consumption from per-quarter grid import.
+            stats.PeakDailyConsumptionKWh = measurements
+                .GroupBy(m => m.Time.Date)
+                .Select(g => g.Sum(m => m.GridImportKWh + m.SolarProductionKWh - m.GridExportKWh))
+                .Where(v => v > 0)
+                .DefaultIfEmpty(0)
+                .Max();
 
-                stats.PeakDailyConsumptionKWh = ordered
-                    .Zip(ordered.Skip(1), (a, b) => new
-                    {
-                        Date = a.Time.Date,
-                        // Delta of P1 tands (Wh) → kWh.
-                        ConsumedKWh =
-                            ((b.ConsumedTariff1 - a.ConsumedTariff1) +
-                             (b.ConsumedTariff2 - a.ConsumedTariff2)) / WhToKWh
-                    })
-                    .Where(x => x.ConsumedKWh >= 0) // guard against meter resets
-                    .GroupBy(x => x.Date)
-                    .Select(g => g.Sum(x => x.ConsumedKWh))
-                    .DefaultIfEmpty(0)
-                    .Max();
-            }
+            // Weekday vs weekend from grid import + solar - export per quarter.
+            stats.WeekdayConsumptionKWh = measurements
+                .Where(m => m.Time.DayOfWeek != DayOfWeek.Saturday &&
+                            m.Time.DayOfWeek != DayOfWeek.Sunday)
+                .Sum(m => Math.Max(0, m.GridImportKWh + m.SolarProductionKWh - m.GridExportKWh));
 
-            // Weekday vs weekend from Performance estimated consumption (W → kWh per quarter).
-            stats.WeekdayConsumptionKWh = performance
-                .Where(p => p.Time.DayOfWeek != DayOfWeek.Saturday &&
-                            p.Time.DayOfWeek != DayOfWeek.Sunday)
-                .Sum(p => p.EstimatedConsumptionPerQuarterHour * 0.25 / 1000.0);
-
-            stats.WeekendConsumptionKWh = performance
-                .Where(p => p.Time.DayOfWeek == DayOfWeek.Saturday ||
-                            p.Time.DayOfWeek == DayOfWeek.Sunday)
-                .Sum(p => p.EstimatedConsumptionPerQuarterHour * 0.25 / 1000.0);
+            stats.WeekendConsumptionKWh = measurements
+                .Where(m => m.Time.DayOfWeek == DayOfWeek.Saturday ||
+                            m.Time.DayOfWeek == DayOfWeek.Sunday)
+                .Sum(m => Math.Max(0, m.GridImportKWh + m.SolarProductionKWh - m.GridExportKWh));
         }
 
-        /// <summary>
-        /// Calculates battery charge/discharge energy from measured BatteryPowerWatts.
-        /// BatteryPowerWatts is the actual power reported by the Sessy API per quarter:
-        ///   positive = discharging (energy out of battery)
-        ///   negative = charging (energy into battery)
-        /// Energy per quarter = |power| * 0.25h / 1000 → kWh.
-        ///
-        /// Falls back to the ChargeLeft delta method for historical records that
-        /// predate the BatteryPowerWatts column (value will be 0.0 for those rows).
-        /// </summary>
-        private void CalculateBatteryStats(List<Performance> performance, EnergyStatistics stats)
+        private void CalculateBatteryStats(
+            List<QuarterlyMeasurement> measurements, EnergyStatistics stats)
         {
-            if (!performance.Any())
+            if (!measurements.Any())
                 return;
 
-            // Calculate totals over ALL records for energy balance (self-consumption etc.).
-            // Reliable-only totals are calculated separately for round-trip efficiency,
-            // which would otherwise be distorted by overheating/shutdown periods.
-            stats.TotalBatteryChargedKWh = SumBatteryEnergy(performance, charging: true);
-            stats.TotalBatteryDischargedKWh = SumBatteryEnergy(performance, charging: false);
+            // All records for energy balance.
+            stats.TotalBatteryChargedKWh = measurements.Sum(m => m.BatteryChargedKWh);
+            stats.TotalBatteryDischargedKWh = measurements.Sum(m => m.BatteryDischargedKWh);
 
-            // Reliable-only totals for round-trip efficiency calculation.
-            var reliable = performance.Where(p => p.IsReliable).ToList();
-            stats.ReliableBatteryChargedKWh = SumBatteryEnergy(reliable, charging: true);
-            stats.ReliableBatteryDischargedKWh = SumBatteryEnergy(reliable, charging: false);
+            // Reliable records only for round-trip efficiency.
+            var reliable = measurements.Where(m => m.IsReliable).ToList();
+            stats.ReliableBatteryChargedKWh = reliable.Sum(m => m.BatteryChargedKWh);
+            stats.ReliableBatteryDischargedKWh = reliable.Sum(m => m.BatteryDischargedKWh);
 
-            // Battery cycles = total charged energy / full battery capacity.
             stats.BatteryCycles = BatteryCapacityKWh > 0
                 ? stats.TotalBatteryChargedKWh / BatteryCapacityKWh
                 : 0.0;
 
-            stats.AverageSocPct = performance.Average(p => p.ChargeLeftPercentage);
+            var withSoc = measurements.Where(m => m.BatteryStateOfChargeWh > 0).ToList();
+            stats.AverageSocPct = withSoc.Any()
+                ? withSoc.Average(m => m.BatteryStateOfChargeWh) / (BatteryCapacityKWh * 1000.0) * 100.0
+                : 0.0;
         }
 
-        /// <summary>
-        /// Sums battery energy (charged or discharged) over the given records.
-        /// Primary: BatteryPowerWatts (measured). Fallback: ChargeLeft delta (estimated).
-        /// </summary>
-        private static double SumBatteryEnergy(List<Performance> records, bool charging)
+        private static void CalculateFinancialStats(
+            List<QuarterlyMeasurement> measurements, EnergyStatistics stats)
         {
-            double total = 0.0;
-
-            // Primary: BatteryPowerWatts measured by the Sessy API.
-            foreach (var p in records.Where(p => p.BatteryPowerWatts != 0.0))
-            {
-                if (charging && p.BatteryPowerWatts < 0)
-                    total += Math.Abs(p.BatteryPowerWatts) * 0.25 / 1000.0;
-                else if (!charging && p.BatteryPowerWatts > 0)
-                    total += p.BatteryPowerWatts * 0.25 / 1000.0;
-            }
-
-            // Fallback: ChargeLeft delta for legacy records without BatteryPowerWatts.
-            // Only apply delta between consecutive records that are exactly one quarter apart
-            // (≤ 16 minutes) to avoid inflated values when records are hours or days apart.
-            var legacy = records
-                .Where(p => p.BatteryPowerWatts == 0.0 && (p.Charging || p.Discharging))
-                .OrderBy(p => p.Time)
-                .ToList();
-
-            for (int i = 1; i < legacy.Count; i++)
-            {
-                var gapMinutes = (legacy[i].Time - legacy[i - 1].Time).TotalMinutes;
-                if (gapMinutes > 16)
-                    continue; // Skip: records too far apart, delta would be unreliable.
-
-                double deltaWh = legacy[i].ChargeLeft - legacy[i - 1].ChargeLeft;
-
-                if (charging && legacy[i].Charging && deltaWh > 0)
-                    total += deltaWh / 1000.0;
-                else if (!charging && legacy[i].Discharging && deltaWh < 0)
-                    total += Math.Abs(deltaWh) / 1000.0;
-            }
-
-            return total;
-        }
-
-        /// <summary>
-        /// Calculates financial statistics.
-        /// Actual cost = what was actually paid for grid import + charging minus export revenue.
-        /// Baseline = what would have been paid without solar/battery (same consumption at avg price).
-        /// </summary>
-        private void CalculateFinancialStats(List<Performance> performance, EnergyStatistics stats)
-        {
-            if (!performance.Any())
+            if (!measurements.Any())
                 return;
 
-            // Charging cost: energy bought from grid to charge batteries (W → kWh per quarter).
-            double chargingCostEur = performance
-                .Where(p => p.Charging)
-                .Sum(p => p.BuyingPrice * p.EstimatedConsumptionPerQuarterHour * 0.25 / 1000.0);
+            // Charging cost: energy bought from grid to charge batteries.
+            double chargingCostEur = measurements
+                .Where(m => m.BatteryMode == BatteryMode.Charging)
+                .Sum(m => m.BuyingPriceEur * m.BatteryChargedKWh);
 
-            // ZeroNetHome/Disabled cost: energy bought for household consumption (W → kWh per quarter).
-            double importCostEur = performance
-                .Where(p => p.ZeroNetHome || p.Disabled)
-                .Sum(p => p.BuyingPrice * p.EstimatedConsumptionPerQuarterHour * 0.25 / 1000.0);
+            // Import cost: energy bought for household consumption.
+            double importCostEur = measurements
+                .Where(m => m.BatteryMode == BatteryMode.ZeroNetHome || m.BatteryMode == BatteryMode.Disabled)
+                .Sum(m => m.BuyingPriceEur * m.GridImportKWh);
 
-            // Export revenue: energy sold while discharging (W → kWh per quarter).
-            stats.GridExportRevenueEur = performance
-                .Where(p => p.Discharging)
-                .Sum(p => p.SellingPrice * p.EstimatedConsumptionPerQuarterHour * 0.25 / 1000.0);
+            // Export revenue: energy sold to grid.
+            stats.GridExportRevenueEur = measurements
+                .Where(m => m.BatteryMode == BatteryMode.Discharging)
+                .Sum(m => m.SellingPriceEur * m.BatteryDischargedKWh);
 
             stats.ActualEnergyCostEur = importCostEur + chargingCostEur - stats.GridExportRevenueEur;
-
-            // Arbitrage profit = discharging revenue - charging cost.
             stats.ArbitrageProfitEur = stats.GridExportRevenueEur - chargingCostEur;
 
-            // Baseline cost: same total consumption at average grid buying price (no solar/battery).
-            // Weighted average buy price per kWh — weighted by consumption per quarter.
-            double totalConsumptionW = performance
-                .Sum(p => p.EstimatedConsumptionPerQuarterHour);
+            // Weighted average prices.
+            double totalImportKWh = measurements.Sum(m => m.GridImportKWh);
 
-            stats.WeightedAvgBuyPriceEurPerKWh = totalConsumptionW > 0
-                ? performance.Sum(p => p.BuyingPrice * p.EstimatedConsumptionPerQuarterHour) / totalConsumptionW
-                : performance.Average(p => p.BuyingPrice);
+            stats.WeightedAvgBuyPriceEurPerKWh = totalImportKWh > 0
+                ? measurements.Sum(m => m.BuyingPriceEur * m.GridImportKWh) / totalImportKWh
+                : measurements.Average(m => m.BuyingPriceEur);
 
-            // Weighted average sell price — weighted by consumption during discharging quarters.
-            double totalDischargingW = performance
-                .Where(p => p.Discharging)
-                .Sum(p => p.EstimatedConsumptionPerQuarterHour);
+            double totalDischargedKWh = measurements.Sum(m => m.BatteryDischargedKWh);
 
-            stats.WeightedAvgSellPriceEurPerKWh = totalDischargingW > 0
-                ? performance
-                    .Where(p => p.Discharging)
-                    .Sum(p => p.SellingPrice * p.EstimatedConsumptionPerQuarterHour) / totalDischargingW
-                : performance.Average(p => p.SellingPrice);
+            stats.WeightedAvgSellPriceEurPerKWh = totalDischargedKWh > 0
+                ? measurements
+                    .Where(m => m.BatteryMode == BatteryMode.Discharging)
+                    .Sum(m => m.SellingPriceEur * m.BatteryDischargedKWh) / totalDischargedKWh
+                : measurements.Average(m => m.SellingPriceEur);
 
-            // Baseline cost = same total consumption at weighted avg buy price without solar/battery.
-            stats.BaselineEnergyCostEur = stats.TotalConsumptionKWh * stats.WeightedAvgBuyPriceEurPerKWh;
+            stats.BaselineEnergyCostEur =
+                stats.TotalConsumptionKWh * stats.WeightedAvgBuyPriceEurPerKWh;
         }
 
-        // ── Data access helpers ──────────────────────────────────────────────
+        // ── Data access ──────────────────────────────────────────────────────
 
-        private async Task<List<EnergyHistory>> GetEnergyHistoryAsync(DateTime start, DateTime end)
+        private async Task<List<QuarterlyMeasurement>> GetMeasurementsAsync(
+            DateTime start, DateTime end)
         {
-            return await _energyHistoryDataService.GetList(async set =>
+            return await _measurementDataService.GetList(async set =>
             {
                 var result = set
-                    .Where(h => h.Time >= start && h.Time <= end)
-                    .OrderBy(h => h.Time)
-                    .ToList();
-
-                return await Task.FromResult(result);
-            });
-        }
-
-        private async Task<List<Performance>> GetPerformanceAsync(DateTime start, DateTime end)
-        {
-            return await _performanceDataService.GetList(async set =>
-            {
-                var result = set
-                    .Where(p => p.Time >= start && p.Time <= end)
-                    .OrderBy(p => p.Time)
+                    .Where(m => m.Time >= start && m.Time <= end)
+                    .OrderBy(m => m.Time)
                     .ToList();
 
                 return await Task.FromResult(result);

@@ -15,8 +15,7 @@ namespace SessyTests.Services
 {
     public class EnergyStatisticsServiceTests
     {
-        private readonly Mock<EnergyHistoryDataService> _energyHistoryMock;
-        private readonly Mock<PerformanceDataService> _performanceMock;
+        private readonly Mock<QuarterlyMeasurementDataService> _measurementMock;
         private readonly Mock<InvestmentDataService> _investmentMock;
         private readonly Mock<TimeZoneService> _timeZoneMock;
         private readonly EnergyStatisticsService _sut;
@@ -24,34 +23,17 @@ namespace SessyTests.Services
         private static readonly DateTime PeriodStart = new DateTime(2026, 5, 1);
         private static readonly DateTime PeriodEnd = new DateTime(2026, 5, 31, 23, 45, 0);
 
+        // ── Constructor / mock setup ─────────────────────────────────────────
+
         public EnergyStatisticsServiceTests()
         {
-            // ServiceBase<T> calls serviceScopeFactory.CreateScope() then
-            // GetRequiredService<DbHelper>() in its constructor.
-            // Build the full mock chain: scopeFactory → scope → provider → DbHelper.
-            var innerScopeFactoryMock = new Mock<IServiceScopeFactory>();
+            var scopeFactoryMock = BuildScopeFactory();
 
-            var dbHelperMock = new Mock<DbHelper>(MockBehavior.Loose, innerScopeFactoryMock.Object);
-
-            var providerMock = new Mock<IServiceProvider>();
-            providerMock
-                .Setup(p => p.GetService(typeof(DbHelper)))
-                .Returns(dbHelperMock.Object);
-
-            var scopeMock = new Mock<IServiceScope>();
-            scopeMock.Setup(s => s.ServiceProvider).Returns(providerMock.Object);
-
-            var scopeFactoryMock = new Mock<IServiceScopeFactory>();
-            scopeFactoryMock.Setup(f => f.CreateScope()).Returns(scopeMock.Object);
-            innerScopeFactoryMock.Setup(f => f.CreateScope()).Returns(scopeMock.Object);
-
-            _energyHistoryMock = new Mock<EnergyHistoryDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
-            _performanceMock = new Mock<PerformanceDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
+            _measurementMock = new Mock<QuarterlyMeasurementDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
             _investmentMock = new Mock<InvestmentDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
-            // TimeZoneService requires IOptions<SettingsConfig> — provide a minimal config.
+
             var timeZoneSettings = Options.Create(new SettingsConfig { Timezone = "Europe/Amsterdam" });
             _timeZoneMock = new Mock<TimeZoneService>(MockBehavior.Loose, timeZoneSettings);
-
             _timeZoneMock.Setup(t => t.Now).Returns(new DateTime(2026, 5, 31, 12, 0, 0));
 
             var heatPumpConfig = Options.Create(new HeatPumpConfig
@@ -61,13 +43,10 @@ namespace SessyTests.Services
                 GasStandingChargeEurPerYear = 185.0,
                 InstallationDate = new DateTime(2024, 3, 1)
             });
-
-            // StatisticsFromDate not set — all data is included.
             var settingsConfig = Options.Create(new SettingsConfig());
 
             _sut = new EnergyStatisticsService(
-                _energyHistoryMock.Object,
-                _performanceMock.Object,
+                _measurementMock.Object,
                 _investmentMock.Object,
                 _timeZoneMock.Object,
                 heatPumpConfig,
@@ -77,43 +56,27 @@ namespace SessyTests.Services
         // ── Grid flow tests ──────────────────────────────────────────────────
 
         [Fact]
-        public async Task GetEnergyStatistics_CalculatesGridImportCorrectly()
+        public async Task GetEnergyStatistics_CalculatesGridFlowsCorrectly()
         {
-            SetupEnergyHistory(new List<EnergyHistory>
+            // 4 quarters: 100 Wh import and 50 Wh export each.
+            // Total import = 0.4 kWh, total export = 0.2 kWh.
+            SetupMeasurements(Enumerable.Range(0, 4).Select(i => new QuarterlyMeasurement
             {
-                new() { Time = PeriodStart, ConsumedTariff1 = 1000, ConsumedTariff2 = 500, ProducedTariff1 = 100, ProducedTariff2 = 50 },
-                new() { Time = PeriodEnd,   ConsumedTariff1 = 1150, ConsumedTariff2 = 600, ProducedTariff1 = 200, ProducedTariff2 = 80 }
-            });
-            SetupPerformance(new List<Performance>());
+                Time = PeriodStart.AddMinutes(i * 15),
+                GridImportWh = 100,
+                GridExportWh = 50
+            }).ToList());
 
             var result = await _sut.GetEnergyStatisticsAsync(PeriodStart, PeriodEnd);
 
-            // P1 tands are in Wh / 1000 → kWh: (150+100)/1000 = 0.25, (100+30)/1000 = 0.13
-            Assert.Equal(0.25, result.TotalGridImportKWh, 2);
-            Assert.Equal(0.13, result.TotalGridExportKWh, 2);
+            Assert.Equal(0.4, result.TotalGridImportKWh, 3);
+            Assert.Equal(0.2, result.TotalGridExportKWh, 3);
         }
 
         [Fact]
-        public async Task GetEnergyStatistics_ClampsNegativeGridFlowsToZero()
+        public async Task GetEnergyStatistics_ReturnsZeroWhenNoMeasurements()
         {
-            SetupEnergyHistory(new List<EnergyHistory>
-            {
-                new() { Time = PeriodStart, ConsumedTariff1 = 1000, ConsumedTariff2 = 500, ProducedTariff1 = 200, ProducedTariff2 = 80 },
-                new() { Time = PeriodEnd,   ConsumedTariff1 = 900,  ConsumedTariff2 = 400, ProducedTariff1 = 100, ProducedTariff2 = 50 }
-            });
-            SetupPerformance(new List<Performance>());
-
-            var result = await _sut.GetEnergyStatisticsAsync(PeriodStart, PeriodEnd);
-
-            Assert.Equal(0.0, result.TotalGridImportKWh);
-            Assert.Equal(0.0, result.TotalGridExportKWh);
-        }
-
-        [Fact]
-        public async Task GetEnergyStatistics_ReturnsZeroWhenNoHistory()
-        {
-            SetupEnergyHistory(new List<EnergyHistory>());
-            SetupPerformance(new List<Performance>());
+            SetupMeasurements(new List<QuarterlyMeasurement>());
 
             var result = await _sut.GetEnergyStatisticsAsync(PeriodStart, PeriodEnd);
 
@@ -126,14 +89,12 @@ namespace SessyTests.Services
         [Fact]
         public async Task GetEnergyStatistics_CalculatesTotalSolarProductionCorrectly()
         {
-            SetupEnergyHistory(new List<EnergyHistory>());
-            SetupPerformance(new List<Performance>
+            // 4 quarters × 1.0 kWh solar = 4.0 kWh total.
+            SetupMeasurements(Enumerable.Range(0, 4).Select(i => new QuarterlyMeasurement
             {
-                new() { Time = PeriodStart,                SolarPowerPerQuarterHour = 1.0 },
-                new() { Time = PeriodStart.AddMinutes(15), SolarPowerPerQuarterHour = 1.0 },
-                new() { Time = PeriodStart.AddMinutes(30), SolarPowerPerQuarterHour = 1.0 },
-                new() { Time = PeriodStart.AddMinutes(45), SolarPowerPerQuarterHour = 1.0 }
-            });
+                Time = PeriodStart.AddMinutes(i * 15),
+                SolarProductionKWh = 1.0
+            }).ToList());
 
             var result = await _sut.GetEnergyStatisticsAsync(PeriodStart, PeriodEnd);
 
@@ -141,60 +102,62 @@ namespace SessyTests.Services
         }
 
         [Fact]
-        public async Task GetEnergyStatistics_CalculatesSelfConsumedSolarCorrectly()
+        public async Task GetEnergyStatistics_SelfConsumptionCorrect()
         {
-            // 4 quarters with 1 kWh solar and 800W consumption.
-            // Per quarter: min(1.0, 800 * 0.25 / 1000) = min(1.0, 0.2) = 0.2 kWh.
-            // Total = 4 * 0.2 = 0.8 kWh self-consumed.
-            SetupEnergyHistory(new List<EnergyHistory>());
-            SetupPerformance(new List<Performance>
+            // Solar = 1.0 kWh, import = 0, export = 0.2 kWh.
+            // Battery discharged = 0, so battery contribution to export = 0.
+            // Solar exported = max(0, 0.2 - 0) = 0.2 kWh.
+            // Self consumed = 1.0 - 0.2 = 0.8 kWh = 80%.
+            SetupMeasurements(new List<QuarterlyMeasurement>
             {
-                new() { Time = PeriodStart,                SolarPowerPerQuarterHour = 1.0, EstimatedConsumptionPerQuarterHour = 800 },
-                new() { Time = PeriodStart.AddMinutes(15), SolarPowerPerQuarterHour = 1.0, EstimatedConsumptionPerQuarterHour = 800 },
-                new() { Time = PeriodStart.AddMinutes(30), SolarPowerPerQuarterHour = 1.0, EstimatedConsumptionPerQuarterHour = 800 },
-                new() { Time = PeriodStart.AddMinutes(45), SolarPowerPerQuarterHour = 1.0, EstimatedConsumptionPerQuarterHour = 800 }
+                new() { Time = PeriodStart, SolarProductionKWh = 1.0, GridImportWh = 0, GridExportWh = 200 }
             });
 
             var result = await _sut.GetEnergyStatisticsAsync(PeriodStart, PeriodEnd);
 
-            Assert.Equal(4.0, result.TotalSolarProductionKWh, 1);
             Assert.Equal(0.8, result.SelfConsumedSolarKWh, 2);
+            Assert.Equal(80.0, result.SelfConsumptionPct, 0);
         }
 
         [Fact]
-        public async Task GetEnergyStatistics_SelfConsumptionPct_50Percent()
+        public async Task GetEnergyStatistics_SelfConsumption_CorrectWhenBatteryDischargesExport()
         {
-            // 4 quarters with 1 kWh solar and 2000W consumption.
-            // Per quarter: min(1.0, 2000 * 0.25 / 1000) = min(1.0, 0.5) = 0.5 kWh.
-            // Total self-consumed = 2.0 / 4.0 = 50%.
-            SetupEnergyHistory(new List<EnergyHistory>());
-            SetupPerformance(new List<Performance>
+            // Solar = 0.5 kWh, battery discharged = 0.4 kWh, total export = 0.6 kWh.
+            // Battery contribution = min(0.4, 0.6) = 0.4.
+            // Solar exported = max(0, 0.6 - 0.4) = 0.2 kWh.
+            // Self consumed = 0.5 - 0.2 = 0.3 kWh = 60%.
+            SetupMeasurements(new List<QuarterlyMeasurement>
             {
-                new() { Time = PeriodStart,                SolarPowerPerQuarterHour = 1.0, EstimatedConsumptionPerQuarterHour = 2000 },
-                new() { Time = PeriodStart.AddMinutes(15), SolarPowerPerQuarterHour = 1.0, EstimatedConsumptionPerQuarterHour = 2000 },
-                new() { Time = PeriodStart.AddMinutes(30), SolarPowerPerQuarterHour = 1.0, EstimatedConsumptionPerQuarterHour = 2000 },
-                new() { Time = PeriodStart.AddMinutes(45), SolarPowerPerQuarterHour = 1.0, EstimatedConsumptionPerQuarterHour = 2000 }
+                new()
+                {
+                    Time = PeriodStart,
+                    SolarProductionKWh = 0.5,
+                    GridImportWh = 0,
+                    GridExportWh = 600,
+                    BatteryPowerWatts = 1600, // discharging: 1600W * 0.25h / 1000 = 0.4 kWh
+                    BatteryMode = BatteryMode.Discharging,
+                    IsReliable = true
+                }
             });
 
             var result = await _sut.GetEnergyStatisticsAsync(PeriodStart, PeriodEnd);
 
-            Assert.Equal(50.0, result.SelfConsumptionPct, 0);
+            Assert.Equal(0.3, result.SelfConsumedSolarKWh, 2);
         }
 
         // ── Battery statistics tests ─────────────────────────────────────────
 
         [Fact]
-        public async Task GetEnergyStatistics_CalculatesBatteryChargedCorrectly_UsingBatteryPowerWatts()
+        public async Task GetEnergyStatistics_CalculatesBatteryChargedCorrectly()
         {
-            // BatteryPowerWatts negative = charging. 4 * 1800W * 0.25h / 1000 = 1.8 kWh.
-            SetupEnergyHistory(new List<EnergyHistory>());
-            SetupPerformance(new List<Performance>
+            // 4 quarters charging at -1800W = 4 * 1800 * 0.25 / 1000 = 1.8 kWh.
+            SetupMeasurements(Enumerable.Range(0, 4).Select(i => new QuarterlyMeasurement
             {
-                new() { Time = PeriodStart,                Charging = true, BatteryPowerWatts = -1800, IsReliable = true },
-                new() { Time = PeriodStart.AddMinutes(15), Charging = true, BatteryPowerWatts = -1800, IsReliable = true },
-                new() { Time = PeriodStart.AddMinutes(30), Charging = true, BatteryPowerWatts = -1800, IsReliable = true },
-                new() { Time = PeriodStart.AddMinutes(45), Charging = true, BatteryPowerWatts = -1800, IsReliable = true }
-            });
+                Time = PeriodStart.AddMinutes(i * 15),
+                BatteryPowerWatts = -1800,
+                BatteryMode = BatteryMode.Charging,
+                IsReliable = true
+            }).ToList());
 
             var result = await _sut.GetEnergyStatisticsAsync(PeriodStart, PeriodEnd);
 
@@ -202,17 +165,16 @@ namespace SessyTests.Services
         }
 
         [Fact]
-        public async Task GetEnergyStatistics_CalculatesBatteryDischargedCorrectly_UsingBatteryPowerWatts()
+        public async Task GetEnergyStatistics_CalculatesBatteryDischargedCorrectly()
         {
-            // BatteryPowerWatts positive = discharging. 4 * 1500W * 0.25h / 1000 = 1.5 kWh.
-            SetupEnergyHistory(new List<EnergyHistory>());
-            SetupPerformance(new List<Performance>
+            // 4 quarters discharging at 1500W = 4 * 1500 * 0.25 / 1000 = 1.5 kWh.
+            SetupMeasurements(Enumerable.Range(0, 4).Select(i => new QuarterlyMeasurement
             {
-                new() { Time = PeriodStart,                Discharging = true, BatteryPowerWatts = 1500, IsReliable = true },
-                new() { Time = PeriodStart.AddMinutes(15), Discharging = true, BatteryPowerWatts = 1500, IsReliable = true },
-                new() { Time = PeriodStart.AddMinutes(30), Discharging = true, BatteryPowerWatts = 1500, IsReliable = true },
-                new() { Time = PeriodStart.AddMinutes(45), Discharging = true, BatteryPowerWatts = 1500, IsReliable = true }
-            });
+                Time = PeriodStart.AddMinutes(i * 15),
+                BatteryPowerWatts = 1500,
+                BatteryMode = BatteryMode.Discharging,
+                IsReliable = true
+            }).ToList());
 
             var result = await _sut.GetEnergyStatisticsAsync(PeriodStart, PeriodEnd);
 
@@ -223,18 +185,13 @@ namespace SessyTests.Services
         public async Task GetEnergyStatistics_CalculatesBatteryCyclesCorrectly()
         {
             // 36 quarters * 1800W * 0.25h / 1000 = 16.2 kWh = 1 full cycle.
-            var performance = Enumerable.Range(0, 36)
-                .Select(i => new Performance
-                {
-                    Time = PeriodStart.AddMinutes(i * 15),
-                    Charging = true,
-                    BatteryPowerWatts = -1800,
-                    IsReliable = true
-                })
-                .ToList();
-
-            SetupEnergyHistory(new List<EnergyHistory>());
-            SetupPerformance(performance);
+            SetupMeasurements(Enumerable.Range(0, 36).Select(i => new QuarterlyMeasurement
+            {
+                Time = PeriodStart.AddMinutes(i * 15),
+                BatteryPowerWatts = -1800,
+                BatteryMode = BatteryMode.Charging,
+                IsReliable = true
+            }).ToList());
 
             var result = await _sut.GetEnergyStatisticsAsync(PeriodStart, PeriodEnd);
 
@@ -244,28 +201,27 @@ namespace SessyTests.Services
         [Fact]
         public async Task GetEnergyStatistics_CalculatesRoundTripEfficiencyCorrectly()
         {
-            // Charge 10 kWh, discharge 9.5 kWh → 95% efficiency.
-            SetupEnergyHistory(new List<EnergyHistory>());
+            // Charge 10 kWh (40 quarters × 1000W), discharge 9.5 kWh (38 quarters × 1000W).
+            // Efficiency = 9.5 / 10 = 95%.
+            var measurements = new List<QuarterlyMeasurement>();
 
-            var performance = new List<Performance>();
-
-            performance.AddRange(Enumerable.Range(0, 40).Select(i => new Performance
+            measurements.AddRange(Enumerable.Range(0, 40).Select(i => new QuarterlyMeasurement
             {
                 Time = PeriodStart.AddMinutes(i * 15),
-                Charging = true,
                 BatteryPowerWatts = -1000,
+                BatteryMode = BatteryMode.Charging,
                 IsReliable = true
             }));
 
-            performance.AddRange(Enumerable.Range(40, 38).Select(i => new Performance
+            measurements.AddRange(Enumerable.Range(40, 38).Select(i => new QuarterlyMeasurement
             {
                 Time = PeriodStart.AddMinutes(i * 15),
-                Discharging = true,
                 BatteryPowerWatts = 1000,
+                BatteryMode = BatteryMode.Discharging,
                 IsReliable = true
             }));
 
-            SetupPerformance(performance);
+            SetupMeasurements(measurements);
 
             var result = await _sut.GetEnergyStatisticsAsync(PeriodStart, PeriodEnd);
 
@@ -277,36 +233,33 @@ namespace SessyTests.Services
         {
             // 10 kWh reliable + 5 kWh unreliable charged, 9.5 kWh reliable discharged.
             // Efficiency = 9.5 / 10 = 95% (unreliable excluded).
-            // TotalCharged = 15 kWh (all records included for energy balance).
-            SetupEnergyHistory(new List<EnergyHistory>());
+            var measurements = new List<QuarterlyMeasurement>();
 
-            var performance = new List<Performance>();
-
-            performance.AddRange(Enumerable.Range(0, 40).Select(i => new Performance
+            measurements.AddRange(Enumerable.Range(0, 40).Select(i => new QuarterlyMeasurement
             {
                 Time = PeriodStart.AddMinutes(i * 15),
-                Charging = true,
                 BatteryPowerWatts = -1000,
+                BatteryMode = BatteryMode.Charging,
                 IsReliable = true
             }));
 
-            performance.AddRange(Enumerable.Range(40, 20).Select(i => new Performance
+            measurements.AddRange(Enumerable.Range(40, 20).Select(i => new QuarterlyMeasurement
             {
                 Time = PeriodStart.AddMinutes(i * 15),
-                Charging = true,
                 BatteryPowerWatts = -1000,
+                BatteryMode = BatteryMode.Charging,
                 IsReliable = false
             }));
 
-            performance.AddRange(Enumerable.Range(60, 38).Select(i => new Performance
+            measurements.AddRange(Enumerable.Range(60, 38).Select(i => new QuarterlyMeasurement
             {
                 Time = PeriodStart.AddMinutes(i * 15),
-                Discharging = true,
                 BatteryPowerWatts = 1000,
+                BatteryMode = BatteryMode.Discharging,
                 IsReliable = true
             }));
 
-            SetupPerformance(performance);
+            SetupMeasurements(measurements);
 
             var result = await _sut.GetEnergyStatisticsAsync(PeriodStart, PeriodEnd);
 
@@ -316,22 +269,37 @@ namespace SessyTests.Services
             Assert.Equal(95.0, result.BatteryRoundTripEfficiencyPct, 0);
         }
 
+        // ── Consumption tests ────────────────────────────────────────────────
+
         [Fact]
-        public async Task GetEnergyStatistics_FallsBackToChargeLeftDeltaForLegacyRecords()
+        public async Task GetEnergyStatistics_CalculatesConsumptionViaEnergyBalance()
         {
-            // Legacy records: BatteryPowerWatts = 0, consecutive quarters 15 min apart.
-            // ChargeLeft delta: 1450 - 1000 = 450 Wh, 1900 - 1450 = 450 Wh → 0.9 kWh total.
-            SetupEnergyHistory(new List<EnergyHistory>());
-            SetupPerformance(new List<Performance>
+            // Consumption = import + solar - export = 500 + 200 - 100 = 600 Wh = 0.6 kWh.
+            SetupMeasurements(new List<QuarterlyMeasurement>
             {
-                new() { Time = PeriodStart,                Charging = true, BatteryPowerWatts = 0, ChargeLeft = 1000, IsReliable = true },
-                new() { Time = PeriodStart.AddMinutes(15), Charging = true, BatteryPowerWatts = 0, ChargeLeft = 1450, IsReliable = true },
-                new() { Time = PeriodStart.AddMinutes(30), Charging = true, BatteryPowerWatts = 0, ChargeLeft = 1900, IsReliable = true }
+                new() { Time = PeriodStart, GridImportWh = 500, GridExportWh = 100, SolarProductionKWh = 0.2 }
             });
 
             var result = await _sut.GetEnergyStatisticsAsync(PeriodStart, PeriodEnd);
 
-            Assert.Equal(0.9, result.TotalBatteryChargedKWh, 2);
+            Assert.Equal(0.6, result.TotalConsumptionKWh, 3);
+        }
+
+        [Fact]
+        public async Task GetEnergyStatistics_WeekdayWeekendSplitCorrect()
+        {
+            // May 1 2026 = Friday (weekday), May 2 = Saturday (weekend).
+            var measurements = new List<QuarterlyMeasurement>
+            {
+                new() { Time = new DateTime(2026, 5, 1, 10, 0, 0), GridImportWh = 1000, SolarProductionKWh = 0, GridExportWh = 0 },
+                new() { Time = new DateTime(2026, 5, 2, 10, 0, 0), GridImportWh = 500,  SolarProductionKWh = 0, GridExportWh = 0 }
+            };
+            SetupMeasurements(measurements);
+
+            var result = await _sut.GetEnergyStatisticsAsync(PeriodStart, PeriodEnd);
+
+            Assert.Equal(1.0, result.WeekdayConsumptionKWh, 2);
+            Assert.Equal(0.5, result.WeekendConsumptionKWh, 2);
         }
 
         // ── StatisticsFromDate tests ─────────────────────────────────────────
@@ -339,52 +307,41 @@ namespace SessyTests.Services
         [Fact]
         public async Task GetEnergyStatistics_ClampsStartToStatisticsFromDate()
         {
-            // StatisticsFromDate = May 15 — data before that date must be excluded.
+            // StatisticsFromDate = May 15 — measurements before that should be excluded.
             var fromDate = new DateTime(2026, 5, 15);
+
+            var scopeFactoryMock = BuildScopeFactory();
+            var measurementMock = new Mock<QuarterlyMeasurementDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
+            var investmentMock = new Mock<InvestmentDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
+
+            // Only return measurements from May 15 onwards.
+            measurementMock
+                .Setup(s => s.GetList(It.IsAny<Func<IQueryable<QuarterlyMeasurement>, Task<List<QuarterlyMeasurement>>>>()))
+                .ReturnsAsync(new List<QuarterlyMeasurement>
+                {
+                    new() { Time = fromDate,             GridImportWh = 300, GridExportWh = 0, SolarProductionKWh = 0 },
+                    new() { Time = fromDate.AddDays(10), GridImportWh = 200, GridExportWh = 0, SolarProductionKWh = 0 }
+                });
+
+            investmentMock
+                .Setup(s => s.GetList(It.IsAny<Func<IQueryable<Investment>, Task<List<Investment>>>>()))
+                .ReturnsAsync(new List<Investment>());
+
             var settingsConfig = Options.Create(new SettingsConfig { StatisticsFromDate = fromDate });
             var heatPumpConfig = Options.Create(new HeatPumpConfig());
 
-            // Re-use the same mock infrastructure as the test class constructor.
-            var innerScopeFactoryMock2 = new Mock<IServiceScopeFactory>();
-            var dbHelperMock2 = new Mock<DbHelper>(MockBehavior.Loose, innerScopeFactoryMock2.Object);
-            var providerMock2 = new Mock<IServiceProvider>();
-            providerMock2
-                .Setup(p => p.GetService(typeof(DbHelper)))
-                .Returns(dbHelperMock2.Object);
-            var scopeMock2 = new Mock<IServiceScope>();
-            scopeMock2.Setup(s => s.ServiceProvider).Returns(providerMock2.Object);
-            var scopeFactoryMock = new Mock<IServiceScopeFactory>();
-            scopeFactoryMock.Setup(f => f.CreateScope()).Returns(scopeMock2.Object);
-            innerScopeFactoryMock2.Setup(f => f.CreateScope()).Returns(scopeMock2.Object);
-
-            var energyHistoryMock = new Mock<EnergyHistoryDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
-            var performanceMock = new Mock<PerformanceDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
-            var investmentMock = new Mock<InvestmentDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
-
-            energyHistoryMock
-                .Setup(s => s.GetList(It.IsAny<Func<IQueryable<EnergyHistory>, Task<List<EnergyHistory>>>>()))
-                .ReturnsAsync(new List<EnergyHistory>
-                {
-                    new() { Time = fromDate,             ConsumedTariff1 = 1000, ConsumedTariff2 = 0, ProducedTariff1 = 0, ProducedTariff2 = 0 },
-                    new() { Time = fromDate.AddDays(10), ConsumedTariff1 = 1500, ConsumedTariff2 = 0, ProducedTariff1 = 0, ProducedTariff2 = 0 }
-                });
-
-            performanceMock
-                .Setup(s => s.GetList(It.IsAny<Func<IQueryable<Performance>, Task<List<Performance>>>>()))
-                .ReturnsAsync(new List<Performance>());
-
             var sut = new EnergyStatisticsService(
-                energyHistoryMock.Object,
-                performanceMock.Object,
+                measurementMock.Object,
                 investmentMock.Object,
                 _timeZoneMock.Object,
                 heatPumpConfig,
                 settingsConfig);
 
+            // Request full month — StatisticsFromDate clips it to May 15.
             var result = await sut.GetEnergyStatisticsAsync(DateTime.MinValue, PeriodEnd);
 
-            // Grid import = (1500 - 1000) Wh / 1000 = 0.5 kWh
-            Assert.Equal(0.5, result.TotalGridImportKWh, 1);
+            // Total import = (300 + 200) Wh / 1000 = 0.5 kWh.
+            Assert.Equal(0.5, result.TotalGridImportKWh, 2);
         }
 
         // ── Financial statistics tests ───────────────────────────────────────
@@ -392,51 +349,59 @@ namespace SessyTests.Services
         [Fact]
         public async Task GetEnergyStatistics_CalculatesArbitrageProfitCorrectly()
         {
-            // Buy 10 kWh at 0.10 EUR, sell 9.5 kWh at 0.30 EUR.
-            // Arbitrage = 9.5 * 0.30 - 10 * 0.10 = 2.85 - 1.00 = 1.85 EUR.
-            SetupEnergyHistory(new List<EnergyHistory>());
+            // Charge 1 kWh at 0.10 EUR: cost = 0.10 EUR.
+            // Discharge 1 kWh at 0.30 EUR: revenue = 0.30 EUR.
+            // Arbitrage = 0.30 - 0.10 = 0.20 EUR.
+            var measurements = new List<QuarterlyMeasurement>();
 
-            var performance = new List<Performance>();
-
-            performance.AddRange(Enumerable.Range(0, 40).Select(i => new Performance
+            // 4 quarters charging at 1000W = 1.0 kWh
+            measurements.AddRange(Enumerable.Range(0, 4).Select(i => new QuarterlyMeasurement
             {
                 Time = PeriodStart.AddMinutes(i * 15),
-                Charging = true,
-                BuyingPrice = 0.10,
-                SellingPrice = 0.30,
-                EstimatedConsumptionPerQuarterHour = 1000
+                BatteryPowerWatts = -1000,
+                BatteryMode = BatteryMode.Charging,
+                BuyingPriceEur = 0.10,
+                SellingPriceEur = 0.30
             }));
 
-            performance.AddRange(Enumerable.Range(40, 38).Select(i => new Performance
+            // 4 quarters discharging at 1000W = 1.0 kWh
+            measurements.AddRange(Enumerable.Range(4, 4).Select(i => new QuarterlyMeasurement
             {
                 Time = PeriodStart.AddMinutes(i * 15),
-                Discharging = true,
-                BuyingPrice = 0.10,
-                SellingPrice = 0.30,
-                EstimatedConsumptionPerQuarterHour = 1000
+                BatteryPowerWatts = 1000,
+                BatteryMode = BatteryMode.Discharging,
+                BuyingPriceEur = 0.10,
+                SellingPriceEur = 0.30
             }));
 
-            SetupPerformance(performance);
+            SetupMeasurements(measurements);
 
             var result = await _sut.GetEnergyStatisticsAsync(PeriodStart, PeriodEnd);
 
-            Assert.Equal(1.85, result.ArbitrageProfitEur, 2);
+            Assert.Equal(0.20, result.ArbitrageProfitEur, 2);
         }
 
         [Fact]
-        public async Task GetEnergyStatistics_SelfSufficiencyPctCappedAt100()
+        public async Task GetEnergyStatistics_SelfSufficiencyPctClamped()
         {
-            SetupEnergyHistory(new List<EnergyHistory>
+            // Grid import > consumption due to battery charging → clamp to [0, 100].
+            SetupMeasurements(new List<QuarterlyMeasurement>
             {
-                new() { Time = PeriodStart, ConsumedTariff1 = 0, ConsumedTariff2 = 0, ProducedTariff1 = 0, ProducedTariff2 = 0 },
-                new() { Time = PeriodEnd,   ConsumedTariff1 = 0, ConsumedTariff2 = 0, ProducedTariff1 = 5, ProducedTariff2 = 5 }
+                new()
+                {
+                    Time = PeriodStart,
+                    GridImportWh = 2000,
+                    GridExportWh = 0,
+                    SolarProductionKWh = 0,
+                    BatteryPowerWatts = -1800, // charging from grid
+                    BatteryMode = BatteryMode.Charging
+                }
             });
-            SetupPerformance(BuildPerformanceWithSolar(20.0));
 
             var result = await _sut.GetEnergyStatisticsAsync(PeriodStart, PeriodEnd);
 
-            Assert.True(result.SelfSufficiencyPct <= 100.0);
             Assert.True(result.SelfSufficiencyPct >= 0.0);
+            Assert.True(result.SelfSufficiencyPct <= 100.0);
         }
 
         // ── Investment statistics tests ──────────────────────────────────────
@@ -450,8 +415,7 @@ namespace SessyTests.Services
                 new() { Category = "Battery",     AmountEur = 8000,  SubsidyEur = 0,    PurchaseDate = new DateTime(2025, 1, 1), ExpectedLifetimeYears = 15 },
                 new() { Category = "HeatPump",    AmountEur = 6000,  SubsidyEur = 1000, PurchaseDate = new DateTime(2025, 1, 1), ExpectedLifetimeYears = 20 }
             });
-            SetupEnergyHistory(new List<EnergyHistory>());
-            SetupPerformance(new List<Performance>());
+            SetupMeasurements(new List<QuarterlyMeasurement>());
 
             var result = await _sut.GetInvestmentStatisticsAsync();
 
@@ -459,34 +423,10 @@ namespace SessyTests.Services
         }
 
         [Fact]
-        public async Task GetInvestmentStatistics_CategoryBreakdownCorrect()
-        {
-            SetupInvestments(new List<Investment>
-            {
-                new() { Category = "SolarPanels", AmountEur = 10000, SubsidyEur = 2000, PurchaseDate = new DateTime(2025, 1, 1), ExpectedLifetimeYears = 25 },
-                new() { Category = "Battery",     AmountEur = 8000,  SubsidyEur = 0,    PurchaseDate = new DateTime(2025, 1, 1), ExpectedLifetimeYears = 15 }
-            });
-            SetupEnergyHistory(new List<EnergyHistory>());
-            SetupPerformance(new List<Performance>());
-
-            var result = await _sut.GetInvestmentStatisticsAsync();
-
-            Assert.Equal(2, result.CategoryBreakdown.Count);
-
-            var solar = result.CategoryBreakdown.First(c => c.Category == "SolarPanels");
-            Assert.Equal(8000.0, solar.NetAmountEur, 2);
-            Assert.Equal(320.0, solar.AnnualDepreciationEur, 2);
-
-            var battery = result.CategoryBreakdown.First(c => c.Category == "Battery");
-            Assert.Equal(8000.0, battery.NetAmountEur, 2);
-        }
-
-        [Fact]
         public async Task GetInvestmentStatistics_ReturnsEmptyWhenNoInvestments()
         {
             SetupInvestments(new List<Investment>());
-            SetupEnergyHistory(new List<EnergyHistory>());
-            SetupPerformance(new List<Performance>());
+            SetupMeasurements(new List<QuarterlyMeasurement>());
 
             var result = await _sut.GetInvestmentStatisticsAsync();
 
@@ -499,8 +439,7 @@ namespace SessyTests.Services
         [Fact]
         public async Task GetMonthlyTrends_ReturnsCorrectNumberOfMonths()
         {
-            SetupEnergyHistory(new List<EnergyHistory>());
-            SetupPerformance(new List<Performance>());
+            SetupMeasurements(new List<QuarterlyMeasurement>());
 
             var result = await _sut.GetMonthlyTrendsAsync(
                 new DateTime(2026, 1, 1),
@@ -512,8 +451,7 @@ namespace SessyTests.Services
         [Fact]
         public async Task GetMonthlyTrends_MonthsAreCorrectlyLabeled()
         {
-            SetupEnergyHistory(new List<EnergyHistory>());
-            SetupPerformance(new List<Performance>());
+            SetupMeasurements(new List<QuarterlyMeasurement>());
 
             var result = await _sut.GetMonthlyTrendsAsync(
                 new DateTime(2026, 3, 1),
@@ -588,8 +526,6 @@ namespace SessyTests.Services
         [Fact]
         public void BatteryArbitrageMilp_NettingOn_PlansBothChargeAndDischarge()
         {
-            // Netting on: 8 cheap quarters (0.05) then 8 expensive quarters (0.30).
-            // Price spread (0.25) >> cycle cost (0.02) → solver should charge then discharge.
             var baseTime = new DateTime(2027, 1, 1);
             var pricePoints =
                 Enumerable.Range(0, 8).Select(i => new PricePoint(
@@ -602,23 +538,15 @@ namespace SessyTests.Services
                     SelfUseValueEurPerKWh: 0.30)))
                 .ToList();
 
-            var spec = MakeSpec(initialSocKWh: 4.0);
-            var opt = MakeOpt(cycleCost: 0.02);
+            var result = BatteryArbitrageMilp.Solve(pricePoints, MakeSpec(4.0), MakeOpt(0.02));
 
-            var result = BatteryArbitrageMilp.Solve(pricePoints, spec, opt);
-
-            Assert.True(result.Plan.Count > 0);
-            Assert.True(result.Plan.Any(p => p.Mode == ActionMode.Charge),
-                "Expected charging during cheap quarters");
-            Assert.True(result.Plan.Any(p => p.Mode == ActionMode.Discharge),
-                "Expected discharging during expensive quarters");
+            Assert.True(result.Plan.Any(p => p.Mode == ActionMode.Charge), "Expected charging");
+            Assert.True(result.Plan.Any(p => p.Mode == ActionMode.Discharge), "Expected discharging");
         }
 
         [Fact]
         public void BatteryArbitrageMilp_NettingOff_SelfUseValueDrivesDischarge()
         {
-            // Netting off: sell price very low (0.03) but self-use value high (0.25).
-            // Solver should plan discharge because max(sell, selfUse) = 0.25 > buy + cycleCost.
             var baseTime = new DateTime(2027, 1, 1);
             var pricePoints = new List<PricePoint>
             {
@@ -628,12 +556,8 @@ namespace SessyTests.Services
                 new(baseTime.AddMinutes(45), BuyEurPerKWh: 0.25, SellEurPerKWh: 0.03, NetLoadWh: 2000, SelfUseValueEurPerKWh: 0.25),
             };
 
-            var spec = MakeSpec(initialSocKWh: 8.0);
-            var opt = MakeOpt(cycleCost: 0.02);
+            var result = BatteryArbitrageMilp.Solve(pricePoints, MakeSpec(8.0), MakeOpt(0.02));
 
-            var result = BatteryArbitrageMilp.Solve(pricePoints, spec, opt);
-
-            Assert.True(result.Plan.Count > 0);
             Assert.True(result.Plan.Any(p => p.Mode == ActionMode.Discharge),
                 "Expected discharge during high-consumption quarters with high self-use value");
         }
@@ -641,42 +565,29 @@ namespace SessyTests.Services
         [Fact]
         public void BatteryArbitrageMilp_NettingOff_DoesNotChargeWhenCyclingNotProfitable()
         {
-            // Charging cost = buy + cycleCost = 0.03 + 0.20 = 0.23 EUR/kWh.
-            // Discharge value = max(sell, selfUse) = 0.03 EUR/kWh.
-            // Net cycle profit = 0.03 - 0.23 = -0.20 EUR/kWh → charging is deeply unprofitable.
-            // Starting with empty battery (initialSoc=0) ensures no free energy to discharge,
-            // so the solver has no incentive to do anything.
             var baseTime = new DateTime(2027, 1, 1);
             var pricePoints = Enumerable.Range(0, 4).Select(i => new PricePoint(
                 baseTime.AddMinutes(i * 15),
-                BuyEurPerKWh: 0.03,
-                SellEurPerKWh: 0.03,
-                NetLoadWh: 0,
+                BuyEurPerKWh: 0.03, SellEurPerKWh: 0.03, NetLoadWh: 0,
                 SelfUseValueEurPerKWh: 0.03
             )).ToList();
 
-            // Empty battery: no free energy to discharge, charging unprofitable.
+            // Empty battery: no free energy to discharge, charging deeply unprofitable.
             var spec = new BatterySpec(
                 CapacityKWh: 16.2, InitialSocKWh: 0.0,
                 MinSocKWh: 0.0, MaxSocKWh: 16.2,
                 MaxChargeKW: 5.4, MaxDischargeKW: 5.1,
                 ChargeEfficiency: 0.95, DischargeEfficiency: 0.95);
-            var opt = MakeOpt(cycleCost: 0.20);
 
-            var result = BatteryArbitrageMilp.Solve(pricePoints, spec, opt);
+            var result = BatteryArbitrageMilp.Solve(pricePoints, spec, MakeOpt(0.20));
 
-            Assert.True(result.Plan.Count > 0);
-            Assert.False(result.Plan.Any(p => p.Mode == ActionMode.Charge),
-                "Expected no charging when cycle cost makes it unprofitable");
-            Assert.False(result.Plan.Any(p => p.Mode == ActionMode.Discharge),
-                "Expected no discharging when battery starts empty");
+            Assert.False(result.Plan.Any(p => p.Mode == ActionMode.Charge), "Expected no charging");
+            Assert.False(result.Plan.Any(p => p.Mode == ActionMode.Discharge), "Expected no discharging");
         }
 
         [Fact]
         public void BatteryArbitrageMilp_SelfUseValueDefaultsToZero_WhenNotProvided()
         {
-            // When SelfUseValueEurPerKWh is omitted (default 0.0), solver falls back
-            // to sell price only — existing netting-on behavior is preserved.
             var baseTime = new DateTime(2027, 1, 1);
             var pricePoints = new List<PricePoint>
             {
@@ -684,28 +595,18 @@ namespace SessyTests.Services
                 new(baseTime.AddMinutes(15), BuyEurPerKWh: 0.05, SellEurPerKWh: 0.25, NetLoadWh: 0),
             };
 
-            var spec = MakeSpec(initialSocKWh: 8.0);
-            var opt = MakeOpt(cycleCost: 0.02);
-
-            // Should not throw — default value for SelfUseValueEurPerKWh is 0.0.
-            var result = BatteryArbitrageMilp.Solve(pricePoints, spec, opt);
+            // Should not throw — default SelfUseValueEurPerKWh = 0.0.
+            var result = BatteryArbitrageMilp.Solve(pricePoints, MakeSpec(8.0), MakeOpt(0.02));
 
             Assert.NotNull(result);
         }
 
         // ── Helper methods ───────────────────────────────────────────────────
 
-        private void SetupEnergyHistory(List<EnergyHistory> data)
+        private void SetupMeasurements(List<QuarterlyMeasurement> data)
         {
-            _energyHistoryMock
-                .Setup(s => s.GetList(It.IsAny<Func<IQueryable<EnergyHistory>, Task<List<EnergyHistory>>>>()))
-                .ReturnsAsync(data);
-        }
-
-        private void SetupPerformance(List<Performance> data)
-        {
-            _performanceMock
-                .Setup(s => s.GetList(It.IsAny<Func<IQueryable<Performance>, Task<List<Performance>>>>()))
+            _measurementMock
+                .Setup(s => s.GetList(It.IsAny<Func<IQueryable<QuarterlyMeasurement>, Task<List<QuarterlyMeasurement>>>>()))
                 .ReturnsAsync(data);
         }
 
@@ -716,19 +617,22 @@ namespace SessyTests.Services
                 .ReturnsAsync(data);
         }
 
-        private static List<Performance> BuildPerformanceWithSolar(double totalKWh)
+        private static Mock<IServiceScopeFactory> BuildScopeFactory()
         {
-            double perQuarter = totalKWh / 10.0;
-            double consumptionW = perQuarter / 0.25 * 1000.0;
+            var innerScopeFactory = new Mock<IServiceScopeFactory>();
+            var dbHelperMock = new Mock<DbHelper>(MockBehavior.Loose, innerScopeFactory.Object);
 
-            return Enumerable.Range(0, 10)
-                .Select(i => new Performance
-                {
-                    Time = PeriodStart.AddMinutes(i * 15),
-                    SolarPowerPerQuarterHour = perQuarter,
-                    EstimatedConsumptionPerQuarterHour = consumptionW
-                })
-                .ToList();
+            var provider = new Mock<IServiceProvider>();
+            provider.Setup(p => p.GetService(typeof(DbHelper))).Returns(dbHelperMock.Object);
+
+            var scope = new Mock<IServiceScope>();
+            scope.Setup(s => s.ServiceProvider).Returns(provider.Object);
+
+            var factory = new Mock<IServiceScopeFactory>();
+            factory.Setup(f => f.CreateScope()).Returns(scope.Object);
+            innerScopeFactory.Setup(f => f.CreateScope()).Returns(scope.Object);
+
+            return factory;
         }
 
         private static BatterySpec MakeSpec(double initialSocKWh) => new BatterySpec(

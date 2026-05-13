@@ -24,7 +24,7 @@ namespace SessyController.Services
 
         private SolarDataService _solarDataService { get; set; }
 
-        private SolarInverterDataService _solarEdgeDataService { get; set; }
+        private InverterMeasurementDataService _inverterMeasurementService { get; set; }
 
         private SolarInverterManager _solarInverterManager { get; set; }
 
@@ -50,7 +50,7 @@ namespace SessyController.Services
                             WeatherService weatherService,
                             DayAheadMarketService dayAheadMarketService,
                             SolarDataService solarDataService,
-                            SolarInverterDataService solarEdgeDataService,
+                            InverterMeasurementDataService inverterMeasurementService,
                             SolarInverterManager solarInverterManager,
                             IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
                             IServiceScopeFactory serviceScopeFactory)
@@ -63,7 +63,7 @@ namespace SessyController.Services
             _batteryContainer = batteryContainer;
             _dayAheadMarketService = dayAheadMarketService;
             _solarDataService = solarDataService;
-            _solarEdgeDataService = solarEdgeDataService;
+            _inverterMeasurementService = inverterMeasurementService;
             _solarInverterManager = solarInverterManager;
             _settingsConfigMonitor = settingsConfigMonitor;
             _serviceScopeFactory = serviceScopeFactory;
@@ -112,32 +112,17 @@ namespace SessyController.Services
         {
             try
             {
-                var solarPower = 0.0;
-                var list = await _solarEdgeDataService.GetList(async (set) =>
+                var list = await _inverterMeasurementService.GetList(async (set) =>
                 {
                     var result = set
-                            .Where(sd => sd.Time >= start && sd.Time <= end)
-                            .OrderBy(sd => sd.Time)
-                            .ToList();
+                        .Where(m => m.Time >= start && m.Time <= end)
+                        .ToList();
 
                     return await Task.FromResult(result);
                 });
 
-                SolarInverterData? previousSolarData = null;
-
-                foreach (var solarData in list)
-                {
-                    if (previousSolarData != null)
-                    {
-                        double minutes = (solarData.Time! - previousSolarData.Time!).Minutes;
-
-                        solarPower += (solarData.Power * minutes) / 60000;
-                    }
-
-                    previousSolarData = solarData;
-                }
-
-                return solarPower;
+                // Sum kWh per quarter — already in the correct unit.
+                return list.Sum(m => m.SolarProductionKWh);
             }
             catch (Exception)
             {

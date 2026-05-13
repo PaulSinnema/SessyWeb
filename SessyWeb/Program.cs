@@ -104,7 +104,8 @@ builder.Services.AddScoped<ConsumptionDataService>();
 builder.Services.AddScoped<InvestmentDataService>();
 builder.Services.AddScoped<EnergyStatisticsService>();
 
-builder.Services.AddSingleton<PerformanceDataService>();
+builder.Services.AddSingleton<QuarterlyMeasurementDataService>();
+builder.Services.AddSingleton<InverterMeasurementDataService>();
 builder.Services.AddSingleton<CalculationService>();
 builder.Services.AddSingleton<EnergyHistoryDataService>();
 builder.Services.AddSingleton<SolarEdgeInverterService>();

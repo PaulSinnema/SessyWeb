@@ -11,24 +11,21 @@ namespace SessyController.Services
     {
         private EPEXPricesDataService _epexPricesDataService { get; set; }
 
-        private PerformanceDataService _performanceDataService { get; set; }
+        private QuarterlyMeasurementDataService _measurementDataService { get; set; }
 
         private TimeZoneService _timezoneService { get; set; }
 
         private TaxesDataService _taxesDataService { get; set; }
-        private EnergyHistoryDataService _energyHistoryService { get; set; }
 
         public CalculationService(EPEXPricesDataService epexPricesDataService,
-                                  PerformanceDataService performanceDataService,
+                                  QuarterlyMeasurementDataService measurementDataService,
                                   TimeZoneService timezoneService,
-                                  TaxesDataService taxesDataService,
-                                  EnergyHistoryDataService energyHistoryService)
+                                  TaxesDataService taxesDataService)
         {
             _epexPricesDataService = epexPricesDataService;
-            _performanceDataService = performanceDataService;
+            _measurementDataService = measurementDataService;
             _timezoneService = timezoneService;
             _taxesDataService = taxesDataService;
-            _energyHistoryService = energyHistoryService;
         }
 
         /// <summary>
@@ -219,110 +216,95 @@ namespace SessyController.Services
             return totalCost / quarters;
         }
 
-        public async Task<double> CalculateAveragePriceOfChargeInBatteries(double chargingCapacity, double dischargingCapacity, DateTime from, DateTime to)
+        /// <summary>
+        /// Calculates the average effective price of energy currently stored in the batteries.
+        /// Uses QuarterlyMeasurement records to derive charge/discharge cost from actual prices
+        /// and measured battery power.
+        ///
+        /// Positive result = average EUR/kWh paid for stored energy.
+        /// Negative result = net revenue per kWh (discharged more than charged in period).
+        /// </summary>
+        public async Task<double> CalculateAveragePriceOfChargeInBatteries(
+            double chargingCapacity, double dischargingCapacity, DateTime from, DateTime to)
         {
-            var totalChargekWh = 0.0;
-            var totalCost = 0.0;
+            var totalChargedKWh = 0.0;
+            var totalCostEur = 0.0;
 
-            var performanceList = await _performanceDataService.GetList(async (set) =>
+            var measurements = await _measurementDataService.GetList(async set =>
             {
-                var result = set.Where(p => p.Time >= from && p.Time <= to).ToList();
+                var result = set
+                    .Where(m => m.Time >= from && m.Time <= to)
+                    .OrderBy(m => m.Time)
+                    .ToList();
 
                 return await Task.FromResult(result);
             });
 
-            foreach (var performance in performanceList.OrderBy(pf => pf.Time))
+            foreach (var m in measurements)
             {
-                var room = CalculateRoomInWatt(performance, chargingCapacity, dischargingCapacity);
-                var mode = ChargingModes.GetMode(performance);
-
-                switch (mode)
+                switch (m.BatteryMode)
                 {
-                    case Modes.Charging:
-                        {
-                            if (performance.ChargeLeft < performance.ChargeNeeded)
-                            {
-                                var charge = Math.Min(chargingCapacity, room);
-
-                                charge /= 1000;
-
-                                totalChargekWh += charge;
-                                totalCost += charge * performance.Price;
-                            }
-                            break;
-                        }
-
-                    case Modes.Discharging:
-                        {
-                            if (performance.ChargeLeft > performance.ChargeNeeded)
-                            {
-                                var charge = Math.Min(dischargingCapacity, room);
-
-                                charge /= 1000;
-
-                                totalChargekWh -= charge;
-                                totalCost -= charge * performance.Price;
-                            }
-
-                            break;
-                        }
-
-                    case Modes.ZeroNetHome:
-                        {
-                            var charge = Math.Min(performance.EstimatedConsumptionPerQuarterHour + performance.SolarPowerPerQuarterHour, room);
-
-                            charge /= 1000;
-
-                            totalChargekWh -= charge;
-                            totalCost -= charge * performance.Price;
-
-                            break;
-                        }
-
-                    case Modes.Disabled:
+                    case SessyData.Model.BatteryMode.Charging:
+                        // Energy charged = measured kWh capped at charging capacity.
+                        var charged = Math.Min(m.BatteryChargedKWh, chargingCapacity / 1000.0 * 0.25);
+                        totalChargedKWh += charged;
+                        totalCostEur += charged * m.BuyingPriceEur;
                         break;
 
-                    case Modes.Unknown:
-                    default:
+                    case SessyData.Model.BatteryMode.Discharging:
+                        var discharged = Math.Min(m.BatteryDischargedKWh, dischargingCapacity / 1000.0 * 0.25);
+                        totalChargedKWh -= discharged;
+                        totalCostEur -= discharged * m.SellingPriceEur;
+                        break;
+
+                    case SessyData.Model.BatteryMode.ZeroNetHome:
+                        // In ZeroNetHome the battery absorbs surplus solar or covers household load.
+                        // Use net grid export as a proxy for energy delivered.
+                        var netKWh = m.GridExportKWh - m.GridImportKWh;
+                        totalChargedKWh -= netKWh;
+                        totalCostEur -= netKWh * m.SellingPriceEur;
                         break;
                 }
             }
 
-            double average = 0.0;
-
-            if (totalChargekWh > 0.0)
-                average = totalCost / totalChargekWh;
-
-            return average;
+            return totalChargedKWh > 0.0 ? totalCostEur / totalChargedKWh : 0.0;
         }
 
         /// <summary>
-        /// Determine how much energy there is left in the batteries that can be used for (dis)charging.
+        /// Calculates available room in Watts for (dis)charging based on a QuarterlyMeasurement.
+        /// Room = gap between current SOC and target SOC, converted to Watts.
         /// </summary>
-        public static double CalculateRoomInWatt(Performance performance, double chargingCapacity, double dischargingCapacity)
+        public static double CalculateRoomInWatt(
+            QuarterlyMeasurement measurement,
+            double chargingCapacityW,
+            double dischargingCapacityW,
+            double totalCapacityWh)
         {
-            Modes mode = ChargingModes.GetMode(performance);
             double roomInWatt = 0.0;
 
-            switch (mode)
+            switch (measurement.BatteryMode)
             {
-                case Modes.Charging:
-                    roomInWatt = performance.ChargeNeeded - performance.ChargeLeft;
+                case SessyData.Model.BatteryMode.Charging:
+                    // Room = capacity left to fill (Wh → W per quarter).
+                    roomInWatt = (totalCapacityWh - measurement.BatteryStateOfChargeWh) * 4.0;
+                    roomInWatt = Math.Min(roomInWatt, chargingCapacityW);
                     break;
 
-                case Modes.Discharging:
-                    roomInWatt = performance.ChargeLeft - performance.ChargeNeeded;
+                case SessyData.Model.BatteryMode.Discharging:
+                    // Room = energy available to discharge.
+                    roomInWatt = measurement.BatteryStateOfChargeWh * 4.0;
+                    roomInWatt = Math.Min(roomInWatt, dischargingCapacityW);
                     break;
 
-                case Modes.ZeroNetHome:
-                    roomInWatt = performance.ChargeLeft + performance.SolarPowerPerQuarterHour - performance.EstimatedConsumptionPerQuarterHour;
+                case SessyData.Model.BatteryMode.ZeroNetHome:
+                    // Room = SOC available for self-consumption balancing.
+                    roomInWatt = (measurement.BatteryStateOfChargeWh + measurement.SolarProductionKWh * 1000.0) * 4.0;
+                    roomInWatt = Math.Min(roomInWatt, dischargingCapacityW);
                     break;
 
-                case Modes.Disabled:
-                    break;
-
-                case Modes.Unknown:
+                case SessyData.Model.BatteryMode.Disabled:
                 default:
+                    roomInWatt = 0.0;
                     break;
             }
 
