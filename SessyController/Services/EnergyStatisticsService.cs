@@ -119,11 +119,13 @@ namespace SessyController.Services
                                 : end,
             };
 
-            // Order matters: consumption depends on grid flows and solar.
+            // Order matters: consumption and self-consumed solar depend on grid flows,
+            // battery totals and solar production all being calculated first.
             CalculateGridFlows(energyHistory, stats);
             CalculateSolarStats(performance, stats);
             CalculateConsumptionStats(performance, energyHistory, stats);
             CalculateBatteryStats(performance, stats);
+            CalculateSelfConsumedSolar(stats);
             CalculateFinancialStats(performance, stats);
 
             return stats;
@@ -486,17 +488,8 @@ namespace SessyController.Services
                 .DefaultIfEmpty(0)
                 .Max();
 
-            // Self-consumed solar = solar energy used locally per quarter-hour.
-            // Calculated per quarter to avoid the total-level ambiguity where grid export
-            // includes both solar surplus and battery discharge to grid — making it
-            // impossible to isolate solar-only export from aggregated totals.
-            // Per quarter: self-consumed = min(solar_produced, estimated_consumption).
-            // EstimatedConsumptionPerQuarterHour is in Watts → kWh = * 0.25 / 1000.
-            stats.SelfConsumedSolarKWh = performance
-                .Where(p => p.SolarPowerPerQuarterHour > 0)
-                .Sum(p => Math.Min(
-                    p.SolarPowerPerQuarterHour,
-                    p.EstimatedConsumptionPerQuarterHour * 0.25 / 1000.0));
+            // Self-consumed solar is calculated separately in CalculateSelfConsumedSolar()
+            // after battery totals are available.
 
             // Solar performance ratio: actual vs theoretical based on global radiation.
             // Theoretical = radiation (W/m²) integrated over time * system kWp / 1000.
@@ -507,6 +500,43 @@ namespace SessyController.Services
             stats.SolarPerformanceRatio = theoreticalProductionKWh > 0
                 ? stats.TotalSolarProductionKWh / theoreticalProductionKWh
                 : 0.0;
+        }
+
+        /// <summary>
+        /// Calculates self-consumed solar energy using the energy balance method.
+        ///
+        /// Solar exported = max(0, GridExport - BatteryDischarged)
+        ///   Grid export contains both solar surplus and battery discharge to grid.
+        ///   Subtracting battery discharge isolates the solar-only export.
+        ///
+        /// SelfConsumedSolar = max(0, TotalSolar - SolarExported)
+        ///   Clamped to [0, TotalSolar] to stay physically plausible.
+        ///
+        /// This method must be called AFTER CalculateBatteryStats so that
+        /// TotalBatteryDischargedKWh is available.
+        /// </summary>
+        private static void CalculateSelfConsumedSolar(EnergyStatistics stats)
+        {
+            if (stats.TotalSolarProductionKWh <= 0)
+            {
+                stats.SelfConsumedSolarKWh = 0;
+                return;
+            }
+
+            // Portion of grid export attributable to battery discharge.
+            // Capped at grid export: battery cannot export more than the total export.
+            double batteryContributionToExport = Math.Min(
+                stats.TotalBatteryDischargedKWh,
+                stats.TotalGridExportKWh);
+
+            // Remaining export is solar surplus sent to the grid.
+            double solarExportedKWh = Math.Max(0,
+                stats.TotalGridExportKWh - batteryContributionToExport);
+
+            // Self-consumed = solar not exported, clamped to solar production.
+            stats.SelfConsumedSolarKWh = Math.Max(0, Math.Min(
+                stats.TotalSolarProductionKWh - solarExportedKWh,
+                stats.TotalSolarProductionKWh));
         }
 
         /// <summary>
