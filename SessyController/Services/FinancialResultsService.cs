@@ -1,21 +1,19 @@
 ﻿using SessyController.Services.Items;
 using SessyData.Model;
 using SessyData.Services;
-using System.Linq;
 
 namespace SessyController.Services
 {
     public class FinancialResultsService
     {
-        private EnergyHistoryDataService _energyHistoryService { get; set; }
+        private readonly QuarterlyMeasurementDataService _measurementService;
+        private readonly CalculationService _calculationService;
 
-        private TaxesDataService _taxesService { get; set; }
-        private CalculationService _calculationService { get; set; }
-
-        public FinancialResultsService(EnergyHistoryDataService energyHistoryService, TaxesDataService taxesService, CalculationService calculationService)
+        public FinancialResultsService(
+            QuarterlyMeasurementDataService measurementService,
+            CalculationService calculationService)
         {
-            _energyHistoryService = energyHistoryService;
-            _taxesService = taxesService;
+            _measurementService = measurementService;
             _calculationService = calculationService;
         }
 
@@ -24,85 +22,60 @@ namespace SessyController.Services
             var start = date.Date;
             var end = start.AddDays(1);
 
-            var histories = await GetFinancialMonthResults(start, end);
+            var results = await GetFinancialMonthResults(start, end);
 
-            return histories.Sum(hi => hi.TotalCost);
+            return results.Sum(r => r.TotalCost);
         }
 
-        public async Task<IQueryable<FinancialMonthResult>> GetFinancialMonthResults(DateTime start, DateTime end)
+        public async Task<IQueryable<FinancialMonthResult>> GetFinancialMonthResults(
+            DateTime start, DateTime end)
         {
-            var histories = await _energyHistoryService.GetList(async (hist) =>
+            var measurements = await _measurementService.GetList(async set =>
             {
-                var result = hist
-                    .Where(eh => eh.Time >= start && eh.Time < end)
-                    .OrderBy(eh => eh.Time)
+                var result = set
+                    .Where(m => m.Time >= start && m.Time < end)
+                    .OrderBy(m => m.Time)
                     .ToList();
 
                 return await Task.FromResult(result);
             });
 
-            EnergyHistory? lastHistory = null;
+            var monthResults = new List<FinancialMonthResult>();
 
-            List<FinancialMonthResult>? monthResults = new();
-
-            foreach (var history in histories)
+            foreach (var m in measurements)
             {
-                var monthResult = monthResults.Where(mr => mr.Year == history.Time.Year && mr.Month == history.Time.Month).FirstOrDefault();
+                var monthResult = monthResults
+                    .FirstOrDefault(mr => mr.Year == m.Time.Year && mr.Month == m.Time.Month);
 
-                if(monthResult == null)
+                if (monthResult == null)
                 {
-                    monthResult = new FinancialMonthResult { Year = history.Time.Year, Month = history.Time.Month };
+                    monthResult = new FinancialMonthResult
+                    {
+                        Year = m.Time.Year,
+                        Month = m.Time.Month
+                    };
                     monthResults.Add(monthResult);
                 }
 
-                if(lastHistory != null)
+                // GridImportWh > 0: consumed from grid → positive cost.
+                // GridExportWh > 0: produced to grid → negative cost (revenue).
+                double netWh = m.GridImportWh - m.GridExportWh;
+                bool isConsumer = netWh >= 0;
+
+                var price = await _calculationService.CalculateEnergyPrice(m.Time, isConsumer);
+                var cost = (decimal)(netWh * (price ?? 0.0) / 1000.0);
+
+                monthResult.FinancialResultsList.Add(new FinancialResult
                 {
-                    var gridPower = new GridPower(history, lastHistory);
-
-                    var netUsage = gridPower.TotalInversed;
-
-                    var price = await _calculationService.CalculateEnergyPrice(history.Time, gridPower.IsConsumer);
-                    var cost = (decimal)(netUsage * (price ?? 0.0) / 1000);
-
-                    monthResult.FinancialResultsList.Add(new FinancialResult
-                    {
-                        Consumed = gridPower.TotalConsumed,
-                        Produced = gridPower.TotalProduced,
-                        Price = (decimal)(price ?? 0.0),
-                        Time = lastHistory.Time,
-                        Cost = cost
-                    });
-                }
-
-                lastHistory = history;
+                    Consumed = m.GridImportWh,
+                    Produced = m.GridExportWh,
+                    Price = (decimal)(price ?? 0.0),
+                    Time = m.Time,
+                    Cost = cost
+                });
             }
 
             return monthResults.AsQueryable();
-        }
-
-        /// <summary>
-        /// Returns the taxed price.
-        /// </summary>
-        private async Task<decimal> GetTaxedPrice(EnergyHistory history, GridPower gridPower)
-        {
-            var price = await _calculationService.CalculateEnergyPrice(history.Time, gridPower.IsConsumer);
-
-            if(price != null)
-            {
-                return (decimal)price.Value;
-            }
-
-            return 0;
-
-            //Taxes? taxes = _taxesService.GetTaxesForDate(history.Time);
-
-            //if(taxes == null) throw new InvalidOperationException($"There is no valid tax record for date {history.Time}");
-
-            //decimal overheadCost = gridPower.IsConsumer ? (decimal)taxes.PurchaseCompensation : (decimal)taxes.ReturnDeliveryCompensation;
-
-            //decimal price = (decimal)history.Price + (decimal)taxes.EnergyTax + overheadCost;
-
-            //return price * (1 + (decimal)taxes.ValueAddedTax / (decimal)100);
         }
     }
 }
