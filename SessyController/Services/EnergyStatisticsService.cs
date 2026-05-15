@@ -21,6 +21,7 @@ namespace SessyController.Services
     {
         private readonly QuarterlyMeasurementDataService _measurementDataService;
         private readonly InvestmentDataService _investmentDataService;
+        private readonly EnergyHistoryDataService _energyHistoryDataService;
         private readonly TimeZoneService _timeZoneService;
         private readonly HeatPumpConfig _heatPumpConfig;
         private readonly SettingsConfig _settingsConfig;
@@ -57,12 +58,14 @@ namespace SessyController.Services
 
         public EnergyStatisticsService(QuarterlyMeasurementDataService measurementDataService,
                                        InvestmentDataService investmentDataService,
+                                       EnergyHistoryDataService energyHistoryDataService,
                                        TimeZoneService timeZoneService,
                                        IOptions<HeatPumpConfig> heatPumpConfig,
                                        IOptions<SettingsConfig> settingsConfig)
         {
             _measurementDataService = measurementDataService;
             _investmentDataService = investmentDataService;
+            _energyHistoryDataService = energyHistoryDataService;
             _timeZoneService = timeZoneService;
             _heatPumpConfig = heatPumpConfig.Value;
             _settingsConfig = settingsConfig.Value;
@@ -189,10 +192,10 @@ namespace SessyController.Services
             double totalProjectedSavings = categoryBreakdown.Sum(c => c.ProjectedTotalSavingsEur);
             double totalAnnualSavings = categoryBreakdown.Sum(c => c.AnnualSavingsEur);
 
-            var realizedStats = await GetEnergyStatisticsAsync(dataStart, now);
-            double realizedSavings = realizedStats.TotalSavingsEur +
-                                     (realizedStats.ArbitrageProfitEur > 0 ? realizedStats.ArbitrageProfitEur : 0) +
-                                     CalculateHeatPumpSavings(dataStart, now);
+            // Realized savings = sum of projected savings per category since install date.
+            // This extrapolates measured annual savings back to the installation date,
+            // giving a realistic picture of how much has been saved over the full period.
+            double realizedSavings = totalProjectedSavings;
 
             DateTime? breakEvenDate = null;
             if (totalAnnualSavings > 0)
@@ -277,24 +280,73 @@ namespace SessyController.Services
             var allMonthly = new Dictionary<int, List<double>>();
             var current = new DateTime(dataStart.Year, dataStart.Month, 1);
 
+            // Determine where QuarterlyMeasurements start.
+            var firstMeasurement = await _measurementDataService.Get(async set =>
+                await Task.FromResult(set.OrderBy(m => m.Time).FirstOrDefault()));
+            var measurementStart = firstMeasurement?.Time ?? dataEnd;
+
             while (current <= dataEnd)
             {
-                var clampedEnd = Math.Min(current.AddMonths(1).AddTicks(-1).Ticks, dataEnd.Ticks);
-                var measurements = await GetMeasurementsAsync(current, new DateTime(clampedEnd));
-
-                double exportRevenue = measurements
-                    .Where(m => m.BatteryMode == BatteryMode.Discharging)
-                    .Sum(m => m.SellingPriceEur * m.BatteryDischargedKWh);
-
-                double solarKWh = measurements.Sum(m => m.SolarProductionKWh);
-                double avgBuyPrice = measurements.Any() ? measurements.Average(m => m.BuyingPriceEur) : 0.0;
-                double selfConsumedValue = solarKWh * avgBuyPrice;
-
+                var monthEnd = new DateTime(Math.Min(current.AddMonths(1).AddTicks(-1).Ticks, dataEnd.Ticks));
                 int month = current.Month;
+                double monthlySaving = 0.0;
+
+                if (current < measurementStart)
+                {
+                    // ── EnergyHistory period ──────────────────────────────────
+                    // Use net export revenue as solar savings proxy.
+                    // Net export = produced - consumed (negative = net import = cost).
+                    var histories = await _energyHistoryDataService.GetList(async set =>
+                        await Task.FromResult(set
+                            .Where(h => h.Time >= current && h.Time < monthEnd)
+                            .OrderBy(h => h.Time)
+                            .ToList()));
+
+                    if (histories.Count >= 2)
+                    {
+                        var first = histories.First();
+                        var last = histories.Last();
+
+                        double exportWh = (last.ProducedTariff1 - first.ProducedTariff1)
+                                        + (last.ProducedTariff2 - first.ProducedTariff2);
+                        double importWh = (last.ConsumedTariff1 - first.ConsumedTariff1)
+                                        + (last.ConsumedTariff2 - first.ConsumedTariff2);
+
+                        // Estimate average prices from EPEXPrices via CalculationService.
+                        // Use a fixed estimate of 0.25 EUR/kWh buy, 0.08 EUR/kWh sell
+                        // for the historical period (before dynamic pricing was tracked).
+                        const double historicalBuyEur = 0.25;
+                        const double historicalSellEur = 0.08;
+
+                        // Export revenue + import savings (self-consumption proxy).
+                        double netExportKWh = Math.Max(0, exportWh / 1000.0);
+                        double selfConsumedProxy = Math.Max(0, (exportWh - importWh) / 1000.0);
+
+                        monthlySaving = netExportKWh * historicalSellEur
+                                      + Math.Max(0, selfConsumedProxy) * historicalBuyEur;
+                    }
+                }
+                else
+                {
+                    // ── QuarterlyMeasurements period ─────────────────────────
+                    var measurements = await GetMeasurementsAsync(current, monthEnd);
+
+                    double exportRevenue = measurements
+                        .Where(m => m.BatteryMode == BatteryMode.Discharging)
+                        .Sum(m => m.SellingPriceEur * m.BatteryDischargedKWh);
+
+                    double solarKWh = measurements.Sum(m => m.SolarProductionKWh);
+                    double avgBuyPrice = measurements.Any()
+                        ? measurements.Average(m => m.BuyingPriceEur)
+                        : 0.0;
+
+                    monthlySaving = exportRevenue + solarKWh * avgBuyPrice;
+                }
+
                 if (!allMonthly.ContainsKey(month))
                     allMonthly[month] = new List<double>();
 
-                allMonthly[month].Add(exportRevenue + selfConsumedValue);
+                allMonthly[month].Add(monthlySaving);
                 current = current.AddMonths(1);
             }
 
@@ -345,13 +397,25 @@ namespace SessyController.Services
 
         private async Task<DateTime> GetEarliestDataDateAsync()
         {
-            var earliest = await _measurementDataService.Get(async set =>
+            // Use the earlier of QuarterlyMeasurements and EnergyHistory as data start.
+            // EnergyHistory contains archived P1 readings back to March 2025.
+            var earliestMeasurement = await _measurementDataService.Get(async set =>
             {
                 var result = set.OrderBy(m => m.Time).FirstOrDefault();
                 return await Task.FromResult(result);
             });
 
-            return earliest?.Time ?? _timeZoneService.Now.AddYears(-1);
+            var earliestHistory = await _energyHistoryDataService.Get(async set =>
+            {
+                var result = set.OrderBy(h => h.Time).FirstOrDefault();
+                return await Task.FromResult(result);
+            });
+
+            var candidates = new List<DateTime>();
+            if (earliestMeasurement != null) candidates.Add(earliestMeasurement.Time);
+            if (earliestHistory != null) candidates.Add(earliestHistory.Time);
+
+            return candidates.Any() ? candidates.Min() : _timeZoneService.Now.AddYears(-1);
         }
 
         // ── Calculation methods ──────────────────────────────────────────────

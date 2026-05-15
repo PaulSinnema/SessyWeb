@@ -93,6 +93,24 @@
 
 <RadzenRow>
     <RadzenColumn Size="8">
+        <RadzenTextBox Value="Charge power (W)" disabled Style=@fixedWidthStyle />
+    </RadzenColumn>
+    <RadzenColumn Size="2">
+        <RadzenNumeric Format="0" ShowUpDown="false" Value=@QuarterlyInfo?.ChargePowerW disabled Style=@fixedWidthStyle />
+    </RadzenColumn>
+</RadzenRow>
+
+<RadzenRow>
+    <RadzenColumn Size="8">
+        <RadzenTextBox Value="Discharge power (W)" disabled Style=@fixedWidthStyle />
+    </RadzenColumn>
+    <RadzenColumn Size="2">
+        <RadzenNumeric Format="0" ShowUpDown="false" Value=@QuarterlyInfo?.DischargePowerW disabled Style=@fixedWidthStyle />
+    </RadzenColumn>
+</RadzenRow>
+
+<RadzenRow>
+    <RadzenColumn Size="8">
         <RadzenTextBox Value="Est. consumption" disabled Style=@fixedWidthStyle />
     </RadzenColumn>
     <RadzenColumn Size="2">

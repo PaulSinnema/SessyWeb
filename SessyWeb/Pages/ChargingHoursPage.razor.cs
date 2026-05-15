@@ -27,9 +27,11 @@ namespace SessyWeb.Pages
 
         public double TotalSolarPowerExpectedToday { get; private set; }
         public double TotalSolarPowerExpectedTomorrow { get; private set; }
+        public double TotalSolarPowerYesterday { get; private set; }
 
         public string TotalSolarPowerExpectedTodayVisual => TotalSolarPowerExpectedToday.ToString("0.#");
         public string TotalSolarPowerExpectedTomorrowVisual => TotalSolarPowerExpectedTomorrow.ToString("0.#");
+        public string TotalSolarPowerYesterdayVisual => TotalSolarPowerYesterday.ToString("0.#");
 
         public decimal TotalRevenueToday { get; set; }
         public decimal TotalRevenueYesterday { get; set; }
@@ -234,6 +236,9 @@ namespace SessyWeb.Pages
                     TotalSolarPowerExpectedToday = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(today);
                     TotalSolarPowerExpectedTomorrow = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(tomorrow);
 
+                    // Yesterday's realized solar from QuarterlyMeasurements.
+                    TotalSolarPowerYesterday = await GetRealizedSolarForDate(yesterday).ConfigureAwait(false);
+
                     // Yesterday revenue: realized profit from Performance table (historical).
                     TotalRevenueYesterday = await GetRealizedRevenueForDate(yesterday).ConfigureAwait(false);
 
@@ -250,6 +255,23 @@ namespace SessyWeb.Pages
 
                 await InvokeAsync(StateHasChanged);
             });
+        }
+
+        private async Task<double> GetRealizedSolarForDate(DateTime date)
+        {
+            var start = date.Date;
+            var end = start.AddDays(1);
+
+            var measurements = await _measurementDataService!.GetList(async set =>
+            {
+                var result = set
+                    .Where(m => m.Time >= start && m.Time < end)
+                    .ToList();
+
+                return await Task.FromResult(result);
+            });
+
+            return measurements.Sum(m => m.SolarProductionKWh);
         }
 
         private async Task<decimal> GetRealizedRevenueForDate(DateTime date)
@@ -376,7 +398,11 @@ namespace SessyWeb.Pages
                 AverageSellingPrice = averageSellingPrice,
 
                 SessionCost = null, // sessions removed
-                DeltaLowestPrice = quarterlyInfo.DeltaLowestPrice
+                DeltaLowestPrice = quarterlyInfo.DeltaLowestPrice,
+
+                // Planned battery power from MilpService.
+                ChargePowerW = quarterlyInfo.PlannedChargePowerW,
+                DischargePowerW = quarterlyInfo.PlannedDischargePowerW
             });
         }
 
@@ -429,7 +455,12 @@ namespace SessyWeb.Pages
                 SmoothedSolarPower = measurement.SolarProductionKWh,
 
                 SessionCost = null,
-                DeltaLowestPrice = 0.0
+                DeltaLowestPrice = 0.0,
+
+                // Actual battery power from measurement.
+                // BatteryPowerWatts: negative = charging, positive = discharging.
+                ChargePowerW = measurement.BatteryPowerWatts < 0 ? Math.Abs(measurement.BatteryPowerWatts) : 0.0,
+                DischargePowerW = measurement.BatteryPowerWatts > 0 ? measurement.BatteryPowerWatts : 0.0
             };
         }
 

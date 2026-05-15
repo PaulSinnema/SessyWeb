@@ -44,6 +44,7 @@ namespace SessyController.Services
         private ConsumptionMonitorService _consumptionMonitorService;
         private SessyWebControlDataService _sessyWebControlDataService;
         private QuarterlyMeasurementDataService? _measurementService;
+        private InverterMeasurementDataService? _inverterMeasurementService;
         private TaxesDataService _taxesDataService;
         private MilpService _milpService;
 
@@ -87,6 +88,7 @@ namespace SessyController.Services
             _consumptionMonitorService = _scope.ServiceProvider.GetRequiredService<ConsumptionMonitorService>();
             _sessyWebControlDataService = _scope.ServiceProvider.GetRequiredService<SessyWebControlDataService>();
             _measurementService = _scope.ServiceProvider.GetService<QuarterlyMeasurementDataService>();
+            _inverterMeasurementService = _scope.ServiceProvider.GetService<InverterMeasurementDataService>();
             _taxesDataService = _scope.ServiceProvider.GetRequiredService<TaxesDataService>();
             _inverterCurtailmentService = _scope.ServiceProvider.GetRequiredService<InverterCurtailmentService>();
             _milpService = _scope.ServiceProvider.GetRequiredService<MilpService>();
@@ -446,6 +448,24 @@ namespace SessyController.Services
             var socWh = await _batteryContainer.GetStateOfChargeInWatts().ConfigureAwait(false);
             var batteryPowerWatts = await _batteryContainer.GetTotalPowerInWatts().ConfigureAwait(false);
 
+            // Use measured solar from InverterMeasurements (stored by SunspecInverterService).
+            // Fall back to planned value from QuarterlyInfo if not yet available.
+            double solarProductionKWh = currentQuarterlyInfo.SolarPowerPerQuarterHour;
+
+            if (_inverterMeasurementService != null)
+            {
+                var inverterMeasurements = await _inverterMeasurementService.GetList(async set =>
+                {
+                    var result = set
+                        .Where(m => m.Time == currentQuarterlyInfo.Time)
+                        .ToList();
+                    return await Task.FromResult(result);
+                }).ConfigureAwait(false);
+
+                if (inverterMeasurements.Any())
+                    solarProductionKWh = inverterMeasurements.Sum(m => m.SolarProductionKWh);
+            }
+
             var mode = currentQuarterlyInfo switch
             {
                 { Charging: true } => BatteryMode.Charging,
@@ -467,7 +487,7 @@ namespace SessyController.Services
                 existing.BatteryPowerWatts = batteryPowerWatts;
                 existing.BatteryStateOfChargeWh = socWh;
                 existing.BatteryMode = mode;
-                existing.SolarProductionKWh = currentQuarterlyInfo.SolarPowerPerQuarterHour;
+                existing.SolarProductionKWh = solarProductionKWh;
 
                 await _measurementService.Update(
                     new List<QuarterlyMeasurement> { existing },
@@ -483,7 +503,7 @@ namespace SessyController.Services
                     BatteryPowerWatts = batteryPowerWatts,
                     BatteryStateOfChargeWh = socWh,
                     BatteryMode = mode,
-                    SolarProductionKWh = currentQuarterlyInfo.SolarPowerPerQuarterHour,
+                    SolarProductionKWh = solarProductionKWh,
                     BuyingPriceEur = currentQuarterlyInfo.BuyingPrice,
                     SellingPriceEur = currentQuarterlyInfo.SellingPrice,
                 };

@@ -28,7 +28,7 @@
                     <RadzenTableCell Style="width: 75px;vertical-align: top;">
                         <RadzenStack Orientation="Orientation.Vertical" Gap="0" AlignItems="AlignItems.Start" Style="width: 200px;">
                             <RadzenText TextStyle="TextStyle.Overline" class="rz-display-flex rz-mt-4 rz-mb-0">Solar</RadzenText>
-                            <RadzenText TextStyle="TextStyle.Body1"><b>--</b></RadzenText>
+                            <RadzenText TextStyle="TextStyle.Body1"><b>@(TotalSolarPowerYesterday > 0 ? $"⚡{TotalSolarPowerYesterdayVisual}" : "--")</b></RadzenText>
                             <RadzenText TextStyle="TextStyle.Body1"><b>⚡@TotalSolarPowerExpectedTodayVisual</b></RadzenText>
                             @if (TotalSolarPowerExpectedTomorrow > 0)
                             {
@@ -144,7 +144,7 @@
 
         @if (QuarterlyInfos != null && QuarterlyInfos.Count != 0)
         {
-            <ChargingHoursChartComponent QuarterlyInfos="@QuarterlyInfos" GraphStyle="@GraphStyle" />                
+            <ChargingHoursChartComponent QuarterlyInfos="@QuarterlyInfos" GraphStyle="@GraphStyle" />
         }
     }
     else
@@ -294,6 +294,6 @@
     void ShowTooltipWithHtml(ElementReference elementReference, TooltipOptions? options = null)
         => tooltipService!.Open(elementReference, ds =>
 @<div style="background-color: transparent;">
-        <RadzenImage Path="/Images/ChartExplanation.jpg" Style="padding: 5px;" />
-    </div>, options);
+    <RadzenImage Path="/Images/ChartExplanation.jpg" Style="padding: 5px;" />
+</div>, options);
 }
