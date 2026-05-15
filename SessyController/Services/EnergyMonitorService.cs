@@ -1,6 +1,4 @@
-﻿using Microsoft.Extensions.Options;
-using SessyCommon.Configurations;
-using SessyCommon.Extensions;
+﻿using SessyCommon.Extensions;
 using SessyCommon.Services;
 using SessyController.Services.Items;
 using SessyData.Model;
@@ -22,6 +20,7 @@ namespace SessyController.Services
         private P1MeterContainer _p1MeterContainer { get; set; }
         private TimeZoneService _timeZoneService { get; set; }
         private P1MeterService _p1MeterService { get; set; }
+        private BatteryContainer _batteryContainer { get; set; }
 
         private QuarterlyMeasurementDataService _measurementService { get; set; }
 
@@ -43,12 +42,14 @@ namespace SessyController.Services
                                     WeatherService weatherService,
                                     TimeZoneService timeZoneService,
                                     P1MeterContainer p1meterContainer,
+                                    BatteryContainer batteryContainer,
                                     IServiceScopeFactory serviceScopeFactory)
         {
             _logger = logger;
             _weatherService = weatherService;
             _timeZoneService = timeZoneService;
             _serviceScopeFactory = serviceScopeFactory;
+            _batteryContainer = batteryContainer;
 
             _scope = _serviceScopeFactory.CreateScope();
 
@@ -186,6 +187,20 @@ namespace SessyController.Services
             _previousP1Details = p1Details;
             _previousP1Time = time;
 
+            // Read current SOC directly from the battery API so the record is
+            // complete from the moment it is created, without waiting for
+            // BatteriesService to update it.
+            double socWh = 0.0;
+
+            try
+            {
+                socWh = await _batteryContainer.GetStateOfChargeInWatts().ConfigureAwait(false);
+            }
+            catch
+            {
+                // Non-fatal — BatteriesService will fill this in on its next cycle.
+            }
+
             var measurement = new QuarterlyMeasurement
             {
                 Time = time,
@@ -194,7 +209,8 @@ namespace SessyController.Services
                 BuyingPriceEur = quarterlyInfo?.BuyingPrice ?? 0.0,
                 SellingPriceEur = quarterlyInfo?.SellingPrice ?? 0.0,
                 GlobalRadiation = hourExpectancy?.GlobalRadiation ?? 0.0,
-                // Battery and solar fields are filled in by BatteriesService.
+                BatteryStateOfChargeWh = socWh,
+                // Battery mode and solar are filled in by BatteriesService.
             };
 
             await _measurementService.Add(new List<QuarterlyMeasurement> { measurement });
