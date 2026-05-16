@@ -9,6 +9,8 @@
     ///   "AnnualGasConsumptionM3": 950,
     ///   "GasPriceEurPerM3": 1.45,
     ///   "GasStandingChargeEurPerYear": 185.0,
+    ///   "AnnualElectricityConsumptionKWh": 2000,
+    ///   "ElectricityPriceEurPerKWh": 0.25,
     ///   "InstallationDate": "2024-03-01"
     /// }
     /// </summary>
@@ -31,6 +33,23 @@
         public double GasStandingChargeEurPerYear { get; set; } = 0.0;
 
         /// <summary>
+        /// Annual electricity consumption of the heat pump in kWh.
+        /// This is subtracted from the gas savings to get the net saving.
+        /// </summary>
+        public double AnnualElectricityConsumptionKWh { get; set; } = 0.0;
+
+        /// <summary>
+        /// Average electricity price paid per kWh (incl. taxes).
+        /// When set to 0, the price is calculated automatically from measured data.
+        /// </summary>
+        public double ElectricityPriceEurPerKWh { get; set; } = 0.0;
+
+        /// <summary>
+        /// Effective electricity price — uses configured value or falls back to measured average.
+        /// </summary>
+        public double EffectiveElectricityPriceEurPerKWh { get; set; } = 0.0;
+
+        /// <summary>
         /// Date the heat pump was installed.
         /// Used to calculate how many months of savings have accrued.
         /// </summary>
@@ -42,12 +61,19 @@
         public double AnnualGasCostSavedEur => AnnualGasConsumptionM3 * GasPriceEurPerM3;
 
         /// <summary>
-        /// Total annual savings including standing charge.
+        /// Annual electricity cost of running the heat pump.
         /// </summary>
-        public double TotalAnnualSavingsEur => AnnualGasCostSavedEur + GasStandingChargeEurPerYear;
+        public double AnnualElectricityCostEur =>
+            AnnualElectricityConsumptionKWh * EffectiveElectricityPriceEurPerKWh;
 
         /// <summary>
-        /// Monthly savings.
+        /// Total annual net savings: gas savings + standing charge - electricity cost.
+        /// </summary>
+        public double TotalAnnualSavingsEur =>
+            AnnualGasCostSavedEur + GasStandingChargeEurPerYear - AnnualElectricityCostEur;
+
+        /// <summary>
+        /// Monthly net savings.
         /// </summary>
         public double MonthlyAverageSavingsEur => TotalAnnualSavingsEur / 12.0;
 

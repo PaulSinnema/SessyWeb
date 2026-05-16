@@ -267,15 +267,16 @@ namespace SessyController.Services
 
                 _futureSelfUseValueByTime[qi.Time] = selfUseValue;
 
-                // Minimum SOC: reserve energy for future expensive consumption.
-                // Strategy differs by netting status:
+                // Minimum SOC: reserve energy for future consumption without solar.
                 //
-                // Netting ON: minSoc = 0 (export is valuable, no need to hold reserves)
+                // Netting ON: keep enough energy to cover the next no-solar window
+                //   (typically night hours). This prevents the battery from being
+                //   fully discharged in the evening, leaving nothing for the night.
+                //   Reserve = sum of positive NetLoadWh for future quarters until
+                //   the next solar period, capped at half capacity.
                 //
                 // Netting OFF: hold enough energy to cover future positive-load quarters
-                //   where buy price > current price + tolerance. This avoids importing
-                //   expensive energy when we could have kept the battery charged.
-                //   Additionally, reserve energy for evening consumption after solar drops.
+                //   where buy price > current price + tolerance.
                 double minSocWh = ReserveWh;
 
                 if (!netting)
@@ -288,6 +289,24 @@ namespace SessyController.Services
 
                     minSocWh = reserveForExpensiveImport * ReserveSafetyFactor;
                     minSocWh = Clamp(minSocWh, ReserveWh, capWh);
+                }
+                else
+                {
+                    // Netting ON: reserve for the next no-solar window.
+                    // Find consecutive future quarters with no solar (NetLoadWh > 0)
+                    // until the next solar period starts.
+                    double nightReserveWh = 0.0;
+
+                    foreach (var future in futureWindow)
+                    {
+                        if (future.NetLoadWh <= 0.0)
+                            break; // Solar surplus starts — stop reserving
+
+                        nightReserveWh += future.NetLoadWh;
+                    }
+
+                    // Cap at half capacity to avoid over-reserving on long winter nights.
+                    minSocWh = Clamp(nightReserveWh * ReserveSafetyFactor, ReserveWh, capWh * 0.5);
                 }
 
                 _minSocWhByTime[qi.Time] = minSocWh;

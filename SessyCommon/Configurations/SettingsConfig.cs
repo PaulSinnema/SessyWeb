@@ -66,6 +66,14 @@ namespace SessyCommon.Configurations
 
         public double SolarCorrection { get; set; }
 
+        /// <summary>
+        /// Known average annual solar production in kWh.
+        /// Used to scale measured seasonal savings when less than 6 months
+        /// of measurement data is available. Has no effect once sufficient
+        /// data exists. Example: 3250 for a system producing 3250 kWh/year.
+        /// </summary>
+        public double SolarAnnualProductionKWh { get; set; } = 0.0;
+
         public string? DatabaseBackupDirectory { get; set; }
 
         /// <summary>

@@ -27,16 +27,16 @@
                         <RadzenText TextStyle="TextStyle.H6">⚡ Energy Flows</RadzenText>
                         <RadzenRow>
                             <RadzenColumn Size="6" SizeMD="3">
-                                <StatCardComponent Title="Total consumption"    Value="@($"{Stats.TotalConsumptionKWh:F1} kWh")" />
+                                <StatCardComponent Title="Total consumption" Value="@($"{Stats.TotalConsumptionKWh:F1} kWh")" />
                             </RadzenColumn>
                             <RadzenColumn Size="6" SizeMD="3">
-                                <StatCardComponent Title="Grid import"          Value="@($"{Stats.TotalGridImportKWh:F1} kWh")" />
+                                <StatCardComponent Title="Grid import" Value="@($"{Stats.TotalGridImportKWh:F1} kWh")" />
                             </RadzenColumn>
                             <RadzenColumn Size="6" SizeMD="3">
-                                <StatCardComponent Title="Grid export"          Value="@($"{Stats.TotalGridExportKWh:F1} kWh")" />
+                                <StatCardComponent Title="Grid export" Value="@($"{Stats.TotalGridExportKWh:F1} kWh")" />
                             </RadzenColumn>
                             <RadzenColumn Size="6" SizeMD="3">
-                                <StatCardComponent Title="Grid dependency"      Value="@($"{Stats.GridDependencyPct:F1} %")" />
+                                <StatCardComponent Title="Grid dependency" Value="@($"{Stats.GridDependencyPct:F1} %")" />
                             </RadzenColumn>
                         </RadzenRow>
                     </RadzenCard>
@@ -48,16 +48,16 @@
                         <RadzenText TextStyle="TextStyle.H6">☀️ Solar</RadzenText>
                         <RadzenRow>
                             <RadzenColumn Size="6" SizeMD="3">
-                                <StatCardComponent Title="Total production"     Value="@($"{Stats.TotalSolarProductionKWh:F1} kWh")" />
+                                <StatCardComponent Title="Total production" Value="@($"{Stats.TotalSolarProductionKWh:F1} kWh")" />
                             </RadzenColumn>
                             <RadzenColumn Size="6" SizeMD="3">
-                                <StatCardComponent Title="Self consumed"        Value="@($"{Stats.SelfConsumedSolarKWh:F1} kWh")" />
+                                <StatCardComponent Title="Self consumed" Value="@($"{Stats.SelfConsumedSolarKWh:F1} kWh")" />
                             </RadzenColumn>
                             <RadzenColumn Size="6" SizeMD="3">
-                                <StatCardComponent Title="Self consumption"     Value="@($"{Stats.SelfConsumptionPct:F1} %")" />
+                                <StatCardComponent Title="Self consumption" Value="@($"{Stats.SelfConsumptionPct:F1} %")" />
                             </RadzenColumn>
                             <RadzenColumn Size="6" SizeMD="3">
-                                <StatCardComponent Title="Self sufficiency"     Value="@($"{Stats.SelfSufficiencyPct:F1} %")" />
+                                <StatCardComponent Title="Self sufficiency" Value="@($"{Stats.SelfSufficiencyPct:F1} %")" />
                             </RadzenColumn>
                             <RadzenColumn Size="6" SizeMD="3">
                                 <StatCardComponent Title="Avg daily production" Value="@($"{Stats.AvgDailySolarProductionKWh:F1} kWh/day")" />
@@ -66,7 +66,7 @@
                                 <StatCardComponent Title="Peak daily production" Value="@($"{Stats.PeakDailySolarProductionKWh:F1} kWh")" />
                             </RadzenColumn>
                             <RadzenColumn Size="6" SizeMD="3">
-                                <StatCardComponent Title="Performance ratio"   Value="@($"{Stats.SolarPerformanceRatio:P1}")" />
+                                <StatCardComponent Title="Performance ratio" Value="@($"{Stats.SolarPerformanceRatio:P1}")" />
                             </RadzenColumn>
                         </RadzenRow>
                     </RadzenCard>
@@ -78,22 +78,22 @@
                         <RadzenText TextStyle="TextStyle.H6">🔋 Battery</RadzenText>
                         <RadzenRow>
                             <RadzenColumn Size="6" SizeMD="3">
-                                <StatCardComponent Title="Total charged"        Value="@($"{Stats.TotalBatteryChargedKWh:F1} kWh")" />
+                                <StatCardComponent Title="Total charged" Value="@($"{Stats.TotalBatteryChargedKWh:F1} kWh")" />
                             </RadzenColumn>
                             <RadzenColumn Size="6" SizeMD="3">
-                                <StatCardComponent Title="Total discharged"     Value="@($"{Stats.TotalBatteryDischargedKWh:F1} kWh")" />
+                                <StatCardComponent Title="Total discharged" Value="@($"{Stats.TotalBatteryDischargedKWh:F1} kWh")" />
                             </RadzenColumn>
                             <RadzenColumn Size="6" SizeMD="3">
-                                <StatCardComponent Title="Battery cycles"       Value="@($"{Stats.BatteryCycles:F1}")" />
+                                <StatCardComponent Title="Battery cycles" Value="@($"{Stats.BatteryCycles:F1}")" />
                             </RadzenColumn>
                             <RadzenColumn Size="6" SizeMD="3">
-                                <StatCardComponent Title="Cycles per day"       Value="@($"{Stats.BatteryCyclesPerDay:F2}")" />
+                                <StatCardComponent Title="Cycles per day" Value="@($"{Stats.BatteryCyclesPerDay:F2}")" />
                             </RadzenColumn>
                             <RadzenColumn Size="6" SizeMD="3">
                                 <StatCardComponent Title="Round-trip efficiency" Value="@(Stats.BatteryRoundTripEfficiencyPct > 0 ? $"{Stats.BatteryRoundTripEfficiencyPct:F1} %" : "n/b")" />
                             </RadzenColumn>
                             <RadzenColumn Size="6" SizeMD="3">
-                                <StatCardComponent Title="Average SOC"          Value="@($"{Stats.AverageSocPct:F1} %")" />
+                                <StatCardComponent Title="Average SOC" Value="@($"{Stats.AverageSocPct:F1} %")" />
                             </RadzenColumn>
                         </RadzenRow>
                     </RadzenCard>
@@ -105,31 +105,31 @@
                         <RadzenText TextStyle="TextStyle.H6">💶 Financial</RadzenText>
                         <RadzenRow>
                             <RadzenColumn Size="6" SizeMD="3">
-                                <StatCardComponent Title="Actual energy cost"   Value="@($"€ {Stats.ActualEnergyCostEur:F2}")" />
+                                <StatCardComponent Title="Actual energy cost" Value="@($"€ {Stats.ActualEnergyCostEur:F2}")" />
                             </RadzenColumn>
                             <RadzenColumn Size="6" SizeMD="3">
-                                <StatCardComponent Title="Baseline cost"        Value="@($"€ {Stats.BaselineEnergyCostEur:F2}")" />
+                                <StatCardComponent Title="Baseline cost" Value="@($"€ {Stats.BaselineEnergyCostEur:F2}")" />
                             </RadzenColumn>
                             <RadzenColumn Size="6" SizeMD="3">
-                                <StatCardComponent Title="Total savings"        Value="@($"€ {Stats.TotalSavingsEur:F2}")" Highlight="true" />
+                                <StatCardComponent Title="Total savings" Value="@($"€ {Stats.TotalSavingsEur:F2}")" Highlight="true" />
                             </RadzenColumn>
                             <RadzenColumn Size="6" SizeMD="3">
-                                <StatCardComponent Title="Grid export revenue"  Value="@($"€ {Stats.GridExportRevenueEur:F2}")" />
+                                <StatCardComponent Title="Grid export revenue" Value="@($"€ {Stats.GridExportRevenueEur:F2}")" />
                             </RadzenColumn>
                             <RadzenColumn Size="6" SizeMD="3">
-                                <StatCardComponent Title="Arbitrage profit"     Value="@($"€ {Stats.ArbitrageProfitEur:F2}")" />
+                                <StatCardComponent Title="Arbitrage profit" Value="@($"€ {Stats.ArbitrageProfitEur:F2}")" />
                             </RadzenColumn>
                             <RadzenColumn Size="6" SizeMD="3">
-                                <StatCardComponent Title="Avg buy price"        Value="@($"€ {Stats.WeightedAvgBuyPriceEurPerKWh:F4}/kWh")" />
+                                <StatCardComponent Title="Avg buy price" Value="@($"€ {Stats.WeightedAvgBuyPriceEurPerKWh:F4}/kWh")" />
                             </RadzenColumn>
                             <RadzenColumn Size="6" SizeMD="3">
-                                <StatCardComponent Title="Avg sell price"       Value="@($"€ {Stats.WeightedAvgSellPriceEurPerKWh:F4}/kWh")" />
+                                <StatCardComponent Title="Avg sell price" Value="@($"€ {Stats.WeightedAvgSellPriceEurPerKWh:F4}/kWh")" />
                             </RadzenColumn>
                             <RadzenColumn Size="6" SizeMD="3">
-                                <StatCardComponent Title="Monthly savings"      Value="@($"€ {Stats.MonthlySavingsEur:F2}/month")" />
+                                <StatCardComponent Title="Monthly savings" Value="@($"€ {Stats.MonthlySavingsEur:F2}/month")" />
                             </RadzenColumn>
                             <RadzenColumn Size="6" SizeMD="3">
-                                <StatCardComponent Title="Annual savings"       Value="@($"€ {Stats.AnnualSavingsEur:F2}/year")" />
+                                <StatCardComponent Title="Annual savings" Value="@($"€ {Stats.AnnualSavingsEur:F2}/year")" />
                             </RadzenColumn>
                         </RadzenRow>
                     </RadzenCard>
@@ -147,10 +147,10 @@
                                 <StatCardComponent Title="Peak daily consumption" Value="@($"{Stats.PeakDailyConsumptionKWh:F1} kWh")" />
                             </RadzenColumn>
                             <RadzenColumn Size="6" SizeMD="3">
-                                <StatCardComponent Title="Weekday consumption"  Value="@($"{Stats.WeekdayConsumptionKWh:F1} kWh")" />
+                                <StatCardComponent Title="Weekday consumption" Value="@($"{Stats.WeekdayConsumptionKWh:F1} kWh")" />
                             </RadzenColumn>
                             <RadzenColumn Size="6" SizeMD="3">
-                                <StatCardComponent Title="Weekend consumption"  Value="@($"{Stats.WeekendConsumptionKWh:F1} kWh")" />
+                                <StatCardComponent Title="Weekend consumption" Value="@($"{Stats.WeekendConsumptionKWh:F1} kWh")" />
                             </RadzenColumn>
                         </RadzenRow>
                     </RadzenCard>
@@ -166,28 +166,29 @@
                                 @if (InvestmentStats.UsesProjection)
                                 {
                                     <RadzenBadge BadgeStyle="BadgeStyle.Warning"
+                                                 Style="color: black;"
                                                  Text="@($"Projection from {InvestmentStats.DataAvailableFrom:dd-MM-yyyy}")"
                                                  title="Insufficient historical data — savings before this date are extrapolated using seasonal monthly averages." />
                                 }
                             </RadzenStack>
                             <RadzenRow>
                                 <RadzenColumn Size="6" SizeMD="3">
-                                    <StatCardComponent Title="Total investment"         Value="@($"€ {InvestmentStats.TotalNetInvestmentEur:F2}")" />
+                                    <StatCardComponent Title="Total investment" Value="@($"€ {InvestmentStats.TotalNetInvestmentEur:F2}")" />
                                 </RadzenColumn>
                                 <RadzenColumn Size="6" SizeMD="3">
-                                    <StatCardComponent Title="Realized savings"         Value="@($"€ {InvestmentStats.TotalRealizedSavingsEur:F2}")" />
+                                    <StatCardComponent Title="Realized savings" Value="@($"€ {InvestmentStats.TotalRealizedSavingsEur:F2}")" />
                                 </RadzenColumn>
                                 @if (InvestmentStats.UsesProjection)
                                 {
                                     <RadzenColumn Size="6" SizeMD="3">
-                                        <StatCardComponent Title="Projected total savings"  Value="@($"€ {InvestmentStats.ProjectedTotalSavingsEur:F2}")" Highlight="true" />
+                                        <StatCardComponent Title="Projected total savings" Value="@($"€ {InvestmentStats.ProjectedTotalSavingsEur:F2}")" Highlight="true" />
                                     </RadzenColumn>
                                 }
                                 <RadzenColumn Size="6" SizeMD="3">
-                                    <StatCardComponent Title="Remaining to recover"     Value="@($"€ {InvestmentStats.RemainingInvestmentEur:F2}")" />
+                                    <StatCardComponent Title="Remaining to recover" Value="@($"€ {InvestmentStats.RemainingInvestmentEur:F2}")" />
                                 </RadzenColumn>
                                 <RadzenColumn Size="6" SizeMD="3">
-                                    <StatCardComponent Title="Recovered"                Value="@($"{InvestmentStats.RecoveredPct:F1} %")" Highlight="true" />
+                                    <StatCardComponent Title="Recovered" Value="@($"{InvestmentStats.RecoveredPct:F1} %")" Highlight="true" />
                                 </RadzenColumn>
                                 <RadzenColumn Size="6" SizeMD="3">
                                     <StatCardComponent Title="Projected annual savings" Value="@($"€ {InvestmentStats.ProjectedAnnualSavingsEur:F2}/year")" />
@@ -196,7 +197,7 @@
                                     <StatCardComponent Title="Payback period" Value="@(InvestmentStats.ProjectedPaybackYears >= 999 ? "—" : $"{InvestmentStats.ProjectedPaybackYears:F1} years")" />
                                 </RadzenColumn>
                                 <RadzenColumn Size="6" SizeMD="3">
-                                    <StatCardComponent Title="Break-even date"          Value="@(InvestmentStats.ProjectedBreakEvenDate.HasValue ? InvestmentStats.ProjectedBreakEvenDate.Value.ToString("dd-MM-yyyy") : "Unknown")" Highlight="true" />
+                                    <StatCardComponent Title="Break-even date" Value="@(InvestmentStats.ProjectedBreakEvenDate.HasValue ? InvestmentStats.ProjectedBreakEvenDate.Value.ToString("dd-MM-yyyy") : "Unknown")" Highlight="true" />
                                 </RadzenColumn>
                             </RadzenRow>
 
@@ -211,12 +212,12 @@
                                                 AllowFiltering="false"
                                                 AllowPaging="false">
                                     <Columns>
-                                        <RadzenDataGridColumn Property="@nameof(InvestmentCategoryStats.Category)"                 Title="Component" />
-                                        <RadzenDataGridColumn Property="@nameof(InvestmentCategoryStats.InstallationDate)"         Title="Since"            FormatString="{0:dd-MM-yyyy}" />
-                                        <RadzenDataGridColumn Property="@nameof(InvestmentCategoryStats.NetAmountEur)"             Title="Net (€)"          FormatString="{0:F2}" />
-                                        <RadzenDataGridColumn Property="@nameof(InvestmentCategoryStats.AnnualSavingsEur)"         Title="Savings (€/yr)"   FormatString="{0:F2}" />
-                                        <RadzenDataGridColumn Property="@nameof(InvestmentCategoryStats.ProjectedTotalSavingsEur)" Title="Total saved (€)"  FormatString="{0:F2}" />
-                                        <RadzenDataGridColumn Property="@nameof(InvestmentCategoryStats.RecoveredPct)"             Title="Recovered (%)"    FormatString="{0:F1}" />
+                                        <RadzenDataGridColumn Property="@nameof(InvestmentCategoryStats.Category)" Title="Component" />
+                                        <RadzenDataGridColumn Property="@nameof(InvestmentCategoryStats.InstallationDate)" Title="Since" FormatString="{0:dd-MM-yyyy}" />
+                                        <RadzenDataGridColumn Property="@nameof(InvestmentCategoryStats.NetAmountEur)" Title="Net (€)" FormatString="{0:F2}" />
+                                        <RadzenDataGridColumn Property="@nameof(InvestmentCategoryStats.AnnualSavingsEur)" Title="Savings (€/yr)" FormatString="{0:F2}" />
+                                        <RadzenDataGridColumn Property="@nameof(InvestmentCategoryStats.ProjectedTotalSavingsEur)" Title="Total saved (€)" FormatString="{0:F2}" />
+                                        <RadzenDataGridColumn Property="@nameof(InvestmentCategoryStats.RecoveredPct)" Title="Recovered (%)" FormatString="{0:F1}" />
                                         <RadzenDataGridColumn TItem="InvestmentCategoryStats" Title="Payback (yr)">
                                             <Template Context="cat">
                                                 @(cat.PaybackYears >= 999 ? "—" : $"{cat.PaybackYears:F1}")
@@ -227,7 +228,7 @@
                                                 @(cat.BreakEvenDate.HasValue ? cat.BreakEvenDate.Value.ToString("dd-MM-yyyy") : "—")
                                             </Template>
                                         </RadzenDataGridColumn>
-                                        <RadzenDataGridColumn Property="@nameof(InvestmentCategoryStats.SavingsSource)"            Title="Savings basis" />
+                                        <RadzenDataGridColumn Property="@nameof(InvestmentCategoryStats.SavingsSource)" Title="Savings basis" />
                                     </Columns>
                                 </RadzenDataGrid>
                             }
