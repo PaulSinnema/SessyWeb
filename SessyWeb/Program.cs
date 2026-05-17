@@ -102,6 +102,7 @@ builder.Services.AddScoped<FinancialResultsService>();
 builder.Services.AddScoped<SolarInverterDataService>();
 builder.Services.AddScoped<ConsumptionDataService>();
 builder.Services.AddScoped<InvestmentDataService>();
+builder.Services.AddScoped<InvestmentGroupDataService>();
 builder.Services.AddScoped<EnergyStatisticsService>();
 
 builder.Services.AddSingleton<QuarterlyMeasurementDataService>();

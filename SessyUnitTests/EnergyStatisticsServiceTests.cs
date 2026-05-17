@@ -18,6 +18,8 @@ namespace SessyTests.Services
         private readonly Mock<QuarterlyMeasurementDataService> _measurementMock;
         private readonly Mock<InvestmentDataService> _investmentMock;
         private readonly Mock<EnergyHistoryDataService> _energyHistoryMock;
+        private readonly Mock<EPEXPricesDataService> _epexMock;
+        private readonly Mock<InvestmentGroupDataService> _groupMock;
         private readonly Mock<TimeZoneService> _timeZoneMock;
         private readonly EnergyStatisticsService _sut;
 
@@ -33,6 +35,9 @@ namespace SessyTests.Services
             _measurementMock = new Mock<QuarterlyMeasurementDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
             _investmentMock = new Mock<InvestmentDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
             _energyHistoryMock = new Mock<EnergyHistoryDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
+            _epexMock = new Mock<EPEXPricesDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
+            _groupMock = new Mock<InvestmentGroupDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
+            var groupMock = _groupMock;
 
             var timeZoneSettings = Options.Create(new SettingsConfig { Timezone = "Europe/Amsterdam" });
             _timeZoneMock = new Mock<TimeZoneService>(MockBehavior.Loose, timeZoneSettings);
@@ -52,6 +57,8 @@ namespace SessyTests.Services
                 _measurementMock.Object,
                 _investmentMock.Object,
                 _energyHistoryMock.Object,
+                _epexMock.Object,
+                groupMock.Object,
                 _timeZoneMock.Object,
                 heatPumpConfig,
                 settingsConfig,
@@ -335,12 +342,16 @@ namespace SessyTests.Services
             var settingsConfig = Options.Create(new SettingsConfig { StatisticsFromDate = fromDate });
             var heatPumpConfig = Options.Create(new HeatPumpConfig());
             var energyHistoryMock = new Mock<EnergyHistoryDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
+            var epexMock = new Mock<EPEXPricesDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
+            var groupMock2 = new Mock<InvestmentGroupDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
             var powerSystemsConfig = Options.Create(new PowerSystemsConfig());
 
             var sut = new EnergyStatisticsService(
                 measurementMock.Object,
                 investmentMock.Object,
                 energyHistoryMock.Object,
+                epexMock.Object,
+                groupMock2.Object,
                 _timeZoneMock.Object,
                 heatPumpConfig,
                 settingsConfig,
@@ -418,11 +429,17 @@ namespace SessyTests.Services
         [Fact]
         public async Task GetInvestmentStatistics_CalculatesNetInvestmentCorrectly()
         {
+            SetupGroups(new List<InvestmentGroup>
+            {
+                new() { Id = 1, Name = "Solar",   Category = InvestmentCategory.Solar },
+                new() { Id = 2, Name = "Storage", Category = InvestmentCategory.Storage },
+                new() { Id = 3, Name = "HeatPump",Category = InvestmentCategory.HeatPump }
+            });
             SetupInvestments(new List<Investment>
             {
-                new() { Category = "SolarPanels", AmountEur = 10000, SubsidyEur = 2000, PurchaseDate = new DateTime(2025, 1, 1), ExpectedLifetimeYears = 25 },
-                new() { Category = "Battery",     AmountEur = 8000,  SubsidyEur = 0,    PurchaseDate = new DateTime(2025, 1, 1), ExpectedLifetimeYears = 15 },
-                new() { Category = "HeatPump",    AmountEur = 6000,  SubsidyEur = 1000, PurchaseDate = new DateTime(2025, 1, 1), ExpectedLifetimeYears = 20 }
+                new() { InvestmentGroupId = 1, AmountEur = 10000, SubsidyEur = 2000, PurchaseDate = new DateTime(2025, 1, 1), ExpectedLifetimeYears = 25 },
+                new() { InvestmentGroupId = 2, AmountEur = 8000,  SubsidyEur = 0,    PurchaseDate = new DateTime(2025, 1, 1), ExpectedLifetimeYears = 15 },
+                new() { InvestmentGroupId = 3, AmountEur = 6000,  SubsidyEur = 1000, PurchaseDate = new DateTime(2025, 1, 1), ExpectedLifetimeYears = 20 }
             });
             SetupMeasurements(new List<QuarterlyMeasurement>());
 
@@ -623,6 +640,13 @@ namespace SessyTests.Services
         {
             _investmentMock
                 .Setup(s => s.GetList(It.IsAny<Func<IQueryable<Investment>, Task<List<Investment>>>>()))
+                .ReturnsAsync(data);
+        }
+
+        private void SetupGroups(List<InvestmentGroup> data)
+        {
+            _groupMock
+                .Setup(s => s.GetList(It.IsAny<Func<IQueryable<InvestmentGroup>, Task<List<InvestmentGroup>>>>()))
                 .ReturnsAsync(data);
         }
 

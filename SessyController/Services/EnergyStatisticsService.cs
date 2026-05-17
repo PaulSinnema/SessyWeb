@@ -23,6 +23,8 @@ namespace SessyController.Services
         private readonly QuarterlyMeasurementDataService _measurementDataService;
         private readonly InvestmentDataService _investmentDataService;
         private readonly EnergyHistoryDataService _energyHistoryDataService;
+        private readonly EPEXPricesDataService _epexDataService;
+        private readonly InvestmentGroupDataService _groupService;
         private readonly TimeZoneService _timeZoneService;
         private readonly HeatPumpConfig _heatPumpConfig;
         private readonly SettingsConfig _settingsConfig;
@@ -32,32 +34,11 @@ namespace SessyController.Services
         private const double BatteryCapacityKWh = 16.2;
 
         // Category name constants for per-component savings routing.
-        private const string CategorySolar = "solarpanels";
-        private const string CategoryBattery = "battery";
-        private const string CategoryHeatPump = "heatpump";
-
-        private static string NormalizeCategory(string category)
-        {
-            var normalized = category.ToLowerInvariant()
-                .Replace(" ", "")
-                .Replace("-", "")
-                .Replace("_", "");
-
-            return normalized switch
-            {
-                "solar" or "zonnepanelen" or "panelen" or "solaredge" or "enphase" or "huawei" or "sma" => CategorySolar,
-                "batterij" or "batteries" or "battery"
-                    or "sessy" or "sessy1" or "sessy2" or "sessy3"
-                    or "sessy2+3" or "sessy1+2" or "sessy1+2+3" => CategoryBattery,
-                "warmtepomp" or "heatpump" or "hp" or "daikin" or "daikinaltherma"
-                    or "mitsubishi" or "lg" or "vaillant" or "nibe" => CategoryHeatPump,
-                _ => normalized
-            };
-        }
-
         public EnergyStatisticsService(QuarterlyMeasurementDataService measurementDataService,
                                        InvestmentDataService investmentDataService,
                                        EnergyHistoryDataService energyHistoryDataService,
+                                       EPEXPricesDataService epexDataService,
+                                       InvestmentGroupDataService groupService,
                                        TimeZoneService timeZoneService,
                                        IOptions<HeatPumpConfig> heatPumpConfig,
                                        IOptions<SettingsConfig> settingsConfig,
@@ -66,6 +47,8 @@ namespace SessyController.Services
             _measurementDataService = measurementDataService;
             _investmentDataService = investmentDataService;
             _energyHistoryDataService = energyHistoryDataService;
+            _epexDataService = epexDataService;
+            _groupService = groupService;
             _timeZoneService = timeZoneService;
             _heatPumpConfig = heatPumpConfig.Value;
             _settingsConfig = settingsConfig.Value;
@@ -203,27 +186,95 @@ namespace SessyController.Services
             var monthlySolarSavings = await BuildSeasonalSolarSavingsAsync(dataStart, now);
             var monthlyArbitrageSavings = await BuildSeasonalArbitrageSavingsAsync(dataStart, now);
 
-            var categoryBreakdown = investments
-                .GroupBy(i => i.Category)
+            // Load all investment groups for display name and category lookup.
+            var groups = await _groupService.GetList(async set =>
+                await Task.FromResult(set.ToList()));
+
+            var groupNameById = groups.ToDictionary(g => g.Id, g => g.Name);
+            var groupCategoryById = groups.ToDictionary(g => g.Id, g => g.Category);
+
+            // Helper: get the InvestmentCategory for an investment.
+            // Ungrouped investments fall back to Other.
+            InvestmentCategory GetCategory(Investment inv) =>
+                inv.InvestmentGroupId.HasValue && groupCategoryById.TryGetValue(inv.InvestmentGroupId.Value, out var cat)
+                    ? cat
+                    : InvestmentCategory.Other;
+
+            // Total net investment in Storage category — used to prorate arbitrage savings.
+            double totalBatteryNetInvestment = investments
+                .Where(i => GetCategory(i) == InvestmentCategory.Storage)
+                .Sum(i => i.AmountEur - i.SubsidyEur);
+
+            double totalArbitrageSavings = monthlyArbitrageSavings.Values.Sum();
+
+            // Group investments by InvestmentGroupId (when set) or by individual Id.
+            var grouped = investments
+                .GroupBy(i => i.InvestmentGroupId.HasValue
+                    ? $"__group_{i.InvestmentGroupId.Value}"
+                    : $"__single_{i.Id}");
+
+            var categoryBreakdown = grouped
                 .Select(g =>
                 {
                     var installDate = g.Min(i => i.PurchaseDate);
                     var monthsSince = (now.Year - installDate.Year) * 12 +
                                       (now.Month - installDate.Month);
 
-                    double annualSavings = CalculateCategoryAnnualSavings(
-                        g.Key, g.First(), monthlySolarSavings, monthlyArbitrageSavings);
+                    // Get category from the group definition.
+                    var first = g.First();
+                    bool isGroup = first.InvestmentGroupId.HasValue;
+                    var category = GetCategory(first);
+
+                    bool hasSolar = category == InvestmentCategory.Solar;
+                    bool hasBattery = category == InvestmentCategory.Storage;
+
+                    double annualSavings;
+                    string savingsSource;
+
+                    if (isGroup && hasSolar && hasBattery)
+                    {
+                        double solarAnnual = monthlySolarSavings.Values.Sum();
+                        double batteryAnnual = monthlyArbitrageSavings.Values.Sum();
+                        annualSavings = solarAnnual + batteryAnnual;
+                        savingsSource = "Export revenue + self-consumption + arbitrage (combined)";
+                    }
+                    else if (hasBattery)
+                    {
+                        double groupNetInvestment = g.Sum(i => i.AmountEur - i.SubsidyEur);
+                        double share = totalBatteryNetInvestment > 0
+                            ? groupNetInvestment / totalBatteryNetInvestment
+                            : 1.0;
+                        var effectiveArbitrage = monthlyArbitrageSavings
+                            .ToDictionary(kvp => kvp.Key, kvp => kvp.Value * share);
+                        annualSavings = CalculateCategoryAnnualSavings(
+                            category, first, monthlySolarSavings, effectiveArbitrage);
+                        savingsSource = GetSavingsSource(category, first);
+                    }
+                    else
+                    {
+                        annualSavings = CalculateCategoryAnnualSavings(
+                            category, first, monthlySolarSavings, monthlyArbitrageSavings);
+                        savingsSource = GetSavingsSource(category, first);
+                    }
+
+                    // Display name: group name from lookup, or investment description.
+                    string displayCategory;
+                    if (isGroup && first.InvestmentGroupId.HasValue
+                        && groupNameById.TryGetValue(first.InvestmentGroupId.Value, out var gName))
+                        displayCategory = gName;
+                    else
+                        displayCategory = first.Description;
 
                     return new InvestmentCategoryStats
                     {
-                        Category = g.Key,
+                        Category = displayCategory,
                         TotalAmountEur = g.Sum(i => i.AmountEur),
                         TotalSubsidyEur = g.Sum(i => i.SubsidyEur),
                         ExpectedLifetimeYears = (int)g.Average(i => i.ExpectedLifetimeYears),
                         InstallationDate = installDate,
                         MonthsSinceInstallation = monthsSince,
                         AnnualSavingsEur = annualSavings,
-                        SavingsSource = GetSavingsSource(g.Key, g.First())
+                        SavingsSource = savingsSource
                     };
                 })
                 .OrderByDescending(c => c.NetAmountEur)
@@ -242,9 +293,16 @@ namespace SessyController.Services
             if (totalAnnualSavings > 0)
             {
                 double remaining = totalNetInvestment - totalProjectedSavings;
-                breakEvenDate = remaining <= 0
-                    ? now
-                    : now.AddDays(remaining / totalAnnualSavings * 365.0);
+                if (remaining <= 0)
+                {
+                    breakEvenDate = now;
+                }
+                else
+                {
+                    double days = remaining / totalAnnualSavings * 365.0;
+                    if (days <= 3_000_000)
+                        breakEvenDate = now.AddDays(days);
+                }
             }
 
             return new InvestmentStatistics
@@ -264,7 +322,7 @@ namespace SessyController.Services
         // ── Private helpers ──────────────────────────────────────────────────
 
         private double CalculateCategoryAnnualSavings(
-            string category,
+            InvestmentCategory category,
             Investment representative,
             Dictionary<int, double> monthlySolarSavings,
             Dictionary<int, double> monthlyArbitrageSavings)
@@ -272,25 +330,25 @@ namespace SessyController.Services
             if (representative.EstimatedAnnualSavingsEur > 0)
                 return representative.EstimatedAnnualSavingsEur;
 
-            return NormalizeCategory(category) switch
+            return category switch
             {
-                CategorySolar => monthlySolarSavings.Values.Sum(),
-                CategoryBattery => monthlyArbitrageSavings.Values.Sum(),
-                CategoryHeatPump => _heatPumpConfig.IsConfigured ? _heatPumpConfig.TotalAnnualSavingsEur : 0.0,
+                InvestmentCategory.Solar => monthlySolarSavings.Values.Sum(),
+                InvestmentCategory.Storage => monthlyArbitrageSavings.Values.Sum(),
+                InvestmentCategory.HeatPump => _heatPumpConfig.IsConfigured ? _heatPumpConfig.TotalAnnualSavingsEur : 0.0,
                 _ => 0.0
             };
         }
 
-        private string GetSavingsSource(string category, Investment representative)
+        private string GetSavingsSource(InvestmentCategory category, Investment representative)
         {
             if (representative.EstimatedAnnualSavingsEur > 0)
                 return representative.SavingsDescription ?? "Manual estimate";
 
-            return NormalizeCategory(category) switch
+            return category switch
             {
-                CategorySolar => "Export revenue + self-consumption (measured)",
-                CategoryBattery => "Arbitrage profit (measured)",
-                CategoryHeatPump => _heatPumpConfig.IsConfigured
+                InvestmentCategory.Solar => "Export revenue + self-consumption (measured)",
+                InvestmentCategory.Storage => "Arbitrage profit (measured, prorated by investment share)",
+                InvestmentCategory.HeatPump => _heatPumpConfig.IsConfigured
                     ? $"{_heatPumpConfig.AnnualGasConsumptionM3} m³ × €{_heatPumpConfig.GasPriceEurPerM3}/m³ + €{_heatPumpConfig.GasStandingChargeEurPerYear} vastrecht - {_heatPumpConfig.AnnualElectricityConsumptionKWh} kWh × €{_heatPumpConfig.EffectiveElectricityPriceEurPerKWh:F2}/kWh elektra"
                     : "Not configured — add HeatPumpConfig to appsettings.json",
                 _ => "Manual estimate required — set EstimatedAnnualSavingsEur on investment"
@@ -453,7 +511,7 @@ namespace SessyController.Services
                     var measurements = await GetMeasurementsAsync(current, monthEnd);
 
                     double exportRevenue = measurements
-                        .Where(m => m.BatteryMode == BatteryMode.Discharging)
+                        .Where(m => m.BatteryPowerWatts > 0)
                         .Sum(m => m.SellingPriceEur * m.BatteryDischargedKWh);
 
                     double solarKWh = measurements.Sum(m => m.SolarProductionKWh);
@@ -516,20 +574,31 @@ namespace SessyController.Services
         private async Task<Dictionary<int, double>> BuildSeasonalArbitrageSavingsAsync(
             DateTime dataStart, DateTime dataEnd)
         {
+            // Arbitrage savings can only be measured from QuarterlyMeasurements —
+            // EnergyHistory has no battery data. Starting from dataStart (which may
+            // include the EnergyHistory period) would dilute the average with zero months.
+            var firstMeasurement = await _measurementDataService.Get(async set =>
+                await Task.FromResult(set.OrderBy(m => m.Time).FirstOrDefault()));
+
+            var arbitrageStart = firstMeasurement?.Time ?? dataEnd;
+            var current = new DateTime(arbitrageStart.Year, arbitrageStart.Month, 1);
+
             var allMonthly = new Dictionary<int, List<double>>();
-            var current = new DateTime(dataStart.Year, dataStart.Month, 1);
 
             while (current <= dataEnd)
             {
                 var clampedEnd = Math.Min(current.AddMonths(1).AddTicks(-1).Ticks, dataEnd.Ticks);
                 var measurements = await GetMeasurementsAsync(current, new DateTime(clampedEnd));
 
+                // Use BatteryPowerWatts directly — not BatteryMode — because in
+                // ZeroNetHome mode the battery also discharges (positive watts) but
+                // the mode is ZeroNetHome, not Discharging.
                 double revenue = measurements
-                    .Where(m => m.BatteryMode == BatteryMode.Discharging)
+                    .Where(m => m.BatteryPowerWatts > 0)
                     .Sum(m => m.SellingPriceEur * m.BatteryDischargedKWh);
 
                 double cost = measurements
-                    .Where(m => m.BatteryMode == BatteryMode.Charging)
+                    .Where(m => m.BatteryPowerWatts < 0)
                     .Sum(m => m.BuyingPriceEur * m.BatteryChargedKWh);
 
                 int month = current.Month;
@@ -545,6 +614,92 @@ namespace SessyController.Services
 
             for (int m = 1; m <= 12; m++)
                 result[m] = allMonthly.ContainsKey(m) ? allMonthly[m].Average() : overallAvg;
+
+            // When less than 6 months of data available, simulate annual arbitrage
+            // using historical EPEX prices and measured battery behaviour.
+            if (allMonthly.Count < 6)
+            {
+                var simulated = await SimulateAnnualArbitrageAsync(arbitrageStart, dataEnd);
+                if (simulated != null)
+                    return simulated;
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Simulates annual arbitrage savings using historical EPEX prices and
+        /// measured battery behaviour (charge/discharge power and frequency).
+        ///
+        /// Strategy: each day, charge during the cheapest 25% of quarter-hours
+        /// and discharge during the most expensive 25%, using the measured average
+        /// power levels and round-trip efficiency from QuarterlyMeasurements.
+        ///
+        /// Returns a per-month savings dictionary, or null when insufficient data.
+        /// </summary>
+        private async Task<Dictionary<int, double>?> SimulateAnnualArbitrageAsync(
+            DateTime measurementStart, DateTime dataEnd)
+        {
+            var measurements = await GetMeasurementsAsync(measurementStart, dataEnd);
+            if (!measurements.Any()) return null;
+
+            // Measure average charge/discharge power and frequency from actual data.
+            var discharging = measurements.Where(m => m.BatteryPowerWatts > 0).ToList();
+            var charging = measurements.Where(m => m.BatteryPowerWatts < 0).ToList();
+
+            if (!discharging.Any() || !charging.Any()) return null;
+
+            double avgDischargeW = discharging.Average(m => m.BatteryPowerWatts);
+            double avgChargeW = charging.Average(m => Math.Abs(m.BatteryPowerWatts));
+            double totalDays = Math.Max(1, (dataEnd - measurementStart).TotalDays);
+            double dischPerDay = discharging.Count / totalDays;
+            double chargPerDay = charging.Count / totalDays;
+
+            // Load one year of EPEX prices (prefer last 12 months).
+            var epexFrom = dataEnd.AddYears(-1);
+            var epexPrices = await _epexDataService.GetList(async set =>
+            {
+                var result = set
+                    .Where(p => p.Time >= epexFrom && p.Time < dataEnd && p.Price.HasValue)
+                    .OrderBy(p => p.Time)
+                    .ToList();
+                return await Task.FromResult(result);
+            });
+
+            if (!epexPrices.Any()) return null;
+
+            // Simulate per month using measured behaviour + EPEX price distribution.
+            var result = new Dictionary<int, double>();
+
+            for (int month = 1; month <= 12; month++)
+            {
+                var monthPrices = epexPrices
+                    .Where(p => p.Time.Month == month)
+                    .Select(p => p.Price!.Value)
+                    .OrderBy(p => p)
+                    .ToList();
+
+                if (!monthPrices.Any())
+                {
+                    result[month] = 0.0;
+                    continue;
+                }
+
+                int n = monthPrices.Count;
+                // Cheapest 25% of quarter-hours → charging price.
+                double avgCheap = monthPrices.Take(n / 4).Average();
+                // Most expensive 25% of quarter-hours → discharging price.
+                double avgExpensive = monthPrices.Skip(3 * n / 4).Average();
+
+                int daysInMonth = DateTime.DaysInMonth(dataEnd.Year, month);
+                double chargedKWh = chargPerDay * daysInMonth * avgChargeW * 0.25 / 1000.0;
+                double dischargedKWh = dischPerDay * daysInMonth * avgDischargeW * 0.25 / 1000.0;
+
+                double revenue = dischargedKWh * avgExpensive;
+                double cost = chargedKWh * Math.Max(0, avgCheap); // Negative prices = free charging.
+
+                result[month] = revenue - cost;
+            }
 
             return result;
         }
@@ -700,19 +855,22 @@ namespace SessyController.Services
             if (!measurements.Any())
                 return;
 
+            // Use BatteryPowerWatts directly — not BatteryMode — because in
+            // ZeroNetHome mode the battery also charges/discharges but the mode
+            // is ZeroNetHome, not Charging/Discharging.
+
             // Charging cost: energy bought from grid to charge batteries.
             double chargingCostEur = measurements
-                .Where(m => m.BatteryMode == BatteryMode.Charging)
+                .Where(m => m.BatteryPowerWatts < 0)
                 .Sum(m => m.BuyingPriceEur * m.BatteryChargedKWh);
 
-            // Import cost: energy bought for household consumption.
+            // Import cost: energy bought for household consumption (excluding charging).
             double importCostEur = measurements
-                .Where(m => m.BatteryMode == BatteryMode.ZeroNetHome || m.BatteryMode == BatteryMode.Disabled)
-                .Sum(m => m.BuyingPriceEur * m.GridImportKWh);
+                .Sum(m => m.BuyingPriceEur * m.GridImportKWh) - chargingCostEur;
 
             // Export revenue: energy sold to grid.
             stats.GridExportRevenueEur = measurements
-                .Where(m => m.BatteryMode == BatteryMode.Discharging)
+                .Where(m => m.BatteryPowerWatts > 0)
                 .Sum(m => m.SellingPriceEur * m.BatteryDischargedKWh);
 
             stats.ActualEnergyCostEur = importCostEur + chargingCostEur - stats.GridExportRevenueEur;
@@ -729,7 +887,7 @@ namespace SessyController.Services
 
             stats.WeightedAvgSellPriceEurPerKWh = totalDischargedKWh > 0
                 ? measurements
-                    .Where(m => m.BatteryMode == BatteryMode.Discharging)
+                    .Where(m => m.BatteryPowerWatts > 0)
                     .Sum(m => m.SellingPriceEur * m.BatteryDischargedKWh) / totalDischargedKWh
                 : measurements.Average(m => m.SellingPriceEur);
 

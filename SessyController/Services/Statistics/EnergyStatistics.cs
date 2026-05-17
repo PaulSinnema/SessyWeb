@@ -276,7 +276,9 @@
         public double ProjectedTotalSavingsEur => MonthlySavingsEur * MonthsSinceInstallation;
 
         /// <summary>Simple payback period in years.</summary>
-        public double PaybackYears => AnnualSavingsEur > 0 ? NetAmountEur / AnnualSavingsEur : double.MaxValue;
+        public double PaybackYears => AnnualSavingsEur > 0
+            ? NetAmountEur / AnnualSavingsEur
+            : double.MaxValue;
 
         /// <summary>Projected break-even date for this component.</summary>
         public DateTime? BreakEvenDate => AnnualSavingsEur > 0

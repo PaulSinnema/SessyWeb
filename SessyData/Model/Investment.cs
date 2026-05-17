@@ -17,11 +17,6 @@ namespace SessyData.Model
         public int Id { get; set; }
 
         /// <summary>
-        /// Category of the investment (e.g. SolarPanels, Battery, HeatPump, Inverter, Installation).
-        /// </summary>
-        public string Category { get; set; } = string.Empty;
-
-        /// <summary>
         /// Description of the investment (e.g. "12x JA Solar 400Wp", "3x Sessy 5.4kWh").
         /// </summary>
         public string Description { get; set; } = string.Empty;
@@ -53,6 +48,13 @@ namespace SessyData.Model
         public int ExpectedLifetimeYears { get; set; } = 25;
 
         /// <summary>
+        /// Optional foreign key to InvestmentGroup.
+        /// When set, this investment is combined with other group members
+        /// for a single ROI calculation.
+        /// </summary>
+        public int? InvestmentGroupId { get; set; }
+
+        /// <summary>
         /// Optional: manually estimated annual savings in EUR for components
         /// where automatic calculation is not possible (e.g. heat pump vs gas).
         /// When set, this overrides the automatic savings calculation.
@@ -62,7 +64,6 @@ namespace SessyData.Model
 
         /// <summary>
         /// Optional: description of how savings are calculated for this component.
-        /// E.g. "950 m³ gas * €1.45/m³ + €185 standing charge"
         /// </summary>
         public string? SavingsDescription { get; set; }
 
@@ -78,7 +79,7 @@ namespace SessyData.Model
 
         public override string ToString()
         {
-            return $"Id: {Id}, Category: {Category}, Description: {Description}, " +
+            return $"Id: {Id}, Description: {Description}, " +
                    $"PurchaseDate: {PurchaseDate:dd-MM-yyyy}, Amount: {AmountEur:F2} EUR, " +
                    $"Subsidy: {SubsidyEur:F2} EUR, Net: {NetAmountEur:F2} EUR";
         }

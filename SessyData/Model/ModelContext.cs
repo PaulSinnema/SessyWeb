@@ -45,6 +45,7 @@ namespace SessyData.Model
         public DbSet<InverterMeasurement> InverterMeasurements => Set<InverterMeasurement>();
 
         public DbSet<Investment> Investment => Set<Investment>();
+        public DbSet<InvestmentGroup> InvestmentGroups => Set<InvestmentGroup>();
 
         public DbSet<Settings> Settings => Set<Settings>();
 

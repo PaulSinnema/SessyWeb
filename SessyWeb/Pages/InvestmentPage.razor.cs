@@ -16,7 +16,11 @@ namespace SessyWeb.Pages
         [Inject]
         private InvestmentDataService? _investmentService { get; set; }
 
+        [Inject]
+        private InvestmentGroupDataService? _groupService { get; set; }
+
         private List<Investment>? InvestmentList { get; set; } = new();
+        private List<InvestmentGroup> Groups { get; set; } = new();
 
         RadzenDataGrid<Investment>? investmentsGrid { get; set; }
 
@@ -27,41 +31,35 @@ namespace SessyWeb.Pages
         protected override async Task OnAfterRenderAsync(bool firstRender)
         {
             if (firstRender)
+            {
+                Groups = await _groupService!.GetList(async set =>
+                    await Task.FromResult(set.OrderBy(g => g.Name).ToList()));
+
                 await investmentsGrid!.FirstPage(true);
+            }
         }
 
         async Task LoadData(LoadDataArgs args)
         {
             IsBusy = true;
-
             try
             {
                 isLoading = true;
-
                 await Task.Yield();
-
                 EnsureInvestmentsGrid();
 
                 InvestmentList = await _investmentService!.GetList(async (set) =>
                 {
-                    var result = set
-                        .OrderBy(i => i.PurchaseDate)
-                        .AsQueryable();
-
+                    var result = set.OrderBy(i => i.PurchaseDate).AsQueryable();
                     var query = await Task.FromResult(result);
 
                     if (!string.IsNullOrEmpty(args.Filter))
-                    {
                         query = query.Where(investmentsGrid!.ColumnsCollection);
-                    }
 
                     if (!string.IsNullOrEmpty(args.OrderBy))
-                    {
                         query = query.OrderBy(args.OrderBy);
-                    }
 
                     count = query.Count();
-
                     return query.Skip(args.Skip!.Value).Take(args.Top!.Value).ToList();
                 });
 
@@ -76,13 +74,13 @@ namespace SessyWeb.Pages
         private void EnsureInvestmentsGrid()
         {
             if (investmentsGrid == null)
-                throw new InvalidOperationException($"{nameof(investmentsGrid)} can not be null here, did you forget a @ref?");
+                throw new InvalidOperationException(
+                    $"{nameof(investmentsGrid)} can not be null here, did you forget a @ref?");
         }
 
         async Task EditRow(Investment investment)
         {
             if (!investmentsGrid!.IsValid) return;
-
             await investmentsGrid!.EditRow(investment);
         }
 
@@ -93,15 +91,12 @@ namespace SessyWeb.Pages
                 (item, set) => set.Where(i => i.Id == investment.Id).FirstOrDefault());
         }
 
-        async Task SaveRow(Investment investment)
-        {
+        async Task SaveRow(Investment investment) =>
             await investmentsGrid!.UpdateRow(investment);
-        }
 
         async Task CancelEdit(Investment investment)
         {
             investmentsGrid!.CancelEditRow(investment);
-
             await investmentsGrid.Reload();
         }
 
@@ -146,8 +141,8 @@ namespace SessyWeb.Pages
         private async Task OnCreateRow(Investment investment)
         {
             await _investmentService!.Add(
-                        new List<Investment> { investment },
-                        (item, set) => set.Contains(investment));
+                new List<Investment> { investment },
+                (item, set) => set.Contains(investment));
         }
     }
 }

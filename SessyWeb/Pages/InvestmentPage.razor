@@ -29,9 +29,19 @@
         </RadzenText>
     </HeaderTemplate>
     <Columns>
-        <RadzenDataGridColumn Property="@nameof(Investment.Category)" Title="Category">
+
+        <RadzenDataGridColumn Property="@nameof(Investment.InvestmentGroupId)" Title="Group">
+            <Template Context="inv">
+                @(Groups.FirstOrDefault(g => g.Id == inv.InvestmentGroupId)?.Name ?? "—")
+            </Template>
             <EditTemplate Context="inv">
-                <RadzenTextBox @bind-Value="inv.Category" Style="width:100%" />
+                <RadzenDropDown @bind-Value="inv.InvestmentGroupId"
+                                Data="@Groups"
+                                TextProperty="Name"
+                                ValueProperty="Id"
+                                AllowClear="true"
+                                Placeholder="— no group —"
+                                Style="width:100%" />
             </EditTemplate>
         </RadzenDataGridColumn>
         <RadzenDataGridColumn Property="@nameof(Investment.Description)" Title="Description">

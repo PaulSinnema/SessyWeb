@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SessyData.Model;
 
@@ -10,9 +11,11 @@ using SessyData.Model;
 namespace SessyData.Migrations
 {
     [DbContext(typeof(ModelContext))]
-    partial class ModelContextModelSnapshot : ModelSnapshot
+    [Migration("20260517144941_InvestmentGroup")]
+    partial class InvestmentGroup
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.7");
@@ -159,6 +162,10 @@ namespace SessyData.Migrations
                     b.Property<double>("AmountEur")
                         .HasColumnType("REAL");
 
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -169,8 +176,8 @@ namespace SessyData.Migrations
                     b.Property<int>("ExpectedLifetimeYears")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int?>("InvestmentGroupId")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("InvestmentGroup")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Notes")
                         .HasColumnType("TEXT");
@@ -189,30 +196,6 @@ namespace SessyData.Migrations
                     b.HasIndex("PurchaseDate");
 
                     b.ToTable("Investment");
-                });
-
-            modelBuilder.Entity("SessyData.Model.InvestmentGroup", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("Category")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Name")
-                        .IsUnique();
-
-                    b.ToTable("InvestmentGroups");
                 });
 
             modelBuilder.Entity("SessyData.Model.QuarterlyMeasurement", b =>
