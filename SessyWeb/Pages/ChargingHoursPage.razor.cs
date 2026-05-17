@@ -305,16 +305,7 @@ namespace SessyWeb.Pages
 
             if (ShowAll)
             {
-                // Plan (future/current) limited to window
-                var planItems = listFromBatteryService
-                    .Where(q => q.Time >= from && q.Time < to)
-                    .OrderBy(q => q.Time)
-                    .ToList();
-
-                foreach (var qi in planItems)
-                    views.Add(await FillQuarterlyInfoView(qi, averageBuyingPrice, averageSellingPrice).ConfigureAwait(false));
-
-                // Historical measurements limited to the SAME window
+                // Historical measurements for the window.
                 var measurements = await _measurementDataService!.GetList(async set =>
                 {
                     var result = set
@@ -323,6 +314,18 @@ namespace SessyWeb.Pages
 
                     return await Task.FromResult(result);
                 }).ConfigureAwait(false);
+
+                // Historical measurement times — these take priority over planning data.
+                var measuredTimes = new HashSet<DateTime>(measurements.Select(m => m.Time));
+
+                // Plan items — only include quarters not covered by actual measurements.
+                var planItems = listFromBatteryService
+                    .Where(q => q.Time >= from && q.Time < to && !measuredTimes.Contains(q.Time))
+                    .OrderBy(q => q.Time)
+                    .ToList();
+
+                foreach (var qi in planItems)
+                    views.Add(await FillQuarterlyInfoView(qi, averageBuyingPrice, averageSellingPrice).ConfigureAwait(false));
 
                 foreach (var m in measurements)
                     views.Add(FillQuarterlyInfoView(m));

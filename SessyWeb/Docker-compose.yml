@@ -1,0 +1,35 @@
+services:
+  sessyweb:
+    image: <Docker-registry>:5000/sessyweb:latest
+    container_name: sessyweb
+    pull_policy: always   # Always pull latest image from registry on (re)start
+
+    restart: unless-stopped
+
+    ports:
+      - "8100:443"   # HTTPS
+      - "8101:80"    # HTTP
+
+    volumes:
+      # Configuration (appsettings.json, certificates, etc.)
+      - /volume1/SessyController/Config:/SessyController/Config:rw
+      # SQLite database and backups
+      - /volume1/SessyController/data:/data:rw
+
+    environment:
+      - ASPNETCORE_HTTP_PORTS=80
+      - ASPNETCORE_URLS=http://+:80
+      - DOTNET_RUNNING_IN_CONTAINER=true
+      - CONFIG_PATH=/SessyController/Config
+      - APP_UID=1654
+
+    # Medium CPU priority — equivalent to Synology Container Manager setting.
+    cpu_shares: 512
+
+    # Health check: ping the Blazor app every 30s.
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
