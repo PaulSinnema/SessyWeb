@@ -17,6 +17,7 @@ namespace SessyTests.Services
     {
         private readonly Mock<QuarterlyMeasurementDataService> _measurementMock;
         private readonly Mock<InvestmentDataService> _investmentMock;
+        private readonly Mock<EnergyHistoryDataService> _energyHistoryMock;
         private readonly Mock<TimeZoneService> _timeZoneMock;
         private readonly EnergyStatisticsService _sut;
 
@@ -31,6 +32,7 @@ namespace SessyTests.Services
 
             _measurementMock = new Mock<QuarterlyMeasurementDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
             _investmentMock = new Mock<InvestmentDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
+            _energyHistoryMock = new Mock<EnergyHistoryDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
 
             var timeZoneSettings = Options.Create(new SettingsConfig { Timezone = "Europe/Amsterdam" });
             _timeZoneMock = new Mock<TimeZoneService>(MockBehavior.Loose, timeZoneSettings);
@@ -44,13 +46,16 @@ namespace SessyTests.Services
                 InstallationDate = new DateTime(2024, 3, 1)
             });
             var settingsConfig = Options.Create(new SettingsConfig());
+            var powerSystemsConfig = Options.Create(new PowerSystemsConfig());
 
             _sut = new EnergyStatisticsService(
                 _measurementMock.Object,
                 _investmentMock.Object,
+                _energyHistoryMock.Object,
                 _timeZoneMock.Object,
                 heatPumpConfig,
-                settingsConfig);
+                settingsConfig,
+                powerSystemsConfig);
         }
 
         // ── Grid flow tests ──────────────────────────────────────────────────
@@ -329,13 +334,17 @@ namespace SessyTests.Services
 
             var settingsConfig = Options.Create(new SettingsConfig { StatisticsFromDate = fromDate });
             var heatPumpConfig = Options.Create(new HeatPumpConfig());
+            var energyHistoryMock = new Mock<EnergyHistoryDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
+            var powerSystemsConfig = Options.Create(new PowerSystemsConfig());
 
             var sut = new EnergyStatisticsService(
                 measurementMock.Object,
                 investmentMock.Object,
+                energyHistoryMock.Object,
                 _timeZoneMock.Object,
                 heatPumpConfig,
-                settingsConfig);
+                settingsConfig,
+                powerSystemsConfig);
 
             // Request full month — StatisticsFromDate clips it to May 15.
             var result = await sut.GetEnergyStatisticsAsync(DateTime.MinValue, PeriodEnd);

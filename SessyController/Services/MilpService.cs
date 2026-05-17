@@ -980,15 +980,25 @@ namespace SessyController.Services
                 if (socWh - requiredWh < minSocWh + EmptyHysteresisWh + NumericEpsWh)
                     return new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
 
-                if (!netting && qi != null)
+                if (qi != null)
                 {
-                    // Allow discharging for own consumption (positive net load).
-                    // Only block pure export-style discharge when sell price is too low.
                     double netLoadWh = qi.NetLoadWh;
                     bool dischargingForOwnConsumption = netLoadWh > 0.0;
 
                     if (!dischargingForOwnConsumption)
                     {
+                        // Solar surplus already covers consumption — any discharge goes
+                        // straight to export. Only allow this when selling price justifies
+                        // the cycle cost, regardless of netting status.
+                        double exportThreshold = selfUseValue + _settingsConfig.CycleCost + ExportPremiumEur;
+
+                        if (qi.SellingPrice < exportThreshold)
+                            return new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
+                    }
+                    else if (!netting)
+                    {
+                        // Netting OFF, positive net load: only allow export-style discharge
+                        // when sell price covers cycle cost.
                         double exportThreshold = selfUseValue + _settingsConfig.CycleCost + ExportPremiumEur;
 
                         if (qi.SellingPrice < exportThreshold)
