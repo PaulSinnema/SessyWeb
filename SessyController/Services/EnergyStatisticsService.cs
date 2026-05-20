@@ -109,7 +109,7 @@ namespace SessyController.Services
             CalculateSolarStats(measurements, stats);
             CalculateConsumptionStats(measurements, stats);
             CalculateBatteryStats(measurements, stats);
-            CalculateSelfConsumedSolar(stats);
+            CalculateSelfConsumedSolar(measurements, stats);
             CalculateFinancialStats(measurements, stats);
 
             return stats;
@@ -305,6 +305,77 @@ namespace SessyController.Services
                 }
             }
 
+            // ComponentBreakdown: each investment individually, regardless of group.
+            // Calculate cyclesPerDay from measurements for battery cycle extrapolation.
+            var cycleMeasurements = await GetMeasurementsAsync(dataStart, now);
+            double totalChargedKWh = cycleMeasurements.Sum(m => m.BatteryChargedKWh);
+            int measuredDays = Math.Max(1, cycleMeasurements
+                .Select(m => m.Time.Date)
+                .Distinct()
+                .Count());
+            double cyclesPerDay = BatteryCapacityKWh > 0
+                ? totalChargedKWh / BatteryCapacityKWh / measuredDays
+                : 0.0;
+
+            var componentBreakdown = investments
+                .Select(inv =>
+                {
+                    var installDate = inv.PurchaseDate;
+                    var monthsSince = (now.Year - installDate.Year) * 12 +
+                                      (now.Month - installDate.Month);
+                    var category = GetCategory(inv);
+
+                    double annualSavings;
+                    string savingsSource;
+
+                    if (inv.InvestmentGroupId.HasValue)
+                    {
+                        // Prorate group savings by this investment's share of group net investment.
+                        var groupInvestments = investments
+                            .Where(i => i.InvestmentGroupId == inv.InvestmentGroupId)
+                            .ToList();
+                        double groupNet = groupInvestments.Sum(i => i.AmountEur - i.SubsidyEur);
+                        double share = groupNet > 0 ? (inv.AmountEur - inv.SubsidyEur) / groupNet : 1.0;
+
+                        // Find this investment's group in categoryBreakdown.
+                        var groupKey = $"__group_{inv.InvestmentGroupId.Value}";
+                        var groupStats = categoryBreakdown
+                            .FirstOrDefault(c => c.Category == groupNameById.GetValueOrDefault(inv.InvestmentGroupId.Value));
+
+                        annualSavings = groupStats != null
+                            ? groupStats.AnnualSavingsEur * share
+                            : CalculateCategoryAnnualSavings(category, inv, monthlySolarSavings, monthlyArbitrageSavings) * share;
+                        savingsSource = GetSavingsSource(category, inv);
+                    }
+                    else
+                    {
+                        annualSavings = CalculateCategoryAnnualSavings(
+                            category, inv, monthlySolarSavings, monthlyArbitrageSavings);
+                        savingsSource = GetSavingsSource(category, inv);
+                    }
+
+                    // Battery cycles: cyclesPerDay × days since installation.
+                    // Simple and correct: each battery accumulates cycles since its install date.
+                    double batteryCycles = category == InvestmentCategory.Storage
+                        ? cyclesPerDay * (now - installDate).TotalDays
+                        : 0.0;
+
+                    return new InvestmentCategoryStats
+                    {
+                        Category = inv.Description,
+                        TotalAmountEur = inv.AmountEur,
+                        TotalSubsidyEur = inv.SubsidyEur,
+                        ExpectedLifetimeYears = inv.ExpectedLifetimeYears,
+                        InstallationDate = installDate,
+                        MonthsSinceInstallation = monthsSince,
+                        AnnualSavingsEur = annualSavings,
+                        SavingsSource = savingsSource,
+                        BatteryCycles = batteryCycles
+                    };
+                })
+                .OrderByDescending(c => c.NetAmountEur)
+                .ToList();
+
             return new InvestmentStatistics
             {
                 PeriodStart = earliestPurchase,
@@ -315,7 +386,8 @@ namespace SessyController.Services
                 ProjectedTotalSavingsEur = totalProjectedSavings,
                 ProjectedAnnualSavingsEur = totalAnnualSavings,
                 ProjectedBreakEvenDate = breakEvenDate,
-                CategoryBreakdown = categoryBreakdown
+                CategoryBreakdown = categoryBreakdown,
+                ComponentBreakdown = componentBreakdown
             };
         }
 
@@ -643,7 +715,6 @@ namespace SessyController.Services
             var measurements = await GetMeasurementsAsync(measurementStart, dataEnd);
             if (!measurements.Any()) return null;
 
-            // Measure average charge/discharge power and frequency from actual data.
             var discharging = measurements.Where(m => m.BatteryPowerWatts > 0).ToList();
             var charging = measurements.Where(m => m.BatteryPowerWatts < 0).ToList();
 
@@ -655,7 +726,14 @@ namespace SessyController.Services
             double dischPerDay = discharging.Count / totalDays;
             double chargPerDay = charging.Count / totalDays;
 
-            // Load one year of EPEX prices (prefer last 12 months).
+            // Note: solar storage value is already included in BuildSeasonalSolarSavingsAsync
+            // via self-consumption calculation. Only pure arbitrage (grid charge/discharge)
+            // is calculated here to avoid double-counting.
+            double avgBuyPrice = measurements.Any(m => m.BuyingPriceEur > 0)
+                ? measurements.Where(m => m.BuyingPriceEur > 0).Average(m => m.BuyingPriceEur)
+                : 0.25;
+
+            // Load EPEX prices for arbitrage simulation.
             var epexFrom = dataEnd.AddYears(-1);
             var epexPrices = await _epexDataService.GetList(async set =>
             {
@@ -668,7 +746,6 @@ namespace SessyController.Services
 
             if (!epexPrices.Any()) return null;
 
-            // Simulate per month using measured behaviour + EPEX price distribution.
             var result = new Dictionary<int, double>();
 
             for (int month = 1; month <= 12; month++)
@@ -686,19 +763,17 @@ namespace SessyController.Services
                 }
 
                 int n = monthPrices.Count;
-                // Cheapest 25% of quarter-hours → charging price.
                 double avgCheap = monthPrices.Take(n / 4).Average();
-                // Most expensive 25% of quarter-hours → discharging price.
                 double avgExpensive = monthPrices.Skip(3 * n / 4).Average();
 
                 int daysInMonth = DateTime.DaysInMonth(dataEnd.Year, month);
                 double chargedKWh = chargPerDay * daysInMonth * avgChargeW * 0.25 / 1000.0;
                 double dischargedKWh = dischPerDay * daysInMonth * avgDischargeW * 0.25 / 1000.0;
 
-                double revenue = dischargedKWh * avgExpensive;
-                double cost = chargedKWh * Math.Max(0, avgCheap); // Negative prices = free charging.
+                double arbitrageRevenue = dischargedKWh * avgExpensive;
+                double arbitrageCost = chargedKWh * Math.Max(0, avgCheap);
 
-                result[month] = revenue - cost;
+                result[month] = arbitrageRevenue - arbitrageCost;
             }
 
             return result;
@@ -754,16 +829,18 @@ namespace SessyController.Services
                 .Max();
 
             // Performance ratio: actual vs theoretical based on KNMI global radiation.
-            // Total solar installation kWp = sum of all panel strings across all inverters.
-            // PeakPowerForArray = PanelCount * PeakPowerPerPanel * Efficiency (in Watts).
+            // GlobalRadiation is measured per hour (W/m²) but stored per quarter-hour.
+            // To avoid counting the same hour 4 times, use distinct hours only.
             double solarInstallationKWp = _powerSystemsConfig.Endpoints?
                 .SelectMany(provider => provider.Value.Values)
                 .Where(ep => ep.SolarPanels != null)
                 .SelectMany(ep => ep.SolarPanels!.Values)
                 .Sum(pv => pv.PeakPowerForArray) / 1000.0 ?? 0.0;
 
+            // Sum distinct hourly radiation values to avoid 4x counting.
             double theoreticalKWh = measurements
-                .Sum(m => m.GlobalRadiation / 1000.0 * solarInstallationKWp * 0.25);
+                .GroupBy(m => new { m.Time.Date, m.Time.Hour })
+                .Sum(g => g.First().GlobalRadiation / 1000.0 * solarInstallationKWp * 1.0); // × 1h
 
             stats.SolarPerformanceRatio = theoreticalKWh > 0
                 ? stats.TotalSolarProductionKWh / theoreticalKWh
@@ -771,11 +848,15 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Self-consumed solar = solar - solar exported to grid.
-        /// Solar exported = max(0, grid export - battery discharged).
-        /// Must be called AFTER CalculateBatteryStats.
+        /// Self-consumed solar calculated per quarter-hour to avoid the circularity problem
+        /// of totals (battery charges from solar then discharges to grid, making all export
+        /// look like battery export and all solar look self-consumed).
+        ///
+        /// Per quarter: solar self-consumed = min(solar, consumption_from_own_sources)
+        /// where consumption = grid_import + solar + battery_discharge - battery_charge - grid_export
         /// </summary>
-        private static void CalculateSelfConsumedSolar(EnergyStatistics stats)
+        private static void CalculateSelfConsumedSolar(
+            List<QuarterlyMeasurement> measurements, EnergyStatistics stats)
         {
             if (stats.TotalSolarProductionKWh <= 0)
             {
@@ -783,16 +864,23 @@ namespace SessyController.Services
                 return;
             }
 
-            double batteryContributionToExport = Math.Min(
-                stats.TotalBatteryDischargedKWh,
-                stats.TotalGridExportKWh);
+            // Per quarter: how much solar went directly to household or battery (not to grid)?
+            double selfConsumed = 0.0;
+            foreach (var m in measurements)
+            {
+                if (m.SolarProductionKWh <= 0) continue;
 
-            double solarExportedKWh = Math.Max(0,
-                stats.TotalGridExportKWh - batteryContributionToExport);
+                // Net household demand this quarter (positive = consuming, negative = surplus)
+                double netDemand = m.GridImportKWh - m.GridExportKWh
+                    + (m.BatteryPowerWatts < 0 ? Math.Abs(m.BatteryPowerWatts) * 0.25 / 1000.0 : 0)
+                    - (m.BatteryPowerWatts > 0 ? m.BatteryPowerWatts * 0.25 / 1000.0 : 0);
 
-            stats.SelfConsumedSolarKWh = Math.Max(0, Math.Min(
-                stats.TotalSolarProductionKWh - solarExportedKWh,
-                stats.TotalSolarProductionKWh));
+                // Solar self-consumed = solar minus what went to the grid directly
+                double solarToGrid = Math.Max(0, m.GridExportKWh - (m.BatteryPowerWatts > 0 ? m.BatteryPowerWatts * 0.25 / 1000.0 : 0));
+                selfConsumed += Math.Max(0, m.SolarProductionKWh - solarToGrid);
+            }
+
+            stats.SelfConsumedSolarKWh = Math.Min(selfConsumed, stats.TotalSolarProductionKWh);
         }
 
         private static void CalculateConsumptionStats(
@@ -830,18 +918,33 @@ namespace SessyController.Services
             if (!measurements.Any())
                 return;
 
-            // All records for energy balance.
             stats.TotalBatteryChargedKWh = measurements.Sum(m => m.BatteryChargedKWh);
             stats.TotalBatteryDischargedKWh = measurements.Sum(m => m.BatteryDischargedKWh);
 
             // Reliable records only for round-trip efficiency.
+            // Use all measurements — IsReliable filter already excludes unreliable periods.
             var reliable = measurements.Where(m => m.IsReliable).ToList();
+
+            // Fall back to all measurements when no reliable records exist.
+            if (!reliable.Any()) reliable = measurements;
+
             stats.ReliableBatteryChargedKWh = reliable.Sum(m => m.BatteryChargedKWh);
             stats.ReliableBatteryDischargedKWh = reliable.Sum(m => m.BatteryDischargedKWh);
 
-            stats.BatteryCycles = BatteryCapacityKWh > 0
+            // Battery cycles: total charged kWh / capacity.
+            // CyclesPerDay: use all days (not just complete) for a stable rate.
+            // With few complete days the rate would be very noisy otherwise.
+            int allDistinctDays = Math.Max(1, measurements
+                .Select(m => m.Time.Date)
+                .Distinct()
+                .Count());
+
+            double measuredCycles = BatteryCapacityKWh > 0
                 ? stats.TotalBatteryChargedKWh / BatteryCapacityKWh
                 : 0.0;
+
+            stats.BatteryCycles = measuredCycles;
+            stats.BatteryCyclesPerDay = measuredCycles / allDistinctDays;
 
             var withSoc = measurements.Where(m => m.BatteryStateOfChargeWh > 0).ToList();
             stats.AverageSocPct = withSoc.Any()
@@ -876,19 +979,18 @@ namespace SessyController.Services
             stats.ActualEnergyCostEur = importCostEur + chargingCostEur - stats.GridExportRevenueEur;
             stats.ArbitrageProfitEur = stats.GridExportRevenueEur - chargingCostEur;
 
-            // Weighted average prices.
+            // Weighted average prices — weighted by actual energy flows, not quarter count.
             double totalImportKWh = measurements.Sum(m => m.GridImportKWh);
+            double totalExportKWh = measurements.Sum(m => m.GridExportKWh);
 
             stats.WeightedAvgBuyPriceEurPerKWh = totalImportKWh > 0
-                ? measurements.Sum(m => m.BuyingPriceEur * m.GridImportKWh) / totalImportKWh
+                ? measurements.Where(m => m.GridImportWh > 0)
+                    .Sum(m => m.BuyingPriceEur * m.GridImportKWh) / totalImportKWh
                 : measurements.Average(m => m.BuyingPriceEur);
 
-            double totalDischargedKWh = measurements.Sum(m => m.BatteryDischargedKWh);
-
-            stats.WeightedAvgSellPriceEurPerKWh = totalDischargedKWh > 0
-                ? measurements
-                    .Where(m => m.BatteryPowerWatts > 0)
-                    .Sum(m => m.SellingPriceEur * m.BatteryDischargedKWh) / totalDischargedKWh
+            stats.WeightedAvgSellPriceEurPerKWh = totalExportKWh > 0
+                ? measurements.Where(m => m.GridExportWh > 0)
+                    .Sum(m => m.SellingPriceEur * m.GridExportKWh) / totalExportKWh
                 : measurements.Average(m => m.SellingPriceEur);
 
             stats.BaselineEnergyCostEur =

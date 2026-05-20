@@ -96,7 +96,7 @@ namespace SessyController.Services
 
             // Sort each month's results by time.
             foreach (var mr in monthResults)
-                mr.FinancialResultsList = mr.FinancialResultsList.OrderBy(r => r.Time).ToList();
+                mr.FinancialResultsList = mr.FinancialResultsList!.OrderBy(r => r.Time).ToList();
 
             return monthResults
                 .OrderBy(mr => mr.Year)

@@ -66,7 +66,6 @@ namespace SessyController.Services
         private const double ReserveSafetyFactor = 1.10;       // keep 10% extra energy
         private const double SolarHeadroomSafetyFactor = 1.05;
         private const double CheapRefillToleranceEur = 0.01;
-        private const double CheapGridChargeThresholdEur = 0.05;
         private const double ExportPremiumEur = 0.02;
 
         // ── Internal plan action record ──────────────────────────────────────
@@ -622,8 +621,17 @@ namespace SessyController.Services
                 minKWh = Math.Max(0.0, Math.Min(minKWh, capacityKWh));
                 maxKWh = Math.Max(minKWh, Math.Min(maxKWh, capacityKWh));
 
-                // maxSocKWh must never fall below the initial SOC.
+                // If the battery is already below the required minimum (e.g. nighttime
+                // reserve calculated when battery is low), cap minSoc to the initial SOC.
+                // The solver cannot charge the battery before the first quarter —
+                // demanding more than available makes the LP infeasible.
+                if (minKWh > initialSocKWh)
+                    minKWh = initialSocKWh;
+
+                // maxSocKWh must never fall below the initial SOC,
+                // and must always leave at least a small window for the solver.
                 maxKWh = Math.Max(maxKWh, initialSocKWh);
+                maxKWh = Math.Max(maxKWh, minKWh + 0.01);
 
                 socBounds.Add(new SocBound(q.Time, minKWh, maxKWh));
             }
@@ -638,10 +646,26 @@ namespace SessyController.Services
                 ChargeEfficiency: 0.95,
                 DischargeEfficiency: 0.95);
 
+            // Log SOC bounds for first few quarters to diagnose infeasibility.
+            if (quarters.Count > 0)
+            {
+                var q0 = quarters[0];
+                double minK0 = (_minSocWhByTime.TryGetValue(q0.Time, out var mn0) ? mn0 : 0.0) / 1000.0;
+                double maxK0 = (_maxSocWhByTime.TryGetValue(q0.Time, out var mx0) ? mx0 : capacityKWh * 1000.0) / 1000.0;
+                _logger.LogInformation($"  SOC solve: initSoc={initialSocKWh:F2}, q[0] {q0.Time:HH:mm}: minSoc={minK0:F2}, maxSoc={maxK0:F2}, netLoad={q0.NetLoadWh:F0}Wh");
+            }
+
             var result = BatteryArbitrageMilp.Solve(pricePoints, spec, opt, socBounds);
 
             if (result == null || result.Plan == null || result.Plan.Count == 0)
+            {
+                var firstBound = socBounds?.FirstOrDefault();
+                _logger.LogWarning($"SolvePlanSegment failed: quarters={quarters.Count}, " +
+                    $"socKWh={initialSocKWh:F2}, capKWh={capacityKWh:F2}, " +
+                    $"firstBound={firstBound?.MinSocKWh:F2}-{firstBound?.MaxSocKWh:F2}, " +
+                    $"netLoad[0]={(quarters.Count > 0 ? quarters[0].NetLoadWh.ToString("F0") : "n/a")}Wh");
                 return null;
+            }
 
             return result;
         }
@@ -665,7 +689,10 @@ namespace SessyController.Services
             foreach (var qi in _quarterlyInfos.OrderBy(q => q.Time))
             {
                 bool netting = _nettingByTime.TryGetValue(qi.Time, out var n) ? n : true;
-                var act = _planByTime[qi.Time];
+
+                if (!_planByTime.TryGetValue(qi.Time, out var act))
+                    continue; // Quarter not in plan — skip silently.
+
                 double netLoadWh = qi.NetLoadWh;
                 double selfUseValue = _futureSelfUseValueByTime.TryGetValue(qi.Time, out var suv)
                     ? suv
@@ -675,11 +702,6 @@ namespace SessyController.Services
                 {
                     // Solar surplus should not trigger active grid charging.
                     if (netLoadWh < -1.0 && act.Mode == Modes.Charging)
-                    {
-                        act.Mode = Modes.ZeroNetHome;
-                        act.PowerW = 0;
-                    }
-                    else if (act.Mode == Modes.Charging && qi.BuyingPrice > CheapGridChargeThresholdEur)
                     {
                         act.Mode = Modes.ZeroNetHome;
                         act.PowerW = 0;
@@ -963,9 +985,6 @@ namespace SessyController.Services
             if (planned.Mode == Modes.Charging)
             {
                 if (socWh + chargeStepWh > maxSocWh + NumericEpsWh)
-                    return new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
-
-                if (!netting && qi != null && qi.BuyingPrice > CheapGridChargeThresholdEur)
                     return new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
 
                 return planned;

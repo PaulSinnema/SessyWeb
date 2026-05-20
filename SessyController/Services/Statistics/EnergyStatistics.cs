@@ -71,11 +71,11 @@
         /// </summary>
         public double ReliableBatteryDischargedKWh { get; set; }
 
-        /// <summary>Number of full equivalent battery cycles.</summary>
+        /// <summary>Number of full equivalent battery cycles in the measured period.</summary>
         public double BatteryCycles { get; set; }
 
-        /// <summary>Average battery cycles per day.</summary>
-        public double BatteryCyclesPerDay => PeriodDays > 0 ? BatteryCycles / PeriodDays : 0.0;
+        /// <summary>Average battery cycles per day, based on measured days (not period length).</summary>
+        public double BatteryCyclesPerDay { get; set; }
 
         /// <summary>
         /// Battery round-trip efficiency (discharged / charged).
@@ -246,6 +246,12 @@
 
         /// <summary>Per-category investment breakdown.</summary>
         public List<InvestmentCategoryStats> CategoryBreakdown { get; set; } = new();
+
+        /// <summary>
+        /// Per-investment breakdown — each investment listed individually regardless of group.
+        /// Used for the detail table in the UI.
+        /// </summary>
+        public List<InvestmentCategoryStats> ComponentBreakdown { get; set; } = new();
     }
 
     /// <summary>
@@ -292,6 +298,7 @@
 
         /// <summary>Description of how savings are calculated.</summary>
         public string SavingsSource { get; set; } = string.Empty;
+        public double BatteryCycles { get; internal set; }
     }
 
     /// <summary>

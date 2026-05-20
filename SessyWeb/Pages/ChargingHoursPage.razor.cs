@@ -332,15 +332,28 @@ namespace SessyWeb.Pages
             }
             else
             {
-                // Non-showall: just show from now quarter onward, but still clamp to tomorrow to avoid huge lists
+                // Non-showall: show from now quarter onward.
+                // For the current quarter, use the actual measurement if available
+                // (it reflects the real executed mode, not just the plan).
                 var nowQ = _timeZoneService!.Now.DateFloorQuarter();
+
+                var currentMeasurement = await _measurementDataService!.Get(async set =>
+                    await Task.FromResult(set.FirstOrDefault(m => m.Time == nowQ)))
+                    .ConfigureAwait(false);
+
                 var planItems = listFromBatteryService
                     .Where(q => q.Time >= nowQ && q.Time < nowQ.Date.AddDays(2))
                     .OrderBy(q => q.Time)
                     .ToList();
 
                 foreach (var qi in planItems)
-                    views.Add(await FillQuarterlyInfoView(qi, averageBuyingPrice, averageSellingPrice).ConfigureAwait(false));
+                {
+                    if (qi.Time == nowQ && currentMeasurement != null)
+                        // Current quarter: show actual measurement (real mode) instead of plan.
+                        views.Add(FillQuarterlyInfoView(currentMeasurement));
+                    else
+                        views.Add(await FillQuarterlyInfoView(qi, averageBuyingPrice, averageSellingPrice).ConfigureAwait(false));
+                }
             }
 
             // Remove duplicate timestamps (Performance + Plan can overlap)
@@ -356,19 +369,42 @@ namespace SessyWeb.Pages
 
         public async Task<QuarterlyInfoView> FillQuarterlyInfoView(QuarterlyInfo quarterlyInfo, double averageBuyingPrice, double averageSellingPrice)
         {
-            // No sessions in solver-based approach.
             var totalCapacityWh = _batteryContainer!.GetTotalCapacity();
-
-            // If you renamed ChargeLeft/Needed fields differently, adjust here.
             var chargeLeftWh = quarterlyInfo.ChargeLeftWh;
             var chargeNeededWh = quarterlyInfo.ChargeNeededWh;
-
             var chargeLeftPct = totalCapacityWh > 0 ? (chargeLeftWh / totalCapacityWh) * 100.0 : 0.0;
+
+            // For the current quarter: show actual battery state instead of MILP plan.
+            // The MILP plan may differ from what the battery is actually doing because
+            // GetExecutableActionForNowAsync applies real-time corrections (e.g. export
+            // threshold check that overrides Discharging → ZeroNetHome).
+            bool isCurrentQuarter = quarterlyInfo.Time == _timeZoneService!.Now.DateFloorQuarter();
+
+            string displayState;
+            double chargePowerW;
+            double dischargePowerW;
+
+            if (isCurrentQuarter && _batteriesService != null)
+            {
+                // Read actual mode and power from BatteriesService.
+                var actualPowerW = await _batteryContainer.GetTotalPowerInWatts().ConfigureAwait(false);
+                var actualMode = await _batteriesService.GetBatteryMode().ConfigureAwait(false);
+
+                displayState = actualMode;
+                chargePowerW = actualPowerW < 0 ? Math.Abs(actualPowerW) : 0.0;
+                dischargePowerW = actualPowerW > 0 ? actualPowerW : 0.0;
+            }
+            else
+            {
+                displayState = quarterlyInfo.GetDisplayMode() ?? string.Empty;
+                chargePowerW = quarterlyInfo.PlannedChargePowerW;
+                dischargePowerW = quarterlyInfo.PlannedDischargePowerW;
+            }
 
             return await Task.FromResult(new QuarterlyInfoView
             {
                 Time = quarterlyInfo.Time,
-                SessionId = null, // sessions removed
+                SessionId = null,
 
                 IsPriceExpected = quarterlyInfo.IsPriceExpected,
                 BuyingPrice = quarterlyInfo.BuyingPrice,
@@ -390,22 +426,20 @@ namespace SessyWeb.Pages
                 SolarGlobalRadiation = quarterlyInfo.SolarGlobalRadiation,
 
                 ChargeLeftPercentage = chargeLeftPct,
-                DisplayState = quarterlyInfo.GetDisplayMode() ?? string.Empty,
+                DisplayState = displayState,
                 Price = quarterlyInfo.Price,
 
-                // Keep existing view fields
                 ChargeNeededPercentage = totalCapacityWh > 0 ? (chargeNeededWh / totalCapacityWh) * 100.0 : 0.0,
                 SmoothedSolarPower = quarterlyInfo.SmoothedSolarPower,
 
                 AverageBuyingPrice = averageBuyingPrice,
                 AverageSellingPrice = averageSellingPrice,
 
-                SessionCost = null, // sessions removed
+                SessionCost = null,
                 DeltaLowestPrice = quarterlyInfo.DeltaLowestPrice,
 
-                // Planned battery power from MilpService.
-                ChargePowerW = quarterlyInfo.PlannedChargePowerW,
-                DischargePowerW = quarterlyInfo.PlannedDischargePowerW
+                ChargePowerW = chargePowerW,
+                DischargePowerW = dischargePowerW
             });
         }
 
