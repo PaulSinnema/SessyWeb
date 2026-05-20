@@ -99,7 +99,6 @@ builder.Services.AddScoped<SessyStatusHistoryService>();
 builder.Services.AddScoped<DbHelper>();
 builder.Services.AddScoped<PowerEstimatesService>();
 builder.Services.AddScoped<FinancialResultsService>();
-builder.Services.AddScoped<SolarInverterDataService>();
 builder.Services.AddScoped<ConsumptionDataService>();
 builder.Services.AddScoped<InvestmentDataService>();
 builder.Services.AddScoped<InvestmentGroupDataService>();

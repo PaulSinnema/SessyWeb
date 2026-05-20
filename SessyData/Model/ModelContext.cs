@@ -34,8 +34,6 @@ namespace SessyData.Model
 
         public DbSet<Taxes> Taxes => Set<Taxes>();
 
-        public DbSet<SolarInverterData> SolarInverterData => Set<SolarInverterData>();
-
         public DbSet<SessyWebControl> SessyWebControl => Set<SessyWebControl>();
 
         public DbSet<Consumption> Consumption => Set<Consumption>();

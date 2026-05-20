@@ -16,6 +16,7 @@ namespace SessyWeb.Pages
     {
         [Inject] public TooltipService? tooltipService { get; set; }
         [Inject] public QuarterlyMeasurementDataService? _measurementDataService { get; set; }
+        [Inject] public InverterMeasurementDataService? _inverterMeasurementDataService { get; set; }
         [Inject] public SolarService? _solarService { get; set; }
         [Inject] public TimeZoneService? _timeZoneService { get; set; }
         [Inject] public BatteryContainer? _batteryContainer { get; set; }
@@ -262,16 +263,38 @@ namespace SessyWeb.Pages
             var start = date.Date;
             var end = start.AddDays(1);
 
+            // QuarterlyMeasurements is the single source of truth for solar after
+            // the MigrateSolarInverterDataToInverterMeasurements migration.
+            // For dates before InverterMeasurements existed, QM is populated via
+            // the same migration from the historical SolarInverterData table.
             var measurements = await _measurementDataService!.GetList(async set =>
             {
                 var result = set
                     .Where(m => m.Time >= start && m.Time < end)
                     .ToList();
-
                 return await Task.FromResult(result);
             });
 
-            return measurements.Sum(m => m.SolarProductionKWh);
+            if (measurements.Any(m => m.SolarProductionKWh > 0))
+                return measurements.Sum(m => m.SolarProductionKWh);
+
+            // Fallback for dates not yet in QuarterlyMeasurements:
+            // use InverterMeasurements directly.
+            if (_inverterMeasurementDataService != null)
+            {
+                var inverterMeasurements = await _inverterMeasurementDataService.GetList(async set =>
+                {
+                    var result = set
+                        .Where(m => m.Time >= start && m.Time < end)
+                        .ToList();
+                    return await Task.FromResult(result);
+                });
+
+                if (inverterMeasurements.Any())
+                    return inverterMeasurements.Sum(m => m.SolarProductionKWh);
+            }
+
+            return 0.0;
         }
 
         private async Task<decimal> GetRealizedRevenueForDate(DateTime date)
