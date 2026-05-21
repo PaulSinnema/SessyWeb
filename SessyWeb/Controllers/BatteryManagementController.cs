@@ -17,13 +17,13 @@ namespace SessyWeb.Controllers
     {
         private readonly ILogger<BatteryManagementController> _logger;
         private readonly BatteriesService _batteriesService;
-        private readonly DayAheadMarketService _dayAheadMarketService;
+        private readonly EPEXPricesService _epexPricesService;
         private readonly SessyService _sessyService;
         private readonly SolarInverterManager _solarInverterManager;
         private readonly P1MeterService _p1MeterService;
         private readonly WeatherService _weatherService;
 
-        public BatteryManagementController(DayAheadMarketService DayAheadMarketService,
+        public BatteryManagementController(EPEXPricesService EpexPricesService,
                                            BatteriesService batteriesService,
                                            SessyService sessyService,
                                            SolarInverterManager solarInverterManager,
@@ -33,7 +33,7 @@ namespace SessyWeb.Controllers
         {
             _logger = logger;
             _batteriesService = batteriesService;
-            _dayAheadMarketService = DayAheadMarketService;
+            _epexPricesService = EpexPricesService;
             _sessyService = sessyService;
             _solarInverterManager = solarInverterManager;
             _p1MeterService = p1MeterService;
@@ -58,10 +58,10 @@ namespace SessyWeb.Controllers
         /// <summary>
         /// Gets the prices fetched by the background service.
         /// </summary>
-        [HttpGet("DayAheadMarketService", Name = "GetPrizes")]
+        [HttpGet("EpexPricesService", Name = "GetPrizes")]
         public async Task<List<QuarterlyInfo>> GetPrizes()
         {
-            return await _dayAheadMarketService.GetPrices();
+            return await _epexPricesService.GetPrices();
         }
 
         #endregion
@@ -200,7 +200,7 @@ namespace SessyWeb.Controllers
         public async Task<double> GetAcPowerInWatts()
         {
             return await _solarInverterManager.GetActualSolarPowerInWatts();
-                
+
         }
         #endregion
     }

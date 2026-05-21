@@ -20,7 +20,7 @@ namespace SessyController.Services
 
         private BatteryContainer _batteryContainer;
 
-        private DayAheadMarketService _dayAheadMarketService { get; set; }
+        private EPEXPricesService _epexPricesService { get; set; }
 
         private SolarDataService _solarDataService { get; set; }
 
@@ -48,7 +48,7 @@ namespace SessyController.Services
                             IOptions<PowerSystemsConfig> powerSystemsConfig,
                             BatteryContainer batteryContainer,
                             WeatherService weatherService,
-                            DayAheadMarketService dayAheadMarketService,
+                            EPEXPricesService dayAheadMarketService,
                             SolarDataService solarDataService,
                             InverterMeasurementDataService inverterMeasurementService,
                             SolarInverterManager solarInverterManager,
@@ -61,7 +61,7 @@ namespace SessyController.Services
             _powerSystemsConfig = powerSystemsConfig.Value;
             _weatherService = weatherService;
             _batteryContainer = batteryContainer;
-            _dayAheadMarketService = dayAheadMarketService;
+            _epexPricesService = dayAheadMarketService;
             _solarDataService = solarDataService;
             _inverterMeasurementService = inverterMeasurementService;
             _solarInverterManager = solarInverterManager;
@@ -167,7 +167,7 @@ namespace SessyController.Services
         /// </summary>
         private async Task GetEstimatesForSolarPower(List<QuarterlyInfo> hourlyInfos)
         {
-            if (_weatherService.IsInitialized() && _dayAheadMarketService.IsInitialized())
+            if (_weatherService.IsInitialized() && _epexPricesService.IsInitialized())
             {
                 var startDate = hourlyInfos.Min(hi => hi.Time);
                 var endDate = hourlyInfos.Max(hi => hi.Time);

@@ -16,7 +16,7 @@ namespace SessyController.Services
     public class EnergyMonitorService : BackgroundService
     {
         public WeatherService? _weatherService { get; set; }
-        public DayAheadMarketService? _dayAheadMarketService { get; set; }
+        public EPEXPricesService? _epexPricesService { get; set; }
         private P1MeterContainer _p1MeterContainer { get; set; }
         private TimeZoneService _timeZoneService { get; set; }
         private P1MeterService _p1MeterService { get; set; }
@@ -55,7 +55,7 @@ namespace SessyController.Services
 
             _measurementService = _scope.ServiceProvider.GetRequiredService<QuarterlyMeasurementDataService>();
             _p1MeterService = _scope.ServiceProvider.GetRequiredService<P1MeterService>();
-            _dayAheadMarketService = _scope.ServiceProvider.GetRequiredService<DayAheadMarketService>();
+            _epexPricesService = _scope.ServiceProvider.GetRequiredService<EPEXPricesService>();
 
             _p1MeterContainer = p1meterContainer;
         }
@@ -120,7 +120,7 @@ namespace SessyController.Services
 
                 var p1Details = await _p1MeterContainer.GetDetails(p1Meter.Id!);
                 var weatherData = await _weatherService.GetWeatherData();
-                var prices = await _dayAheadMarketService.GetPrices();
+                var prices = await _epexPricesService.GetPrices();
 
                 var weatherHourData = weatherData.UurVerwachting
                     .FirstOrDefault(uv => uv.TimeStamp == selectTime.DateHour());
@@ -147,12 +147,12 @@ namespace SessyController.Services
 
             tries = 0;
 
-            while (!_dayAheadMarketService.IsInitialized() && tries++ < 10)
+            while (!_epexPricesService.IsInitialized() && tries++ < 10)
             {
                 await Task.Delay(TimeSpan.FromSeconds(5), cancelationToken);
             }
 
-            if (!(_dayAheadMarketService.IsInitialized() && _weatherService.IsInitialized()))
+            if (!(_epexPricesService.IsInitialized() && _weatherService.IsInitialized()))
                 throw new InvalidOperationException("Day ahead service or weather service not initialized");
         }
 

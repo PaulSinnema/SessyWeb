@@ -17,7 +17,7 @@ namespace SessyController.Services
         private IServiceScope _scope { get; set; }
         private SessyService _sessyService { get; set; }
         private P1MeterService _p1MeterService { get; set; }
-        private DayAheadMarketService _dayAheadMarketService { get; set; }
+        private EPEXPricesService _epexPricesService { get; set; }
         private SolarEdgeInverterService _solarEdgeService { get; set; }
         private SolarService _solarService { get; set; }
         private BatteryContainer _batteryContainer { get; set; }
@@ -42,7 +42,7 @@ namespace SessyController.Services
 
             _sessyService = _scope.ServiceProvider.GetRequiredService<SessyService>();
             _p1MeterService = _scope.ServiceProvider.GetRequiredService<P1MeterService>();
-            _dayAheadMarketService = _scope.ServiceProvider.GetRequiredService<DayAheadMarketService>();
+            _epexPricesService = _scope.ServiceProvider.GetRequiredService<EPEXPricesService>();
             _solarEdgeService = _scope.ServiceProvider.GetRequiredService<SolarEdgeInverterService>();
             _solarService = _scope.ServiceProvider.GetRequiredService<SolarService>();
             _batteryContainer = _scope.ServiceProvider.GetRequiredService<BatteryContainer>();
@@ -69,10 +69,10 @@ namespace SessyController.Services
                     .OrderByDescending(eh => eh.Time)
                     .ToList();
 
-                return await Task.FromResult(result);   
+                return await Task.FromResult(result);
             });
 
-            if(histories.Count == 0)
+            if (histories.Count == 0)
             {
                 // Find power for temperature.
                 histories = await _energyHistoryService.GetList(async (set) =>
@@ -98,11 +98,11 @@ namespace SessyController.Services
                     return await Task.FromResult(result);
                 });
 
-                if(previous != null)
+                if (previous != null)
                 {
                     var gridPower = new GridPower(history, previous);
 
-                    return gridPower.TotalInversed; 
+                    return gridPower.TotalInversed;
                 }
             }
 

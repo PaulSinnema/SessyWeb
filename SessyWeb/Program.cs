@@ -113,7 +113,7 @@ builder.Services.AddSingleton<P1MeterService>();
 builder.Services.AddSingleton<BatteryContainer>();
 builder.Services.AddSingleton<TimeZoneService>();
 builder.Services.AddSingleton<WeatherService>();
-builder.Services.AddSingleton<DayAheadMarketService>();
+builder.Services.AddSingleton<EPEXPricesService>();
 builder.Services.AddSingleton<MilpService>();
 builder.Services.AddSingleton<BatteriesService>();
 builder.Services.AddSingleton<SessyMonitorService>();
@@ -141,7 +141,7 @@ builder.Services.AddSingleton<ISolarInverterService, HuaweiInverterService>();
 builder.Services.AddSingleton<ISolarInverterService, SungrowInverterService>();
 builder.Services.AddSingleton<ISolarInverterService, VictronInverterService>();
 
-builder.Services.AddHostedService(provider => provider.GetRequiredService<DayAheadMarketService>());
+builder.Services.AddHostedService(provider => provider.GetRequiredService<EPEXPricesService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<BatteriesService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<WeatherService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<SessyMonitorService>());

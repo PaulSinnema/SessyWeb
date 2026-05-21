@@ -37,7 +37,7 @@ namespace SessyController.Services
 
         private IServiceScope _scope;
 
-        private DayAheadMarketService _dayAheadMarketService;
+        private EPEXPricesService _epexPricesService;
         private SolarService _solarService;
         private BatteryContainer _batteryContainer;
         private TimeZoneService _timeZoneService;
@@ -81,7 +81,7 @@ namespace SessyController.Services
 
             _scope = _serviceScopeFactory.CreateScope();
 
-            _dayAheadMarketService = _scope.ServiceProvider.GetRequiredService<DayAheadMarketService>();
+            _epexPricesService = _scope.ServiceProvider.GetRequiredService<EPEXPricesService>();
             _solarService = _scope.ServiceProvider.GetRequiredService<SolarService>();
             _batteryContainer = _scope.ServiceProvider.GetRequiredService<BatteryContainer>();
             _timeZoneService = _scope.ServiceProvider.GetRequiredService<TimeZoneService>();
@@ -148,7 +148,7 @@ namespace SessyController.Services
 
         public async Task Process(CancellationToken cancellationToken)
         {
-            if (_dayAheadMarketService == null || !_dayAheadMarketService.IsInitialized())
+            if (_epexPricesService == null || !_epexPricesService.IsInitialized())
                 return;
 
             await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -287,7 +287,7 @@ namespace SessyController.Services
 
         private async Task<bool> RefreshQuarterlyPrices()
         {
-            var prices = await _dayAheadMarketService.GetPrices().ConfigureAwait(false);
+            var prices = await _epexPricesService.GetPrices().ConfigureAwait(false);
 
             _quarterlyInfos = prices
                 .OrderBy(p => p.Time)
@@ -318,7 +318,7 @@ namespace SessyController.Services
         private async Task ExecuteAction(Modes mode, double powerW)
         {
 #if !DEBUG
-            if (_dayAheadMarketService.IsInitialized())
+            if (_epexPricesService.IsInitialized())
             {
                 if (_settingsConfig.ManualOverride)
                 {

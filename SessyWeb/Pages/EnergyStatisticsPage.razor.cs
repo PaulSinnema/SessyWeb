@@ -1,5 +1,7 @@
 ﻿using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Options;
 using Radzen.Blazor.Rendering;
+using SessyCommon.Configurations;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
 using SessyController.Services;
@@ -15,6 +17,14 @@ namespace SessyWeb.Pages
 
         [Inject]
         private TimeZoneService? _timeZoneService { get; set; }
+
+        [Inject]
+        private EPEXPricesService? _epexPricesService { get; set; }
+
+        [Inject]
+        private IOptions<HeatPumpConfig>? _heatPumpConfigOptions { get; set; }
+
+        private HeatPumpConfig? HeatPumpConfig => _heatPumpConfigOptions?.Value;
 
         private EnergyStatistics? Stats { get; set; }
         private InvestmentStatistics? InvestmentStats { get; set; }

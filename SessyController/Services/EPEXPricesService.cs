@@ -10,6 +10,7 @@ using SessyData.Services;
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.Linq;
+using System.Text.Json;
 using System.Xml;
 
 namespace SessyController.Services
@@ -17,7 +18,7 @@ namespace SessyController.Services
     /// <summary>
     /// This background service fetches the prices from a Sessy battery..
     /// </summary>
-    public class DayAheadMarketService : BackgroundService, IDisposable
+    public class EPEXPricesService : BackgroundService, IDisposable
     {
         private const string ApiUrl = "https://web-api.tp.entsoe.eu/api";
         private const string FormatDate = "yyyyMMdd";
@@ -36,11 +37,16 @@ namespace SessyController.Services
         private const string ConfigResolutionFormat = "ENTSO-E:ResolutionFormat"; // No longer in use
         private const string ConfigSecurityTokenKey = "ENTSO-E:SecurityToken";
 
+        // Enever.nl gas price feed (free, personal use, daily TTF price in EUR/m³)
+        private const string EneverGasApiUrl = "https://enever.nl/apiv3/gasprijs_vandaag.php";
+        private const string ConfigEneverTokenKey = "Enever:Token";
+
         private static string? _securityToken;
         private static string? _inDomain;
+        private static string? _eneverToken;
 
         private ConcurrentDictionary<DateTime, DynamichSchedule>? _prices { get; set; }
-        private static LoggingService<DayAheadMarketService>? _logger { get; set; }
+        private static LoggingService<EPEXPricesService>? _logger { get; set; }
         private TimeZoneService _timeZoneService { get; set; }
         private BatteryContainer _batteryContainer { get; set; }
         private IServiceScopeFactory _serviceScopeFactory { get; set; }
@@ -66,7 +72,13 @@ namespace SessyController.Services
         private bool PricesAvailable { get; set; } = false;
         private bool _initialized { get; set; } = false;
 
-        public DayAheadMarketService(LoggingService<DayAheadMarketService> logger,
+        /// <summary>
+        /// The most recently fetched natural gas price in EUR per m³ (TTF day-ahead via Enever.nl).
+        /// Null when not yet fetched or unavailable.
+        /// </summary>
+        public double? CurrentGasPriceEurPerM3 { get; private set; }
+
+        public EPEXPricesService(LoggingService<EPEXPricesService> logger,
                                     IConfiguration configuration,
                                     TimeZoneService timeZoneService,
                                     BatteryContainer batteryContainer,
@@ -81,6 +93,7 @@ namespace SessyController.Services
         {
             _securityToken = configuration[ConfigSecurityTokenKey];
             _inDomain = configuration[ConfigInDomain];
+            _eneverToken = configuration[ConfigEneverTokenKey];
 
             _timeZoneService = timeZoneService;
             _batteryContainer = batteryContainer;
@@ -192,6 +205,78 @@ namespace SessyController.Services
                 await StorePrices();
 
                 _initialized = true;
+            }
+
+            await FetchGasPriceAsync(cancellationToken);
+        }
+
+        /// <summary>
+        /// Fetches today's TTF day-ahead gas price (EUR/m³) from Enever.nl.
+        /// Updates <see cref="CurrentGasPriceEurPerM3"/> when successful.
+        /// Logs a warning and leaves the previous value intact on failure.
+        ///
+        /// The Enever.nl feed is free for personal use; a token can be created at
+        /// https://enever.nl/token-aanmaken/. Add it to appsettings.json as "Enever:Token".
+        /// The price in field "prijsEGSI" is the TTF wholesale price (excl. taxes) in EUR/m³.
+        /// </summary>
+        private async Task FetchGasPriceAsync(CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(_eneverToken))
+            {
+                _logger!.LogWarning("Enever token not configured — skipping gas price fetch. " +
+                                    "Add 'Enever:Token' to appsettings.json.");
+                return;
+            }
+
+            try
+            {
+                string url = $"{EneverGasApiUrl}?token={_eneverToken}";
+
+                var client = _httpClientFactory.CreateClient();
+                client.Timeout = TimeSpan.FromSeconds(30);
+
+                var response = await client.GetAsync(url, cancellationToken);
+                response.EnsureSuccessStatusCode();
+
+                string body = await response.Content.ReadAsStringAsync(cancellationToken);
+
+                // Expected JSON: {"status":"true","data":[{"datum":"...","prijsEGSI":"0.566598",...}]}
+                using var doc = System.Text.Json.JsonDocument.Parse(body);
+                var root = doc.RootElement;
+
+                if (root.GetProperty("status").GetString() != "true")
+                {
+                    _logger!.LogWarning("Enever gas price feed returned status != true.");
+                    return;
+                }
+
+                var data = root.GetProperty("data");
+
+                if (data.GetArrayLength() == 0)
+                {
+                    _logger!.LogWarning("Enever gas price feed returned empty data array.");
+                    return;
+                }
+
+                // Use "prijsEGSI" — the TTF wholesale (EGSI = End of Gas-Day Spot Index) price.
+                string? rawPrice = data[0].GetProperty("prijsEGSI").GetString();
+
+                if (double.TryParse(rawPrice, System.Globalization.NumberStyles.Any,
+                                    System.Globalization.CultureInfo.InvariantCulture, out double price))
+                {
+                    CurrentGasPriceEurPerM3 = price;
+
+                    _logger!.LogInformation(
+                        $"Gas price fetched from Enever.nl: {CurrentGasPriceEurPerM3:F4} EUR/m³ (TTF EGSI)");
+                }
+                else
+                {
+                    _logger!.LogWarning($"Could not parse Enever gas price value: '{rawPrice}'");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger!.LogWarning($"Could not fetch gas price from Enever.nl: {ex.Message}");
             }
         }
 

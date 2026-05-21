@@ -109,7 +109,194 @@
                     </RadzenRow>
                 }
 
-                @* ── Row 1: Energy Flows | Solar ───────────────────────────── *@
+                @* ── Heat pump savings ───────────────────────────────────── *@
+                @if (HeatPumpConfig != null && HeatPumpConfig.IsConfigured)
+                {
+                    <RadzenColumn Size="12">
+                        <RadzenCard>
+                            <RadzenText TextStyle="TextStyle.H6">🔥 Heat Pump Savings</RadzenText>
+                            <RadzenRow Gap="8px">
+
+                                @* Gas price *@
+                                <RadzenColumn Size="6" SizeMD="3">
+                                    @if (_epexPricesService?.CurrentGasPriceEurPerM3 != null)
+                                    {
+                                        <StatCardComponent Title="Gas price (live TTF)"
+                                                           Value="@($"€ {_epexPricesService.CurrentGasPriceEurPerM3:F4}/m³")"
+                                                           Highlight="true" />
+                                    }
+                                    else
+                                    {
+                                        <StatCardComponent Title="Gas price (configured)"
+                                                           Value="@($"€ {HeatPumpConfig.GasPriceEurPerM3:F4}/m³")" />
+                                    }
+                                </RadzenColumn>
+
+                                @* Annual gas consumption *@
+                                <RadzenColumn Size="6" SizeMD="3">
+                                    <StatCardComponent Title="Annual gas (before heat pump)"
+                                                       Value="@($"{HeatPumpConfig.AnnualGasConsumptionM3:F0} m³/year")" />
+                                </RadzenColumn>
+
+                                @* Annual gas cost saved *@
+                                <RadzenColumn Size="6" SizeMD="3">
+                                    <StatCardComponent Title="Annual gas cost saved"
+                                                       Value="@($"€ {HeatPumpConfig.AnnualGasConsumptionM3 * (_epexPricesService?.CurrentGasPriceEurPerM3 ?? HeatPumpConfig.GasPriceEurPerM3):F2}/year")" />
+                                </RadzenColumn>
+
+                                @* Standing charge saved *@
+                                <RadzenColumn Size="6" SizeMD="3">
+                                    <StatCardComponent Title="Standing charge saved"
+                                                       Value="@($"€ {HeatPumpConfig.GasStandingChargeEurPerYear:F2}/year")" />
+                                </RadzenColumn>
+
+                                @* Heat pump electricity consumption *@
+                                <RadzenColumn Size="6" SizeMD="3">
+                                    <StatCardComponent Title="Heat pump electricity"
+                                                       Value="@($"{HeatPumpConfig.AnnualElectricityConsumptionKWh:F0} kWh/year")" />
+                                </RadzenColumn>
+
+                                @* Electricity cost *@
+                                <RadzenColumn Size="6" SizeMD="3">
+                                    <StatCardComponent Title="Electricity price (avg)"
+                                                       Value="@($"€ {HeatPumpConfig.EffectiveElectricityPriceEurPerKWh:F4}/kWh")" />
+                                </RadzenColumn>
+
+                                @* Annual electricity cost *@
+                                <RadzenColumn Size="6" SizeMD="3">
+                                    <StatCardComponent Title="Annual electricity cost"
+                                                       Value="@($"€ {HeatPumpConfig.AnnualElectricityCostEur:F2}/year")" />
+                                </RadzenColumn>
+
+                                @* Net annual savings *@
+                                <RadzenColumn Size="6" SizeMD="3">
+                                    <StatCardComponent Title="Net annual savings"
+                                                       Value="@($"€ {HeatPumpConfig.TotalAnnualSavingsEur:F2}/year")"
+                                                       Highlight="true" />
+                                </RadzenColumn>
+
+                            </RadzenRow>
+
+                            @* Source note *@
+                            <RadzenText TextStyle="TextStyle.Caption" Style="margin-top: 0.75rem; opacity: 0.7;">
+                                @if (_epexPricesService?.CurrentGasPriceEurPerM3 != null)
+                                {
+                                    @($"Gas price: live TTF day-ahead via Enever.nl — configured fallback: € {HeatPumpConfig.GasPriceEurPerM3:F4}/m³")
+                                }
+                                else
+                                {
+                                    @("Gas price: configured value (no live feed available — add Enever:Token to appsettings.json)")
+                                }
+                            </RadzenText>
+                        </RadzenCard>
+                    </RadzenColumn>
+                }
+
+                @* ── Solar savings ───────────────────────────────────────── *@
+                <RadzenColumn Size="12">
+                    <RadzenCard>
+                        <RadzenText TextStyle="TextStyle.H6">☀️ Solar Savings</RadzenText>
+                        <RadzenRow Gap="8px">
+                            <RadzenColumn Size="6" SizeMD="3">
+                                <StatCardComponent Title="Solar production"
+                                                   Value="@($"{Stats.TotalSolarProductionKWh:F1} kWh")" />
+                            </RadzenColumn>
+                            <RadzenColumn Size="6" SizeMD="3">
+                                <StatCardComponent Title="Self-consumed solar"
+                                                   Value="@($"{Stats.SelfConsumedSolarKWh:F1} kWh ({Stats.SelfConsumptionPct:F1} %)")" />
+                            </RadzenColumn>
+                            <RadzenColumn Size="6" SizeMD="3">
+                                <StatCardComponent Title="Self-sufficiency"
+                                                   Value="@($"{Stats.SelfSufficiencyPct:F1} %")"
+                                                   Highlight="true" />
+                            </RadzenColumn>
+                            <RadzenColumn Size="6" SizeMD="3">
+                                <StatCardComponent Title="Performance ratio"
+                                                   Value="@($"{Stats.SolarPerformanceRatio * 100:F1} %")" />
+                            </RadzenColumn>
+                            <RadzenColumn Size="6" SizeMD="3">
+                                <StatCardComponent Title="Avg / peak daily"
+                                                   Value="@($"{Stats.AvgDailySolarProductionKWh:F1} / {Stats.PeakDailySolarProductionKWh:F1} kWh")" />
+                            </RadzenColumn>
+                            <RadzenColumn Size="6" SizeMD="3">
+                                <StatCardComponent Title="Export revenue"
+                                                   Value="@($"€ {Stats.GridExportRevenueEur:F2} ({Stats.TotalGridExportKWh:F1} kWh)")" />
+                            </RadzenColumn>
+                            <RadzenColumn Size="6" SizeMD="3">
+                                <StatCardComponent Title="Avg sell price"
+                                                   Value="@($"€ {Stats.WeightedAvgSellPriceEurPerKWh:F4}/kWh")" />
+                            </RadzenColumn>
+                            <RadzenColumn Size="6" SizeMD="3">
+                                <StatCardComponent Title="Total savings (period)"
+                                                   Value="@($"€ {Stats.TotalSavingsEur:F2}")"
+                                                   Highlight="true" />
+                            </RadzenColumn>
+                            <RadzenColumn Size="6" SizeMD="3">
+                                <StatCardComponent Title="Annual savings (all data)"
+                                                   Value="@($"€ {Stats.AnnualSavingsEur:F2}/year")"
+                                                   Highlight="true" />
+                            </RadzenColumn>
+                        </RadzenRow>
+                        <RadzenText TextStyle="TextStyle.Caption" Style="margin-top: 0.75rem; opacity: 0.7;">
+                            Savings = baseline cost (consumption × avg buy price) minus actual energy cost.
+                            Annual savings is extrapolated from all available data in the database over @($"{Stats.PeriodDays:F0}") days.
+                        </RadzenText>
+                    </RadzenCard>
+                </RadzenColumn>
+
+                @* ── Battery savings ─────────────────────────────────────── *@
+                <RadzenColumn Size="12">
+                    <RadzenCard>
+                        <RadzenText TextStyle="TextStyle.H6">🔋 Battery Savings</RadzenText>
+                        <RadzenRow Gap="8px">
+                            <RadzenColumn Size="6" SizeMD="3">
+                                <StatCardComponent Title="Arbitrage profit (realized)"
+                                                   Value="@($"€ {Stats.ArbitrageProfitEur:F2}")"
+                                                   Highlight="true" />
+                            </RadzenColumn>
+                            <RadzenColumn Size="6" SizeMD="3">
+                                <StatCardComponent Title="Arbitrage profit (planned)"
+                                                   Value="@($"€ {Stats.PlannedArbitrageProfitEur:F2}")" />
+                            </RadzenColumn>
+                            <RadzenColumn Size="6" SizeMD="3">
+                                <StatCardComponent Title="Plan execution"
+                                                   Value="@($"{Stats.PlanExecutionRatioPct:F0} %")" />
+                            </RadzenColumn>
+                            <RadzenColumn Size="6" SizeMD="3">
+                                <StatCardComponent Title="Buy/sell spread"
+                                                   Value="@($"€ {Stats.WeightedAvgBuyPriceEurPerKWh:F4} / € {Stats.WeightedAvgSellPriceEurPerKWh:F4}/kWh")" />
+                            </RadzenColumn>
+                            <RadzenColumn Size="6" SizeMD="3">
+                                <StatCardComponent Title="Charged / discharged"
+                                                   Value="@($"{Stats.TotalBatteryChargedKWh:F1} / {Stats.TotalBatteryDischargedKWh:F1} kWh")" />
+                            </RadzenColumn>
+                            <RadzenColumn Size="6" SizeMD="3">
+                                <StatCardComponent Title="Round-trip efficiency"
+                                                   Value="@(Stats.BatteryRoundTripEfficiencyPct > 0 ? $"{Stats.BatteryRoundTripEfficiencyPct:F1} %" : "n/b")" />
+                            </RadzenColumn>
+                            <RadzenColumn Size="6" SizeMD="3">
+                                @{
+                                    var storageCycles = InvestmentStats?.ComponentBreakdown
+                                        .Where(c => c.BatteryCycles > 0).ToList();
+                                    var avgCycles = storageCycles != null && storageCycles.Any()
+                                        ? storageCycles.Average(c => c.BatteryCycles)
+                                        : Stats.BatteryCycles;
+                                }
+                                <StatCardComponent Title="Cycles (total / avg per battery)"
+                                                   Value="@($"{Stats.BatteryCycles:F1} / {avgCycles:F0}")" />
+                            </RadzenColumn>
+                            <RadzenColumn Size="6" SizeMD="3">
+                                <StatCardComponent Title="Cycles per day / avg SOC"
+                                                   Value="@($"{Stats.BatteryCyclesPerDay:F2}/day — {Stats.AverageSocPct:F1} %")" />
+                            </RadzenColumn>
+                        </RadzenRow>
+                        <RadzenText TextStyle="TextStyle.Caption" Style="margin-top: 0.75rem; opacity: 0.7;">
+                            Arbitrage profit = export revenue minus grid charging cost. Round-trip efficiency from reliable periods only.
+                        </RadzenText>
+                    </RadzenCard>
+                </RadzenColumn>
+
+                @* ── Row 1: Energy Flows | Consumption ─────────────────────── *@
                 <RadzenColumn Size="12" SizeMD="6">
                     <RadzenCard Style="height: 100%;">
                         <RadzenText TextStyle="TextStyle.H6">⚡ Energy Flows</RadzenText>
@@ -140,104 +327,6 @@
                             </RadzenColumn>
                             <RadzenColumn Size="6">
                                 <StatCardComponent Title="Weekend" Value="@($"{Stats.WeekendConsumptionKWh:F1} kWh")" />
-                            </RadzenColumn>
-                        </RadzenRow>
-                    </RadzenCard>
-                </RadzenColumn>
-
-                <RadzenColumn Size="12" SizeMD="6">
-                    <RadzenCard Style="height: 100%;">
-                        <RadzenText TextStyle="TextStyle.H6">☀️ Solar</RadzenText>
-                        <RadzenRow>
-                            <RadzenColumn Size="6">
-                                <StatCardComponent Title="Total production" Value="@($"{Stats.TotalSolarProductionKWh:F1} kWh")" />
-                            </RadzenColumn>
-                            <RadzenColumn Size="6">
-                                <StatCardComponent Title="Self consumed" Value="@($"{Stats.SelfConsumedSolarKWh:F1} kWh")" />
-                            </RadzenColumn>
-                            <RadzenColumn Size="6">
-                                <StatCardComponent Title="Self consumption" Value="@($"{Stats.SelfConsumptionPct:F1} %")" />
-                            </RadzenColumn>
-                            <RadzenColumn Size="6">
-                                <StatCardComponent Title="Performance ratio" Value="@($"{Stats.SolarPerformanceRatio * 100:F1} %")" />
-                            </RadzenColumn>
-                            <RadzenColumn Size="6">
-                                <StatCardComponent Title="Avg daily" Value="@($"{Stats.AvgDailySolarProductionKWh:F1} kWh/day")" />
-                            </RadzenColumn>
-                            <RadzenColumn Size="6">
-                                <StatCardComponent Title="Peak daily" Value="@($"{Stats.PeakDailySolarProductionKWh:F1} kWh")" />
-                            </RadzenColumn>
-                        </RadzenRow>
-                    </RadzenCard>
-                </RadzenColumn>
-
-                @* ── Row 2: Battery | Financial ─────────────────────────────── *@
-                <RadzenColumn Size="12" SizeMD="6">
-                    <RadzenCard Style="height: 100%;">
-                        <RadzenText TextStyle="TextStyle.H6">🔋 Battery</RadzenText>
-                        <RadzenRow>
-                            <RadzenColumn Size="6">
-                                <StatCardComponent Title="Total charged" Value="@($"{Stats.TotalBatteryChargedKWh:F1} kWh")" />
-                            </RadzenColumn>
-                            <RadzenColumn Size="6">
-                                <StatCardComponent Title="Total discharged" Value="@($"{Stats.TotalBatteryDischargedKWh:F1} kWh")" />
-                            </RadzenColumn>
-                            <RadzenColumn Size="6">
-                                <StatCardComponent Title="Round-trip efficiency" Value="@(Stats.BatteryRoundTripEfficiencyPct > 0 ? $"{Stats.BatteryRoundTripEfficiencyPct:F1} %" : "n/b")" />
-                            </RadzenColumn>
-                            <RadzenColumn Size="6">
-                                <StatCardComponent Title="Average SOC" Value="@($"{Stats.AverageSocPct:F1} %")" />
-                            </RadzenColumn>
-                            <RadzenColumn Size="6">
-                                @{
-                                    var storageCycles = InvestmentStats?.ComponentBreakdown
-                                        .Where(c => c.BatteryCycles > 0).ToList();
-                                    var avgCycles = storageCycles != null && storageCycles.Any()
-                                        ? storageCycles.Average(c => c.BatteryCycles)
-                                        : Stats.BatteryCycles;
-                                }
-                                <StatCardComponent Title="Avg cycles per battery" Value="@($"{avgCycles:F0}")" />
-                            </RadzenColumn>
-                            <RadzenColumn Size="6">
-                                <StatCardComponent Title="Cycles per day" Value="@($"{Stats.BatteryCyclesPerDay:F2}")" />
-                            </RadzenColumn>
-                        </RadzenRow>
-                    </RadzenCard>
-                </RadzenColumn>
-
-                <RadzenColumn Size="12" SizeMD="6">
-                    <RadzenCard Style="height: 100%;">
-                        <RadzenText TextStyle="TextStyle.H6">💶 Financial</RadzenText>
-                        <RadzenRow>
-                            <RadzenColumn Size="6">
-                                <StatCardComponent Title="Actual energy cost" Value="@($"€ {Stats.ActualEnergyCostEur:F2}")" />
-                            </RadzenColumn>
-                            <RadzenColumn Size="6">
-                                <StatCardComponent Title="Baseline cost" Value="@($"€ {Stats.BaselineEnergyCostEur:F2}")" />
-                            </RadzenColumn>
-                            <RadzenColumn Size="6">
-                                <StatCardComponent Title="Total savings" Value="@($"€ {Stats.TotalSavingsEur:F2}")" Highlight="true" />
-                            </RadzenColumn>
-                            <RadzenColumn Size="6">
-                                <StatCardComponent Title="Grid export revenue" Value="@($"€ {Stats.GridExportRevenueEur:F2}")" />
-                            </RadzenColumn>
-                            <RadzenColumn Size="6">
-                                <StatCardComponent Title="Arbitrage profit" Value="@($"€ {Stats.ArbitrageProfitEur:F2}")" />
-                            </RadzenColumn>
-                            <RadzenColumn Size="6">
-                                <StatCardComponent Title="Planned arbitrage" Value="@($"€ {Stats.PlannedArbitrageProfitEur:F2}")" />
-                            </RadzenColumn>
-                            <RadzenColumn Size="6">
-                                <StatCardComponent Title="Plan execution" Value="@($"{Stats.PlanExecutionRatioPct:F0} %")" />
-                            </RadzenColumn>
-                            <RadzenColumn Size="6">
-                                <StatCardComponent Title="Annual savings" Value="@($"€ {Stats.AnnualSavingsEur:F2}/year")" />
-                            </RadzenColumn>
-                            <RadzenColumn Size="6">
-                                <StatCardComponent Title="Avg buy price" Value="@($"€ {Stats.WeightedAvgBuyPriceEurPerKWh:F4}/kWh")" />
-                            </RadzenColumn>
-                            <RadzenColumn Size="6">
-                                <StatCardComponent Title="Avg sell price" Value="@($"€ {Stats.WeightedAvgSellPriceEurPerKWh:F4}/kWh")" />
                             </RadzenColumn>
                         </RadzenRow>
                     </RadzenCard>
