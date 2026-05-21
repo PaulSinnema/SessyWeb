@@ -19,6 +19,7 @@ namespace SessyWeb.Pages
         private EnergyStatistics? Stats { get; set; }
         private InvestmentStatistics? InvestmentStats { get; set; }
         private List<MonthlyTrend>? MonthlyTrends { get; set; }
+        private List<DailyArbitrageTrend>? DailyArbitrageTrends { get; set; }
 
         public bool IsLoading { get; set; } = false;
 
@@ -57,6 +58,7 @@ namespace SessyWeb.Pages
 
                 Stats = await _statisticsService!.GetEnergyStatisticsAsync(start, end);
                 InvestmentStats = await _statisticsService!.GetInvestmentStatisticsAsync();
+                DailyArbitrageTrends = await _statisticsService!.GetDailyArbitrageTrendsAsync(start, end);
 
                 // Only load monthly trends for periods longer than a month.
                 if (DateSelectionChosen.PeriodChosen == PeriodsEnums.Year ||

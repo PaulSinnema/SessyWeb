@@ -122,6 +122,7 @@ namespace SessyController.Services
                         await DataChanged.Invoke().ConfigureAwait(false);
 
                     await StoreQuarterlyMeasurement().ConfigureAwait(false);
+                    await BackfillSolarProductionAsync().ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
@@ -434,6 +435,54 @@ namespace SessyController.Services
             return false;
         }
 
+        private async Task BackfillSolarProductionAsync()
+        {
+            if (_inverterMeasurementService == null || _measurementService == null)
+                return;
+
+            // Backfill the last 2 hours of QuarterlyMeasurements with actual solar
+            // from InverterMeasurements. BatteriesService may store a quarter before
+            // SunspecInverterService has written the InverterMeasurement for that quarter.
+            // Running this every 60s corrects those records once the data is available.
+            var backfillFrom = DateTime.Now.AddHours(-2).DateFloorQuarter();
+            var backfillTo = DateTime.Now.DateFloorQuarter();
+
+            var recentMeasurements = await _measurementService.GetList(async set =>
+            {
+                var result = set
+                    .Where(m => m.Time >= backfillFrom && m.Time < backfillTo)
+                    .OrderBy(m => m.Time)
+                    .ToList();
+                return await Task.FromResult(result);
+            }).ConfigureAwait(false);
+
+            foreach (var qm in recentMeasurements)
+            {
+                var inverterMeasurements = await _inverterMeasurementService.GetList(async set =>
+                {
+                    var result = set
+                        .Where(m => m.Time == qm.Time)
+                        .ToList();
+                    return await Task.FromResult(result);
+                }).ConfigureAwait(false);
+
+                if (!inverterMeasurements.Any())
+                    continue;
+
+                var measuredSolar = inverterMeasurements.Sum(m => m.SolarProductionKWh);
+
+                if (Math.Abs(measuredSolar - qm.SolarProductionKWh) > 0.001)
+                {
+                    qm.SolarProductionKWh = measuredSolar;
+
+                    await _measurementService.Update(
+                        new List<QuarterlyMeasurement> { qm },
+                        (item, set) => set.FirstOrDefault(m => m.Id == item.Id))
+                        .ConfigureAwait(false);
+                }
+            }
+        }
+
         private async Task StoreQuarterlyMeasurement()
         {
             if (_measurementService == null)
@@ -488,6 +537,7 @@ namespace SessyController.Services
                 existing.BatteryStateOfChargeWh = socWh;
                 existing.BatteryMode = mode;
                 existing.SolarProductionKWh = solarProductionKWh;
+                existing.PlannedRevenueEur = currentQuarterlyInfo.Profit;
 
                 await _measurementService.Update(
                     new List<QuarterlyMeasurement> { existing },
@@ -506,6 +556,7 @@ namespace SessyController.Services
                     SolarProductionKWh = solarProductionKWh,
                     BuyingPriceEur = currentQuarterlyInfo.BuyingPrice,
                     SellingPriceEur = currentQuarterlyInfo.SellingPrice,
+                    PlannedRevenueEur = currentQuarterlyInfo.Profit,
                 };
 
                 await _measurementService.Add(new List<QuarterlyMeasurement> { measurement })

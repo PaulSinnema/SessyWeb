@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SessyData.Model;
 
@@ -10,9 +11,11 @@ using SessyData.Model;
 namespace SessyData.Migrations
 {
     [DbContext(typeof(ModelContext))]
-    partial class ModelContextModelSnapshot : ModelSnapshot
+    [Migration("20260521085715_RepairQuarterlyMeasurements")]
+    partial class RepairQuarterlyMeasurements
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.7");
@@ -244,9 +247,6 @@ namespace SessyData.Migrations
 
                     b.Property<bool>("IsReliable")
                         .HasColumnType("INTEGER");
-
-                    b.Property<double>("PlannedRevenueEur")
-                        .HasColumnType("REAL");
 
                     b.Property<double>("SellingPriceEur")
                         .HasColumnType("REAL");

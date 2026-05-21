@@ -81,6 +81,13 @@ namespace SessyData.Model
         /// <summary>Global solar radiation in W/m² (KNMI).</summary>
         public double GlobalRadiation { get; set; }
 
+        /// <summary>
+        /// Planned revenue for this quarter as calculated by the MILP (EUR).
+        /// Positive = expected profit from discharge, negative = cost of charge.
+        /// Compare with realized revenue to measure plan execution quality.
+        /// </summary>
+        public double PlannedRevenueEur { get; set; }
+
         // ── Derived helpers (not stored) ──────────────────────────────────────
 
         /// <summary>Solar energy produced this quarter in kWh (convenience alias).</summary>
@@ -126,6 +133,7 @@ namespace SessyData.Model
             BuyingPriceEur = updateInfo.BuyingPriceEur;
             SellingPriceEur = updateInfo.SellingPriceEur;
             GlobalRadiation = updateInfo.GlobalRadiation;
+            PlannedRevenueEur = updateInfo.PlannedRevenueEur;
         }
     }
 

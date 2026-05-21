@@ -111,6 +111,20 @@
         /// <summary>Battery arbitrage profit (buy low, sell high) (EUR).</summary>
         public double ArbitrageProfitEur { get; set; }
 
+        /// <summary>
+        /// Total planned arbitrage revenue according to the MILP for the period (EUR).
+        /// Compare with ArbitrageProfitEur to measure plan execution quality.
+        /// </summary>
+        public double PlannedArbitrageProfitEur { get; set; }
+
+        /// <summary>
+        /// Plan execution ratio: realized / planned arbitrage profit (%).
+        /// 100% = perfect execution, lower = losses due to price deviations or mode overrides.
+        /// </summary>
+        public double PlanExecutionRatioPct => PlannedArbitrageProfitEur > 0
+            ? ArbitrageProfitEur / PlannedArbitrageProfitEur * 100.0
+            : 0.0;
+
         /// <summary>Weighted average buy price per kWh (EUR/kWh).</summary>
         public double WeightedAvgBuyPriceEurPerKWh { get; set; }
 
@@ -298,7 +312,9 @@
 
         /// <summary>Description of how savings are calculated.</summary>
         public string SavingsSource { get; set; } = string.Empty;
-        public double BatteryCycles { get; internal set; }
+
+        /// <summary>Extrapolated battery cycles since installation date (Storage only).</summary>
+        public double BatteryCycles { get; set; }
     }
 
     /// <summary>
@@ -315,7 +331,18 @@
         public double GridExportKWh { get; set; }
         public double SavingsEur { get; set; }
         public double ArbitrageProfitEur { get; set; }
+        public double PlannedArbitrageProfitEur { get; set; }
         public double SelfSufficiencyPct { get; set; }
         public double BatteryCycles { get; set; }
+    }
+
+    /// <summary>
+    /// Daily arbitrage trend entry for planned vs realized comparison.
+    /// </summary>
+    public class DailyArbitrageTrend
+    {
+        public DateTime Date { get; set; }
+        public double RealizedEur { get; set; }
+        public double PlannedEur { get; set; }
     }
 }
