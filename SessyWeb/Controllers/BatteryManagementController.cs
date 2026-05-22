@@ -17,13 +17,13 @@ namespace SessyWeb.Controllers
     {
         private readonly ILogger<BatteryManagementController> _logger;
         private readonly BatteriesService _batteriesService;
-        private readonly EPEXPricesService _epexPricesService;
+        private readonly EpexPricesService _epexPricesService;
         private readonly SessyService _sessyService;
         private readonly SolarInverterManager _solarInverterManager;
         private readonly P1MeterService _p1MeterService;
         private readonly WeatherService _weatherService;
 
-        public BatteryManagementController(EPEXPricesService EpexPricesService,
+        public BatteryManagementController(EpexPricesService EpexPricesService,
                                            BatteriesService batteriesService,
                                            SessyService sessyService,
                                            SolarInverterManager solarInverterManager,

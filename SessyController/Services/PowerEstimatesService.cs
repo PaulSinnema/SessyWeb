@@ -17,7 +17,7 @@ namespace SessyController.Services
         private IServiceScope _scope { get; set; }
         private SessyService _sessyService { get; set; }
         private P1MeterService _p1MeterService { get; set; }
-        private EPEXPricesService _epexPricesService { get; set; }
+        private EpexPricesService _epexPricesService { get; set; }
         private SolarEdgeInverterService _solarEdgeService { get; set; }
         private SolarService _solarService { get; set; }
         private BatteryContainer _batteryContainer { get; set; }
@@ -42,7 +42,7 @@ namespace SessyController.Services
 
             _sessyService = _scope.ServiceProvider.GetRequiredService<SessyService>();
             _p1MeterService = _scope.ServiceProvider.GetRequiredService<P1MeterService>();
-            _epexPricesService = _scope.ServiceProvider.GetRequiredService<EPEXPricesService>();
+            _epexPricesService = _scope.ServiceProvider.GetRequiredService<EpexPricesService>();
             _solarEdgeService = _scope.ServiceProvider.GetRequiredService<SolarEdgeInverterService>();
             _solarService = _scope.ServiceProvider.GetRequiredService<SolarService>();
             _batteryContainer = _scope.ServiceProvider.GetRequiredService<BatteryContainer>();

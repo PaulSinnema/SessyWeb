@@ -37,7 +37,7 @@ namespace SessyController.Services
 
         private IServiceScope _scope;
 
-        private EPEXPricesService _epexPricesService;
+        private EpexPricesService _epexPricesService;
         private SolarService _solarService;
         private BatteryContainer _batteryContainer;
         private TimeZoneService _timeZoneService;
@@ -81,7 +81,7 @@ namespace SessyController.Services
 
             _scope = _serviceScopeFactory.CreateScope();
 
-            _epexPricesService = _scope.ServiceProvider.GetRequiredService<EPEXPricesService>();
+            _epexPricesService = _scope.ServiceProvider.GetRequiredService<EpexPricesService>();
             _solarService = _scope.ServiceProvider.GetRequiredService<SolarService>();
             _batteryContainer = _scope.ServiceProvider.GetRequiredService<BatteryContainer>();
             _timeZoneService = _scope.ServiceProvider.GetRequiredService<TimeZoneService>();

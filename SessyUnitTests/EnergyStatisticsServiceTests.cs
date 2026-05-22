@@ -20,7 +20,7 @@ namespace SessyTests.Services
         private readonly Mock<EnergyHistoryDataService> _energyHistoryMock;
         private readonly Mock<EPEXPricesDataService> _epexMock;
         private readonly Mock<InvestmentGroupDataService> _groupMock;
-        private readonly Mock<EPEXPricesService> _epexPricesMock;
+        private readonly Mock<EpexPricesService> _epexPricesMock;
         private readonly Mock<TimeZoneService> _timeZoneMock;
         private readonly EnergyStatisticsService _sut;
 
@@ -38,7 +38,7 @@ namespace SessyTests.Services
             _energyHistoryMock = new Mock<EnergyHistoryDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
             _epexMock = new Mock<EPEXPricesDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
             _groupMock = new Mock<InvestmentGroupDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
-            _epexPricesMock = new Mock<EPEXPricesService>(MockBehavior.Loose, scopeFactoryMock.Object);
+            _epexPricesMock = new Mock<EpexPricesService>(MockBehavior.Loose, scopeFactoryMock.Object);
             var groupMock = _groupMock;
 
             var timeZoneSettings = Options.Create(new SettingsConfig { Timezone = "Europe/Amsterdam" });
@@ -347,7 +347,7 @@ namespace SessyTests.Services
             var energyHistoryMock = new Mock<EnergyHistoryDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
             var epexMock = new Mock<EPEXPricesDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
             var groupMock2 = new Mock<InvestmentGroupDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
-            var epexPricesMock = new Mock<EPEXPricesService>(MockBehavior.Loose, scopeFactoryMock.Object);
+            var epexPricesMock = new Mock<EpexPricesService>(MockBehavior.Loose, scopeFactoryMock.Object);
             var powerSystemsConfig = Options.Create(new PowerSystemsConfig());
 
             var sut = new EnergyStatisticsService(

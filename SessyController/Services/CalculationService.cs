@@ -148,6 +148,34 @@ namespace SessyController.Services
             }
         }
 
+        /// <summary>
+        /// Calculates the all-in consumer gas price in EUR/m³ from the TTF market price.
+        /// Applies supplier markup, gas energy tax (Energiebelasting aardgas) and VAT (BTW)
+        /// from the most recently applicable Taxes record.
+        /// Formula: (marketPriceEurPerM3 + GasSupplierMarkupEurPerM3 + GasEnergyTaxEurPerM3)
+        ///          × (1 + GasValueAddedTaxPct / 100)
+        /// Returns null when no Taxes record is available.
+        /// </summary>
+        public async Task<double?> CalculateGasPriceAsync(double marketPriceEurPerM3)
+        {
+            await FillTaxesCache().ConfigureAwait(false);
+
+            var now = _timezoneService.Now;
+
+            var cache = _taxesCache.Where(tx => tx.Key <= now)
+                                   .OrderByDescending(tx => tx.Key)
+                                   .FirstOrDefault();
+
+            var taxes = cache.Value;
+
+            if (taxes == null)
+                return null;
+
+            double vatFactor = taxes.GasValueAddedTaxPct / 100.0 + 1.0;
+
+            return (marketPriceEurPerM3 + taxes.GasSupplierMarkupEurPerM3 + taxes.GasEnergyTaxEurPerM3) * vatFactor;
+        }
+
         private ConcurrentDictionary<DateTime, EPEXPrices> _epexPricesCache = new();
         private DateTime _invalidateEpexPricesCacheDateTime { get; set; } = DateTime.MinValue;
 

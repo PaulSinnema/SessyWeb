@@ -47,6 +47,25 @@ namespace SessyData.Model
         /// </summary>
         public bool Netting { get; set; } = true;
 
+        /// <summary>
+        /// Energy tax on natural gas (Energiebelasting aardgas) in EUR per m³.
+        /// In 2025: €0.3449/m³ (incl. ODE, excl. BTW).
+        /// </summary>
+        public double GasEnergyTaxEurPerM3 { get; set; } = 0.3449;
+
+        /// <summary>
+        /// Value added tax percentage on gas (BTW). In the Netherlands: 21%.
+        /// Applied on top of market price + GasEnergyTaxEurPerM3.
+        /// </summary>
+        public double GasValueAddedTaxPct { get; set; } = 21.0;
+
+        /// <summary>
+        /// Supplier markup on gas in EUR per m³ (leveranciersopslag).
+        /// This is the margin the energy supplier charges on top of the TTF market price.
+        /// Typical value: €0.05 – €0.15/m³ depending on supplier and contract.
+        /// </summary>
+        public double GasSupplierMarkupEurPerM3 { get; set; } = 0.0;
+
         public override string ToString()
         {
             return $"Time: {Time}, Energy tax: {EnergyTax}, Netting: {Netting}, Value added tax: {ValueAddedTax}, PurchaseCompensation: {PurchaseCompensation}, ReturnDeliveryCompensation: {ReturnDeliveryCompensation}, TaxReduction: {TaxReduction}, NetManagementCost: {NetManagementCost}, FixedTransportFee: {FixedTransportFee}, CapacityTransportFee: {CapacityTransportFee}";

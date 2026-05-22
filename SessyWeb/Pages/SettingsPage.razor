@@ -269,6 +269,21 @@
                                     <RadzenCheckBox @bind-Value="t.Netting" Style="width:10%" />
                                 </EditTemplate>
                             </RadzenDataGridColumn>
+                            <RadzenDataGridColumn Property="@nameof(Taxes.GasEnergyTaxEurPerM3)" Title="Gas energy tax (€/m³)">
+                                <EditTemplate Context="t">
+                                    <RadzenNumeric @bind-Value="t.GasEnergyTaxEurPerM3" Style="width:100%" Format="F4" />
+                                </EditTemplate>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn Property="@nameof(Taxes.GasSupplierMarkupEurPerM3)" Title="Gas supplier markup (€/m³)">
+                                <EditTemplate Context="t">
+                                    <RadzenNumeric @bind-Value="t.GasSupplierMarkupEurPerM3" Style="width:100%" Format="F4" />
+                                </EditTemplate>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn Property="@nameof(Taxes.GasValueAddedTaxPct)" Title="Gas VAT (%)">
+                                <EditTemplate Context="t">
+                                    <RadzenNumeric @bind-Value="t.GasValueAddedTaxPct" Style="width:100%" Format="F1" />
+                                </EditTemplate>
+                            </RadzenDataGridColumn>
                             <RadzenDataGridColumn Context="t" Filterable="false" Sortable="false"
                                                   TextAlign="TextAlign.Right" Frozen="true"
                                                   FrozenPosition="FrozenColumnPosition.Right">

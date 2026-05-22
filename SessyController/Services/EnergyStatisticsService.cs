@@ -30,7 +30,7 @@ namespace SessyController.Services
         private readonly HeatPumpConfig _heatPumpConfig;
         private readonly SettingsConfig _settingsConfig;
         private readonly PowerSystemsConfig _powerSystemsConfig;
-        private readonly EPEXPricesService _epexPricesService;
+        private readonly EpexPricesService _epexPricesService;
 
         // Total battery capacity in kWh for cycle calculation (3x Sessy 5.4 kWh).
         private const double BatteryCapacityKWh = 16.2;
@@ -45,7 +45,7 @@ namespace SessyController.Services
                                        IOptions<HeatPumpConfig> heatPumpConfig,
                                        IOptions<SettingsConfig> settingsConfig,
                                        IOptions<PowerSystemsConfig> powerSystemsConfig,
-                                       EPEXPricesService epexPricesService)
+                                       EpexPricesService epexPricesService)
         {
             _measurementDataService = measurementDataService;
             _investmentDataService = investmentDataService;
@@ -452,7 +452,11 @@ namespace SessyController.Services
             {
                 InvestmentCategory.Solar => monthlySolarSavings.Values.Sum(),
                 InvestmentCategory.Storage => monthlyArbitrageSavings.Values.Sum(),
-                InvestmentCategory.HeatPump => _heatPumpConfig.IsConfigured ? _heatPumpConfig.TotalAnnualSavingsEur : 0.0,
+                InvestmentCategory.HeatPump => _heatPumpConfig.IsConfigured
+                    ? _heatPumpConfig.AnnualGasConsumptionM3 * EffectiveGasPriceEurPerM3
+                      + _heatPumpConfig.GasStandingChargeEurPerYear
+                      - _heatPumpConfig.AnnualElectricityCostEur
+                    : 0.0,
                 _ => 0.0
             };
         }
@@ -511,7 +515,7 @@ namespace SessyController.Services
                               - _heatPumpConfig.AnnualElectricityCostEur;
 
             string source = isLive
-                ? $"Live TTF day-ahead via Enever.nl (configured fallback: € {_heatPumpConfig.GasPriceEurPerM3:F4}/m³)"
+                ? $"Live TTF day-ahead via Enever.nl, all-in incl. energiebelasting + BTW (configured fallback: € {_heatPumpConfig.GasPriceEurPerM3:F4}/m³)"
                 : "Configured value (no live feed available — add Enever:Token to appsettings.json)";
 
             return new HeatPumpStatistics

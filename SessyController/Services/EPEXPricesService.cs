@@ -18,7 +18,7 @@ namespace SessyController.Services
     /// <summary>
     /// This background service fetches the prices from a Sessy battery..
     /// </summary>
-    public class EPEXPricesService : BackgroundService, IDisposable
+    public class EpexPricesService : BackgroundService, IDisposable
     {
         private const string ApiUrl = "https://web-api.tp.entsoe.eu/api";
         private const string FormatDate = "yyyyMMdd";
@@ -46,7 +46,7 @@ namespace SessyController.Services
         private static string? _eneverToken;
 
         private ConcurrentDictionary<DateTime, DynamichSchedule>? _prices { get; set; }
-        private static LoggingService<EPEXPricesService>? _logger { get; set; }
+        private static LoggingService<EpexPricesService>? _logger { get; set; }
         private TimeZoneService _timeZoneService { get; set; }
         private BatteryContainer _batteryContainer { get; set; }
         private IServiceScopeFactory _serviceScopeFactory { get; set; }
@@ -78,7 +78,7 @@ namespace SessyController.Services
         /// </summary>
         public double? CurrentGasPriceEurPerM3 { get; private set; }
 
-        public EPEXPricesService(LoggingService<EPEXPricesService> logger,
+        public EpexPricesService(LoggingService<EpexPricesService> logger,
                                     IConfiguration configuration,
                                     TimeZoneService timeZoneService,
                                     BatteryContainer batteryContainer,
@@ -262,12 +262,17 @@ namespace SessyController.Services
                 string? rawPrice = data[0].GetProperty("prijsEGSI").GetString();
 
                 if (double.TryParse(rawPrice, System.Globalization.NumberStyles.Any,
-                                    System.Globalization.CultureInfo.InvariantCulture, out double price))
+                                    System.Globalization.CultureInfo.InvariantCulture, out double marketPrice))
                 {
-                    CurrentGasPriceEurPerM3 = price;
+                    // Apply gas energy tax (Energiebelasting) and VAT (BTW) from the Taxes table
+                    // to convert the TTF market price to the all-in consumer price.
+                    double? allInPrice = await _calculationService.CalculateGasPriceAsync(marketPrice);
+
+                    CurrentGasPriceEurPerM3 = allInPrice ?? marketPrice;
 
                     _logger!.LogInformation(
-                        $"Gas price fetched from Enever.nl: {CurrentGasPriceEurPerM3:F4} EUR/m³ (TTF EGSI)");
+                        $"Gas price fetched from Enever.nl: market={marketPrice:F4} EUR/m³, " +
+                        $"all-in={CurrentGasPriceEurPerM3:F4} EUR/m³ (TTF EGSI + taxes)");
                 }
                 else
                 {
