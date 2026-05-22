@@ -5,6 +5,8 @@ using SessyData.Helpers;
 using SessyCommon.Configurations;
 using SessyCommon.Services;
 using SessyController.Services;
+using SessyController.Services.Items;
+using SessyData.Services;
 using SessyController.Services.Optimization;
 using SessyController.Services.Statistics;
 using SessyData.Model;
@@ -20,7 +22,6 @@ namespace SessyTests.Services
         private readonly Mock<EnergyHistoryDataService> _energyHistoryMock;
         private readonly Mock<EPEXPricesDataService> _epexMock;
         private readonly Mock<InvestmentGroupDataService> _groupMock;
-        private readonly Mock<EpexPricesService> _epexPricesMock;
         private readonly Mock<TimeZoneService> _timeZoneMock;
         private readonly EnergyStatisticsService _sut;
 
@@ -34,12 +35,22 @@ namespace SessyTests.Services
             var scopeFactoryMock = BuildScopeFactory();
 
             _measurementMock = new Mock<QuarterlyMeasurementDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
+            _measurementMock.Setup(s => s.Get(It.IsAny<Func<IQueryable<QuarterlyMeasurement>, Task<QuarterlyMeasurement?>>>()))
+                            .ReturnsAsync((QuarterlyMeasurement?)null);
             _investmentMock = new Mock<InvestmentDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
             _energyHistoryMock = new Mock<EnergyHistoryDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
+            _energyHistoryMock.Setup(s => s.GetList(It.IsAny<Func<IQueryable<EnergyHistory>, Task<List<EnergyHistory>>>>()))
+                              .ReturnsAsync(new List<EnergyHistory>());
+            _energyHistoryMock.Setup(s => s.Get(It.IsAny<Func<IQueryable<EnergyHistory>, Task<EnergyHistory?>>>()))
+                              .ReturnsAsync((EnergyHistory?)null);
             _epexMock = new Mock<EPEXPricesDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
+            _epexMock.Setup(s => s.GetList(It.IsAny<Func<IQueryable<EPEXPrices>, Task<List<EPEXPrices>>>>()))
+                     .ReturnsAsync(new List<EPEXPrices>());
+            _epexMock.Setup(s => s.Get(It.IsAny<Func<IQueryable<EPEXPrices>, Task<EPEXPrices?>>>()))
+                     .ReturnsAsync((EPEXPrices?)null);
             _groupMock = new Mock<InvestmentGroupDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
-            _epexPricesMock = new Mock<EpexPricesService>(MockBehavior.Loose, scopeFactoryMock.Object);
-            var groupMock = _groupMock;
+            _groupMock.Setup(s => s.GetList(It.IsAny<Func<IQueryable<InvestmentGroup>, Task<List<InvestmentGroup>>>>()))
+                      .ReturnsAsync(new List<InvestmentGroup>());
 
             var timeZoneSettings = Options.Create(new SettingsConfig { Timezone = "Europe/Amsterdam" });
             _timeZoneMock = new Mock<TimeZoneService>(MockBehavior.Loose, timeZoneSettings);
@@ -55,17 +66,38 @@ namespace SessyTests.Services
             var settingsConfig = Options.Create(new SettingsConfig());
             var powerSystemsConfig = Options.Create(new PowerSystemsConfig());
 
+            // Mock via interfaces — avoids constructor issues with complex service dependencies.
+            var epexPricesServiceMock = new Mock<IEPEXPricesService>();
+            epexPricesServiceMock.Setup(s => s.CurrentGasPriceEurPerM3).Returns((double?)null);
+
+            var gasPricesMock = new Mock<IGasPricesDataService>();
+            gasPricesMock.Setup(s => s.GetAverageMarketPriceAsync(It.IsAny<DateTime?>()))
+                         .ReturnsAsync((double?)null);
+            gasPricesMock.Setup(s => s.GetAllAsync())
+                         .ReturnsAsync(new List<SessyData.Model.GasPrice>());
+
+            var calculationServiceMock = new Mock<ICalculationService>();
+            calculationServiceMock.Setup(s => s.CalculateGasPriceAsync(It.IsAny<double>()))
+                                  .ReturnsAsync((double?)null);
+
+            // Mock IBatteryContainer — 3 × 5400 Wh = 16200 Wh total capacity.
+            var batteryContainerMock = new Mock<IBatteryContainer>();
+            batteryContainerMock.Setup(b => b.GetTotalCapacity()).Returns(16200.0);
+
             _sut = new EnergyStatisticsService(
                 _measurementMock.Object,
                 _investmentMock.Object,
                 _energyHistoryMock.Object,
                 _epexMock.Object,
-                groupMock.Object,
+                _groupMock.Object,
                 _timeZoneMock.Object,
                 heatPumpConfig,
                 settingsConfig,
                 powerSystemsConfig,
-                _epexPricesMock.Object);
+                epexPricesServiceMock.Object,
+                gasPricesMock.Object,
+                calculationServiceMock.Object,
+                batteryContainerMock.Object);
         }
 
         // ── Grid flow tests ──────────────────────────────────────────────────
@@ -246,7 +278,9 @@ namespace SessyTests.Services
         [Fact]
         public async Task GetEnergyStatistics_ExcludesUnreliableRecordsFromEfficiency()
         {
-            // 10 kWh reliable + 5 kWh unreliable charged, 9.5 kWh reliable discharged.
+            // 10 kWh reliable + 4 kWh unreliable charged, 9.5 kWh reliable discharged.
+            // Reduced unreliable count to 16 quarters so all data fits within one day
+            // (40 + 16 + 38 = 94 quarters, last at index 93 = 23:15, no overflow to next day).
             // Efficiency = 9.5 / 10 = 95% (unreliable excluded).
             var measurements = new List<QuarterlyMeasurement>();
 
@@ -258,7 +292,7 @@ namespace SessyTests.Services
                 IsReliable = true
             }));
 
-            measurements.AddRange(Enumerable.Range(40, 20).Select(i => new QuarterlyMeasurement
+            measurements.AddRange(Enumerable.Range(40, 16).Select(i => new QuarterlyMeasurement
             {
                 Time = PeriodStart.AddMinutes(i * 15),
                 BatteryPowerWatts = -1000,
@@ -266,7 +300,7 @@ namespace SessyTests.Services
                 IsReliable = false
             }));
 
-            measurements.AddRange(Enumerable.Range(60, 38).Select(i => new QuarterlyMeasurement
+            measurements.AddRange(Enumerable.Range(56, 38).Select(i => new QuarterlyMeasurement
             {
                 Time = PeriodStart.AddMinutes(i * 15),
                 BatteryPowerWatts = 1000,
@@ -278,7 +312,7 @@ namespace SessyTests.Services
 
             var result = await _sut.GetEnergyStatisticsAsync(PeriodStart, PeriodEnd);
 
-            Assert.Equal(15.0, result.TotalBatteryChargedKWh, 1);
+            Assert.Equal(14.0, result.TotalBatteryChargedKWh, 1);
             Assert.Equal(10.0, result.ReliableBatteryChargedKWh, 1);
             Assert.Equal(9.5, result.ReliableBatteryDischargedKWh, 1);
             Assert.Equal(95.0, result.BatteryRoundTripEfficiencyPct, 0);
@@ -304,10 +338,14 @@ namespace SessyTests.Services
         public async Task GetEnergyStatistics_WeekdayWeekendSplitCorrect()
         {
             // May 1 2026 = Friday (weekday), May 2 = Saturday (weekend).
+            // Each day gets 00:00 and 23:45 measurements so the incomplete-day filter
+            // does not remove either day (lastTime.TimeOfDay = 23:45 is not < 23:45).
             var measurements = new List<QuarterlyMeasurement>
             {
-                new() { Time = new DateTime(2026, 5, 1, 10, 0, 0), GridImportWh = 1000, SolarProductionKWh = 0, GridExportWh = 0 },
-                new() { Time = new DateTime(2026, 5, 2, 10, 0, 0), GridImportWh = 500,  SolarProductionKWh = 0, GridExportWh = 0 }
+                new() { Time = new DateTime(2026, 5, 1,  0,  0, 0), GridImportWh = 500, SolarProductionKWh = 0, GridExportWh = 0 },
+                new() { Time = new DateTime(2026, 5, 1, 23, 45, 0), GridImportWh = 500, SolarProductionKWh = 0, GridExportWh = 0 },
+                new() { Time = new DateTime(2026, 5, 2,  0,  0, 0), GridImportWh = 250, SolarProductionKWh = 0, GridExportWh = 0 },
+                new() { Time = new DateTime(2026, 5, 2, 23, 45, 0), GridImportWh = 250, SolarProductionKWh = 0, GridExportWh = 0 }
             };
             SetupMeasurements(measurements);
 
@@ -330,12 +368,16 @@ namespace SessyTests.Services
             var investmentMock = new Mock<InvestmentDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
 
             // Only return measurements from May 15 onwards.
+            // Each day has a 00:00 and 23:45 measurement so the incomplete-day filter
+            // retains both days (lastTime.TimeOfDay = 23:45 is not < 23:45).
             measurementMock
                 .Setup(s => s.GetList(It.IsAny<Func<IQueryable<QuarterlyMeasurement>, Task<List<QuarterlyMeasurement>>>>()))
                 .ReturnsAsync(new List<QuarterlyMeasurement>
                 {
-                    new() { Time = fromDate,             GridImportWh = 300, GridExportWh = 0, SolarProductionKWh = 0 },
-                    new() { Time = fromDate.AddDays(10), GridImportWh = 200, GridExportWh = 0, SolarProductionKWh = 0 }
+                    new() { Time = fromDate,                                          GridImportWh = 150, GridExportWh = 0, SolarProductionKWh = 0 },
+                    new() { Time = fromDate.AddHours(23).AddMinutes(45),             GridImportWh = 150, GridExportWh = 0, SolarProductionKWh = 0 },
+                    new() { Time = fromDate.AddDays(10),                             GridImportWh = 100, GridExportWh = 0, SolarProductionKWh = 0 },
+                    new() { Time = fromDate.AddDays(10).AddHours(23).AddMinutes(45), GridImportWh = 100, GridExportWh = 0, SolarProductionKWh = 0 }
                 });
 
             investmentMock
@@ -347,8 +389,20 @@ namespace SessyTests.Services
             var energyHistoryMock = new Mock<EnergyHistoryDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
             var epexMock = new Mock<EPEXPricesDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
             var groupMock2 = new Mock<InvestmentGroupDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
-            var epexPricesMock = new Mock<EpexPricesService>(MockBehavior.Loose, scopeFactoryMock.Object);
             var powerSystemsConfig = Options.Create(new PowerSystemsConfig());
+
+            var epexPricesServiceMock2 = new Mock<IEPEXPricesService>();
+            epexPricesServiceMock2.Setup(s => s.CurrentGasPriceEurPerM3).Returns((double?)null);
+
+            var gasPricesMock2 = new Mock<IGasPricesDataService>();
+            gasPricesMock2.Setup(s => s.GetAverageMarketPriceAsync(It.IsAny<DateTime?>())).ReturnsAsync((double?)null);
+            gasPricesMock2.Setup(s => s.GetAllAsync()).ReturnsAsync(new List<SessyData.Model.GasPrice>());
+
+            var calculationServiceMock2 = new Mock<ICalculationService>();
+            calculationServiceMock2.Setup(s => s.CalculateGasPriceAsync(It.IsAny<double>())).ReturnsAsync((double?)null);
+
+            var batteryContainerMock2 = new Mock<IBatteryContainer>();
+            batteryContainerMock2.Setup(b => b.GetTotalCapacity()).Returns(16200.0);
 
             var sut = new EnergyStatisticsService(
                 measurementMock.Object,
@@ -360,7 +414,10 @@ namespace SessyTests.Services
                 heatPumpConfig,
                 settingsConfig,
                 powerSystemsConfig,
-                epexPricesMock.Object);
+                epexPricesServiceMock2.Object,
+                gasPricesMock2.Object,
+                calculationServiceMock2.Object,
+                batteryContainerMock2.Object);
 
             // Request full month — StatisticsFromDate clips it to May 15.
             var result = await sut.GetEnergyStatisticsAsync(DateTime.MinValue, PeriodEnd);

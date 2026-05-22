@@ -20,7 +20,7 @@ namespace SessyController.Services
 
         private BatteryContainer _batteryContainer;
 
-        private EpexPricesService _epexPricesService { get; set; }
+        private EPEXPricesService _epexPricesService { get; set; }
 
         private SolarDataService _solarDataService { get; set; }
 
@@ -48,7 +48,7 @@ namespace SessyController.Services
                             IOptions<PowerSystemsConfig> powerSystemsConfig,
                             BatteryContainer batteryContainer,
                             WeatherService weatherService,
-                            EpexPricesService dayAheadMarketService,
+                            EPEXPricesService epexPricesService,
                             SolarDataService solarDataService,
                             InverterMeasurementDataService inverterMeasurementService,
                             SolarInverterManager solarInverterManager,
@@ -61,7 +61,7 @@ namespace SessyController.Services
             _powerSystemsConfig = powerSystemsConfig.Value;
             _weatherService = weatherService;
             _batteryContainer = batteryContainer;
-            _epexPricesService = dayAheadMarketService;
+            _epexPricesService = epexPricesService;
             _solarDataService = solarDataService;
             _inverterMeasurementService = inverterMeasurementService;
             _solarInverterManager = solarInverterManager;

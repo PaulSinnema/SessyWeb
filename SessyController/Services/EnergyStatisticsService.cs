@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.Options;
-using Microsoft.Extensions.Options;
 using SessyCommon.Configurations;
 using SessyCommon.Services;
+using SessyController.Services.Items;
 using SessyController.Services.Statistics;
 using SessyData.Model;
 using SessyData.Services;
@@ -30,10 +30,13 @@ namespace SessyController.Services
         private readonly HeatPumpConfig _heatPumpConfig;
         private readonly SettingsConfig _settingsConfig;
         private readonly PowerSystemsConfig _powerSystemsConfig;
-        private readonly EpexPricesService _epexPricesService;
+        private readonly IEPEXPricesService _epexPricesService;
+        private readonly IGasPricesDataService _gasPricesDataService;
+        private readonly ICalculationService _calculationService;
+        private readonly IBatteryContainer _batteryContainer;
 
-        // Total battery capacity in kWh for cycle calculation (3x Sessy 5.4 kWh).
-        private const double BatteryCapacityKWh = 16.2;
+        // Convenience property: total battery capacity in kWh from BatteryContainer.
+        private double BatteryCapacityKWh => _batteryContainer.GetTotalCapacity() / 1000.0;
 
         // Category name constants for per-component savings routing.
         public EnergyStatisticsService(QuarterlyMeasurementDataService measurementDataService,
@@ -45,7 +48,10 @@ namespace SessyController.Services
                                        IOptions<HeatPumpConfig> heatPumpConfig,
                                        IOptions<SettingsConfig> settingsConfig,
                                        IOptions<PowerSystemsConfig> powerSystemsConfig,
-                                       EpexPricesService epexPricesService)
+                                       IEPEXPricesService epexPricesService,
+                                       IGasPricesDataService gasPricesDataService,
+                                       ICalculationService calculationService,
+                                       IBatteryContainer batteryContainer)
         {
             _measurementDataService = measurementDataService;
             _investmentDataService = investmentDataService;
@@ -57,15 +63,45 @@ namespace SessyController.Services
             _settingsConfig = settingsConfig.Value;
             _powerSystemsConfig = powerSystemsConfig.Value;
             _epexPricesService = epexPricesService;
+            _gasPricesDataService = gasPricesDataService;
+            _calculationService = calculationService;
+            _batteryContainer = batteryContainer;
         }
 
         /// <summary>
-        /// Returns the effective gas price in EUR/m³.
-        /// Uses the live price from EpexPricesService when available;
-        /// falls back to the configured value in appsettings.json.
+        /// Returns the effective gas price in EUR/m³ for savings calculations.
+        /// Priority:
+        /// 1. Historical average all-in price from GasPrices table (most stable)
+        /// 2. Live price from EPEXPricesService (today's value, all-in)
+        /// 3. Configured fallback from HeatPumpConfig (appsettings.json)
         /// </summary>
-        private double EffectiveGasPriceEurPerM3 =>
-            _epexPricesService.CurrentGasPriceEurPerM3 ?? _heatPumpConfig.GasPriceEurPerM3;
+        private async Task<(double price, string source)> GetEffectiveGasPriceAsync()
+        {
+            // Try historical average first — most stable for savings calculations.
+            double? avgMarketPrice = await _gasPricesDataService.GetAverageMarketPriceAsync();
+
+            if (avgMarketPrice.HasValue)
+            {
+                // Apply current taxes to the historical average market price.
+                double? allInAvg = await _calculationService.CalculateGasPriceAsync(avgMarketPrice.Value);
+                double price = allInAvg ?? avgMarketPrice.Value;
+                int days = (await _gasPricesDataService.GetAllAsync()).Count;
+                string src = $"Historical average of {days} days: market avg={avgMarketPrice.Value:F4} EUR/m³, all-in={price:F4} EUR/m³ (incl. energiebelasting + BTW)";
+                return (price, src);
+            }
+
+            // Fall back to today's live price.
+            if (_epexPricesService.CurrentGasPriceEurPerM3.HasValue)
+            {
+                double price = _epexPricesService.CurrentGasPriceEurPerM3.Value;
+                string src = $"Live TTF day-ahead via Enever.nl, all-in incl. energiebelasting + BTW (configured fallback: € {_heatPumpConfig.GasPriceEurPerM3:F4}/m³)";
+                return (price, src);
+            }
+
+            // Last resort: configured value.
+            return (_heatPumpConfig.GasPriceEurPerM3,
+                    "Configured value (no live feed or history available — add Enever:Token to appsettings.json)");
+        }
 
         /// <summary>
         /// Calculates comprehensive energy statistics for the given period.
@@ -84,10 +120,8 @@ namespace SessyController.Services
 
             var measurements = await GetMeasurementsAsync(start, end);
 
-            // Exclude incomplete first and last days.
+            // Exclude incomplete first and last days only when sufficient complete days remain.
             // A day is complete when it has data from 00:00 through 23:45 (96 quarters).
-            // In practice: skip the first day if it starts after 00:00,
-            // and skip the last day if it ends before 23:45.
             if (measurements.Any())
             {
                 var firstTime = measurements.Min(m => m.Time);
@@ -97,14 +131,23 @@ namespace SessyController.Services
                 if (firstTime.TimeOfDay > TimeSpan.Zero)
                 {
                     var firstFullDay = firstTime.Date.AddDays(1);
-                    measurements = measurements.Where(m => m.Time >= firstFullDay).ToList();
+                    var afterFilter = measurements.Where(m => m.Time >= firstFullDay).ToList();
+                    // Only apply if complete days remain after filtering.
+                    if (afterFilter.Any())
+                        measurements = afterFilter;
                 }
+
+                // Re-evaluate after potential first-day trim.
+                lastTime = measurements.Any() ? measurements.Max(m => m.Time) : lastTime;
 
                 // Last day incomplete if data doesn't end at 23:45.
                 if (lastTime.TimeOfDay < new TimeSpan(23, 45, 0))
                 {
                     var lastFullDay = lastTime.Date;
-                    measurements = measurements.Where(m => m.Time < lastFullDay).ToList();
+                    var afterFilter = measurements.Where(m => m.Time < lastFullDay).ToList();
+                    // Only apply if complete days remain after filtering.
+                    if (afterFilter.Any())
+                        measurements = afterFilter;
                 }
             }
 
@@ -453,7 +496,7 @@ namespace SessyController.Services
                 InvestmentCategory.Solar => monthlySolarSavings.Values.Sum(),
                 InvestmentCategory.Storage => monthlyArbitrageSavings.Values.Sum(),
                 InvestmentCategory.HeatPump => _heatPumpConfig.IsConfigured
-                    ? _heatPumpConfig.AnnualGasConsumptionM3 * EffectiveGasPriceEurPerM3
+                    ? _heatPumpConfig.AnnualGasConsumptionM3 * _cachedEffectiveGasPrice
                       + _heatPumpConfig.GasStandingChargeEurPerYear
                       - _heatPumpConfig.AnnualElectricityCostEur
                     : 0.0,
@@ -471,7 +514,7 @@ namespace SessyController.Services
                 InvestmentCategory.Solar => "Export revenue + self-consumption (measured)",
                 InvestmentCategory.Storage => "Arbitrage profit (measured, prorated by investment share)",
                 InvestmentCategory.HeatPump => _heatPumpConfig.IsConfigured
-                    ? $"{_heatPumpConfig.AnnualGasConsumptionM3} m³ × €{EffectiveGasPriceEurPerM3:F4}/m³ + €{_heatPumpConfig.GasStandingChargeEurPerYear} vastrecht - {_heatPumpConfig.AnnualElectricityConsumptionKWh} kWh × €{_heatPumpConfig.EffectiveElectricityPriceEurPerKWh:F2}/kWh elektra"
+                    ? $"{_heatPumpConfig.AnnualGasConsumptionM3} m³ × €{_cachedEffectiveGasPrice:F4}/m³ + €{_heatPumpConfig.GasStandingChargeEurPerYear} vastrecht - {_heatPumpConfig.AnnualElectricityConsumptionKWh} kWh × €{_heatPumpConfig.EffectiveElectricityPriceEurPerKWh:F2}/kWh elektra"
                     : "Not configured — add HeatPumpConfig to appsettings.json",
                 _ => "Manual estimate required — set EstimatedAnnualSavingsEur on investment"
             };
@@ -492,8 +535,8 @@ namespace SessyController.Services
             double months = (end.Year - effectiveStart.Year) * 12 +
                             (end.Month - effectiveStart.Month);
 
-            // Use live gas price when available; fall back to appsettings.json value.
-            double gasCostSaved = _heatPumpConfig.AnnualGasConsumptionM3 * EffectiveGasPriceEurPerM3;
+            // Use cached effective gas price (historical average or live or configured fallback).
+            double gasCostSaved = _heatPumpConfig.AnnualGasConsumptionM3 * _cachedEffectiveGasPrice;
             double annualSavings = gasCostSaved
                                  + _heatPumpConfig.GasStandingChargeEurPerYear
                                  - _heatPumpConfig.AnnualElectricityCostEur;
@@ -501,27 +544,33 @@ namespace SessyController.Services
             return (annualSavings / 12.0) * months;
         }
 
+        // Cached effective gas price — set by GetHeatPumpStatisticsAsync() before any calculation.
+        private double _cachedEffectiveGasPrice;
+
         /// <summary>
         /// Returns fully resolved heat pump savings statistics.
+        /// Resolves the effective gas price from the historical average in GasPrices table,
+        /// falling back to the live Enever price or the configured value in appsettings.json.
         /// The view should display these values as-is, without any further calculation or interpretation.
         /// </summary>
-        public HeatPumpStatistics GetHeatPumpStatistics()
+        public async Task<HeatPumpStatistics> GetHeatPumpStatisticsAsync()
         {
-            bool isLive = _epexPricesService.CurrentGasPriceEurPerM3.HasValue;
-            double gasPrice = EffectiveGasPriceEurPerM3;
+            var (gasPrice, source) = await GetEffectiveGasPriceAsync();
+
+            // Cache for use in synchronous callers (GetAnnualSavingsEur, CalculateHeatPumpSavings).
+            _cachedEffectiveGasPrice = gasPrice;
+
+            bool isHistoricalAverage = (await _gasPricesDataService.GetAllAsync()).Count > 0;
+
             double gasCostSaved = _heatPumpConfig.AnnualGasConsumptionM3 * gasPrice;
             double netSavings = gasCostSaved
                               + _heatPumpConfig.GasStandingChargeEurPerYear
                               - _heatPumpConfig.AnnualElectricityCostEur;
 
-            string source = isLive
-                ? $"Live TTF day-ahead via Enever.nl, all-in incl. energiebelasting + BTW (configured fallback: € {_heatPumpConfig.GasPriceEurPerM3:F4}/m³)"
-                : "Configured value (no live feed available — add Enever:Token to appsettings.json)";
-
             return new HeatPumpStatistics
             {
                 GasPriceEurPerM3 = gasPrice,
-                IsLiveGasPrice = isLive,
+                IsLiveGasPrice = !isHistoricalAverage && _epexPricesService.CurrentGasPriceEurPerM3.HasValue,
                 AnnualGasConsumptionM3 = _heatPumpConfig.AnnualGasConsumptionM3,
                 AnnualGasCostSavedEur = gasCostSaved,
                 GasStandingChargeEurPerYear = _heatPumpConfig.GasStandingChargeEurPerYear,

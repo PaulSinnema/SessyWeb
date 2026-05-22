@@ -18,7 +18,7 @@ namespace SessyController.Services
     /// <summary>
     /// This background service fetches the prices from a Sessy battery..
     /// </summary>
-    public class EpexPricesService : BackgroundService, IDisposable
+    public class EPEXPricesService : BackgroundService, IDisposable, IEPEXPricesService
     {
         private const string ApiUrl = "https://web-api.tp.entsoe.eu/api";
         private const string FormatDate = "yyyyMMdd";
@@ -46,11 +46,12 @@ namespace SessyController.Services
         private static string? _eneverToken;
 
         private ConcurrentDictionary<DateTime, DynamichSchedule>? _prices { get; set; }
-        private static LoggingService<EpexPricesService>? _logger { get; set; }
+        private static LoggingService<EPEXPricesService>? _logger { get; set; }
         private TimeZoneService _timeZoneService { get; set; }
         private BatteryContainer _batteryContainer { get; set; }
         private IServiceScopeFactory _serviceScopeFactory { get; set; }
         private EPEXPricesDataService _epexPricesDataService { get; set; }
+        private GasPricesDataService _gasPricesDataService { get; set; }
 
         private ExpectedPriceService _expectedPriceService;
 
@@ -76,13 +77,14 @@ namespace SessyController.Services
         /// The most recently fetched natural gas price in EUR per m³ (TTF day-ahead via Enever.nl).
         /// Null when not yet fetched or unavailable.
         /// </summary>
-        public double? CurrentGasPriceEurPerM3 { get; private set; }
+        public virtual double? CurrentGasPriceEurPerM3 { get; private set; }
 
-        public EpexPricesService(LoggingService<EpexPricesService> logger,
+        public EPEXPricesService(LoggingService<EPEXPricesService> logger,
                                     IConfiguration configuration,
                                     TimeZoneService timeZoneService,
                                     BatteryContainer batteryContainer,
                                     EPEXPricesDataService epexPricesDataService,
+                                    GasPricesDataService gasPricesDataService,
                                     ExpectedPriceService expectedPriceService,
                                     IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
                                     TaxesDataService taxesService,
@@ -99,6 +101,7 @@ namespace SessyController.Services
             _batteryContainer = batteryContainer;
             _serviceScopeFactory = serviceScopeFactory;
             _epexPricesDataService = epexPricesDataService;
+            _gasPricesDataService = gasPricesDataService;
             _expectedPriceService = expectedPriceService;
             _solarInverterManager = solarInverterManager;
             _settingsConfigMonitor = settingsConfigMonitor;
@@ -264,6 +267,15 @@ namespace SessyController.Services
                 if (double.TryParse(rawPrice, System.Globalization.NumberStyles.Any,
                                     System.Globalization.CultureInfo.InvariantCulture, out double marketPrice))
                 {
+                    // Store the daily market price in the database (upsert — one record per day).
+                    var today = _timeZoneService.Now.Date;
+
+                    await _gasPricesDataService.UpsertAsync(new SessyData.Model.GasPrice
+                    {
+                        Date = today,
+                        MarketPriceEurPerM3 = marketPrice
+                    });
+
                     // Apply gas energy tax (Energiebelasting) and VAT (BTW) from the Taxes table
                     // to convert the TTF market price to the all-in consumer price.
                     double? allInPrice = await _calculationService.CalculateGasPriceAsync(marketPrice);

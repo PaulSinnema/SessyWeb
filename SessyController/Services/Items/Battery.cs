@@ -40,7 +40,7 @@ namespace SessyController.Services.Items
             return _endpoint.MaxDischarge;
         }
 
-        internal async Task<double> GetPowerInWatts()
+        public async Task<double> GetPowerInWatts()
         {
             var powerStatus = await GetPowerStatus();
 

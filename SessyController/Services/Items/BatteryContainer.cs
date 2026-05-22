@@ -7,7 +7,7 @@ namespace SessyController.Services.Items
     /// <summary>
     /// This class is a container for all batteries.
     /// </summary>
-    public class BatteryContainer
+    public class BatteryContainer : IBatteryContainer
     {
         private IOptionsMonitor<SessyBatteryConfig> _sessyBatteryConfigMonitor;
         private SessyBatteryConfig _sessyBatteryConfig;
@@ -26,7 +26,7 @@ namespace SessyController.Services.Items
                 _sessyBatteryConfig = config;
                 Batteries = GetBatteries(serviceScopeFactory.CreateScope().ServiceProvider);
             });
-            
+
             _sessyBatteryConfig = _sessyBatteryConfigMonitor.CurrentValue;
             _solarEdgeService = solarEdgeService;
 
@@ -66,7 +66,7 @@ namespace SessyController.Services.Items
             double stateOfCharge = 0.0;
             double count = 0;
 
-            foreach(var battery in Batteries)
+            foreach (var battery in Batteries)
             {
                 PowerStatus? powerStatus = await battery.GetPowerStatus().ConfigureAwait(false);
 
@@ -76,7 +76,7 @@ namespace SessyController.Services.Items
                 count++;
             }
 
-            if(count > 0)
+            if (count > 0)
                 return stateOfCharge / count;
 
             return 0.0;
@@ -93,7 +93,7 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Get the total capacity of all batteries.
         /// </summary>
-        public double GetTotalCapacity()
+        public virtual double GetTotalCapacity()
         {
             return Batteries!.Sum(bat => bat.GetCapacity());
         }

@@ -47,6 +47,8 @@ namespace SessyData.Model
 
         public DbSet<Settings> Settings => Set<Settings>();
 
+        public DbSet<GasPrice> GasPrices => Set<GasPrice>();
+
         public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
         protected override void OnConfiguring(DbContextOptionsBuilder options)

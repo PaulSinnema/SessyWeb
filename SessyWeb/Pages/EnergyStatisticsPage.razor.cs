@@ -59,9 +59,9 @@ namespace SessyWeb.Pages
                 var start = DateTime.MinValue;
                 var end = DateTime.MaxValue;
 
+                HeatPumpStats = await _statisticsService!.GetHeatPumpStatisticsAsync();
                 Stats = await _statisticsService!.GetEnergyStatisticsAsync(start, end);
                 InvestmentStats = await _statisticsService!.GetInvestmentStatisticsAsync();
-                HeatPumpStats = _statisticsService!.GetHeatPumpStatistics();
                 DailyArbitrageTrends = await _statisticsService!.GetDailyArbitrageTrendsAsync(start, end);
 
                 // Only load monthly trends for periods longer than a month.

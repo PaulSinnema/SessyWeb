@@ -16,7 +16,7 @@ namespace SessyController.Services
     public class EnergyMonitorService : BackgroundService
     {
         public WeatherService? _weatherService { get; set; }
-        public EpexPricesService? _epexPricesService { get; set; }
+        public EPEXPricesService? _epexPricesService { get; set; }
         private P1MeterContainer _p1MeterContainer { get; set; }
         private TimeZoneService _timeZoneService { get; set; }
         private P1MeterService _p1MeterService { get; set; }
@@ -55,7 +55,7 @@ namespace SessyController.Services
 
             _measurementService = _scope.ServiceProvider.GetRequiredService<QuarterlyMeasurementDataService>();
             _p1MeterService = _scope.ServiceProvider.GetRequiredService<P1MeterService>();
-            _epexPricesService = _scope.ServiceProvider.GetRequiredService<EpexPricesService>();
+            _epexPricesService = _scope.ServiceProvider.GetRequiredService<EPEXPricesService>();
 
             _p1MeterContainer = p1meterContainer;
         }

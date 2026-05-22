@@ -7,7 +7,7 @@ using static SessyController.Services.Items.ChargingModes;
 
 namespace SessyController.Services
 {
-    public class CalculationService
+    public class CalculationService : ICalculationService
     {
         private EPEXPricesDataService _epexPricesDataService { get; set; }
 
@@ -156,7 +156,7 @@ namespace SessyController.Services
         ///          × (1 + GasValueAddedTaxPct / 100)
         /// Returns null when no Taxes record is available.
         /// </summary>
-        public async Task<double?> CalculateGasPriceAsync(double marketPriceEurPerM3)
+        public virtual async Task<double?> CalculateGasPriceAsync(double marketPriceEurPerM3)
         {
             await FillTaxesCache().ConfigureAwait(false);
 
