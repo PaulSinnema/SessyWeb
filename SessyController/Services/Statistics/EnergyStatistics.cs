@@ -318,6 +318,43 @@
     }
 
     /// <summary>
+    /// Heat pump savings statistics, fully resolved by the service layer.
+    /// The view should display these values as-is without any interpretation.
+    /// </summary>
+    public class HeatPumpStatistics
+    {
+        /// <summary>Effective gas price used for calculations (EUR/m³).</summary>
+        public double GasPriceEurPerM3 { get; set; }
+
+        /// <summary>True when the gas price comes from the live Enever.nl feed; false when using configured fallback.</summary>
+        public bool IsLiveGasPrice { get; set; }
+
+        /// <summary>Annual gas consumption before heat pump installation (m³/year).</summary>
+        public double AnnualGasConsumptionM3 { get; set; }
+
+        /// <summary>Annual gas cost saved (EUR/year).</summary>
+        public double AnnualGasCostSavedEur { get; set; }
+
+        /// <summary>Annual gas standing charge saved (EUR/year).</summary>
+        public double GasStandingChargeEurPerYear { get; set; }
+
+        /// <summary>Annual heat pump electricity consumption (kWh/year).</summary>
+        public double AnnualElectricityConsumptionKWh { get; set; }
+
+        /// <summary>Effective electricity price used for calculations (EUR/kWh).</summary>
+        public double EffectiveElectricityPriceEurPerKWh { get; set; }
+
+        /// <summary>Annual electricity cost of the heat pump (EUR/year).</summary>
+        public double AnnualElectricityCostEur { get; set; }
+
+        /// <summary>Net annual savings: gas saved + standing charge - electricity cost (EUR/year).</summary>
+        public double NetAnnualSavingsEur { get; set; }
+
+        /// <summary>Human-readable description of the gas price source.</summary>
+        public string GasPriceSource { get; set; } = string.Empty;
+    }
+
+    /// <summary>
     /// Monthly trend entry for visualization.
     /// </summary>
     public class MonthlyTrend

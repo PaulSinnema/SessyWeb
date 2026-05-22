@@ -498,6 +498,38 @@ namespace SessyController.Services
         }
 
         /// <summary>
+        /// Returns fully resolved heat pump savings statistics.
+        /// The view should display these values as-is, without any further calculation or interpretation.
+        /// </summary>
+        public HeatPumpStatistics GetHeatPumpStatistics()
+        {
+            bool isLive = _epexPricesService.CurrentGasPriceEurPerM3.HasValue;
+            double gasPrice = EffectiveGasPriceEurPerM3;
+            double gasCostSaved = _heatPumpConfig.AnnualGasConsumptionM3 * gasPrice;
+            double netSavings = gasCostSaved
+                              + _heatPumpConfig.GasStandingChargeEurPerYear
+                              - _heatPumpConfig.AnnualElectricityCostEur;
+
+            string source = isLive
+                ? $"Live TTF day-ahead via Enever.nl (configured fallback: € {_heatPumpConfig.GasPriceEurPerM3:F4}/m³)"
+                : "Configured value (no live feed available — add Enever:Token to appsettings.json)";
+
+            return new HeatPumpStatistics
+            {
+                GasPriceEurPerM3 = gasPrice,
+                IsLiveGasPrice = isLive,
+                AnnualGasConsumptionM3 = _heatPumpConfig.AnnualGasConsumptionM3,
+                AnnualGasCostSavedEur = gasCostSaved,
+                GasStandingChargeEurPerYear = _heatPumpConfig.GasStandingChargeEurPerYear,
+                AnnualElectricityConsumptionKWh = _heatPumpConfig.AnnualElectricityConsumptionKWh,
+                EffectiveElectricityPriceEurPerKWh = _heatPumpConfig.EffectiveElectricityPriceEurPerKWh,
+                AnnualElectricityCostEur = _heatPumpConfig.AnnualElectricityCostEur,
+                NetAnnualSavingsEur = netSavings,
+                GasPriceSource = source,
+            };
+        }
+
+        /// <summary>
         /// Forecasts annual solar production in kWh based on:
         /// 1. Measured performance ratio (PR) from QuarterlyMeasurements
         /// 2. KNMI monthly radiation norms for De Bilt

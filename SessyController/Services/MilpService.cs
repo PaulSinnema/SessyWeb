@@ -1023,6 +1023,16 @@ namespace SessyController.Services
                         if (qi.SellingPrice < exportThreshold)
                             return new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
                     }
+                    else
+                    {
+                        // Netting ON, positive net load: discharge covers own consumption.
+                        // Only worthwhile when the selling price (what grid pays for export)
+                        // is at least the buying price minus cycle cost. Otherwise ZeroNetHome
+                        // is more efficient: the battery covers consumption directly without
+                        // the arbitrage spread working against us.
+                        if (qi.SellingPrice < qi.BuyingPrice - _settingsConfig.CycleCost)
+                            return new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
+                    }
                 }
 
                 return planned;

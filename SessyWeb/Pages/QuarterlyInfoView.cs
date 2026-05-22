@@ -40,12 +40,11 @@
         public double ChargePowerVisual => -(ChargePowerW / 18000.0);
         public double DischargePowerVisual => DischargePowerW / 18000.0;
 
-        // Small fixed band to indicate ZeroNetHome quarters (neither charging nor discharging).
+        // Small fixed band to indicate Zero net home quarters (neither charging nor discharging).
         public double ZeroNetHomeVisual
         {
             get
             {
-                if (DisplayState == "ZeroNetHome") return 0.03;
                 if (DisplayState == "Zero net home") return 0.03;
                 return 0.0;
             }

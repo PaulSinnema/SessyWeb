@@ -473,18 +473,8 @@ namespace SessyWeb.Pages
                 ? measurement.BatteryStateOfChargeWh / totalCapacityWh * 100.0
                 : 0.0;
 
-            // Derive display state from actual power rather than stored BatteryMode.
-            // BatteryMode can be inconsistent with BatteryPowerWatts because the Sessy
-            // API may report a mode that doesn't match the actual power flow
-            // (e.g. Mode=Discharging while actually charging in ZeroNetHome).
-            string displayState = measurement.BatteryPowerWatts switch
-            {
-                < -10 => "Charging",
-                > 10 => "Discharging",
-                _ => measurement.BatteryMode == SessyData.Model.BatteryMode.ZeroNetHome
-                          ? "ZeroNetHome"
-                          : "Disabled"
-            };
+            // Display state is derived from BatteryMode via ChargingModes.GetDisplayMode().
+            string displayState = ChargingModes.GetDisplayMode(ChargingModes.GetMode(measurement.BatteryMode));
 
             return new QuarterlyInfoView
             {

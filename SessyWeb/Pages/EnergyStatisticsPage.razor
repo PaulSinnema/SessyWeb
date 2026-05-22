@@ -110,83 +110,49 @@
                 }
 
                 @* ── Heat pump savings ───────────────────────────────────── *@
-                @if (HeatPumpConfig != null && HeatPumpConfig.IsConfigured)
+                @if (HeatPumpStats != null)
                 {
                     <RadzenColumn Size="12">
                         <RadzenCard>
                             <RadzenText TextStyle="TextStyle.H6">🔥 Heat Pump Savings</RadzenText>
                             <RadzenRow Gap="8px">
-
-                                @* Gas price *@
                                 <RadzenColumn Size="6" SizeMD="3">
-                                    @if (_epexPricesService?.CurrentGasPriceEurPerM3 != null)
-                                    {
-                                        <StatCardComponent Title="Gas price (live TTF)"
-                                                           Value="@($"€ {_epexPricesService.CurrentGasPriceEurPerM3:F4}/m³")"
-                                                           Highlight="true" />
-                                    }
-                                    else
-                                    {
-                                        <StatCardComponent Title="Gas price (configured)"
-                                                           Value="@($"€ {HeatPumpConfig.GasPriceEurPerM3:F4}/m³")" />
-                                    }
+                                    <StatCardComponent Title="@(HeatPumpStats.IsLiveGasPrice ? "Gas price (live TTF)" : "Gas price (configured)")"
+                                                       Value="@($"€ {HeatPumpStats.GasPriceEurPerM3:F4}/m³")"
+                                                       Highlight="@HeatPumpStats.IsLiveGasPrice" />
                                 </RadzenColumn>
-
-                                @* Annual gas consumption *@
                                 <RadzenColumn Size="6" SizeMD="3">
                                     <StatCardComponent Title="Annual gas (before heat pump)"
-                                                       Value="@($"{HeatPumpConfig.AnnualGasConsumptionM3:F0} m³/year")" />
+                                                       Value="@($"{HeatPumpStats.AnnualGasConsumptionM3:F0} m³/year")" />
                                 </RadzenColumn>
-
-                                @* Annual gas cost saved *@
                                 <RadzenColumn Size="6" SizeMD="3">
                                     <StatCardComponent Title="Annual gas cost saved"
-                                                       Value="@($"€ {HeatPumpConfig.AnnualGasConsumptionM3 * (_epexPricesService?.CurrentGasPriceEurPerM3 ?? HeatPumpConfig.GasPriceEurPerM3):F2}/year")" />
+                                                       Value="@($"€ {HeatPumpStats.AnnualGasCostSavedEur:F2}/year")" />
                                 </RadzenColumn>
-
-                                @* Standing charge saved *@
                                 <RadzenColumn Size="6" SizeMD="3">
                                     <StatCardComponent Title="Standing charge saved"
-                                                       Value="@($"€ {HeatPumpConfig.GasStandingChargeEurPerYear:F2}/year")" />
+                                                       Value="@($"€ {HeatPumpStats.GasStandingChargeEurPerYear:F2}/year")" />
                                 </RadzenColumn>
-
-                                @* Heat pump electricity consumption *@
                                 <RadzenColumn Size="6" SizeMD="3">
                                     <StatCardComponent Title="Heat pump electricity"
-                                                       Value="@($"{HeatPumpConfig.AnnualElectricityConsumptionKWh:F0} kWh/year")" />
+                                                       Value="@($"{HeatPumpStats.AnnualElectricityConsumptionKWh:F0} kWh/year")" />
                                 </RadzenColumn>
-
-                                @* Electricity cost *@
                                 <RadzenColumn Size="6" SizeMD="3">
                                     <StatCardComponent Title="Electricity price (avg)"
-                                                       Value="@($"€ {HeatPumpConfig.EffectiveElectricityPriceEurPerKWh:F4}/kWh")" />
+                                                       Value="@($"€ {HeatPumpStats.EffectiveElectricityPriceEurPerKWh:F4}/kWh")" />
                                 </RadzenColumn>
-
-                                @* Annual electricity cost *@
                                 <RadzenColumn Size="6" SizeMD="3">
                                     <StatCardComponent Title="Annual electricity cost"
-                                                       Value="@($"€ {HeatPumpConfig.AnnualElectricityCostEur:F2}/year")" />
+                                                       Value="@($"€ {HeatPumpStats.AnnualElectricityCostEur:F2}/year")" />
                                 </RadzenColumn>
-
-                                @* Net annual savings *@
                                 <RadzenColumn Size="6" SizeMD="3">
                                     <StatCardComponent Title="Net annual savings"
-                                                       Value="@($"€ {HeatPumpConfig.TotalAnnualSavingsEur:F2}/year")"
+                                                       Value="@($"€ {HeatPumpStats.NetAnnualSavingsEur:F2}/year")"
                                                        Highlight="true" />
                                 </RadzenColumn>
-
                             </RadzenRow>
-
-                            @* Source note *@
                             <RadzenText TextStyle="TextStyle.Caption" Style="margin-top: 0.75rem; opacity: 0.7;">
-                                @if (_epexPricesService?.CurrentGasPriceEurPerM3 != null)
-                                {
-                                    @($"Gas price: live TTF day-ahead via Enever.nl — configured fallback: € {HeatPumpConfig.GasPriceEurPerM3:F4}/m³")
-                                }
-                                else
-                                {
-                                    @("Gas price: configured value (no live feed available — add Enever:Token to appsettings.json)")
-                                }
+                                @HeatPumpStats.GasPriceSource
                             </RadzenText>
                         </RadzenCard>
                     </RadzenColumn>

@@ -18,16 +18,9 @@ namespace SessyWeb.Pages
         [Inject]
         private TimeZoneService? _timeZoneService { get; set; }
 
-        [Inject]
-        private EPEXPricesService? _epexPricesService { get; set; }
-
-        [Inject]
-        private IOptions<HeatPumpConfig>? _heatPumpConfigOptions { get; set; }
-
-        private HeatPumpConfig? HeatPumpConfig => _heatPumpConfigOptions?.Value;
-
         private EnergyStatistics? Stats { get; set; }
         private InvestmentStatistics? InvestmentStats { get; set; }
+        private HeatPumpStatistics? HeatPumpStats { get; set; }
         private List<MonthlyTrend>? MonthlyTrends { get; set; }
         private List<DailyArbitrageTrend>? DailyArbitrageTrends { get; set; }
 
@@ -68,6 +61,7 @@ namespace SessyWeb.Pages
 
                 Stats = await _statisticsService!.GetEnergyStatisticsAsync(start, end);
                 InvestmentStats = await _statisticsService!.GetInvestmentStatisticsAsync();
+                HeatPumpStats = _statisticsService!.GetHeatPumpStatistics();
                 DailyArbitrageTrends = await _statisticsService!.GetDailyArbitrageTrendsAsync(start, end);
 
                 // Only load monthly trends for periods longer than a month.
