@@ -94,13 +94,13 @@ namespace SessyController.Services
             if (_epexPricesService.CurrentGasPriceEurPerM3.HasValue)
             {
                 double price = _epexPricesService.CurrentGasPriceEurPerM3.Value;
-                string src = $"Live TTF day-ahead via Enever.nl, all-in incl. energiebelasting + BTW (configured fallback: € {_heatPumpConfig.GasPriceEurPerM3:F4}/m³)";
+                string src = $"Live TTF day-ahead via Enever.nl, all-in incl. energiebelasting + BTW";
                 return (price, src);
             }
 
             // Last resort: configured value.
             return (_heatPumpConfig.GasPriceEurPerM3,
-                    "Configured value (no live feed or history available — add Enever:Token to appsettings.json)");
+                    $"Configured fallback (no live feed or history available — add Enever:Token to appsettings.json): € {_heatPumpConfig.GasPriceEurPerM3:F4}/m³");
         }
 
         /// <summary>
@@ -258,19 +258,7 @@ namespace SessyController.Services
             var earliestPurchase = investments.Min(i => i.PurchaseDate);
             var dataStart = await GetEarliestDataDateAsync();
 
-            // Calculate weighted average buying price from measured data.
-            // Used for heat pump electricity cost calculation when no price is configured.
             var allMeasurements = await GetMeasurementsAsync(dataStart, now);
-            double avgBuyPrice = allMeasurements.Any(m => m.GridImportWh > 0)
-                ? allMeasurements.Where(m => m.GridImportWh > 0)
-                    .Average(m => m.BuyingPriceEur)
-                : 0.25; // fallback
-
-            // Set effective electricity price on config object.
-            _heatPumpConfig.EffectiveElectricityPriceEurPerKWh =
-                _heatPumpConfig.ElectricityPriceEurPerKWh > 0
-                    ? _heatPumpConfig.ElectricityPriceEurPerKWh
-                    : avgBuyPrice;
 
             var monthlySolarSavings = await BuildSeasonalSolarSavingsAsync(dataStart, now);
             var monthlyArbitrageSavings = await BuildSeasonalArbitrageSavingsAsync(dataStart, now);
@@ -320,26 +308,16 @@ namespace SessyController.Services
                     double annualSavings;
                     string savingsSource;
 
-                    if (isGroup && hasSolar && hasBattery)
+                    // Solar and battery are always treated as one integrated energy system.
+                    // Their savings cannot be reliably attributed separately (battery charges
+                    // from both solar and grid; arbitrage and self-consumption interact).
+                    if (hasSolar || hasBattery)
                     {
                         double solarAnnual = monthlySolarSavings.Values.Sum();
                         double batteryAnnual = monthlyArbitrageSavings.Values.Sum();
                         annualSavings = solarAnnual + batteryAnnual;
-                        savingsSource = "Export revenue + self-consumption + arbitrage (combined)";
+                        savingsSource = "Energy system savings: baseline cost minus actual cost (solar + battery combined)";
                     }
-                    else if (hasBattery)
-                    {
-                        double groupNetInvestment = g.Sum(i => i.AmountEur - i.SubsidyEur);
-                        double share = totalBatteryNetInvestment > 0
-                            ? groupNetInvestment / totalBatteryNetInvestment
-                            : 1.0;
-                        var effectiveArbitrage = monthlyArbitrageSavings
-                            .ToDictionary(kvp => kvp.Key, kvp => kvp.Value * share);
-                        annualSavings = CalculateCategoryAnnualSavings(
-                            category, first, monthlySolarSavings, effectiveArbitrage);
-                        savingsSource = GetSavingsSource(category, first);
-                    }
-                    else
                     {
                         annualSavings = CalculateCategoryAnnualSavings(
                             category, first, monthlySolarSavings, monthlyArbitrageSavings);
@@ -406,6 +384,10 @@ namespace SessyController.Services
                 ? totalChargedKWh / BatteryCapacityKWh / measuredDays
                 : 0.0;
 
+            // Combined annual savings for the integrated solar + battery system.
+            double CombinedEnergySystemSavings() =>
+                monthlySolarSavings.Values.Sum() + monthlyArbitrageSavings.Values.Sum();
+
             var componentBreakdown = investments
                 .Select(inv =>
                 {
@@ -427,14 +409,24 @@ namespace SessyController.Services
                         double share = groupNet > 0 ? (inv.AmountEur - inv.SubsidyEur) / groupNet : 1.0;
 
                         // Find this investment's group in categoryBreakdown.
-                        var groupKey = $"__group_{inv.InvestmentGroupId.Value}";
                         var groupStats = categoryBreakdown
                             .FirstOrDefault(c => c.Category == groupNameById.GetValueOrDefault(inv.InvestmentGroupId.Value));
 
                         annualSavings = groupStats != null
                             ? groupStats.AnnualSavingsEur * share
-                            : CalculateCategoryAnnualSavings(category, inv, monthlySolarSavings, monthlyArbitrageSavings) * share;
+                            : CombinedEnergySystemSavings() * share;
                         savingsSource = GetSavingsSource(category, inv);
+                    }
+                    else if (category == InvestmentCategory.Solar || category == InvestmentCategory.Storage)
+                    {
+                        // Solar and battery are treated as one integrated system.
+                        // Prorate total system savings by this investment's share of combined net investment.
+                        double totalSystemNet = investments
+                            .Where(i => GetCategory(i) == InvestmentCategory.Solar || GetCategory(i) == InvestmentCategory.Storage)
+                            .Sum(i => i.AmountEur - i.SubsidyEur);
+                        double share = totalSystemNet > 0 ? (inv.AmountEur - inv.SubsidyEur) / totalSystemNet : 1.0;
+                        annualSavings = CombinedEnergySystemSavings() * share;
+                        savingsSource = "Energy system savings (solar + battery combined, prorated by investment share)";
                     }
                     else
                     {
@@ -511,8 +503,8 @@ namespace SessyController.Services
 
             return category switch
             {
-                InvestmentCategory.Solar => "Export revenue + self-consumption (measured)",
-                InvestmentCategory.Storage => "Arbitrage profit (measured, prorated by investment share)",
+                InvestmentCategory.Solar => "Energy system savings (solar + battery combined)",
+                InvestmentCategory.Storage => "Energy system savings (solar + battery combined)",
                 InvestmentCategory.HeatPump => _heatPumpConfig.IsConfigured
                     ? $"{_heatPumpConfig.AnnualGasConsumptionM3} m³ × €{_cachedEffectiveGasPrice:F4}/m³ + €{_heatPumpConfig.GasStandingChargeEurPerYear} vastrecht - {_heatPumpConfig.AnnualElectricityConsumptionKWh} kWh × €{_heatPumpConfig.EffectiveElectricityPriceEurPerKWh:F2}/kWh elektra"
                     : "Not configured — add HeatPumpConfig to appsettings.json",
@@ -561,6 +553,25 @@ namespace SessyController.Services
             _cachedEffectiveGasPrice = gasPrice;
 
             bool isHistoricalAverage = (await _gasPricesDataService.GetAllAsync()).Count > 0;
+
+            // Resolve effective electricity price independently so this method is self-contained.
+            // Uses the configured value when set; otherwise falls back to the measured average buy price.
+            if (_heatPumpConfig.EffectiveElectricityPriceEurPerKWh == 0)
+            {
+                if (_heatPumpConfig.ElectricityPriceEurPerKWh > 0)
+                {
+                    _heatPumpConfig.EffectiveElectricityPriceEurPerKWh = _heatPumpConfig.ElectricityPriceEurPerKWh;
+                }
+                else
+                {
+                    var dataStart = await GetEarliestDataDateAsync();
+                    var measurements = await GetMeasurementsAsync(dataStart, _timeZoneService.Now);
+                    double avgBuyPrice = measurements.Any(m => m.GridImportWh > 0)
+                        ? measurements.Where(m => m.GridImportWh > 0).Average(m => m.BuyingPriceEur)
+                        : 0.25;
+                    _heatPumpConfig.EffectiveElectricityPriceEurPerKWh = avgBuyPrice;
+                }
+            }
 
             double gasCostSaved = _heatPumpConfig.AnnualGasConsumptionM3 * gasPrice;
             double netSavings = gasCostSaved
@@ -1136,6 +1147,232 @@ namespace SessyController.Services
 
             stats.BaselineEnergyCostEur =
                 stats.TotalConsumptionKWh * stats.WeightedAvgBuyPriceEurPerKWh;
+        }
+
+        // ── Data access ──────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Returns the single source of truth for the Energy Statistics dashboard.
+        ///
+        /// Calculation order (enforcing the design rules in DashboardStatistics):
+        ///   1. Resolve heat pump electricity price (needs measurements)
+        ///   2. Resolve gas price (needs Enever history)
+        ///   3. Build seasonal savings averages (needs all historical measurements)
+        ///   4. Build investment/ROI statistics (uses seasonal averages)
+        ///   5. Build period statistics (uses selected period measurements only)
+        ///   6. Assemble DashboardStatistics from steps 1–5
+        ///
+        /// Annual savings always come from seasonal averages (step 3).
+        /// Period savings always come from period measurements (step 5).
+        /// These two values are never mixed or interchanged.
+        /// </summary>
+        public async Task<DashboardStatistics> GetDashboardStatisticsAsync(DateTime start, DateTime end)
+        {
+            // ── Step 1: Clamp period ──────────────────────────────────────────
+            if (_settingsConfig.StatisticsFromDate.HasValue)
+            {
+                var fromDate = _settingsConfig.StatisticsFromDate.Value;
+                if (start == DateTime.MinValue || start < fromDate)
+                    start = fromDate;
+            }
+
+            var now = _timeZoneService.Now;
+
+            // ── Step 2: Resolve gas & electricity price ───────────────────────
+            var heatPumpStats = await GetHeatPumpStatisticsAsync();
+
+            // ── Step 3: Build seasonal savings averages ───────────────────────
+            var dataStart = await GetEarliestDataDateAsync();
+            var monthlySolarSavings = await BuildSeasonalSolarSavingsAsync(dataStart, now);
+            var monthlyArbitrageSavings = await BuildSeasonalArbitrageSavingsAsync(dataStart, now);
+
+            double energySystemAnnualSavings = monthlySolarSavings.Values.Sum()
+                                             + monthlyArbitrageSavings.Values.Sum();
+            double heatPumpAnnualSavings = heatPumpStats.NetAnnualSavingsEur;
+            double totalAnnualSavings = energySystemAnnualSavings + heatPumpAnnualSavings;
+
+            // ── Step 4: ROI statistics ────────────────────────────────────────
+            var investments = await _investmentDataService.GetList(async set =>
+                await Task.FromResult(set.ToList()));
+
+            var groups = await _groupService.GetList(async set =>
+                await Task.FromResult(set.ToList()));
+
+            var groupNameById = groups.ToDictionary(g => g.Id, g => g.Name);
+            var groupCategoryById = groups.ToDictionary(g => g.Id, g => g.Category);
+
+            InvestmentCategory GetCategory(Investment inv) =>
+                inv.InvestmentGroupId.HasValue && groupCategoryById.TryGetValue(inv.InvestmentGroupId.Value, out var cat)
+                    ? cat : InvestmentCategory.Other;
+
+            double totalNetInvestment = investments.Sum(i => i.AmountEur - i.SubsidyEur);
+            var earliestPurchase = investments.Any() ? investments.Min(i => i.PurchaseDate) : now;
+
+            // Realized savings: sum per component using seasonal averages prorated by months since install.
+            double realizedSavings = investments.Sum(inv =>
+            {
+                var cat = GetCategory(inv);
+                var monthsSince = (now.Year - inv.PurchaseDate.Year) * 12
+                                + (now.Month - inv.PurchaseDate.Month);
+
+                return cat switch
+                {
+                    InvestmentCategory.Solar or InvestmentCategory.Storage =>
+                        energySystemAnnualSavings / 12.0 * monthsSince
+                            * (totalNetInvestment > 0
+                                ? (inv.AmountEur - inv.SubsidyEur) /
+                                  investments.Where(i => GetCategory(i) == InvestmentCategory.Solar
+                                                      || GetCategory(i) == InvestmentCategory.Storage)
+                                             .Sum(i => i.AmountEur - i.SubsidyEur)
+                                : 1.0),
+                    InvestmentCategory.HeatPump =>
+                        heatPumpAnnualSavings / 12.0 * monthsSince,
+                    _ => 0.0
+                };
+            });
+
+            // Projected savings: extrapolate from earliest purchase to now using seasonal averages.
+            double monthsSinceEarliest = (now.Year - earliestPurchase.Year) * 12
+                                        + (now.Month - earliestPurchase.Month);
+            double projectedTotal = totalAnnualSavings / 12.0 * monthsSinceEarliest;
+
+            // Break-even date.
+            DateTime? breakEvenDate = totalAnnualSavings > 0
+                ? earliestPurchase.AddDays(totalNetInvestment / totalAnnualSavings * 365.0)
+                : null;
+
+            // All measurements for cycle calculation.
+            var allMeasurements = await GetMeasurementsAsync(dataStart, now);
+            double totalChargedKWh = allMeasurements
+                .Where(m => m.BatteryMode == SessyData.Model.BatteryMode.Charging && m.IsReliable)
+                .Sum(m => Math.Abs(m.BatteryPowerWatts) * 0.25 / 1000.0);
+            double measuredDays = allMeasurements.Any()
+                ? (allMeasurements.Max(m => m.Time) - allMeasurements.Min(m => m.Time)).TotalDays
+                : 1.0;
+            double cyclesPerDay = BatteryCapacityKWh > 0 ? totalChargedKWh / BatteryCapacityKWh / measuredDays : 0.0;
+
+            // Per-component breakdown.
+            double totalSystemNet = investments
+                .Where(i => GetCategory(i) == InvestmentCategory.Solar || GetCategory(i) == InvestmentCategory.Storage)
+                .Sum(i => i.AmountEur - i.SubsidyEur);
+
+            var componentBreakdown = investments.Select(inv =>
+            {
+                var cat = GetCategory(inv);
+                var monthsSince = (now.Year - inv.PurchaseDate.Year) * 12
+                                + (now.Month - inv.PurchaseDate.Month);
+
+                double share = cat == InvestmentCategory.Solar || cat == InvestmentCategory.Storage
+                    ? (totalSystemNet > 0 ? (inv.AmountEur - inv.SubsidyEur) / totalSystemNet : 1.0)
+                    : 1.0;
+
+                double annualSavings = cat switch
+                {
+                    InvestmentCategory.Solar or InvestmentCategory.Storage =>
+                        energySystemAnnualSavings * share,
+                    InvestmentCategory.HeatPump => heatPumpAnnualSavings,
+                    _ => inv.EstimatedAnnualSavingsEur
+                };
+
+                string savingsSource = cat switch
+                {
+                    InvestmentCategory.Solar or InvestmentCategory.Storage =>
+                        "Energy system savings (solar + battery combined, prorated by investment share)",
+                    InvestmentCategory.HeatPump =>
+                        $"950 m³ × €{_cachedEffectiveGasPrice:F4}/m³ + €{_heatPumpConfig.GasStandingChargeEurPerYear} vastrecht - {_heatPumpConfig.AnnualElectricityConsumptionKWh} kWh × €{_heatPumpConfig.EffectiveElectricityPriceEurPerKWh:F2}/kWh elektra",
+                    _ => inv.SavingsDescription ?? "Manual estimate"
+                };
+
+                double batteryCycles = cat == InvestmentCategory.Storage
+                    ? cyclesPerDay * (now - inv.PurchaseDate).TotalDays
+                    : 0.0;
+
+                return new InvestmentCategoryStats
+                {
+                    Category = inv.Description,
+                    TotalAmountEur = inv.AmountEur,
+                    TotalSubsidyEur = inv.SubsidyEur,
+                    ExpectedLifetimeYears = inv.ExpectedLifetimeYears,
+                    InstallationDate = inv.PurchaseDate,
+                    MonthsSinceInstallation = monthsSince,
+                    AnnualSavingsEur = annualSavings,
+                    SavingsSource = savingsSource,
+                    BatteryCycles = batteryCycles
+                };
+            }).OrderByDescending(c => c.NetAmountEur).ToList();
+
+            // ── Step 5: Period measurements ───────────────────────────────────
+            var periodStats = await GetEnergyStatisticsAsync(start, end);
+
+            // Avg cycles per battery from component breakdown.
+            var batteryCycleComponents = componentBreakdown.Where(c => c.BatteryCycles > 0).ToList();
+            double avgCyclesPerBattery = batteryCycleComponents.Any()
+                ? batteryCycleComponents.Average(c => c.BatteryCycles)
+                : periodStats.BatteryCycles;
+
+            // ── Step 6: Daily arbitrage trends ────────────────────────────────
+            var arbitrageTrends = await GetDailyArbitrageTrendsAsync(start, end);
+
+            // ── Step 7: Assemble DashboardStatistics ─────────────────────────
+            return new DashboardStatistics
+            {
+                // ROI
+                TotalNetInvestmentEur = totalNetInvestment,
+                TotalRealizedSavingsEur = realizedSavings,
+                ProjectedTotalSavingsEur = projectedTotal,
+                TotalAnnualSavingsEur = totalAnnualSavings,
+                EnergySystemAnnualSavingsEur = energySystemAnnualSavings,
+                HeatPumpAnnualSavingsEur = heatPumpAnnualSavings,
+                ProjectedBreakEvenDate = breakEvenDate,
+                UsesProjection = dataStart > earliestPurchase,
+                DataAvailableFrom = dataStart,
+                ComponentBreakdown = componentBreakdown,
+
+                // Period
+                PeriodStart = periodStats.PeriodStart,
+                PeriodEnd = periodStats.PeriodEnd,
+                PeriodDays = periodStats.PeriodDays,
+                PeriodSavingsEur = periodStats.TotalSavingsEur,
+                TotalSolarProductionKWh = periodStats.TotalSolarProductionKWh,
+                SelfSufficiencyPct = periodStats.SelfSufficiencyPct,
+                SolarPerformanceRatio = periodStats.SolarPerformanceRatio,
+                AvgDailySolarProductionKWh = periodStats.AvgDailySolarProductionKWh,
+                PeakDailySolarProductionKWh = periodStats.PeakDailySolarProductionKWh,
+                ArbitrageProfitEur = periodStats.ArbitrageProfitEur,
+                PlannedArbitrageProfitEur = periodStats.PlannedArbitrageProfitEur,
+                GridExportRevenueEur = periodStats.GridExportRevenueEur,
+                TotalGridExportKWh = periodStats.TotalGridExportKWh,
+                WeightedAvgBuyPriceEurPerKWh = periodStats.WeightedAvgBuyPriceEurPerKWh,
+                WeightedAvgSellPriceEurPerKWh = periodStats.WeightedAvgSellPriceEurPerKWh,
+                TotalBatteryChargedKWh = periodStats.TotalBatteryChargedKWh,
+                TotalBatteryDischargedKWh = periodStats.TotalBatteryDischargedKWh,
+                BatteryRoundTripEfficiencyPct = periodStats.BatteryRoundTripEfficiencyPct,
+                BatteryCycles = periodStats.BatteryCycles,
+                BatteryCyclesPerDay = periodStats.BatteryCyclesPerDay,
+                AverageSocPct = periodStats.AverageSocPct,
+                AvgCyclesPerBattery = avgCyclesPerBattery,
+                TotalConsumptionKWh = periodStats.TotalConsumptionKWh,
+                TotalGridImportKWh = periodStats.TotalGridImportKWh,
+                AvgDailyConsumptionKWh = periodStats.AvgDailyConsumptionKWh,
+                PeakDailyConsumptionKWh = periodStats.PeakDailyConsumptionKWh,
+                WeekdayConsumptionKWh = periodStats.WeekdayConsumptionKWh,
+                WeekendConsumptionKWh = periodStats.WeekendConsumptionKWh,
+
+                // Heat pump
+                HeatPumpIsConfigured = _heatPumpConfig.IsConfigured,
+                GasPriceEurPerM3 = heatPumpStats.GasPriceEurPerM3,
+                IsLiveGasPrice = heatPumpStats.IsLiveGasPrice,
+                AnnualGasConsumptionM3 = heatPumpStats.AnnualGasConsumptionM3,
+                AnnualGasCostSavedEur = heatPumpStats.AnnualGasCostSavedEur,
+                GasStandingChargeEurPerYear = heatPumpStats.GasStandingChargeEurPerYear,
+                AnnualElectricityConsumptionKWh = heatPumpStats.AnnualElectricityConsumptionKWh,
+                EffectiveElectricityPriceEurPerKWh = heatPumpStats.EffectiveElectricityPriceEurPerKWh,
+                AnnualElectricityCostEur = heatPumpStats.AnnualElectricityCostEur,
+                GasPriceSource = heatPumpStats.GasPriceSource,
+
+                // Charts
+                DailyArbitrageTrends = arbitrageTrends,
+            };
         }
 
         // ── Data access ──────────────────────────────────────────────────────
