@@ -121,6 +121,7 @@ namespace SessyController.Services
         private List<QuarterlyInfo> _quarterlyInfos = new();
         private Dictionary<DateTime, PlanAction> _planByTime = new();
         private DateTime? _lastBuildTime;
+        private double _lastPlanObjectiveEur;
 
         // Per-quarter context built by BuildTariffContextAsync.
         private Dictionary<DateTime, bool> _nettingByTime = new();
@@ -130,7 +131,7 @@ namespace SessyController.Services
 
         // Rebuild throttling — avoid re-solving when nothing has changed.
         private DateTime? _lastPlannedQuarter;
-        private int? _lastPriceSignature;
+        private long? _lastPriceSignature;
 
         // ── Plan-tracking ────────────────────────────────────────────────────
         //
@@ -298,11 +299,6 @@ namespace SessyController.Services
             var quarterlyByTime = _quarterlyInfos
                 .ToDictionary(qi => qi.Time, qi => qi);
 
-            // Expected profit: sum of per-quarter profit for remaining plan.
-            double expectedProfitEur = futurePlan
-                .Where(kvp => quarterlyByTime.ContainsKey(kvp.Key))
-                .Sum(kvp => quarterlyByTime[kvp.Key].Profit);
-
             // Count quarters per mode.
             int chargingQuarters = futurePlan.Count(kvp => kvp.Value.Mode == Modes.Charging);
             int dischargingQuarters = futurePlan.Count(kvp => kvp.Value.Mode == Modes.Discharging);
@@ -330,7 +326,7 @@ namespace SessyController.Services
                 ChargingQuarters = chargingQuarters,
                 DischargingQuarters = dischargingQuarters,
                 NzhQuarters = nzhQuarters,
-                ExpectedProfitEur = expectedProfitEur,
+                ExpectedProfitEur = _lastPlanObjectiveEur,
                 NextDischargeTime = nextDischarge.Key == default ? null : nextDischarge.Key,
                 NextChargeTime = nextCharge.Key == default ? null : nextCharge.Key,
                 SocDeviationPct = _batteryContainer.GetTotalCapacity() > 0
@@ -521,7 +517,7 @@ namespace SessyController.Services
 
         private async Task<bool> RebuildPlanIfNeeded(DateTime nowQuarter, double currentSocWh)
         {
-            int currentSignature = CalculatePriceSignature(_quarterlyInfos);
+            long currentSignature = CalculatePriceSignature(_quarterlyInfos);
 
             bool needRebuild =
                 _planByTime.Count == 0 ||
@@ -550,19 +546,16 @@ namespace SessyController.Services
             return true;
         }
 
-        private static int CalculatePriceSignature(List<QuarterlyInfo> infos)
+        private static long CalculatePriceSignature(List<QuarterlyInfo> infos)
         {
             unchecked
             {
-                int hash = 17;
+                long hash = 0;
 
                 foreach (var q in infos.OrderBy(x => x.Time))
                 {
-                    hash = hash * 23 + q.Time.GetHashCode();
-                    hash = hash * 23 + Math.Round(q.BuyingPrice, 4).GetHashCode();
-                    hash = hash * 23 + Math.Round(q.SellingPrice, 4).GetHashCode();
-                    hash = hash * 23 + Math.Round(q.EstimatedConsumptionPerQuarterInWatts, 1).GetHashCode();
-                    hash = hash * 23 + Math.Round(q.SolarPowerPerQuarterInWatts, 1).GetHashCode();
+                    hash += q.Time.Ticks;
+                    hash += (long)q.BuyingPrice;
                 }
 
                 return hash;
@@ -739,6 +732,8 @@ namespace SessyController.Services
                 _logger.LogWarning($"MILP plan built: plan1={best.Plan1.Optimal}, obj1={best.Plan1.ObjectiveEur:F4} EUR" +
                     (best.Plan2 != null ? $" | plan2={best.Plan2.Optimal}, obj2={best.Plan2.ObjectiveEur:F4} EUR" : "") +
                     $" | split={best.SplitTime:HH:mm} | timeLimit={MilpTimeLimitMs}ms | now={nowQuarterTime:HH:mm} | quarters={allQuarters.Count}");
+
+                _lastPlanObjectiveEur = best.Combined;
 
                 return true;
             }

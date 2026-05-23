@@ -335,6 +335,40 @@
                     </RadzenDataGrid>
                 </RadzenTabsItem>
 
+                @* ── Tips & Checks ──────────────────────────────────────────── *@
+                <RadzenTabsItem Text="Tips & Checks" Icon="tips_and_updates">
+                    <RadzenStack Orientation="Orientation.Vertical" Gap="0.75rem" Style="padding: 1rem; max-width: 900px;">
+                        @if (_checks == null)
+                        {
+                            <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+                        }
+                        else if (!_checks.Any())
+                        {
+                            <RadzenText TextStyle="TextStyle.Body1">✅ All checks passed — no issues found.</RadzenText>
+                        }
+                        else
+                        {
+                            @foreach (var check in _checks)
+                            {
+                                <RadzenCard Style="@($"border-left: 4px solid {CheckColor(check.Severity)}; padding: 1rem;")">
+                                    <RadzenText TextStyle="TextStyle.Subtitle1">
+                                        @check.SeverityIcon @check.Title
+                                    </RadzenText>
+                                    <RadzenText TextStyle="TextStyle.Body2" Style="margin-top: 0.25rem; opacity: 0.85;">
+                                        @check.Description
+                                    </RadzenText>
+                                    @if (check.ActionUrl != null)
+                                    {
+                                        <a href="@check.ActionUrl" target="_blank" style="font-size: 0.85rem; margin-top: 0.5rem; display: inline-block;">
+                                            @(check.ActionLabel ?? check.ActionUrl)
+                                        </a>
+                                    }
+                                </RadzenCard>
+                            }
+                        }
+                    </RadzenStack>
+                </RadzenTabsItem>
+
                 @* ── Credits ───────────────────────────────────────────────── *@
                 <RadzenTabsItem Text="Credits" Icon="favorite">
                     <RadzenStack Orientation="Orientation.Vertical" Gap="2rem" Style="padding: 1.5rem; max-width: 900px;">

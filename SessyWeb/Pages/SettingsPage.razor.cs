@@ -3,6 +3,7 @@ using Radzen;
 using Radzen.Blazor;
 using SessyCommon.Services;
 using SessyController.Services;
+using SessyController.Services.Statistics;
 using SessyData.Model;
 using SessyData.Services;
 using System.Linq.Dynamic.Core;
@@ -18,6 +19,26 @@ namespace SessyWeb.Pages
         [Inject] private TaxesDataService? _taxesService { get; set; }
         [Inject] private SessyWebControlDataService? _controlService { get; set; }
         [Inject] private TimeZoneService? _timeZoneService { get; set; }
+        [Inject] private ConfigurationCheckService? _checkService { get; set; }
+
+        // ── Tips & Checks ─────────────────────────────────────────────────────
+
+        private List<ConfigurationCheck>? _checks;
+        private bool _checksInitialised;
+
+        private string CheckColor(CheckSeverity severity) => severity switch
+        {
+            CheckSeverity.Error => "var(--rz-danger)",
+            CheckSeverity.Warning => "var(--rz-warning)",
+            CheckSeverity.Info => "var(--rz-success)",
+            _ => "var(--rz-base-600)"
+        };
+
+        private async Task LoadChecks()
+        {
+            _checks = await _checkService!.RunAllChecksAsync();
+            StateHasChanged();
+        }
 
         // ── Investment Groups ─────────────────────────────────────────────────
 
@@ -139,6 +160,13 @@ namespace SessyWeb.Pages
             {
                 _controlInitialised = true;
                 await controlGrid.FirstPage();
+            }
+
+            // Load checks the first time the Tips & Checks tab renders.
+            if (!_checksInitialised)
+            {
+                _checksInitialised = true;
+                await LoadChecks();
             }
 
             await base.OnAfterRenderAsync(firstRender);

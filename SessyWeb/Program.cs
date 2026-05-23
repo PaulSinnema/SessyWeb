@@ -119,6 +119,7 @@ builder.Services.AddSingleton<EPEXPricesService>();
 builder.Services.AddSingleton<IEPEXPricesService>(sp => sp.GetRequiredService<EPEXPricesService>());
 builder.Services.AddSingleton<MilpService>();
 builder.Services.AddSingleton<IMilpService>(sp => sp.GetRequiredService<MilpService>());
+builder.Services.AddSingleton<ConfigurationCheckService>();
 builder.Services.AddSingleton<BatteriesService>();
 builder.Services.AddSingleton<SessyMonitorService>();
 builder.Services.AddSingleton<EnergyMonitorService>();

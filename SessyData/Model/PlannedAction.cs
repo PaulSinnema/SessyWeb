@@ -28,7 +28,7 @@ namespace SessyData.Model
         public DateTime SavedAt { get; set; }
 
         /// <summary>Price signature at time of solve — used to detect price changes after restore.</summary>
-        public int PriceSignature { get; set; }
+        public long PriceSignature { get; set; }
 
         /// <summary>Plans older than this are not restored on startup.</summary>
         public const int MaxPlanAgeHours = 2;
