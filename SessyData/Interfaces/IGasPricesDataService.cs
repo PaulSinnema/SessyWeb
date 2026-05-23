@@ -10,6 +10,9 @@ namespace SessyData.Services
     {
         Task UpsertAsync(GasPrice gasPrice);
         Task<double?> GetAverageMarketPriceAsync(DateTime? from = null);
+        Task<double?> GetHeatingWeightedAverageMarketPriceAsync(
+            List<SessyData.Model.Consumption> consumptionData,
+            double heatingThresholdCelsius = 15.5);
         Task<GasPrice?> GetLatestAsync();
         Task<List<GasPrice>> GetAllAsync();
     }

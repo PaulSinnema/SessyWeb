@@ -4,6 +4,7 @@ using SessyCommon.Extensions;
 using SessyCommon.Services;
 using SessyController.Services.Items;
 using SessyController.Services.Optimization;
+using SessyController.Services.Statistics;
 using SessyData.Model;
 using SessyData.Services;
 using static SessyController.Services.Items.ChargingModes;
@@ -23,7 +24,7 @@ namespace SessyController.Services
     /// BatteriesService owns hardware interaction (execute actions, read SOC, store
     /// performance). MilpService owns planning logic only.
     /// </summary>
-    public sealed class MilpService
+    public sealed class MilpService : IMilpService
     {
         private readonly LoggingService<MilpService> _logger;
         private readonly IOptionsMonitor<SettingsConfig> _settingsConfigMonitor;
@@ -92,7 +93,7 @@ namespace SessyController.Services
                 _planByTime = restored;
 
                 // Restore the price signature that was valid when the plan was solved.
-                // RebuildPlanIfNeeded will only trigger when prices actually change.
+                // RebuildPlanIfNeeded will trigger if new day-ahead prices arrived during restart.
                 _lastPriceSignature = actions.First().PriceSignature;
                 _plannedSocAtLastBuildWh = await _batteryContainer.GetStateOfChargeInWatts().ConfigureAwait(false);
 
@@ -119,6 +120,7 @@ namespace SessyController.Services
 
         private List<QuarterlyInfo> _quarterlyInfos = new();
         private Dictionary<DateTime, PlanAction> _planByTime = new();
+        private DateTime? _lastBuildTime;
 
         // Per-quarter context built by BuildTariffContextAsync.
         private Dictionary<DateTime, bool> _nettingByTime = new();
@@ -281,6 +283,60 @@ namespace SessyController.Services
         {
             _lastPlannedQuarter = null;
             _lastPriceSignature = null;
+        }
+
+        /// <summary>
+        /// Returns statistics about the current plan for display on the dashboard.
+        /// </summary>
+        public PlanStatistics GetPlanStatistics(DateTime now)
+        {
+            var futurePlan = _planByTime
+                .Where(kvp => kvp.Key >= now)
+                .OrderBy(kvp => kvp.Key)
+                .ToList();
+
+            var quarterlyByTime = _quarterlyInfos
+                .ToDictionary(qi => qi.Time, qi => qi);
+
+            // Expected profit: sum of per-quarter profit for remaining plan.
+            double expectedProfitEur = futurePlan
+                .Where(kvp => quarterlyByTime.ContainsKey(kvp.Key))
+                .Sum(kvp => quarterlyByTime[kvp.Key].Profit);
+
+            // Count quarters per mode.
+            int chargingQuarters = futurePlan.Count(kvp => kvp.Value.Mode == Modes.Charging);
+            int dischargingQuarters = futurePlan.Count(kvp => kvp.Value.Mode == Modes.Discharging);
+            int nzhQuarters = futurePlan.Count(kvp => kvp.Value.Mode == Modes.ZeroNetHome);
+
+            // Next discharge moment.
+            var nextDischarge = futurePlan
+                .FirstOrDefault(kvp => kvp.Value.Mode == Modes.Discharging);
+
+            // Next charge moment.
+            var nextCharge = futurePlan
+                .FirstOrDefault(kvp => kvp.Value.Mode == Modes.Charging);
+
+            // Plan horizon.
+            var lastQuarter = futurePlan.Any()
+                ? futurePlan.Max(kvp => kvp.Key)
+                : (DateTime?)null;
+
+            return new PlanStatistics
+            {
+                LastBuildTime = _lastBuildTime,
+                IsRestoredFromDb = _lastBuildTime == null,
+                PlanHorizon = lastQuarter,
+                TotalFutureQuarters = futurePlan.Count,
+                ChargingQuarters = chargingQuarters,
+                DischargingQuarters = dischargingQuarters,
+                NzhQuarters = nzhQuarters,
+                ExpectedProfitEur = expectedProfitEur,
+                NextDischargeTime = nextDischarge.Key == default ? null : nextDischarge.Key,
+                NextChargeTime = nextCharge.Key == default ? null : nextCharge.Key,
+                SocDeviationPct = _batteryContainer.GetTotalCapacity() > 0
+                    ? Math.Abs((_plannedSocAtLastBuildWh - 0) / _batteryContainer.GetTotalCapacity() * 100.0)
+                    : 0.0,
+            };
         }
 
         public void Dispose()
@@ -487,6 +543,7 @@ namespace SessyController.Services
             _lastPlannedQuarter = nowQuarter;
             _lastPriceSignature = currentSignature;
             _plannedSocAtLastBuildWh = currentSocWh;
+            _lastBuildTime = _timeZoneService.Now;
 
             await SavePlanAsync().ConfigureAwait(false);
 

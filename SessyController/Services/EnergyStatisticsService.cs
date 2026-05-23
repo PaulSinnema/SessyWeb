@@ -32,8 +32,10 @@ namespace SessyController.Services
         private readonly PowerSystemsConfig _powerSystemsConfig;
         private readonly IEPEXPricesService _epexPricesService;
         private readonly IGasPricesDataService _gasPricesDataService;
+        private readonly ConsumptionDataService _consumptionDataService;
         private readonly ICalculationService _calculationService;
         private readonly IBatteryContainer _batteryContainer;
+        private readonly IMilpService _milpService;
 
         // Convenience property: total battery capacity in kWh from BatteryContainer.
         private double BatteryCapacityKWh => _batteryContainer.GetTotalCapacity() / 1000.0;
@@ -50,8 +52,10 @@ namespace SessyController.Services
                                        IOptions<PowerSystemsConfig> powerSystemsConfig,
                                        IEPEXPricesService epexPricesService,
                                        IGasPricesDataService gasPricesDataService,
+                                       ConsumptionDataService consumptionDataService,
                                        ICalculationService calculationService,
-                                       IBatteryContainer batteryContainer)
+                                       IBatteryContainer batteryContainer,
+                                       IMilpService milpService)
         {
             _measurementDataService = measurementDataService;
             _investmentDataService = investmentDataService;
@@ -64,8 +68,10 @@ namespace SessyController.Services
             _powerSystemsConfig = powerSystemsConfig.Value;
             _epexPricesService = epexPricesService;
             _gasPricesDataService = gasPricesDataService;
+            _consumptionDataService = consumptionDataService;
             _calculationService = calculationService;
             _batteryContainer = batteryContainer;
+            _milpService = milpService;
         }
 
         /// <summary>
@@ -77,16 +83,23 @@ namespace SessyController.Services
         /// </summary>
         private async Task<(double price, string source)> GetEffectiveGasPriceAsync()
         {
-            // Try historical average first — most stable for savings calculations.
-            double? avgMarketPrice = await _gasPricesDataService.GetAverageMarketPriceAsync();
+            // Try heating-degree-day weighted historical average — most accurate.
+            // Colder days (more heating demand) carry more weight in the average,
+            // reflecting actual gas consumption patterns.
+            var consumptionData = await _consumptionDataService.GetList(async set =>
+                await Task.FromResult(set.ToList()));
+
+            double? avgMarketPrice = consumptionData.Any()
+                ? await _gasPricesDataService.GetHeatingWeightedAverageMarketPriceAsync(consumptionData)
+                : await _gasPricesDataService.GetAverageMarketPriceAsync();
 
             if (avgMarketPrice.HasValue)
             {
-                // Apply current taxes to the historical average market price.
+                // Apply current taxes to the weighted average market price.
                 double? allInAvg = await _calculationService.CalculateGasPriceAsync(avgMarketPrice.Value);
                 double price = allInAvg ?? avgMarketPrice.Value;
                 int days = (await _gasPricesDataService.GetAllAsync()).Count;
-                string src = $"Historical average of {days} days: market avg={avgMarketPrice.Value:F4} EUR/m³, all-in={price:F4} EUR/m³ (incl. energiebelasting + BTW)";
+                string src = $"Heating-degree-day weighted average of {days} days: market avg={avgMarketPrice.Value:F4} EUR/m³, all-in={price:F4} EUR/m³ (incl. energiebelasting + BTW)";
                 return (price, src);
             }
 
@@ -1372,6 +1385,9 @@ namespace SessyController.Services
 
                 // Charts
                 DailyArbitrageTrends = arbitrageTrends,
+
+                // Plan
+                Plan = _milpService.GetPlanStatistics(now),
             };
         }
 

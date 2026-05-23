@@ -196,5 +196,10 @@
 
         /// <summary>Daily arbitrage: planned vs realized (for chart).</summary>
         public List<DailyArbitrageTrend> DailyArbitrageTrends { get; set; } = new();
+
+        // ── Plan ────────────────────────────────────────────────────────────
+
+        /// <summary>Statistics about the current MILP plan.</summary>
+        public PlanStatistics? Plan { get; set; }
     }
 }

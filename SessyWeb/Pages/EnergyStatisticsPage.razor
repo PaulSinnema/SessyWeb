@@ -225,6 +225,58 @@
                     </RadzenCard>
                 </RadzenColumn>
 
+                @* ── Plan Statistics ─────────────────────────────────────── *@
+                @if (Dashboard.Plan != null)
+                {
+                    <RadzenColumn Size="12">
+                        <RadzenCard>
+                            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
+                                <RadzenText TextStyle="TextStyle.H6">🗓️ Current Plan</RadzenText>
+                                @if (Dashboard.Plan.IsRestoredFromDb)
+                                {
+                                    <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="Restored from database" />
+                                }
+                            </RadzenStack>
+                            <RadzenRow Gap="8px">
+                                <RadzenColumn Size="6" SizeMD="3">
+                                    <StatCardComponent Title="Last generated"
+                                                       Value="@(Dashboard.Plan.LastBuildTime.HasValue ? Dashboard.Plan.LastBuildTime.Value.ToString("dd-MM-yyyy HH:mm") : "Restored from DB")"
+                                                       Highlight="@(Dashboard.Plan.LastBuildTime.HasValue)" />
+                                </RadzenColumn>
+                                <RadzenColumn Size="6" SizeMD="3">
+                                    <StatCardComponent Title="Plan horizon"
+                                                       Value="@(Dashboard.Plan.PlanHorizon.HasValue ? Dashboard.Plan.PlanHorizon.Value.ToString("dd-MM-yyyy HH:mm") : "—")" />
+                                </RadzenColumn>
+                                <RadzenColumn Size="6" SizeMD="3">
+                                    <StatCardComponent Title="Expected profit"
+                                                       Value="@($"€ {Dashboard.Plan.ExpectedProfitEur:F2}")"
+                                                       Highlight="true" />
+                                </RadzenColumn>
+                                <RadzenColumn Size="6" SizeMD="3">
+                                    <StatCardComponent Title="Next charge"
+                                                       Value="@(Dashboard.Plan.NextChargeTime.HasValue ? Dashboard.Plan.NextChargeTime.Value.ToString("HH:mm") : "—")" />
+                                </RadzenColumn>
+                                <RadzenColumn Size="6" SizeMD="3">
+                                    <StatCardComponent Title="Next discharge"
+                                                       Value="@(Dashboard.Plan.NextDischargeTime.HasValue ? Dashboard.Plan.NextDischargeTime.Value.ToString("HH:mm") : "—")" />
+                                </RadzenColumn>
+                                <RadzenColumn Size="6" SizeMD="3">
+                                    <StatCardComponent Title="Quarters: charge / discharge / NZH"
+                                                       Value="@($"{Dashboard.Plan.ChargingQuarters} / {Dashboard.Plan.DischargingQuarters} / {Dashboard.Plan.NzhQuarters}")" />
+                                </RadzenColumn>
+                                <RadzenColumn Size="6" SizeMD="3">
+                                    <StatCardComponent Title="Future quarters"
+                                                       Value="@($"{Dashboard.Plan.TotalFutureQuarters} ({Dashboard.Plan.TotalFutureQuarters / 4.0:F1} hrs)")" />
+                                </RadzenColumn>
+                            </RadzenRow>
+                            <RadzenText TextStyle="TextStyle.Caption" Style="margin-top: 0.75rem; opacity: 0.7;">
+                                Expected profit covers all @Dashboard.Plan.TotalFutureQuarters future quarters (@($"{Dashboard.Plan.TotalFutureQuarters / 4.0:F1}") hrs).
+                                The Arbitrage chart shows daily realized vs planned profit for past days only.
+                            </RadzenText>
+                        </RadzenCard>
+                    </RadzenColumn>
+                }
+
                 @* ── Energy Flows + Consumption ──────────────────────────── *@
                 <RadzenColumn Size="12" SizeMD="6">
                     <RadzenCard Style="height: 100%;">

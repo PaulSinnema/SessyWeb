@@ -1,15 +1,18 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Moq;
+using SessyData.Helpers;
 using SessyCommon.Configurations;
 using SessyCommon.Services;
 using SessyController.Services;
+using SessyController.Services.Statistics;
 using SessyController.Services.Items;
+using SessyData.Services;
 using SessyController.Services.Optimization;
 using SessyController.Services.Statistics;
-using SessyData.Helpers;
 using SessyData.Model;
 using SessyData.Services;
+using Xunit;
 
 namespace SessyTests.Services
 {
@@ -82,6 +85,12 @@ namespace SessyTests.Services
             var batteryContainerMock = new Mock<IBatteryContainer>();
             batteryContainerMock.Setup(b => b.GetTotalCapacity()).Returns(16200.0);
 
+            var milpServiceMock = new Mock<IMilpService>();
+
+            var consumptionMock = new Mock<ConsumptionDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
+            consumptionMock.Setup(s => s.GetList(It.IsAny<Func<IQueryable<Consumption>, Task<List<Consumption>>>>()))
+                           .ReturnsAsync(new List<Consumption>());
+
             _sut = new EnergyStatisticsService(
                 _measurementMock.Object,
                 _investmentMock.Object,
@@ -94,8 +103,10 @@ namespace SessyTests.Services
                 powerSystemsConfig,
                 epexPricesServiceMock.Object,
                 gasPricesMock.Object,
+                consumptionMock.Object,
                 calculationServiceMock.Object,
-                batteryContainerMock.Object);
+                batteryContainerMock.Object,
+                milpServiceMock.Object);
         }
 
         // ── Grid flow tests ──────────────────────────────────────────────────
@@ -402,6 +413,12 @@ namespace SessyTests.Services
             var batteryContainerMock2 = new Mock<IBatteryContainer>();
             batteryContainerMock2.Setup(b => b.GetTotalCapacity()).Returns(16200.0);
 
+            var milpServiceMock2 = new Mock<IMilpService>();
+
+            var consumptionMock2 = new Mock<ConsumptionDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
+            consumptionMock2.Setup(s => s.GetList(It.IsAny<Func<IQueryable<Consumption>, Task<List<Consumption>>>>()))
+                            .ReturnsAsync(new List<Consumption>());
+
             var sut = new EnergyStatisticsService(
                 measurementMock.Object,
                 investmentMock.Object,
@@ -414,8 +431,10 @@ namespace SessyTests.Services
                 powerSystemsConfig,
                 epexPricesServiceMock2.Object,
                 gasPricesMock2.Object,
+                consumptionMock2.Object,
                 calculationServiceMock2.Object,
-                batteryContainerMock2.Object);
+                batteryContainerMock2.Object,
+                milpServiceMock2.Object);
 
             // Request full month — StatisticsFromDate clips it to May 15.
             var result = await sut.GetEnergyStatisticsAsync(DateTime.MinValue, PeriodEnd);

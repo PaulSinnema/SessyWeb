@@ -18,10 +18,54 @@ namespace SessyData.Services
         }
 
         /// <summary>
-        /// Returns the average market price in EUR/m³ over all stored records,
-        /// optionally filtered from a start date.
-        /// Returns null when no records are available.
+        /// Returns the heating-degree-day weighted average market gas price in EUR/m³.
+        /// Quarters with lower temperatures (more heating demand) carry more weight,
+        /// reflecting that the gas price matters most when consumption is highest.
+        ///
+        /// Formula: Σ(price × max(0, heatingThreshold - temp)) / Σ(max(0, heatingThreshold - temp))
+        /// Falls back to a simple average when no temperature data is available.
+        ///
+        /// The heating threshold of 15.5°C is the standard Dutch stookgrens (heating threshold).
         /// </summary>
+        public async Task<double?> GetHeatingWeightedAverageMarketPriceAsync(
+            List<SessyData.Model.Consumption> consumptionData,
+            double heatingThresholdCelsius = 15.5)
+        {
+            var gasPrices = await GetAllAsync();
+
+            if (!gasPrices.Any())
+                return null;
+
+            // Build a lookup of daily average temperature from quarterly consumption data.
+            var dailyTemps = consumptionData
+                .GroupBy(c => c.Time.Date)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Average(c => c.Temperature));
+
+            double weightedSum = 0.0;
+            double totalWeight = 0.0;
+
+            foreach (var gp in gasPrices)
+            {
+                double weight = 1.0; // Default: unweighted.
+
+                if (dailyTemps.TryGetValue(gp.Date.Date, out var avgTemp))
+                {
+                    // Heating degree days: only count days colder than the threshold.
+                    weight = Math.Max(0.0, heatingThresholdCelsius - avgTemp);
+                }
+
+                weightedSum += gp.MarketPriceEurPerM3 * weight;
+                totalWeight += weight;
+            }
+
+            // Fall back to simple average when all weights are zero (e.g. summer-only data).
+            if (totalWeight <= 0)
+                return gasPrices.Average(gp => gp.MarketPriceEurPerM3);
+
+            return weightedSum / totalWeight;
+        }
         public virtual async Task<double?> GetAverageMarketPriceAsync(DateTime? from = null)
         {
             var list = await GetList(async (set) =>
