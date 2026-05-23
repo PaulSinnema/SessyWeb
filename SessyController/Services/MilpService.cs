@@ -31,6 +31,83 @@ namespace SessyController.Services
         private readonly BatteryContainer _batteryContainer;
         private readonly TimeZoneService _timeZoneService;
         private readonly TaxesDataService _taxesDataService;
+        private readonly PlannedActionDataService _plannedActionDataService;
+
+        // ── Tombstoning ──────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Saves the current plan to the database for tombstoning across restarts.
+        /// Called after each successful MILP solve.
+        /// </summary>
+        private async Task SavePlanAsync()
+        {
+            try
+            {
+                var savedAt = DateTime.UtcNow;
+                var signature = CalculatePriceSignature(_quarterlyInfos);
+
+                var actions = _planByTime.Select(kvp => new SessyData.Model.PlannedAction
+                {
+                    Time = kvp.Key,
+                    Mode = kvp.Value.Mode.ToString(),
+                    PowerW = kvp.Value.PowerW,
+                    SavedAt = savedAt,
+                    PriceSignature = signature
+                }).ToList();
+
+                await _plannedActionDataService.SavePlanAsync(actions).ConfigureAwait(false);
+                _logger.LogInformation($"Plan tombstoned: {actions.Count} quarters saved.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"Could not save plan to database: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Attempts to restore a saved plan from the database on startup.
+        /// Only restores if the plan is not older than PlannedAction.MaxPlanAgeHours.
+        /// Returns true when a valid plan was restored.
+        /// </summary>
+        public async Task<bool> TryRestorePlanAsync()
+        {
+            try
+            {
+                var actions = await _plannedActionDataService.LoadPlanAsync().ConfigureAwait(false);
+
+                if (!actions.Any())
+                {
+                    _logger.LogInformation("No valid tombstoned plan found — will wait for MILP solve.");
+                    return false;
+                }
+
+                var restored = new Dictionary<DateTime, PlanAction>();
+
+                foreach (var a in actions)
+                {
+                    if (Enum.TryParse<Modes>(a.Mode, out var mode))
+                        restored[a.Time] = new PlanAction { Mode = mode, PowerW = a.PowerW };
+                }
+
+                _planByTime = restored;
+
+                // Restore the price signature that was valid when the plan was solved.
+                // RebuildPlanIfNeeded will only trigger when prices actually change.
+                _lastPriceSignature = actions.First().PriceSignature;
+                _plannedSocAtLastBuildWh = await _batteryContainer.GetStateOfChargeInWatts().ConfigureAwait(false);
+
+                _logger.LogInformation(
+                    $"Tombstoned plan restored: {restored.Count} quarters, " +
+                    $"saved at {actions.Max(a => a.SavedAt):dd-MM-yyyy HH:mm} UTC.");
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"Could not restore tombstoned plan: {ex.Message}");
+                return false;
+            }
+        }
 
         private SettingsConfig _settingsConfig;
         private SessyBatteryConfig _sessyBatteryConfig;
@@ -118,7 +195,8 @@ namespace SessyController.Services
             IOptionsMonitor<SessyBatteryConfig> sessyBatteryConfigMonitor,
             BatteryContainer batteryContainer,
             TimeZoneService timeZoneService,
-            TaxesDataService taxesDataService)
+            TaxesDataService taxesDataService,
+            PlannedActionDataService plannedActionDataService)
         {
             _logger = logger;
             _settingsConfigMonitor = settingsConfigMonitor;
@@ -126,6 +204,7 @@ namespace SessyController.Services
             _batteryContainer = batteryContainer;
             _timeZoneService = timeZoneService;
             _taxesDataService = taxesDataService;
+            _plannedActionDataService = plannedActionDataService;
 
             _settingsConfig = settingsConfigMonitor.CurrentValue
                 ?? throw new InvalidOperationException("ManagementSettings missing");
@@ -408,6 +487,8 @@ namespace SessyController.Services
             _lastPlannedQuarter = nowQuarter;
             _lastPriceSignature = currentSignature;
             _plannedSocAtLastBuildWh = currentSocWh;
+
+            await SavePlanAsync().ConfigureAwait(false);
 
             return true;
         }

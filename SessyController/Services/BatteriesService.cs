@@ -52,6 +52,7 @@ namespace SessyController.Services
         private InverterCurtailmentService _inverterCurtailmentService;
 
         private List<QuarterlyInfo> _quarterlyInfos = new();
+        private bool _tombstoneRestoreAttempted = false;
 
         private const double FullThresholdRatio = 0.995;
 
@@ -157,6 +158,14 @@ namespace SessyController.Services
             {
                 if (!await RefreshQuarterlyPrices().ConfigureAwait(false))
                     return;
+
+                // On first run after startup: attempt to restore the tombstoned plan.
+                // _quarterlyInfos is now populated so the price signature can be compared.
+                if (!_tombstoneRestoreAttempted)
+                {
+                    _tombstoneRestoreAttempted = true;
+                    await _milpService.TryRestorePlanAsync().ConfigureAwait(false);
+                }
 
                 await _consumptionMonitorService.EstimateConsumptionInWattsPerQuarter(_quarterlyInfos).ConfigureAwait(false);
                 await _solarService.GetExpectedSolarPower(_quarterlyInfos).ConfigureAwait(false);

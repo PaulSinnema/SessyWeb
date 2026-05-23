@@ -125,6 +125,7 @@ builder.Services.AddSingleton<SolarDataService>();
 builder.Services.AddSingleton<EPEXPricesDataService>();
 builder.Services.AddSingleton<IGasPricesDataService, GasPricesDataService>();
 builder.Services.AddSingleton<GasPricesDataService>(sp => (GasPricesDataService)sp.GetRequiredService<IGasPricesDataService>());
+builder.Services.AddSingleton<PlannedActionDataService>();
 builder.Services.AddSingleton<ExpectedPriceService>();
 builder.Services.AddSingleton<SessyWebControlDataService>();
 builder.Services.AddSingleton<TaxesDataService>();
