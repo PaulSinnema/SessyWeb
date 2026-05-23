@@ -53,6 +53,42 @@ namespace SessyController.Services
         private DateTime? _lastPlannedQuarter;
         private int? _lastPriceSignature;
 
+        // ── Plan-tracking ────────────────────────────────────────────────────
+        //
+        // The plan is built once when day-ahead prices arrive (signature change)
+        // or when the SOC deviates significantly from the planned SOC.
+        // Within a quarter the plan is executed as-is — no re-optimisation.
+        //
+        // Re-plan triggers:
+        //   1. Price signature changed (new day-ahead prices available)
+        //   2. SOC deviation > SocDeviationThresholdPct of total capacity
+        //   3. No plan exists yet
+        //
+        // Explicitly NOT a trigger:
+        //   - New quarter (was the main cause of rolling-horizon drift)
+
+        private const double SocDeviationThresholdPct = 20.0; // % of total capacity
+
+        // Planned SOC at the start of the last solved quarter (Wh).
+        private double _plannedSocAtLastBuildWh;
+
+        private bool SocDeviationExceedsThreshold(double currentSocWh)
+        {
+            double capacityWh = _batteryContainer.GetTotalCapacity();
+            if (capacityWh <= 0) return false;
+
+            double deviationPct = Math.Abs(currentSocWh - _plannedSocAtLastBuildWh) / capacityWh * 100.0;
+
+            if (deviationPct > SocDeviationThresholdPct)
+            {
+                _logger.LogInformation(
+                    $"SOC deviation {deviationPct:F1}% exceeds threshold {SocDeviationThresholdPct}% — rebuilding plan.");
+                return true;
+            }
+
+            return false;
+        }
+
         // ── Constants ────────────────────────────────────────────────────────
 
         private const int MilpTimeLimitMs = 5000;
@@ -354,10 +390,9 @@ namespace SessyController.Services
 
             bool needRebuild =
                 _planByTime.Count == 0 ||
-                _lastPlannedQuarter == null ||
-                _lastPlannedQuarter.Value != nowQuarter ||
                 _lastPriceSignature == null ||
-                _lastPriceSignature.Value != currentSignature;
+                _lastPriceSignature.Value != currentSignature ||
+                SocDeviationExceedsThreshold(currentSocWh);
 
             if (!needRebuild)
                 return false;
@@ -372,6 +407,7 @@ namespace SessyController.Services
 
             _lastPlannedQuarter = nowQuarter;
             _lastPriceSignature = currentSignature;
+            _plannedSocAtLastBuildWh = currentSocWh;
 
             return true;
         }
@@ -998,42 +1034,6 @@ namespace SessyController.Services
 
                 if (socWh - requiredWh < minSocWh + EmptyHysteresisWh + NumericEpsWh)
                     return new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
-
-                if (qi != null)
-                {
-                    double netLoadWh = qi.NetLoadWh;
-                    bool dischargingForOwnConsumption = netLoadWh > 0.0;
-
-                    if (!dischargingForOwnConsumption)
-                    {
-                        // Solar surplus already covers consumption — any discharge goes
-                        // straight to export. Only allow this when selling price justifies
-                        // the cycle cost, regardless of netting status.
-                        double exportThreshold = selfUseValue + _settingsConfig.CycleCost + ExportPremiumEur;
-
-                        if (qi.SellingPrice < exportThreshold)
-                            return new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
-                    }
-                    else if (!netting)
-                    {
-                        // Netting OFF, positive net load: only allow export-style discharge
-                        // when sell price covers cycle cost.
-                        double exportThreshold = selfUseValue + _settingsConfig.CycleCost + ExportPremiumEur;
-
-                        if (qi.SellingPrice < exportThreshold)
-                            return new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
-                    }
-                    else
-                    {
-                        // Netting ON, positive net load: discharge covers own consumption.
-                        // Only worthwhile when the selling price (what grid pays for export)
-                        // is at least the buying price minus cycle cost. Otherwise ZeroNetHome
-                        // is more efficient: the battery covers consumption directly without
-                        // the arbitrage spread working against us.
-                        if (qi.SellingPrice < qi.BuyingPrice - _settingsConfig.CycleCost)
-                            return new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
-                    }
-                }
 
                 return planned;
             }

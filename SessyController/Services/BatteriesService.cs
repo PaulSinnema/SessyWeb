@@ -260,7 +260,9 @@ namespace SessyController.Services
                     if (plannedMode != execMode || Math.Abs(plannedPowerW - execPowerW) > 0.1)
                     {
                         _milpService.ApplyRuntimeOverride(nowQuarter, execMode, execPowerW);
-                        await _milpService.BuildPlanAsync(_quarterlyInfos, currentSocWh).ConfigureAwait(false);
+                        // Do NOT rebuild plan after runtime override — plan-tracking
+                        // means we execute the plan as-is. The override is a one-quarter
+                        // correction only; the next quarter continues from the existing plan.
                     }
 
                     await ExecuteAction(execMode, execPowerW).ConfigureAwait(false);
@@ -515,11 +517,16 @@ namespace SessyController.Services
                     solarProductionKWh = inverterMeasurements.Sum(m => m.SolarProductionKWh);
             }
 
-            var mode = currentQuarterlyInfo switch
+            // Use the actually executed mode, not the planned mode from QuarterlyInfo.
+            // The runtime may have overridden the plan (e.g. SOC guard → NZH, curtailment → Disabled).
+            var nowQuarter = _timeZoneService.Now.DateFloorQuarter();
+            var (executedMode, _) = await _milpService.GetExecutableActionForNowAsync(nowQuarter).ConfigureAwait(false);
+
+            var mode = executedMode switch
             {
-                { Charging: true } => BatteryMode.Charging,
-                { Discharging: true } => BatteryMode.Discharging,
-                { ZeroNetHome: true } => BatteryMode.ZeroNetHome,
+                Modes.Charging => BatteryMode.Charging,
+                Modes.Discharging => BatteryMode.Discharging,
+                Modes.ZeroNetHome => BatteryMode.ZeroNetHome,
                 _ => BatteryMode.Disabled
             };
 
