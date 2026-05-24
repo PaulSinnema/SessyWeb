@@ -13,6 +13,7 @@ using SessyController.Providers;
 using SessyController.Services;
 using SessyController.Services.InverterServices;
 using SessyController.Services.Items;
+using SessyController.Services.StateMachine;
 using SessyData.Helpers;
 using SessyData.Model;
 using SessyData.Services;
@@ -120,6 +121,11 @@ builder.Services.AddSingleton<IEPEXPricesService>(sp => sp.GetRequiredService<EP
 builder.Services.AddSingleton<MilpService>();
 builder.Services.AddSingleton<IMilpService>(sp => sp.GetRequiredService<MilpService>());
 builder.Services.AddSingleton<ConfigurationCheckService>();
+// ── State machine ─────────────────────────────────────────────────────────
+builder.Services.AddSingleton<HardwareStatusService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<HardwareStatusService>());
+builder.Services.AddSingleton<EnergySystemStateMachine>();
+// ─────────────────────────────────────────────────────────────────────────
 builder.Services.AddSingleton<BatteriesService>();
 builder.Services.AddSingleton<SessyMonitorService>();
 builder.Services.AddSingleton<EnergyMonitorService>();

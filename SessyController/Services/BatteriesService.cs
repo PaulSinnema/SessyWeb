@@ -4,6 +4,7 @@ using SessyCommon.Extensions;
 using SessyCommon.Services;
 using SessyController.Services.Items;
 using SessyController.Services.Optimization;
+using SessyController.Services.StateMachine;
 using SessyData.Model;
 using SessyData.Services;
 using static SessyController.Services.Items.ChargingModes;
@@ -47,8 +48,11 @@ namespace SessyController.Services
         private InverterMeasurementDataService? _inverterMeasurementService;
         private TaxesDataService _taxesDataService;
         private MilpService _milpService;
+        private EnergySystemStateMachine _stateMachine;
+        private EnergySystemInput _systemInput;
+        private HardwareStatusService _hardwareStatus;
 
-        // Curtailment: throttles the solar inverter when price is negative and battery is full.
+        // Curtailment: throttles the solar inverter when price is negative.
         private InverterCurtailmentService _inverterCurtailmentService;
 
         private List<QuarterlyInfo> _quarterlyInfos = new();
@@ -93,6 +97,13 @@ namespace SessyController.Services
             _taxesDataService = _scope.ServiceProvider.GetRequiredService<TaxesDataService>();
             _inverterCurtailmentService = _scope.ServiceProvider.GetRequiredService<InverterCurtailmentService>();
             _milpService = _scope.ServiceProvider.GetRequiredService<MilpService>();
+            _hardwareStatus = _scope.ServiceProvider.GetRequiredService<HardwareStatusService>();
+            _stateMachine = _scope.ServiceProvider.GetRequiredService<EnergySystemStateMachine>();
+            _systemInput = new EnergySystemInput(
+                _hardwareStatus,
+                _milpService,
+                this,
+                _timeZoneService);
 
             _logger.LogInformation("BatteriesService starting");
         }
@@ -170,125 +181,34 @@ namespace SessyController.Services
                 await _consumptionMonitorService.EstimateConsumptionInWattsPerQuarter(_quarterlyInfos).ConfigureAwait(false);
                 await _solarService.GetExpectedSolarPower(_quarterlyInfos).ConfigureAwait(false);
 
-                // IMPROVEMENT 4: SOC is fetched once per cycle and passed to all methods.
-                // Previously GetStateOfChargeInWatts() was called 4 times per cycle
-                // (each call is a network request to the Sessy).
-                double currentSocWh = await _batteryContainer.GetStateOfChargeInWatts().ConfigureAwait(false);
+                // SOC via HardwareStatusService (polled in background — no extra Sessy request).
+                double currentSocWh = _hardwareStatus.CurrentSocWh;
 
                 // Delegate all MILP planning to MilpService.
-                // This builds tariff context, rebuilds the plan if needed, applies
-                // self-consumption policy, SOC feasibility and SOC simulation.
                 await _milpService.BuildPlanAsync(_quarterlyInfos, currentSocWh).ConfigureAwait(false);
-
-                var nowQuarter = _timeZoneService.Now.DateFloorQuarter();
-
-                // Zero out solar forecast for quarters where the inverter will be shut
-                // down: only during Charging quarters with negative prices.
-                // SmoothedSolarPower is recalculated after zeroing so the smoothing
-                // window does not pull down adjacent quarters.
-                if (_settingsConfig.SolarSystemShutsDownDuringNegativePrices)
-                {
-                    foreach (var qi in _quarterlyInfos.Where(q => q.SellingPriceIsNegative &&
-                        q.Charging))
-                    {
-                        qi.SolarPowerPerQuarterHour = 0.0;
-                    }
-
-                    var ordered = _quarterlyInfos.OrderBy(q => q.Time).ToList();
-                    int windowSize = 8;
-
-                    for (int i = 0; i < ordered.Count; i++)
-                    {
-                        bool isZero = ordered[i].SolarPowerPerQuarterHour == 0.0;
-                        int start = Math.Max(0, i - windowSize / 2);
-                        int end = Math.Min(ordered.Count - 1, i + windowSize / 2);
-
-                        var range = ordered
-                            .Skip(start)
-                            .Take(end - start + 1)
-                            .Where(h => (h.SolarPowerPerQuarterHour == 0.0) == isZero)
-                            .ToList();
-
-                        ordered[i].SmoothedSolarPower = range.Any()
-                            ? range.Average(h => h.SolarPowerPerQuarterHour)
-                            : 0.0;
-                    }
-                }
-
-                var (execMode, execPowerW) = await _milpService.GetExecutableActionForNowAsync(nowQuarter).ConfigureAwait(false);
-                bool batteryIsFull = await BatteryIsFullAsync().ConfigureAwait(false);
-                bool batteryIsCharging = execMode == Modes.Charging;
 
                 if (await WeControlTheBatteries().ConfigureAwait(false))
                 {
-                    // ── Curtailment check ────────────────────────────────────────────────
-                    // Signal the InverterCurtailmentService whether curtailment should be
-                    // active. The actual inverter throttling runs in its own 5-second loop
-                    // so it can react to real-time load changes (heat pump, AC, etc.)
-                    // without waiting for the 60-second BatteriesService cycle.
-                    //
-                    // Curtailment condition: price is negative AND battery is NOT charging.
-                    //
-                    // When the battery is charging, solar energy goes directly into the battery
-                    // rather than to the grid — curtailment is unnecessary and would reduce
-                    // the available solar for charging.
-                    // When curtailment is active the Sessy must be Disabled (StopAll),
-                    // NOT ZeroNetHome. NOM reacts to the grid current and would try to
-                    // discharge the battery to compensate for the reduced inverter output —
-                    // directly fighting the curtailment logic.
-                    var nowQi = _quarterlyInfos.FirstOrDefault(q => q.Time == nowQuarter);
-                    bool priceIsNegative = nowQi?.SellingPriceIsNegative ?? false;
+                    // ── Load inputs ──────────────────────────────────────────────────
+                    await _systemInput.LoadAsync().ConfigureAwait(false);
 
-                    // Only curtail when price is negative AND battery is not actively charging.
-                    bool curtailmentNeeded = priceIsNegative && !batteryIsCharging;
-
-                    _inverterCurtailmentService.SetCurtailmentRequested(curtailmentNeeded, batteryIsFull, batteryIsCharging && priceIsNegative);
-
-                    // When the inverter is shut down (price negative, battery not full, not charging),
-                    // zero out the solar forecast in QuarterlyInfos so the chart reflects
-                    // the actual situation — no solar production during shutdown periods.
-                    if (curtailmentNeeded && !batteryIsFull)
+                    if (!_systemInput.IsLoaded)
                     {
-                        foreach (var qi in _quarterlyInfos.Where(q => q.SellingPriceIsNegative))
-                        {
-                            qi.SolarPowerPerQuarterHour = 0.0;
-                            qi.SmoothedSolarPower = 0.0;
-                        }
+                        _logger.LogWarning("BatteriesService: HardwareStatusService not ready yet — skipping cycle.");
+                        return;
                     }
 
-                    // Curtailment is active in both shutdown (battery not full) and
-                    // throttle (battery full) modes. In both cases the Sessy must be
-                    // Disabled so NOM does not fight the inverter curtailment.
-                    // Only force Disabled when curtailment is actually needed —
-                    // if the price turned positive but IsCurtailmentActive is still true
-                    // due to a Modbus error, we should not block Charging.
-                    if (_inverterCurtailmentService.IsCurtailmentActive && curtailmentNeeded)
-                    {
-                        execMode = Modes.Disabled;
-                        execPowerW = 0;
-                    }
-                    // ── End curtailment check ────────────────────────────────────────────
+                    // ── Evaluate state machine ────────────────────────────────────────
+                    // All decisions (battery mode, inverter setpoint, curtailment) are
+                    // made here. No decision logic anywhere else.
+                    var action = _stateMachine.Evaluate(_systemInput);
 
-                    // Apply runtime override when curtailment or SOC guards changed the action.
-                    // This keeps the plan and SOC simulation in sync with the actual execution.
-                    var (plannedMode, plannedPowerW) = await _milpService.GetExecutableActionForNowAsync(nowQuarter).ConfigureAwait(false);
-
-                    if (plannedMode != execMode || Math.Abs(plannedPowerW - execPowerW) > 0.1)
-                    {
-                        _milpService.ApplyRuntimeOverride(nowQuarter, execMode, execPowerW);
-                        // Do NOT rebuild plan after runtime override — plan-tracking
-                        // means we execute the plan as-is. The override is a one-quarter
-                        // correction only; the next quarter continues from the existing plan.
-                    }
-
-                    await ExecuteAction(execMode, execPowerW).ConfigureAwait(false);
+                    // ── Execute ───────────────────────────────────────────────────────
+                    await ExecuteAction(action.BatteryMode, action.BatterySetpointW).ConfigureAwait(false);
                 }
                 else
                 {
 #if !DEBUG
-                    // Release curtailment when we lose control so the inverter
-                    // is not left throttled if e.g. the supplier takes over.
-                    _inverterCurtailmentService.SetCurtailmentRequested(false, batteryIsFull, batteryIsCharging);
                     await _batteryContainer.StopAll().ConfigureAwait(false);
 #endif
                 }
@@ -325,13 +245,6 @@ namespace SessyController.Services
         /// max SOC:
         /// - always keep enough free headroom for the strongest upcoming net solar charging excursion
         /// </summary>
-
-        private async Task<bool> BatteryIsFullAsync()
-        {
-            double capWh = _batteryContainer.GetTotalCapacity();
-            double socWh = await _batteryContainer.GetStateOfChargeInWatts().ConfigureAwait(false);
-            return socWh >= capWh * FullThresholdRatio;
-        }
 
         private async Task ExecuteAction(Modes mode, double powerW)
         {
@@ -443,11 +356,18 @@ namespace SessyController.Services
 
         private async Task<bool> SupplierIsControllingTheBatteries()
         {
-            foreach (var battery in _batteryContainer.Batteries)
+            try
             {
-                var currentPowerStrategy = await battery.GetPowerStatus().ConfigureAwait(false);
-                if (currentPowerStrategy.Sessy.StrategyOverridden)
-                    return true;
+                foreach (var battery in _batteryContainer.Batteries ?? [])
+                {
+                    var currentPowerStrategy = await battery.GetPowerStatus().ConfigureAwait(false);
+                    if (currentPowerStrategy?.Sessy?.StrategyOverridden == true)
+                        return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"SupplierIsControllingTheBatteries: could not reach battery — assuming not overridden. {ex.Message}");
             }
 
             return false;
@@ -592,15 +512,11 @@ namespace SessyController.Services
 
         public List<QuarterlyInfo> GetQuarterlyInfos()
         {
-            _semaphore.Wait();
-            try
-            {
-                return _quarterlyInfos.ToList();
-            }
-            finally
-            {
-                _semaphore.Release();
-            }
+            // Note: intentionally no semaphore here.
+            // This method is called from EnergySystemInput.LoadAsync() which is
+            // called from within Process() — which already holds the semaphore.
+            // Taking it again would deadlock.
+            return _quarterlyInfos.ToList();
         }
 
         public async Task<string> GetBatteryMode()

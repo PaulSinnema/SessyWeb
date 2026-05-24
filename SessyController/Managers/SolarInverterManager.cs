@@ -189,6 +189,14 @@ namespace SessyController.Managers
             }
         }
 
+        /// <summary>
+        /// Last inverter setpoint sent via ThrottleInverterToWatts (W).
+        /// Null = never set (interpret as full output = double.MaxValue).
+        /// Used by HardwareStatusService to expose the current setpoint
+        /// without an additional Modbus round-trip.
+        /// </summary>
+        public double? LastSetpointW { get; private set; } = null;
+
         private double? _lastWattsSet { get; set; } = null;
 
         public async Task ThrottleInverterToWatts(double watts)
@@ -217,6 +225,7 @@ namespace SessyController.Managers
             }
 
             _lastWattsSet = watts;
+            LastSetpointW = watts;
         }
     }
 }

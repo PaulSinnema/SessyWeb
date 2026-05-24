@@ -5,6 +5,7 @@ using SessyCommon.Services;
 using SessyController.Managers;
 using SessyController.Services;
 using SessyController.Services.Items;
+using SessyController.Services.StateMachine;
 using SessyData.Model;
 using SessyData.Services;
 using SessyWeb.Helpers;
@@ -21,7 +22,8 @@ namespace SessyWeb.Pages
         [Inject] public TimeZoneService? _timeZoneService { get; set; }
         [Inject] public BatteryContainer? _batteryContainer { get; set; }
         [Inject] FinancialResultsService? _finacialResultsService { get; set; }
-        [Inject] InverterCurtailmentService? _inverterCurtailmentService { get; set; }
+        [Inject] private HardwareStatusService? _hardwareStatusService { get; set; }
+        [Inject] private EnergySystemStateMachine? _stateMachine { get; set; }
         [Inject] SolarInverterManager? _solarInverterManager { get; set; }
 
         public List<QuarterlyInfoView>? QuarterlyInfos { get; set; } = new();
@@ -119,9 +121,7 @@ namespace SessyWeb.Pages
                     {
                         var powerStatus = await battery.GetPowerStatus().ConfigureAwait(false);
 
-                        currentThrottlePercentage = _inverterCurtailmentService?.CurrentThrottleW >= double.MaxValue
-                            ? 100.0
-                            : Math.Round(_inverterCurtailmentService?.CurrentThrottleW / _solarInverterManager?.TotalCapacity ?? 1.0 * 100.0, 1);
+                        currentThrottlePercentage = _hardwareStatusService?.ThrottlePct ?? 100.0;
 
                         newStatuses.Add(new BatteryWithStatus
                         {
@@ -464,7 +464,7 @@ namespace SessyWeb.Pages
                 ChargePowerW = chargePowerW,
                 DischargePowerW = dischargePowerW,
                 IsCurtailed = quarterlyInfo.SellingPriceIsNegative,
-                ThrottlePct = quarterlyInfo.SellingPriceIsNegative ? (currentThrottlePercentage ?? 100.0) : 100.0
+                ThrottlePct = quarterlyInfo.SellingPriceIsNegative ? currentThrottlePercentage : 100.0
             });
         }
 
@@ -550,7 +550,7 @@ namespace SessyWeb.Pages
         }
 
         private bool _isDisposed = false;
-        private double? currentThrottlePercentage;
+        private double currentThrottlePercentage = 100.0;
 
         public override void Dispose()
         {

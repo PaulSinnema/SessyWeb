@@ -205,8 +205,18 @@ namespace SessyController.Services
             if (PricesAvailable)
             {
                 await StorePrices();
-
                 _initialized = true;
+            }
+            else
+            {
+                // No live prices from Sessy — check if DB already has prices.
+                // This allows the system to run without a connected Sessy (e.g. dev machine).
+                var dbPrices = await GetPrices().ConfigureAwait(false);
+                if (dbPrices.Count > 0)
+                {
+                    _initialized = true;
+                    _logger.LogInformation($"Initialized from {dbPrices.Count} DB prices (no live Sessy prices available).");
+                }
             }
 
             await FetchGasPriceAsync(cancellationToken);
@@ -332,6 +342,27 @@ namespace SessyController.Services
         /// fills them in with historical averages so the MILP planner can make
         /// informed decisions about today's battery management.
         /// </summary>
+        /// <summary>
+        /// Returns the selling price for the given quarter.
+        /// Returns 0.0 when not found.
+        /// Note: GetPrices() is async — call this only when quarterly infos are already available
+        /// via BatteriesService.GetQuarterlyInfos() to avoid extra async overhead.
+        /// </summary>
+        public double GetSellingPriceForQuarter(DateTime quarter)
+        {
+            // _prices is the internal cache — Price field is the market price.
+            // For the all-in selling price we need QuarterlyInfo which is built
+            // by BuildQuarterliesAsync. Use the cached list if available.
+            var prices = _prices;
+            if (prices == null) return 0.0;
+            if (!prices.TryGetValue(quarter, out var schedule)) return 0.0;
+
+            // DynamichSchedule only has raw Price — return it as a best effort.
+            // EnergySystemInput uses BatteriesService.GetQuarterlyInfos() for the
+            // all-in selling price; this method is kept for other callers.
+            return schedule.Price;
+        }
+
         public async Task<List<QuarterlyInfo>> GetPrices()
         {
             await GetPricesSemaphore.WaitAsync();

@@ -3,6 +3,7 @@
 @inherits PageBase
 @using System
 @using Radzen
+@using SessyController.Services.StateMachine
 @using Radzen.Blazor
 @using SessyWeb.Components
 @using SessyController.Services.Items
@@ -47,27 +48,33 @@
                     </RadzenTableCell>
 
                     <RadzenTableCell Style="width: 75px;vertical-align: top;">
-                        <RadzenStack Orientation="Orientation.Vertical" Gap="0" AlignItems="AlignItems.Start" Style="width: 150px;">
+                        <RadzenStack Orientation="Orientation.Vertical" Gap="0" AlignItems="AlignItems.Start" Style="width: 175px;">
                             <RadzenText TextStyle="TextStyle.Overline" class="rz-display-flex rz-mt-4 rz-mb-0">Inverter</RadzenText>
                             <RadzenText TextStyle="TextStyle.Body1"><b>@currentThrottlePercentage %</b></RadzenText>
-                            @if (_inverterCurtailmentService?.CurrentMode != SessyController.Services.CurtailmentMode.None)
-                            {
-                                <RadzenBadge BadgeStyle="@(_inverterCurtailmentService?.CurrentMode == SessyController.Services.CurtailmentMode.Shutdown ? BadgeStyle.Danger : BadgeStyle.Warning)"
-                                             Style="color: black; font-size: 0.7rem;"
-                                             Text="@(_inverterCurtailmentService?.CurrentMode switch
-                                             {
-                                                 SessyController.Services.CurtailmentMode.Shutdown => "SHUTDOWN",
-                                                 SessyController.Services.CurtailmentMode.ZeroExport => "ZERO EXPORT",
-                                                 SessyController.Services.CurtailmentMode.Throttle => "THROTTLE",
-                                                 _ => ""
-                                             })" />
+                            @{
+                                var curtailmentMode = _stateMachine?.CurrentAction.CurtailmentMode ?? CurtailmentMode.None;
+                                if (curtailmentMode != CurtailmentMode.None)
+                                {
+                                    <RadzenBadge BadgeStyle="@(curtailmentMode == CurtailmentMode.Shutdown ? BadgeStyle.Danger : BadgeStyle.Warning)"
+                                                 Style="color: black; font-size: 0.7rem;"
+                                                 Text="@(curtailmentMode switch
+                                                 {
+                                                     CurtailmentMode.Shutdown => "SHUTDOWN",
+                                                     CurtailmentMode.ZeroExport => "ZERO EXPORT",
+                                                     CurtailmentMode.Throttle => "THROTTLE",
+                                                     _ => ""
+                                                 })" />
+                                }
                             }
+                            <RadzenText TextStyle="TextStyle.Caption" Style="opacity: 0.6; margin-top: 2px;">
+                                Actual: @($"{_hardwareStatusService?.ThrottlePct:F0} %")
+                            </RadzenText>
                         </RadzenStack>
                     </RadzenTableCell>
 
                     <RadzenTableCell Style="width: 120px;vertical-align: top;">
-                        <RadzenStack Orientation="Orientation.Vertical" Gap="0" AlignItems="AlignItems.Start" Style="width: 200px;">
-                            <RadzenText TextStyle="TextStyle.Overline" class="rz-display-flex rz-mt-4 rz-mb-0">Battery</RadzenText>
+                        <RadzenStack Orientation="Orientation.Vertical" Gap="0" AlignItems="AlignItems.Start" Style="width: 150px;">
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-display-flex rz-mt-4 rz-mb-0">Battery (plan)</RadzenText>
                             <RadzenText TextStyle="TextStyle.Body1"><b>@BatteryPercentageVisual</b></RadzenText>
                             <RadzenText TextStyle="TextStyle.Body1"><b>@BatteryMode</b></RadzenText>
                             <RadzenStack Orientation="Orientation.Horizontal" Gap="2" AlignItems="AlignItems.Center">
@@ -83,6 +90,28 @@
                                     }
                                 }
                             </RadzenStack>
+                        </RadzenStack>
+                    </RadzenTableCell>
+
+                    <RadzenTableCell Style="width: 120px;vertical-align: top;">
+                        <RadzenStack Orientation="Orientation.Vertical" Gap="0" AlignItems="AlignItems.Start" Style="width: 150px;">
+                            @{
+                                var rawStrategy = _hardwareStatusService?.ActualBatteryStrategy ?? string.Empty;
+                                var displayStrategy = rawStrategy switch
+                                {
+                                    "POWER_STRATEGY_API" => "Open API",
+                                    "POWER_STRATEGY_NOM" => "Zero Net Home",
+                                    "" => "—",
+                                    _ => rawStrategy
+                                };
+                                var actualPowerW = _hardwareStatusService?.ActualBatteryPowerW ?? 0.0;
+                                var powerLabel = actualPowerW < -50 ? "↑ charging"
+                                              : actualPowerW > 50 ? "↓ discharging"
+                                              : "idle";
+                            }
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-display-flex rz-mt-4 rz-mb-0">Battery (actual)</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Body1"><b>@displayStrategy</b></RadzenText>
+                            <RadzenText TextStyle="TextStyle.Body2">@($"{actualPowerW:F0} W") @powerLabel</RadzenText>
                         </RadzenStack>
                     </RadzenTableCell>
 
