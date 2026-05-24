@@ -1387,7 +1387,7 @@ namespace SessyController.Services
                 DailyArbitrageTrends = arbitrageTrends,
 
                 // Plan
-                Plan = _milpService.GetPlanStatistics(now),
+                Plan = await _milpService.GetPlanStatisticsAsync(now),
             };
         }
 

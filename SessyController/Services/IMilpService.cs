@@ -4,6 +4,7 @@ namespace SessyController.Services
 {
     public interface IMilpService
     {
-        PlanStatistics GetPlanStatistics(DateTime now);
+        Task<PlanStatistics> GetPlanStatisticsAsync(DateTime now);
+        Task ClearPlanAsync();
     }
 }

@@ -34,7 +34,6 @@ namespace SessyController.Services
         private const string TagTimeSeries = "//ns:TimeSeries";
 
         private const string ConfigInDomain = "ENTSO-E:InDomain"; // EIC-code
-        private const string ConfigResolutionFormat = "ENTSO-E:ResolutionFormat"; // No longer in use
         private const string ConfigSecurityTokenKey = "ENTSO-E:SecurityToken";
 
         // Enever.nl gas price feed (free, personal use, daily TTF price in EUR/m³)
@@ -231,70 +230,87 @@ namespace SessyController.Services
                 return;
             }
 
-            try
+            var gasPrice = await _gasPricesDataService.Get(async set =>
             {
-                string url = $"{EneverGasApiUrl}?token={_eneverToken}";
+                var result = set.Where(gp => gp.Date.Date == _timeZoneService.Now.Date).FirstOrDefault();
 
-                var client = _httpClientFactory.CreateClient();
-                client.Timeout = TimeSpan.FromSeconds(30);
+                return await Task.FromResult(result);
+            });
 
-                var response = await client.GetAsync(url, cancellationToken);
-                response.EnsureSuccessStatusCode();
+            double marketPrice = 0.00;
 
-                string body = await response.Content.ReadAsStringAsync(cancellationToken);
+            var today = _timeZoneService.Now.Date;
 
-                // Expected JSON: {"status":"true","data":[{"datum":"...","prijsEGSI":"0.566598",...}]}
-                using var doc = System.Text.Json.JsonDocument.Parse(body);
-                var root = doc.RootElement;
-
-                if (root.GetProperty("status").GetString() != "true")
+            if (gasPrice == null)
+            {
+                try
                 {
-                    _logger!.LogWarning("Enever gas price feed returned status != true.");
-                    return;
-                }
+                    string url = $"{EneverGasApiUrl}?token={_eneverToken}";
 
-                var data = root.GetProperty("data");
+                    var client = _httpClientFactory.CreateClient();
+                    client.Timeout = TimeSpan.FromSeconds(30);
 
-                if (data.GetArrayLength() == 0)
-                {
-                    _logger!.LogWarning("Enever gas price feed returned empty data array.");
-                    return;
-                }
+                    var response = await client.GetAsync(url, cancellationToken);
+                    response.EnsureSuccessStatusCode();
 
-                // Use "prijsEGSI" — the TTF wholesale (EGSI = End of Gas-Day Spot Index) price.
-                string? rawPrice = data[0].GetProperty("prijsEGSI").GetString();
+                    string body = await response.Content.ReadAsStringAsync(cancellationToken);
 
-                if (double.TryParse(rawPrice, System.Globalization.NumberStyles.Any,
-                                    System.Globalization.CultureInfo.InvariantCulture, out double marketPrice))
-                {
-                    // Store the daily market price in the database (upsert — one record per day).
-                    var today = _timeZoneService.Now.Date;
+                    // Expected JSON: {"status":"true","data":[{"datum":"...","prijsEGSI":"0.566598",...}]}
+                    using var doc = System.Text.Json.JsonDocument.Parse(body);
+                    var root = doc.RootElement;
 
-                    await _gasPricesDataService.UpsertAsync(new SessyData.Model.GasPrice
+                    if (root.GetProperty("status").GetString() != "true")
                     {
-                        Date = today,
-                        MarketPriceEurPerM3 = marketPrice
-                    });
+                        _logger!.LogWarning("Enever gas price feed returned status != true.");
+                        return;
+                    }
 
-                    // Apply gas energy tax (Energiebelasting) and VAT (BTW) from the Taxes table
-                    // to convert the TTF market price to the all-in consumer price.
-                    double? allInPrice = await _calculationService.CalculateGasPriceAsync(marketPrice);
+                    var data = root.GetProperty("data");
 
-                    CurrentGasPriceEurPerM3 = allInPrice ?? marketPrice;
+                    if (data.GetArrayLength() == 0)
+                    {
+                        _logger!.LogWarning("Enever gas price feed returned empty data array.");
+                        return;
+                    }
 
-                    _logger!.LogInformation(
-                        $"Gas price fetched from Enever.nl: market={marketPrice:F4} EUR/m³, " +
-                        $"all-in={CurrentGasPriceEurPerM3:F4} EUR/m³ (TTF EGSI + taxes)");
+                    // Use "prijsEGSI" — the TTF wholesale (EGSI = End of Gas-Day Spot Index) price.
+                    string? rawPrice = data[0].GetProperty("prijsEGSI").GetString();
+
+                    if (double.TryParse(rawPrice, System.Globalization.NumberStyles.Any,
+                                        System.Globalization.CultureInfo.InvariantCulture, out marketPrice))
+                    {
+                        // Store the daily market price in the database (upsert — one record per day).
+                        await _gasPricesDataService.UpsertAsync(new SessyData.Model.GasPrice
+                        {
+                            Date = today,
+                            MarketPriceEurPerM3 = marketPrice
+                        });
+
+                    }
+                    else
+                    {
+                        _logger!.LogWarning($"Could not parse Enever gas price value: '{rawPrice}'");
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    _logger!.LogWarning($"Could not parse Enever gas price value: '{rawPrice}'");
+                    _logger!.LogWarning($"Could not fetch gas price from Enever.nl: {ex.Message}");
                 }
             }
-            catch (Exception ex)
+            else
             {
-                _logger!.LogWarning($"Could not fetch gas price from Enever.nl: {ex.Message}");
+                marketPrice = gasPrice.MarketPriceEurPerM3;
             }
+
+            // Apply gas energy tax (Energiebelasting) and VAT (BTW) from the Taxes table
+            // to convert the TTF market price to the all-in consumer price.
+            double? allInPrice = await _calculationService.CalculateGasPriceAsync(marketPrice);
+
+            CurrentGasPriceEurPerM3 = allInPrice ?? marketPrice;
+
+            _logger!.LogInformation(
+                $"Gas price fetched from Enever.nl: market={marketPrice:F4} EUR/m³, " +
+                $"all-in={CurrentGasPriceEurPerM3:F4} EUR/m³ (TTF EGSI + taxes)");
         }
 
         private async Task FetchPricesFromSources(CancellationToken cancellationToken)

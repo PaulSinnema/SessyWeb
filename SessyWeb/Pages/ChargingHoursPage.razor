@@ -50,6 +50,18 @@
                         <RadzenStack Orientation="Orientation.Vertical" Gap="0" AlignItems="AlignItems.Start" Style="width: 150px;">
                             <RadzenText TextStyle="TextStyle.Overline" class="rz-display-flex rz-mt-4 rz-mb-0">Inverter</RadzenText>
                             <RadzenText TextStyle="TextStyle.Body1"><b>@currentThrottlePercentage %</b></RadzenText>
+                            @if (_inverterCurtailmentService?.CurrentMode != SessyController.Services.CurtailmentMode.None)
+                            {
+                                <RadzenBadge BadgeStyle="@(_inverterCurtailmentService?.CurrentMode == SessyController.Services.CurtailmentMode.Shutdown ? BadgeStyle.Danger : BadgeStyle.Warning)"
+                                             Style="color: black; font-size: 0.7rem;"
+                                             Text="@(_inverterCurtailmentService?.CurrentMode switch
+                                             {
+                                                 SessyController.Services.CurtailmentMode.Shutdown => "SHUTDOWN",
+                                                 SessyController.Services.CurtailmentMode.ZeroExport => "ZERO EXPORT",
+                                                 SessyController.Services.CurtailmentMode.Throttle => "THROTTLE",
+                                                 _ => ""
+                                             })" />
+                            }
                         </RadzenStack>
                     </RadzenTableCell>
 

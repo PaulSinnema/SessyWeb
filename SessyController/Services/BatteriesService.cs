@@ -188,7 +188,7 @@ namespace SessyController.Services
                 // window does not pull down adjacent quarters.
                 if (_settingsConfig.SolarSystemShutsDownDuringNegativePrices)
                 {
-                    foreach (var qi in _quarterlyInfos.Where(q => q.PriceIsNegative &&
+                    foreach (var qi in _quarterlyInfos.Where(q => q.SellingPriceIsNegative &&
                         q.Charging))
                     {
                         qi.SolarPowerPerQuarterHour = 0.0;
@@ -215,34 +215,41 @@ namespace SessyController.Services
                     }
                 }
 
+                var (execMode, execPowerW) = await _milpService.GetExecutableActionForNowAsync(nowQuarter).ConfigureAwait(false);
+                bool batteryIsFull = await BatteryIsFullAsync().ConfigureAwait(false);
+                bool batteryIsCharging = execMode == Modes.Charging;
+
                 if (await WeControlTheBatteries().ConfigureAwait(false))
                 {
-                    var (execMode, execPowerW) = await _milpService.GetExecutableActionForNowAsync(nowQuarter).ConfigureAwait(false);
-
                     // ── Curtailment check ────────────────────────────────────────────────
                     // Signal the InverterCurtailmentService whether curtailment should be
                     // active. The actual inverter throttling runs in its own 5-second loop
                     // so it can react to real-time load changes (heat pump, AC, etc.)
                     // without waiting for the 60-second BatteriesService cycle.
                     //
-                    // Curtailment condition: price is negative AND battery is full.
+                    // Curtailment condition: price is negative AND battery is NOT charging.
                     //
+                    // When the battery is charging, solar energy goes directly into the battery
+                    // rather than to the grid — curtailment is unnecessary and would reduce
+                    // the available solar for charging.
                     // When curtailment is active the Sessy must be Disabled (StopAll),
                     // NOT ZeroNetHome. NOM reacts to the grid current and would try to
                     // discharge the battery to compensate for the reduced inverter output —
                     // directly fighting the curtailment logic.
                     var nowQi = _quarterlyInfos.FirstOrDefault(q => q.Time == nowQuarter);
-                    bool priceIsNegative = nowQi?.PriceIsNegative ?? false;
-                    bool batteryIsFull = await BatteryIsFullAsync().ConfigureAwait(false);
+                    bool priceIsNegative = nowQi?.SellingPriceIsNegative ?? false;
 
-                    _inverterCurtailmentService.SetCurtailmentRequested(priceIsNegative, batteryIsFull);
+                    // Only curtail when price is negative AND battery is not actively charging.
+                    bool curtailmentNeeded = priceIsNegative && !batteryIsCharging;
 
-                    // When the inverter is shut down (price negative, battery not full),
+                    _inverterCurtailmentService.SetCurtailmentRequested(curtailmentNeeded, batteryIsFull, batteryIsCharging && priceIsNegative);
+
+                    // When the inverter is shut down (price negative, battery not full, not charging),
                     // zero out the solar forecast in QuarterlyInfos so the chart reflects
                     // the actual situation — no solar production during shutdown periods.
-                    if (priceIsNegative && !batteryIsFull)
+                    if (curtailmentNeeded && !batteryIsFull)
                     {
-                        foreach (var qi in _quarterlyInfos.Where(q => q.PriceIsNegative))
+                        foreach (var qi in _quarterlyInfos.Where(q => q.SellingPriceIsNegative))
                         {
                             qi.SolarPowerPerQuarterHour = 0.0;
                             qi.SmoothedSolarPower = 0.0;
@@ -252,10 +259,10 @@ namespace SessyController.Services
                     // Curtailment is active in both shutdown (battery not full) and
                     // throttle (battery full) modes. In both cases the Sessy must be
                     // Disabled so NOM does not fight the inverter curtailment.
-                    // Only force Disabled when the price is actually still negative —
+                    // Only force Disabled when curtailment is actually needed —
                     // if the price turned positive but IsCurtailmentActive is still true
                     // due to a Modbus error, we should not block Charging.
-                    if (_inverterCurtailmentService.IsCurtailmentActive && priceIsNegative)
+                    if (_inverterCurtailmentService.IsCurtailmentActive && curtailmentNeeded)
                     {
                         execMode = Modes.Disabled;
                         execPowerW = 0;
@@ -281,7 +288,7 @@ namespace SessyController.Services
 #if !DEBUG
                     // Release curtailment when we lose control so the inverter
                     // is not left throttled if e.g. the supplier takes over.
-                    _inverterCurtailmentService.SetCurtailmentRequested(false, false);
+                    _inverterCurtailmentService.SetCurtailmentRequested(false, batteryIsFull, batteryIsCharging);
                     await _batteryContainer.StopAll().ConfigureAwait(false);
 #endif
                 }
@@ -562,7 +569,8 @@ namespace SessyController.Services
             }
             else
             {
-                // EnergyMonitorService hasn't stored a record yet — create one now.
+                // EnergyMonitorService may have stored a record concurrently.
+                // Use AddOrUpdate to avoid UNIQUE constraint violations.
                 var measurement = new QuarterlyMeasurement
                 {
                     Time = currentQuarterlyInfo.Time,
@@ -575,7 +583,9 @@ namespace SessyController.Services
                     PlannedRevenueEur = currentQuarterlyInfo.Profit,
                 };
 
-                await _measurementService.Add(new List<QuarterlyMeasurement> { measurement })
+                await _measurementService.AddOrUpdate(
+                    new List<QuarterlyMeasurement> { measurement },
+                    (item, set) => set.FirstOrDefault(m => m.Time == item.Time))
                     .ConfigureAwait(false);
             }
         }

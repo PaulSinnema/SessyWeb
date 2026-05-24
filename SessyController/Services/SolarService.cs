@@ -404,7 +404,7 @@ namespace SessyController.Services
             if (currentHourlyInfo.SellingPriceIsPositive)
                 return true;
 
-            if (currentHourlyInfo.PriceIsNegative && currentHourlyInfo.ChargeLeftPercentage(totalCapacity) < 100.0)
+            if (currentHourlyInfo.SellingPriceIsNegative && currentHourlyInfo.ChargeLeftPercentage(totalCapacity) < 100.0)
                 return true;
 
             return false;

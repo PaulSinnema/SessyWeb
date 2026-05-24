@@ -1,18 +1,15 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Moq;
-using SessyData.Helpers;
 using SessyCommon.Configurations;
 using SessyCommon.Services;
 using SessyController.Services;
-using SessyController.Services.Statistics;
 using SessyController.Services.Items;
-using SessyData.Services;
 using SessyController.Services.Optimization;
 using SessyController.Services.Statistics;
+using SessyData.Helpers;
 using SessyData.Model;
 using SessyData.Services;
-using Xunit;
 
 namespace SessyTests.Services
 {

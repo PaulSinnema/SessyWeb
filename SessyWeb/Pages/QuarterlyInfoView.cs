@@ -32,7 +32,6 @@
         public double EstimatedConsumptionPerQuarterHourVisual => EstimatedConsumptionPerQuarterHour / 2500;
         public double ChargeNeededVisual => ChargeNeeded / 100000;
         public double ChargeLeftVisual => ChargeLeft / 100000;
-        public double SolarPowerVisual => SmoothedSolarPower / 2.5;
 
         // Scale battery power to price axis: max 5400W = max 0.30 EUR on axis.
         // Discharging is positive (battery delivers energy = revenue = above axis).
@@ -52,6 +51,14 @@
         public double AverageBuyingPrice { get; set; }
         public double AverageSellingPrice { get; set; }
         public double? SessionCost { get; set; } = null;
+
+        /// <summary>Inverter throttle percentage (0-100). 100 = full output, 0 = shutdown.</summary>
+        public double ThrottlePct { get; set; } = 100.0;
+
+        /// <summary>True when the selling price is negative (curtailment may be active).</summary>
+        public bool IsCurtailed { get; set; }
+
+        public double SolarPowerVisual => SmoothedSolarPower * (ThrottlePct / 100.0) / 2.5;
 
         public override string ToString()
         {

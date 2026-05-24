@@ -462,7 +462,9 @@ namespace SessyWeb.Pages
                 DeltaLowestPrice = quarterlyInfo.DeltaLowestPrice,
 
                 ChargePowerW = chargePowerW,
-                DischargePowerW = dischargePowerW
+                DischargePowerW = dischargePowerW,
+                IsCurtailed = quarterlyInfo.SellingPriceIsNegative,
+                ThrottlePct = quarterlyInfo.SellingPriceIsNegative ? (currentThrottlePercentage ?? 100.0) : 100.0
             });
         }
 
@@ -515,7 +517,9 @@ namespace SessyWeb.Pages
                 // Actual battery power from measurement.
                 // BatteryPowerWatts: negative = charging, positive = discharging.
                 ChargePowerW = measurement.BatteryPowerWatts < 0 ? Math.Abs(measurement.BatteryPowerWatts) : 0.0,
-                DischargePowerW = measurement.BatteryPowerWatts > 0 ? measurement.BatteryPowerWatts : 0.0
+                DischargePowerW = measurement.BatteryPowerWatts > 0 ? measurement.BatteryPowerWatts : 0.0,
+                IsCurtailed = measurement.SellingPriceEur < 0.0,
+                ThrottlePct = 100.0  // Historical: already measured after throttling.
             };
         }
 

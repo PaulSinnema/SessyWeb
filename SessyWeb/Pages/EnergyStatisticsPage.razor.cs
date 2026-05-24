@@ -14,40 +14,47 @@ namespace SessyWeb.Pages
         [Inject]
         private TimeZoneService? _timeZoneService { get; set; }
 
+        [Inject]
+        private IMilpService? _milpService { get; set; }
+
         // Single source of truth — the entire page binds to this object.
         private DashboardStatistics? Dashboard { get; set; }
+
+        private bool IsLoading { get; set; } = false;
 
         protected override async Task OnInitializedAsync()
         {
             await LoadStatisticsAsync(null);
         }
 
-        public bool IsLoading { get; set; } = false;
-
-        private async Task LoadStatisticsAsync(DateArgs? range)
+        private async Task LoadStatisticsAsync(DateArgs? args)
         {
             IsLoading = true;
-            IsBusy = true;
             StateHasChanged();
 
             try
             {
-                var start = range?.Start ?? DateTime.MinValue;
-                var end = range?.End ?? DateTime.MaxValue;
+                var start = args?.Start ?? DateTime.MinValue;
+                var end = args?.End ?? DateTime.MaxValue;
 
                 Dashboard = await _statisticsService!.GetDashboardStatisticsAsync(start, end);
             }
             finally
             {
                 IsLoading = false;
-                IsBusy = false;
                 StateHasChanged();
             }
         }
 
-        private async Task OnDateRangeChanged(DateArgs range)
+        private async Task OnDateRangeChanged(DateArgs args)
         {
-            await LoadStatisticsAsync(range);
+            await LoadStatisticsAsync(args);
+        }
+
+        private async Task ClearPlanAsync()
+        {
+            await _milpService!.ClearPlanAsync();
+            await LoadStatisticsAsync(null);
         }
     }
 }

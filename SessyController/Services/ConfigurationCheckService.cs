@@ -47,7 +47,7 @@ namespace SessyController.Services
             await CheckTaxesConfiguration(checks);
             await CheckGasPricesHistory(checks);
             CheckHeatPumpConfiguration(checks);
-            CheckPlanStatus(checks);
+            await CheckPlanStatus(checks).ConfigureAwait(false);
 
             return checks.OrderBy(c => c.Severity).ToList();
         }
@@ -220,10 +220,10 @@ namespace SessyController.Services
             });
         }
 
-        private void CheckPlanStatus(List<ConfigurationCheck> checks)
+        private async Task CheckPlanStatus(List<ConfigurationCheck> checks)
         {
             var now = _timeZoneService.Now;
-            var plan = _milpService.GetPlanStatistics(now);
+            var plan = await _milpService.GetPlanStatisticsAsync(now);
 
             if (plan.TotalFutureQuarters == 0)
             {

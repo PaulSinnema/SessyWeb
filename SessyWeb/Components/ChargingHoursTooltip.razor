@@ -19,10 +19,19 @@
 
 <RadzenRow>
     <RadzenColumn Size="8">
-        <RadzenTextBox Value="Price" disabled Style=@fixedWidthStyle />
+        <RadzenTextBox Value="Selling price" disabled Style=@fixedWidthStyle />
     </RadzenColumn>
     <RadzenColumn Size="2">
-        <RadzenNumeric Format="0.0000" ShowUpDown="false" Value=@QuarterlyInfo?.Price disabled Style=@fixedWidthStyle />
+        <RadzenNumeric Format="0.0000" ShowUpDown="false" Value=@QuarterlyInfo?.SellingPrice disabled Style=@fixedWidthStyle />
+    </RadzenColumn>
+</RadzenRow>
+
+<RadzenRow>
+    <RadzenColumn Size="8">
+        <RadzenTextBox Value="Buying price" disabled Style=@fixedWidthStyle />
+    </RadzenColumn>
+    <RadzenColumn Size="2">
+        <RadzenNumeric Format="0.0000" ShowUpDown="false" Value=@QuarterlyInfo?.BuyingPrice disabled Style=@fixedWidthStyle />
     </RadzenColumn>
 </RadzenRow>
 

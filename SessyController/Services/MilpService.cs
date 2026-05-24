@@ -40,24 +40,28 @@ namespace SessyController.Services
         /// Saves the current plan to the database for tombstoning across restarts.
         /// Called after each successful MILP solve.
         /// </summary>
-        private async Task SavePlanAsync()
+        private async Task SavePlanAsync(string reason)
         {
             try
             {
                 var savedAt = DateTime.UtcNow;
+                var planId = Guid.NewGuid();
                 var signature = CalculatePriceSignature(_quarterlyInfos);
 
                 var actions = _planByTime.Select(kvp => new SessyData.Model.PlannedAction
                 {
+                    PlanId = planId,
                     Time = kvp.Key,
                     Mode = kvp.Value.Mode.ToString(),
                     PowerW = kvp.Value.PowerW,
                     SavedAt = savedAt,
-                    PriceSignature = signature
+                    ObjectiveEur = _lastPlanObjectiveEur,
+                    PriceSignature = signature,
+                    Reason = reason
                 }).ToList();
 
                 await _plannedActionDataService.SavePlanAsync(actions).ConfigureAwait(false);
-                _logger.LogInformation($"Plan tombstoned: {actions.Count} quarters saved.");
+                _logger.LogInformation($"Plan saved ({actions.Count} quarters, reason: {reason}).");
             }
             catch (Exception ex)
             {
@@ -94,6 +98,7 @@ namespace SessyController.Services
 
                 // Restore the price signature that was valid when the plan was solved.
                 // RebuildPlanIfNeeded will trigger if new day-ahead prices arrived during restart.
+                _lastPlanObjectiveEur = actions.First().ObjectiveEur;
                 _lastPriceSignature = actions.First().PriceSignature;
                 _plannedSocAtLastBuildWh = await _batteryContainer.GetStateOfChargeInWatts().ConfigureAwait(false);
 
@@ -152,12 +157,14 @@ namespace SessyController.Services
         // Planned SOC at the start of the last solved quarter (Wh).
         private double _plannedSocAtLastBuildWh;
 
-        private bool SocDeviationExceedsThreshold(double currentSocWh)
+        private bool SocDeviationExceedsThreshold(double currentSocWh, out double deviationPct)
         {
             double capacityWh = _batteryContainer.GetTotalCapacity();
+            deviationPct = 0;
+
             if (capacityWh <= 0) return false;
 
-            double deviationPct = Math.Abs(currentSocWh - _plannedSocAtLastBuildWh) / capacityWh * 100.0;
+            deviationPct = Math.Abs(currentSocWh - _plannedSocAtLastBuildWh) / capacityWh * 100.0;
 
             if (deviationPct > SocDeviationThresholdPct)
             {
@@ -278,18 +285,27 @@ namespace SessyController.Services
             => _planByTime.ContainsKey(quarter);
 
         /// <summary>
-        /// Invalidates the current plan, forcing a full rebuild on the next cycle.
+        /// Clears the current plan from memory and the database,
+        /// forcing a full rebuild on the next cycle.
         /// </summary>
-        public void InvalidatePlan()
+        public async Task ClearPlanAsync()
         {
+            _planByTime.Clear();
+            _lastPriceSignature = null;
+            _lastBuildTime = null;
+            _lastPlanObjectiveEur = 0.0;
             _lastPlannedQuarter = null;
             _lastPriceSignature = null;
+
+            await _plannedActionDataService.ClearPlanAsync().ConfigureAwait(false);
+
+            _logger.LogInformation("Plan cleared by user request — will rebuild on next cycle.");
         }
 
         /// <summary>
         /// Returns statistics about the current plan for display on the dashboard.
         /// </summary>
-        public PlanStatistics GetPlanStatistics(DateTime now)
+        public async Task<PlanStatistics> GetPlanStatisticsAsync(DateTime now)
         {
             var futurePlan = _planByTime
                 .Where(kvp => kvp.Key >= now)
@@ -317,6 +333,8 @@ namespace SessyController.Services
                 ? futurePlan.Max(kvp => kvp.Key)
                 : (DateTime?)null;
 
+            var history = await _plannedActionDataService.GetPlanHistoryAsync(20).ConfigureAwait(false);
+
             return new PlanStatistics
             {
                 LastBuildTime = _lastBuildTime,
@@ -332,6 +350,7 @@ namespace SessyController.Services
                 SocDeviationPct = _batteryContainer.GetTotalCapacity() > 0
                     ? Math.Abs((_plannedSocAtLastBuildWh - 0) / _batteryContainer.GetTotalCapacity() * 100.0)
                     : 0.0,
+                RecentHistory = history,
             };
         }
 
@@ -519,14 +538,21 @@ namespace SessyController.Services
         {
             long currentSignature = CalculatePriceSignature(_quarterlyInfos);
 
-            bool needRebuild =
-                _planByTime.Count == 0 ||
-                _lastPriceSignature == null ||
-                _lastPriceSignature.Value != currentSignature ||
-                SocDeviationExceedsThreshold(currentSocWh);
+            string? reason = null;
 
-            if (!needRebuild)
+            if (_planByTime.Count == 0)
+                reason = "No plan exists";
+            else if (_lastPriceSignature == null)
+                reason = "Price signature not set (first run or after restore)";
+            else if (_lastPriceSignature.Value != currentSignature)
+                reason = $"Price signature changed ({_lastPriceSignature.Value} → {currentSignature})";
+            else if (SocDeviationExceedsThreshold(currentSocWh, out var deviationPct))
+                reason = $"SOC deviation {deviationPct:F1}% exceeded threshold {SocDeviationThresholdPct}%";
+
+            if (reason == null)
                 return false;
+
+            _logger.LogInformation($"Rebuilding plan: {reason}");
 
             bool built = await BuildMilpPlanAsync(currentSocWh).ConfigureAwait(false);
 
@@ -541,7 +567,7 @@ namespace SessyController.Services
             _plannedSocAtLastBuildWh = currentSocWh;
             _lastBuildTime = _timeZoneService.Now;
 
-            await SavePlanAsync().ConfigureAwait(false);
+            await SavePlanAsync(reason).ConfigureAwait(false);
 
             return true;
         }
@@ -718,7 +744,7 @@ namespace SessyController.Services
                     {
                         var lastQi = _quarterlyInfos.FirstOrDefault(q => q.Time == lastQuarter);
 
-                        if (lastQi == null || !lastQi.PriceIsNegative)
+                        if (lastQi == null || !lastQi.SellingPriceIsNegative)
                         {
                             _planByTime[lastQuarter] = new PlanAction
                             {

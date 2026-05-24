@@ -236,6 +236,11 @@
                                 {
                                     <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="Restored from database" />
                                 }
+                                <RadzenButton Text="Clear plan" Icon="delete"
+                                              ButtonStyle="ButtonStyle.Danger"
+                                              Size="ButtonSize.Small"
+                                              Click="@ClearPlanAsync"
+                                              title="Removes the current plan from memory and database. A fresh plan will be built on the next cycle." />
                             </RadzenStack>
                             <RadzenRow Gap="8px">
                                 <RadzenColumn Size="6" SizeMD="3">
@@ -273,6 +278,34 @@
                                 Expected profit covers all @Dashboard.Plan.TotalFutureQuarters future quarters (@($"{Dashboard.Plan.TotalFutureQuarters / 4.0:F1}") hrs).
                                 The Arbitrage chart shows daily realized vs planned profit for past days only.
                             </RadzenText>
+
+                            @* Plan history *@
+                            @if (Dashboard.Plan.RecentHistory.Any())
+                            {
+                                <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mt-4">Plan history</RadzenText>
+                                <RadzenDataGrid Data="@Dashboard.Plan.RecentHistory"
+                                                TItem="SessyData.Services.PlanHistoryEntry"
+                                                Density="Density.Compact"
+                                                AllowSorting="false"
+                                                AllowFiltering="false"
+                                                AllowPaging="false">
+                                    <Columns>
+                                        <RadzenDataGridColumn TItem="SessyData.Services.PlanHistoryEntry" Title="Generated at">
+                                            <Template Context="h">@h.SavedAt.ToLocalTime().ToString("dd-MM-yyyy HH:mm")</Template>
+                                        </RadzenDataGridColumn>
+                                        <RadzenDataGridColumn Property="@nameof(SessyData.Services.PlanHistoryEntry.Reason)" Title="Reason" />
+                                        <RadzenDataGridColumn TItem="SessyData.Services.PlanHistoryEntry" Title="Expected profit">
+                                            <Template Context="h">€ @h.ObjectiveEur.ToString("F2")</Template>
+                                        </RadzenDataGridColumn>
+                                        <RadzenDataGridColumn TItem="SessyData.Services.PlanHistoryEntry" Title="Quarters">
+                                            <Template Context="h">@h.QuarterCount (@($"{h.QuarterCount / 4.0:F1}") hrs)</Template>
+                                        </RadzenDataGridColumn>
+                                        <RadzenDataGridColumn TItem="SessyData.Services.PlanHistoryEntry" Title="Horizon">
+                                            <Template Context="h">@h.PlanHorizon.ToLocalTime().ToString("dd-MM HH:mm")</Template>
+                                        </RadzenDataGridColumn>
+                                    </Columns>
+                                </RadzenDataGrid>
+                            }
                         </RadzenCard>
                     </RadzenColumn>
                 }
@@ -316,34 +349,36 @@
                 @* ── Daily Arbitrage Chart ───────────────────────────────── *@
                 @if (Dashboard.DailyArbitrageTrends.Any())
                 {
-                    <RadzenColumn Size="12">
+                    <RadzenColumn Size="12" SizeMD="6">
                         <RadzenCard>
                             <RadzenText TextStyle="TextStyle.H6">📊 Arbitrage: Planned vs Realized</RadzenText>
-                            <RadzenChart Style="height: 260px;">
-                                <RadzenColumnSeries Data="@Dashboard.DailyArbitrageTrends"
-                                                    CategoryProperty="@nameof(DailyArbitrageTrend.Date)"
-                                                    ValueProperty="@nameof(DailyArbitrageTrend.PlannedEur)"
-                                                    Title="Planned (€)"
-                                                    Fill="#6366f1">
-                                    <ChildContent>
-                                        <RadzenSeriesDataLabels Visible="true" />
-                                    </ChildContent>
-                                </RadzenColumnSeries>
-                                <RadzenColumnSeries Data="@Dashboard.DailyArbitrageTrends"
-                                                    CategoryProperty="@nameof(DailyArbitrageTrend.Date)"
-                                                    ValueProperty="@nameof(DailyArbitrageTrend.RealizedEur)"
-                                                    Title="Realized (€)"
-                                                    Fill="#22c55e">
-                                    <ChildContent>
-                                        <RadzenSeriesDataLabels Visible="true" />
-                                    </ChildContent>
-                                </RadzenColumnSeries>
-                                <RadzenCategoryAxis FormatString="{0:dd-MM}" />
-                                <RadzenValueAxis FormatString="€ {0:F2}">
-                                    <RadzenGridLines Visible="true" />
-                                </RadzenValueAxis>
-                                <RadzenLegend Position="LegendPosition.Bottom" />
-                            </RadzenChart>
+                            <div style="width: 100%; overflow: auto;">
+                                <RadzenChart Style="@($"height: 260px; width: {Math.Max(800, Dashboard.DailyArbitrageTrends.Count * 80)}px")" MarginTop="30" MarginLeft="60" MarginRight="60">
+                                    <RadzenColumnSeries Data="@Dashboard.DailyArbitrageTrends"
+                                                        CategoryProperty="@nameof(DailyArbitrageTrend.Date)"
+                                                        ValueProperty="@nameof(DailyArbitrageTrend.PlannedEur)"
+                                                        Title="Planned (€)"
+                                                        Fill="#6366f1">
+                                        <ChildContent>
+                                            <RadzenSeriesDataLabels Visible="true" />
+                                        </ChildContent>
+                                    </RadzenColumnSeries>
+                                    <RadzenColumnSeries Data="@Dashboard.DailyArbitrageTrends"
+                                                        CategoryProperty="@nameof(DailyArbitrageTrend.Date)"
+                                                        ValueProperty="@nameof(DailyArbitrageTrend.RealizedEur)"
+                                                        Title="Realized (€)"
+                                                        Fill="#22c55e">
+                                        <ChildContent>
+                                            <RadzenSeriesDataLabels Visible="true" />
+                                        </ChildContent>
+                                    </RadzenColumnSeries>
+                                    <RadzenCategoryAxis FormatString="{0:dd-MM}" />
+                                    <RadzenValueAxis FormatString="€ {0:F2}">
+                                        <RadzenGridLines Visible="true" />
+                                    </RadzenValueAxis>
+                                    <RadzenLegend Position="LegendPosition.Bottom" />
+                                </RadzenChart>
+                            </div>
                         </RadzenCard>
                     </RadzenColumn>
                 }

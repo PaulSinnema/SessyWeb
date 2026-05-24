@@ -37,5 +37,8 @@
 
         /// <summary>SOC deviation at last build as percentage of total capacity.</summary>
         public double SocDeviationPct { get; set; }
+
+        /// <summary>Recent plan solve history (most recent first).</summary>
+        public List<SessyData.Services.PlanHistoryEntry> RecentHistory { get; set; } = new();
     }
 }

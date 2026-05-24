@@ -177,7 +177,7 @@ namespace SessyController.Services.Items
         public double NetLoadWh =>
             EstimatedConsumptionPerQuarterInWatts * 0.25 - SolarPowerPerQuarterHour * 1000.0;
 
-        public bool PriceIsNegative => BuyingPrice < 0.0;
+        public bool SellingPriceIsNegative => SellingPrice < 0.0;
         public bool BuyingPriceIsPositive => BuyingPrice >= 0.0;
         public bool SellingPriceIsPositive => SellingPrice >= 0.0;
 
