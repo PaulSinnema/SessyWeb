@@ -21,6 +21,7 @@ namespace SessyController.Services.InverterServices
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly SolarEdgeCloudConfig _cloudConfig;
         private readonly LoggingService<SolarEdgeInverterService> _logger;
+        private readonly TimeZoneService _timezoneService;
 
         // Cache fallback result to avoid exceeding the 300 requests/day limit.
         private double _cachedFallbackWatts = 0.0;
@@ -30,6 +31,7 @@ namespace SessyController.Services.InverterServices
         private const string CloudBaseUrl = "https://monitoringapi.solaredge.com";
 
         public SolarEdgeInverterService(LoggingService<SolarEdgeInverterService> logger,
+                                        TimeZoneService timezoneService,
                                         IHttpClientFactory httpClientFactory,
                                         IOptionsMonitor<SettingsConfig> settingsConfig,
                                         IOptionsMonitor<PowerSystemsConfig> powerSystemsConfig,
@@ -38,6 +40,7 @@ namespace SessyController.Services.InverterServices
             : base(logger, "SolarEdge", httpClientFactory, settingsConfig, powerSystemsConfig, serviceScopeFactory)
         {
             _logger = logger;
+            _timezoneService = timezoneService;
             _httpClientFactory = httpClientFactory;
             _cloudConfig = cloudConfig.Value;
         }
@@ -60,7 +63,7 @@ namespace SessyController.Services.InverterServices
                 return 0.0;
 
             // Return cached value if still fresh.
-            if (DateTime.UtcNow < _cacheExpiry)
+            if (_timeZoneService.Now < _cacheExpiry)
                 return _cachedFallbackWatts;
 
             try
@@ -85,7 +88,7 @@ namespace SessyController.Services.InverterServices
                 double watts = (powerFlow?.SiteCurrentPowerFlow?.PV?.CurrentPower ?? 0.0) * 1000.0;
 
                 _cachedFallbackWatts = watts;
-                _cacheExpiry = DateTime.UtcNow.AddSeconds(CloudCacheSeconds);
+                _cacheExpiry = _timeZoneService.Now.AddSeconds(CloudCacheSeconds);
 
                 _logger.LogInformation($"SolarEdge cloud fallback: {watts:F0} W");
 

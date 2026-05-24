@@ -182,6 +182,14 @@ namespace SessyController.Services
                 await _solarService.GetExpectedSolarPower(_quarterlyInfos).ConfigureAwait(false);
 
                 // SOC via HardwareStatusService (polled in background — no extra Sessy request).
+                // Do not proceed with plan building until hardware status is available —
+                // a SOC of 0 would cause a false deviation and destroy the tombstoned plan.
+                if (!_hardwareStatus.IsReady)
+                {
+                    _logger.LogWarning("BatteriesService: HardwareStatusService not ready yet — skipping cycle.");
+                    return;
+                }
+
                 double currentSocWh = _hardwareStatus.CurrentSocWh;
 
                 // Delegate all MILP planning to MilpService.
@@ -189,18 +197,9 @@ namespace SessyController.Services
 
                 if (await WeControlTheBatteries().ConfigureAwait(false))
                 {
-                    // ── Load inputs ──────────────────────────────────────────────────
                     await _systemInput.LoadAsync().ConfigureAwait(false);
 
-                    if (!_systemInput.IsLoaded)
-                    {
-                        _logger.LogWarning("BatteriesService: HardwareStatusService not ready yet — skipping cycle.");
-                        return;
-                    }
-
-                    // ── Evaluate state machine ────────────────────────────────────────
-                    // All decisions (battery mode, inverter setpoint, curtailment) are
-                    // made here. No decision logic anywhere else.
+                    // Evaluate state machine — all decisions made here.
                     var action = _stateMachine.Evaluate(_systemInput);
 
                     // ── Execute ───────────────────────────────────────────────────────
@@ -382,8 +381,8 @@ namespace SessyController.Services
             // from InverterMeasurements. BatteriesService may store a quarter before
             // SunspecInverterService has written the InverterMeasurement for that quarter.
             // Running this every 60s corrects those records once the data is available.
-            var backfillFrom = DateTime.Now.AddHours(-2).DateFloorQuarter();
-            var backfillTo = DateTime.Now.DateFloorQuarter();
+            var backfillFrom = _timeZoneService.Now.AddHours(-2).DateFloorQuarter();
+            var backfillTo = _timeZoneService.Now.DateFloorQuarter();
 
             var recentMeasurements = await _measurementService.GetList(async set =>
             {

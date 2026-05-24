@@ -167,7 +167,7 @@ namespace SessyController.Managers
             foreach (var service in _activeInverterServices)
             {
                 bool wasAvailable = service.IsAvailable;
-                bool isNowAvailable = (DateTime.UtcNow - service.LastSuccessfulReadUtc).TotalSeconds
+                bool isNowAvailable = (_timeZoneService.Now - service.LastSuccessfulReadUtc).TotalSeconds
                                       < AvailabilityTimeoutSeconds;
 
                 service.IsAvailable = isNowAvailable;

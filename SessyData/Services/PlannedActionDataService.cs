@@ -1,12 +1,20 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using SessyCommon.Services;
 using SessyData.Model;
 
 namespace SessyData.Services
 {
     public class PlannedActionDataService : ServiceBase<PlannedAction>
     {
-        public PlannedActionDataService(IServiceScopeFactory serviceScopeFactory)
-            : base(serviceScopeFactory) { }
+        private readonly TimeZoneService _timeZoneService;
+
+        public PlannedActionDataService(
+            IServiceScopeFactory serviceScopeFactory,
+            TimeZoneService timeZoneService)
+            : base(serviceScopeFactory)
+        {
+            _timeZoneService = timeZoneService;
+        }
 
         /// <summary>
         /// Saves a new plan to the database. Old plans are kept for audit/diagnosis.
@@ -15,7 +23,7 @@ namespace SessyData.Services
         public async Task SavePlanAsync(IEnumerable<PlannedAction> actions)
         {
             // Purge old plans beyond retention window.
-            var cutoff = DateTime.UtcNow.AddDays(-PlannedAction.MaxPlanRetentionDays);
+            var cutoff = _timeZoneService.Now.AddDays(-PlannedAction.MaxPlanRetentionDays);
 
             var old = await GetList(async set =>
                 await Task.FromResult(
@@ -42,45 +50,21 @@ namespace SessyData.Services
             if (!all.Any())
                 return new List<PlannedAction>();
 
-            // Find the most recent PlanId.
             var latestPlanId = all.First().PlanId;
             var latestPlan = all.Where(p => p.PlanId == latestPlanId).ToList();
 
-            // Check age.
             var savedAt = latestPlan.Max(p => p.SavedAt);
-            var ageHours = (DateTime.UtcNow - savedAt).TotalHours;
+            var ageHours = (_timeZoneService.Now - savedAt).TotalHours;
 
             if (ageHours > PlannedAction.MaxPlanAgeHours)
                 return new List<PlannedAction>();
 
-            // Only return quarters still relevant (current or future).
-            var now = DateTime.UtcNow;
+            var now = _timeZoneService.Now;
             return latestPlan.Where(p => p.Time >= now.AddMinutes(-15)).ToList();
         }
 
         /// <summary>
-        /// Remove the most recent plan from the database.
-        /// </summary>
-        public async Task<bool> ClearPlanAsync()
-        {
-            var all = await GetList(async set =>
-                await Task.FromResult(set.OrderByDescending(p => p.SavedAt).ToList()));
-
-            if (!all.Any())
-                return false;
-
-            // Find the most recent PlanId.
-            var latestPlanId = all.First().PlanId;
-            var latestPlan = all.Where(p => p.PlanId == latestPlanId).ToList();
-
-            await Remove(latestPlan, null);
-
-            return true;
-        }
-
-        /// <summary>
         /// Returns a summary of all stored plan solves for display on the dashboard.
-        /// Returns one entry per PlanId, ordered by SavedAt descending.
         /// </summary>
         public async Task<List<PlanHistoryEntry>> GetPlanHistoryAsync(int maxEntries = 50)
         {
@@ -102,11 +86,19 @@ namespace SessyData.Services
                 .Take(maxEntries)
                 .ToList();
         }
+
+        /// <summary>Removes all saved plan entries.</summary>
+        public async Task ClearPlanAsync()
+        {
+            var existing = await GetList(async set =>
+                await Task.FromResult(set.ToList()));
+
+            if (existing.Any())
+                await Remove(existing, (item, set) =>
+                    set.FirstOrDefault(p => p.Id == item.Id));
+        }
     }
 
-    /// <summary>
-    /// Summary of one MILP solve for display in plan history.
-    /// </summary>
     public class PlanHistoryEntry
     {
         public Guid PlanId { get; set; }

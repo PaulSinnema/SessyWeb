@@ -44,7 +44,7 @@ namespace SessyController.Services
         {
             try
             {
-                var savedAt = DateTime.UtcNow;
+                var savedAt = _timeZoneService.Now;
                 var planId = Guid.NewGuid();
                 var signature = CalculatePriceSignature(_quarterlyInfos);
 
@@ -100,7 +100,6 @@ namespace SessyController.Services
                 // RebuildPlanIfNeeded will trigger if new day-ahead prices arrived during restart.
                 _lastPlanObjectiveEur = actions.First().ObjectiveEur;
                 _lastPriceSignature = actions.First().PriceSignature;
-                _plannedSocAtLastBuildWh = await _batteryContainer.GetStateOfChargeInWatts().ConfigureAwait(false);
 
                 _logger.LogInformation(
                     $"Tombstoned plan restored: {restored.Count} quarters, " +
@@ -138,42 +137,50 @@ namespace SessyController.Services
         private DateTime? _lastPlannedQuarter;
         private long? _lastPriceSignature;
 
-        // ── Plan-tracking ────────────────────────────────────────────────────
-        //
-        // The plan is built once when day-ahead prices arrive (signature change)
-        // or when the SOC deviates significantly from the planned SOC.
-        // Within a quarter the plan is executed as-is — no re-optimisation.
-        //
-        // Re-plan triggers:
-        //   1. Price signature changed (new day-ahead prices available)
-        //   2. SOC deviation > SocDeviationThresholdPct of total capacity
-        //   3. No plan exists yet
-        //
-        // Explicitly NOT a trigger:
-        //   - New quarter (was the main cause of rolling-horizon drift)
-
         private const double SocDeviationThresholdPct = 20.0; // % of total capacity
 
-        // Planned SOC at the start of the last solved quarter (Wh).
-        private double _plannedSocAtLastBuildWh;
-
-        private bool SocDeviationExceedsThreshold(double currentSocWh, out double deviationPct)
+        /// <summary>
+        /// Gets the percentage the current quarter ChargeLeft deviates from the Current soc of the batteries.
+        /// </summary>
+        /// <remarks>
+        /// TODO: BUG
+        /// This routine in its current state always returns 0%. The routine check wether the ChargeLeft of 
+        /// the current quarter has a deviation from the currentSoc > 20%.
+        /// But the current Quarter is filled with the CurrentSoc (from the battery) and thus the percentage
+        /// returned is alway 0%.
+        /// </remarks>
+        private double GetCurrentSocDeviationPct(DateTime now, double currentSocWh)
         {
             double capacityWh = _batteryContainer.GetTotalCapacity();
-            deviationPct = 0;
 
-            if (capacityWh <= 0) return false;
-
-            deviationPct = Math.Abs(currentSocWh - _plannedSocAtLastBuildWh) / capacityWh * 100.0;
-
-            if (deviationPct > SocDeviationThresholdPct)
+            if (_quarterlyInfos.Any() && capacityWh > 0)
             {
-                _logger.LogInformation(
-                    $"SOC deviation {deviationPct:F1}% exceeds threshold {SocDeviationThresholdPct}% — rebuilding plan.");
-                return true;
+                var nowQuarter = now.DateFloorQuarter();
+                var currentQuarter = _quarterlyInfos.FirstOrDefault(q => q.Time == nowQuarter);
+
+                if ((currentQuarter?.ChargeLeftWh ?? 0) != 0)
+                {
+                    var chargingCapacity = currentQuarter.Charging ? _batteryContainer.GetChargingCapacityInWattsPerQuarter() : _batteryContainer.GetDischargingCapacityInWattsPerQuarter();
+
+                    double expectedSocWh = currentQuarter.ChargeLeftWh + chargingCapacity;
+
+                    var result = Math.Abs(currentSocWh - expectedSocWh) / capacityWh * 100.0;
+
+                    return result;
+                }
             }
 
-            return false;
+            return 0.0;
+        }
+
+        /// <summary>
+        /// This routine checks if the plan has to be rebuild.
+        /// </summary>
+        private bool SocDeviationExceedsThreshold(double currentSocWh, out double deviationPct)
+        {
+            deviationPct = GetCurrentSocDeviationPct(_timeZoneService.Now, currentSocWh);
+
+            return (deviationPct > SocDeviationThresholdPct);
         }
 
         // ── Constants ────────────────────────────────────────────────────────
@@ -305,7 +312,7 @@ namespace SessyController.Services
         /// <summary>
         /// Returns statistics about the current plan for display on the dashboard.
         /// </summary>
-        public async Task<PlanStatistics> GetPlanStatisticsAsync(DateTime now)
+        public async Task<PlanStatistics> GetPlanStatisticsAsync(DateTime now, double currentSocWh)
         {
             var futurePlan = _planByTime
                 .Where(kvp => kvp.Key >= now)
@@ -347,9 +354,7 @@ namespace SessyController.Services
                 ExpectedProfitEur = _lastPlanObjectiveEur,
                 NextDischargeTime = nextDischarge.Key == default ? null : nextDischarge.Key,
                 NextChargeTime = nextCharge.Key == default ? null : nextCharge.Key,
-                SocDeviationPct = _batteryContainer.GetTotalCapacity() > 0
-                    ? Math.Abs((_plannedSocAtLastBuildWh - 0) / _batteryContainer.GetTotalCapacity() * 100.0)
-                    : 0.0,
+                SocDeviationPct = GetCurrentSocDeviationPct(now, currentSocWh),
                 RecentHistory = history,
             };
         }
@@ -564,7 +569,6 @@ namespace SessyController.Services
 
             _lastPlannedQuarter = nowQuarter;
             _lastPriceSignature = currentSignature;
-            _plannedSocAtLastBuildWh = currentSocWh;
             _lastBuildTime = _timeZoneService.Now;
 
             await SavePlanAsync(reason).ConfigureAwait(false);

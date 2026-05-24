@@ -37,7 +37,7 @@ namespace SessyController.Services.InverterServices
 
         private bool _IsRunning { get; set; } = false;
 
-        private TimeZoneService _timeZoneService;
+        protected TimeZoneService _timeZoneService;
         private InverterMeasurementDataService _inverterMeasurementService;
 
         // Serializes all Modbus operations to prevent transaction ID mismatches
@@ -244,7 +244,7 @@ namespace SessyController.Services.InverterServices
 
                     // Update timestamp so health check can determine availability
                     // without making a separate Modbus connection.
-                    LastSuccessfulReadUtc = DateTime.UtcNow;
+                    LastSuccessfulReadUtc = _timeZoneService.Now;
 
                     return result;
                 }

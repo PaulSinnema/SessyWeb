@@ -223,7 +223,7 @@ namespace SessyController.Services
         private async Task CheckPlanStatus(List<ConfigurationCheck> checks)
         {
             var now = _timeZoneService.Now;
-            var plan = await _milpService.GetPlanStatisticsAsync(now);
+            var plan = await _milpService.GetPlanStatisticsAsync(now, 0.0);
 
             if (plan.TotalFutureQuarters == 0)
             {

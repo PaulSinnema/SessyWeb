@@ -103,7 +103,8 @@ namespace SessyTests.Services
                 consumptionMock.Object,
                 calculationServiceMock.Object,
                 batteryContainerMock.Object,
-                milpServiceMock.Object);
+                milpServiceMock.Object,
+                null!);
         }
 
         // ── Grid flow tests ──────────────────────────────────────────────────
@@ -431,7 +432,8 @@ namespace SessyTests.Services
                 consumptionMock2.Object,
                 calculationServiceMock2.Object,
                 batteryContainerMock2.Object,
-                milpServiceMock2.Object);
+                milpServiceMock2.Object,
+                null!);
 
             // Request full month — StatisticsFromDate clips it to May 15.
             var result = await sut.GetEnergyStatisticsAsync(DateTime.MinValue, PeriodEnd);

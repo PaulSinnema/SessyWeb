@@ -245,7 +245,7 @@
                             <RadzenRow Gap="8px">
                                 <RadzenColumn Size="6" SizeMD="3">
                                     <StatCardComponent Title="Last generated"
-                                                       Value="@(Dashboard.Plan.LastBuildTime.HasValue ? Dashboard.Plan.LastBuildTime.Value.ToString("dd-MM-yyyy HH:mm") : "Restored from DB")"
+                                                       Value="@(Dashboard.Plan.LastBuildTime.HasValue ? Dashboard.Plan.LastBuildTime.Value.ToLocalTime().ToString("dd-MM-yyyy HH:mm") : "Restored from DB")"
                                                        Highlight="@(Dashboard.Plan.LastBuildTime.HasValue)" />
                                 </RadzenColumn>
                                 <RadzenColumn Size="6" SizeMD="3">

@@ -22,6 +22,7 @@ namespace SessyController.Services.StateMachine
         private readonly LoggingService<HardwareStatusService> _logger;
         private readonly BatteryContainer _batteryContainer;
         private readonly SolarInverterManager _solarInverterManager;
+        private readonly TimeZoneService _timeZoneService;
 
         private const int PollIntervalSeconds = 10;
         private const double FullThresholdRatio = 0.995;
@@ -29,11 +30,13 @@ namespace SessyController.Services.StateMachine
         public HardwareStatusService(
             LoggingService<HardwareStatusService> logger,
             BatteryContainer batteryContainer,
-            SolarInverterManager solarInverterManager)
+            SolarInverterManager solarInverterManager,
+            TimeZoneService timeZoneService)
         {
             _logger = logger;
             _batteryContainer = batteryContainer;
             _solarInverterManager = solarInverterManager;
+            _timeZoneService = timeZoneService;
         }
 
         // ── Published properties ──────────────────────────────────────────
@@ -158,7 +161,7 @@ namespace SessyController.Services.StateMachine
                 _logger.LogWarning($"HardwareStatusService: inverter poll failed — {ex.Message}");
             }
 
-            LastPollAt = DateTime.UtcNow;
+            LastPollAt = _timeZoneService.Now;
 
             // Mark ready after first poll attempt — even if hardware is unreachable.
             // Consumers check IsReady before using values; 0/default values are safe.

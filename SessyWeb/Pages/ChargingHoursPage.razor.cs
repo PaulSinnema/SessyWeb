@@ -24,6 +24,9 @@ namespace SessyWeb.Pages
         [Inject] FinancialResultsService? _finacialResultsService { get; set; }
         [Inject] private HardwareStatusService? _hardwareStatusService { get; set; }
         [Inject] private EnergySystemStateMachine? _stateMachine { get; set; }
+        [Inject] private IMilpService? _milpService { get; set; }
+
+        private double SocDeviationPct { get; set; } = 0.0;
         [Inject] SolarInverterManager? _solarInverterManager { get; set; }
 
         public List<QuarterlyInfoView>? QuarterlyInfos { get; set; } = new();
@@ -248,6 +251,9 @@ namespace SessyWeb.Pages
 
                     BatteryPercentage = await _batteriesService!.getBatteryPercentage().ConfigureAwait(false);
                     BatteryMode = await _batteriesService.GetBatteryMode().ConfigureAwait(false);
+
+                    var planStats = await _milpService!.GetPlanStatisticsAsync(_timeZoneService!.Now, _hardwareStatusService?.CurrentSocWh ?? 0.0).ConfigureAwait(false);
+                    SocDeviationPct = planStats.SocDeviationPct;
                 }
                 finally
                 {

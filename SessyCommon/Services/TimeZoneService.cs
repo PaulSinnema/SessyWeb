@@ -30,7 +30,7 @@ namespace SessyCommon.Services
         /// Virtual so it can be overridden in unit tests via Moq.
         /// </summary>
 #if DEBUG
-        public virtual DateTime Now => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _timeZone!).AddMinutes(-20);
+        public virtual DateTime Now => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _timeZone!).AddMinutes(-7);
 
 #else
         public virtual DateTime Now => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _timeZone!);

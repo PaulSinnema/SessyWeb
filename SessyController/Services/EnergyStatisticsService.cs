@@ -2,6 +2,7 @@
 using SessyCommon.Configurations;
 using SessyCommon.Services;
 using SessyController.Services.Items;
+using SessyController.Services.StateMachine;
 using SessyController.Services.Statistics;
 using SessyData.Model;
 using SessyData.Services;
@@ -36,6 +37,7 @@ namespace SessyController.Services
         private readonly ICalculationService _calculationService;
         private readonly IBatteryContainer _batteryContainer;
         private readonly IMilpService _milpService;
+        private readonly HardwareStatusService _hardwareStatusService;
 
         // Convenience property: total battery capacity in kWh from BatteryContainer.
         private double BatteryCapacityKWh => _batteryContainer.GetTotalCapacity() / 1000.0;
@@ -55,7 +57,8 @@ namespace SessyController.Services
                                        ConsumptionDataService consumptionDataService,
                                        ICalculationService calculationService,
                                        IBatteryContainer batteryContainer,
-                                       IMilpService milpService)
+                                       IMilpService milpService,
+                                       HardwareStatusService hardwareStatusService)
         {
             _measurementDataService = measurementDataService;
             _investmentDataService = investmentDataService;
@@ -72,6 +75,7 @@ namespace SessyController.Services
             _calculationService = calculationService;
             _batteryContainer = batteryContainer;
             _milpService = milpService;
+            _hardwareStatusService = hardwareStatusService;
         }
 
         /// <summary>
@@ -1387,7 +1391,7 @@ namespace SessyController.Services
                 DailyArbitrageTrends = arbitrageTrends,
 
                 // Plan
-                Plan = await _milpService.GetPlanStatisticsAsync(now),
+                Plan = await _milpService.GetPlanStatisticsAsync(now, _hardwareStatusService.CurrentSocWh),
             };
         }
 
