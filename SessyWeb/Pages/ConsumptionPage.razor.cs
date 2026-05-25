@@ -44,7 +44,6 @@ namespace SessyWeb.Pages
         protected override void OnParametersSet()
         {
             DateSelectionChosen ??= new DateArgs(PeriodsEnums.Day, _timeZoneService!.Now);
-            // DateSelectionChosen = new DateArgs(PeriodsEnums.Day, _timeZoneService!.Now);
 
             base.OnParametersSet();
         }
@@ -95,38 +94,40 @@ namespace SessyWeb.Pages
         /// </summary>
         private void ChangeChartStyle(int height)
         {
-            // 25 pixels per data row
-            var width = 1000;
+            if (DateSelectionChosen != null)
+            {// 25 pixels per data row
+                var width = 1000;
 
-            switch (DateSelectionChosen!.PeriodChosen)
-            {
-                case PeriodsEnums.Day:
-                    width = ConsumptionDayData.Count * 35;
-                    break;
+                switch (DateSelectionChosen!.PeriodChosen)
+                {
+                    case PeriodsEnums.Day:
+                        width = ConsumptionDayData.Count * 35;
+                        break;
 
-                case PeriodsEnums.Week:
-                    width = ConsumptionWeekData.Count * 250;
-                    break;
+                    case PeriodsEnums.Week:
+                        width = ConsumptionWeekData.Count * 250;
+                        break;
 
-                case PeriodsEnums.Month:
-                    width = ConsumptionMonthData.Count * 60;
-                    break;
+                    case PeriodsEnums.Month:
+                        width = ConsumptionMonthData.Count * 60;
+                        break;
 
-                case PeriodsEnums.Year:
-                    width = ConsumptionYearData.Count * 250;
-                    break;
+                    case PeriodsEnums.Year:
+                        width = ConsumptionYearData.Count * 250;
+                        break;
 
-                case PeriodsEnums.All:
-                    width = ConsumptionAllData.Count * 500;
-                    break;
+                    case PeriodsEnums.All:
+                        width = ConsumptionAllData.Count * 500;
+                        break;
 
-                default:
-                    throw new InvalidOperationException($"Invalid period: {DateSelectionChosen!.PeriodChosen}");
+                    default:
+                        throw new InvalidOperationException($"Invalid period: {DateSelectionChosen!.PeriodChosen}");
+                }
+
+                GraphStyle = $"min-height: {height}px; width: {width}px; visibility: initial;";
+
+                StateHasChanged();
             }
-
-            GraphStyle = $"min-height: {height}px; width: {width}px; visibility: initial;";
-
-            StateHasChanged();
         }
 
         public async Task DateSelectionChanged(DateArgs dateArgs)
