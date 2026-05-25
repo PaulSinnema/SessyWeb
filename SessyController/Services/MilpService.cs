@@ -48,16 +48,21 @@ namespace SessyController.Services
                 var planId = Guid.NewGuid();
                 var signature = CalculatePriceSignature(_quarterlyInfos);
 
-                var actions = _planByTime.Select(kvp => new SessyData.Model.PlannedAction
+                var actions = _planByTime.Select(kvp =>
                 {
-                    PlanId = planId,
-                    Time = kvp.Key,
-                    Mode = kvp.Value.Mode.ToString(),
-                    PowerW = kvp.Value.PowerW,
-                    SavedAt = savedAt,
-                    ObjectiveEur = _lastPlanObjectiveEur,
-                    PriceSignature = signature,
-                    Reason = reason
+                    var qi = _quarterlyInfos.FirstOrDefault(q => q.Time == kvp.Key);
+                    return new SessyData.Model.PlannedAction
+                    {
+                        PlanId = planId,
+                        Time = kvp.Key,
+                        Mode = kvp.Value.Mode.ToString(),
+                        PowerW = kvp.Value.PowerW,
+                        SavedAt = savedAt,
+                        ObjectiveEur = _lastPlanObjectiveEur,
+                        PriceSignature = signature,
+                        Reason = reason,
+                        ChargeLeftWh = qi?.ChargeLeftWh ?? 0.0
+                    };
                 }).ToList();
 
                 await _plannedActionDataService.SavePlanAsync(actions).ConfigureAwait(false);
@@ -96,6 +101,11 @@ namespace SessyController.Services
 
                 _planByTime = restored;
 
+                // Restore the planned SOC curve for deviation checks.
+                _plannedSocByQuarter = actions
+                    .Where(a => a.ChargeLeftWh > 0.0)
+                    .ToDictionary(a => a.Time, a => a.ChargeLeftWh);
+
                 // Restore the price signature that was valid when the plan was solved.
                 // RebuildPlanIfNeeded will trigger if new day-ahead prices arrived during restart.
                 _lastPlanObjectiveEur = actions.First().ObjectiveEur;
@@ -124,6 +134,17 @@ namespace SessyController.Services
 
         private List<QuarterlyInfo> _quarterlyInfos = new();
         private Dictionary<DateTime, PlanAction> _planByTime = new();
+
+        /// <summary>
+        /// Planned SOC (Wh) per quarter from the last MILP solve.
+        /// Used as reference for SOC deviation checks.
+        /// Populated from ChargeLeftWh during solve and restored from DB on startup.
+        /// Never overwritten by measurements — only replaced on a new solve.
+        /// </summary>
+        private Dictionary<DateTime, double> _plannedSocByQuarter = new();
+
+        /// <summary>The reason for the last rebuild — passed to SavePlanAsync after simulation completes.</summary>
+        private string? _lastRebuildReason;
         private DateTime? _lastBuildTime;
         private double _lastPlanObjectiveEur;
 
@@ -152,35 +173,28 @@ namespace SessyController.Services
         private double GetCurrentSocDeviationPct(DateTime now, double currentSocWh)
         {
             double capacityWh = _batteryContainer.GetTotalCapacity();
+            if (capacityWh <= 0 || !_plannedSocByQuarter.Any()) return 0.0;
 
-            if (_quarterlyInfos.Any() && capacityWh > 0)
-            {
-                var nowQuarter = now.DateFloorQuarter();
-                var currentQuarter = _quarterlyInfos.FirstOrDefault(q => q.Time == nowQuarter);
+            var nowQuarter = now.DateFloorQuarter();
 
-                if ((currentQuarter?.ChargeLeftWh ?? 0) != 0)
-                {
-                    var chargingCapacity = currentQuarter.Charging ? _batteryContainer.GetChargingCapacityInWattsPerQuarter() : _batteryContainer.GetDischargingCapacityInWattsPerQuarter();
+            if (!_plannedSocByQuarter.TryGetValue(nowQuarter, out double expectedSocWh))
+                return 0.0;
 
-                    double expectedSocWh = currentQuarter.ChargeLeftWh + chargingCapacity;
-
-                    var result = Math.Abs(currentSocWh - expectedSocWh) / capacityWh * 100.0;
-
-                    return result;
-                }
-            }
-
-            return 0.0;
+            return Math.Abs(currentSocWh - expectedSocWh) / capacityWh * 100.0;
         }
 
-        /// <summary>
-        /// This routine checks if the plan has to be rebuild.
-        /// </summary>
         private bool SocDeviationExceedsThreshold(double currentSocWh, out double deviationPct)
         {
             deviationPct = GetCurrentSocDeviationPct(_timeZoneService.Now, currentSocWh);
 
-            return (deviationPct > SocDeviationThresholdPct);
+            if (deviationPct > SocDeviationThresholdPct)
+            {
+                _logger.LogInformation(
+                    $"SOC deviation {deviationPct:F1}% exceeds threshold {SocDeviationThresholdPct}% — rebuilding plan.");
+                return true;
+            }
+
+            return false;
         }
 
         // ── Constants ────────────────────────────────────────────────────────
@@ -249,7 +263,7 @@ namespace SessyController.Services
 
             var nowQuarter = _timeZoneService.Now.DateFloorQuarter();
 
-            await RebuildPlanIfNeeded(nowQuarter, currentSocWh).ConfigureAwait(false);
+            bool rebuilt = await RebuildPlanIfNeeded(nowQuarter, currentSocWh).ConfigureAwait(false);
 
             ApplySelfConsumptionPolicy();
 
@@ -258,6 +272,16 @@ namespace SessyController.Services
             WritePlanIntoQuarterlyInfos();
 
             await WriteBackSocSimulationAsync(currentSocWh).ConfigureAwait(false);
+
+            // Save plan AFTER simulation so ChargeLeftWh is filled in _quarterlyInfos.
+            if (rebuilt)
+            {
+                _plannedSocByQuarter = _quarterlyInfos
+                    .Where(qi => qi.ChargeLeftWh > 0.0)
+                    .ToDictionary(qi => qi.Time, qi => qi.ChargeLeftWh);
+
+                await SavePlanAsync(_lastRebuildReason!).ConfigureAwait(false);
+            }
         }
 
         /// <summary>
@@ -570,8 +594,7 @@ namespace SessyController.Services
             _lastPlannedQuarter = nowQuarter;
             _lastPriceSignature = currentSignature;
             _lastBuildTime = _timeZoneService.Now;
-
-            await SavePlanAsync(reason).ConfigureAwait(false);
+            _lastRebuildReason = reason;
 
             return true;
         }

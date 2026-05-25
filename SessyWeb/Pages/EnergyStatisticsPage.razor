@@ -245,7 +245,7 @@
                             <RadzenRow Gap="8px">
                                 <RadzenColumn Size="6" SizeMD="3">
                                     <StatCardComponent Title="Last generated"
-                                                       Value="@(Dashboard.Plan.LastBuildTime.HasValue ? Dashboard.Plan.LastBuildTime.Value.ToLocalTime().ToString("dd-MM-yyyy HH:mm") : "Restored from DB")"
+                                                       Value="@(Dashboard.Plan.LastBuildTime.HasValue ? Dashboard.Plan.LastBuildTime.Value.ToString("dd-MM-yyyy HH:mm") : "Restored from DB")"
                                                        Highlight="@(Dashboard.Plan.LastBuildTime.HasValue)" />
                                 </RadzenColumn>
                                 <RadzenColumn Size="6" SizeMD="3">
@@ -291,7 +291,7 @@
                                                 AllowPaging="false">
                                     <Columns>
                                         <RadzenDataGridColumn TItem="SessyData.Services.PlanHistoryEntry" Title="Generated at">
-                                            <Template Context="h">@h.SavedAt.ToLocalTime().ToString("dd-MM-yyyy HH:mm")</Template>
+                                            <Template Context="h">@h.SavedAt.ToString("dd-MM-yyyy HH:mm")</Template>
                                         </RadzenDataGridColumn>
                                         <RadzenDataGridColumn Property="@nameof(SessyData.Services.PlanHistoryEntry.Reason)" Title="Reason" />
                                         <RadzenDataGridColumn TItem="SessyData.Services.PlanHistoryEntry" Title="Expected profit">
@@ -301,7 +301,7 @@
                                             <Template Context="h">@h.QuarterCount (@($"{h.QuarterCount / 4.0:F1}") hrs)</Template>
                                         </RadzenDataGridColumn>
                                         <RadzenDataGridColumn TItem="SessyData.Services.PlanHistoryEntry" Title="Horizon">
-                                            <Template Context="h">@h.PlanHorizon.ToLocalTime().ToString("dd-MM HH:mm")</Template>
+                                            <Template Context="h">@h.PlanHorizon.ToString("dd-MM HH:mm")</Template>
                                         </RadzenDataGridColumn>
                                     </Columns>
                                 </RadzenDataGrid>

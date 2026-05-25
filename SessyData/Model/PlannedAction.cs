@@ -39,6 +39,13 @@ namespace SessyData.Model
         /// <summary>Why this plan was generated.</summary>
         public string Reason { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Expected state of charge at the end of this quarter (Wh).
+        /// Filled from the MILP SOC simulation during solve.
+        /// Used as reference for SOC deviation checks — survives restarts via tombstoning.
+        /// </summary>
+        public double ChargeLeftWh { get; set; }
+
         /// <summary>Plans older than this are not restored on startup.</summary>
         public const int MaxPlanAgeHours = 2;
 
