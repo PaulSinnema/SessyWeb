@@ -183,7 +183,7 @@ namespace SessyController.Services
                 return Math.Abs(currentSocWh - expectedSocWh) / capacityWh * 100.0;
 
             // Fallback after restart: read from PlannedQuarter table.
-            var planned = _plannedQuarterDataService.GetForQuarterAsync(nowQuarter).GetAwaiter().GetResult();
+            var planned = _plannedQuarterDataService.Get(set => Task.FromResult(set.Where(item => item.Time == nowQuarter).SingleOrDefault())).GetAwaiter().GetResult();
             if (planned != null && planned.PlannedChargeLeftWh > 0.0)
                 return Math.Abs(currentSocWh - planned.PlannedChargeLeftWh) / capacityWh * 100.0;
 
@@ -310,7 +310,7 @@ namespace SessyController.Services
                         ConsumptionForecastW = qi.EstimatedConsumptionPerQuarterInWatts
                     }).ToList();
 
-                await _plannedQuarterDataService.AddRange(plannedQuarters).ConfigureAwait(false);
+                await _plannedQuarterDataService.AddOrUpdate(plannedQuarters, (item, set) => set.FirstOrDefault(q => q.Time == item.Time)).ConfigureAwait(false);
                 _logger.LogInformation($"PlannedQuarters written: {plannedQuarters.Count} quarters from {planStartQuarter:dd-MM HH:mm}.");
             }
         }
