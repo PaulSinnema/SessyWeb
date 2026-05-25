@@ -159,6 +159,10 @@ namespace SessyController.Services
         private DateTime? _lastPlannedQuarter;
         private long? _lastPriceSignature;
 
+        // Speculative quarterly solve: track which quarter was last attempted
+        // so we solve at most once per quarter on the speculative path.
+        private DateTime? _lastSpeculativeSolveQuarter;
+
         private const double SocDeviationThresholdPct = 20.0; // % of total capacity
 
         /// <summary>
@@ -358,6 +362,7 @@ namespace SessyController.Services
             _lastPlanObjectiveEur = 0.0;
             _lastPlannedQuarter = null;
             _lastPriceSignature = null;
+            _lastSpeculativeSolveQuarter = null;
 
             await _plannedActionDataService.ClearPlanAsync().ConfigureAwait(false);
 
@@ -598,29 +603,71 @@ namespace SessyController.Services
         {
             long currentSignature = CalculatePriceSignature(_quarterlyInfos);
 
+            bool forced = false;
             string? reason = null;
 
             if (_planByTime.Count == 0)
+            {
                 reason = "No plan exists";
+                forced = true;
+            }
             else if (_lastPriceSignature == null)
+            {
                 reason = "Price signature not set (first run or after restore)";
+                forced = true;
+            }
             else if (_lastPriceSignature.Value != currentSignature)
+            {
                 reason = $"Price signature changed ({_lastPriceSignature.Value} → {currentSignature})";
+                forced = true;
+            }
             else if (SocDeviationExceedsThreshold(currentSocWh, out var deviationPct))
+            {
                 reason = $"SOC deviation {deviationPct:F1}% exceeded threshold {SocDeviationThresholdPct}%";
+                forced = true;
+            }
+            else if (_lastSpeculativeSolveQuarter != nowQuarter)
+            {
+                // Once per quarter: solve speculatively and commit only if objective improves.
+                reason = "Quarterly speculative solve";
+                forced = false;
+            }
 
             if (reason == null)
                 return false;
 
-            _logger.LogInformation($"Rebuilding plan: {reason}");
+            _logger.LogInformation($"Solving plan: {reason} (forced={forced})");
+
+            double previousObjectiveEur = _lastPlanObjectiveEur;
 
             bool built = await BuildMilpPlanAsync(currentSocWh).ConfigureAwait(false);
+
+            // Always mark this quarter as attempted on the speculative path,
+            // regardless of outcome — avoids re-solving every cycle.
+            if (!forced)
+                _lastSpeculativeSolveQuarter = nowQuarter;
 
             if (!built)
             {
                 _logger.LogWarning("MILP solve did not produce a usable plan. Keeping previous plan.");
                 return false;
             }
+
+            // Speculative solve: only commit if the new objective is strictly better.
+            if (!forced && previousObjectiveEur > 0 && _lastPlanObjectiveEur <= previousObjectiveEur)
+            {
+                _logger.LogInformation(
+                    $"Speculative solve rejected: new objective {_lastPlanObjectiveEur:F4} EUR " +
+                    $"<= current {previousObjectiveEur:F4} EUR — keeping current plan.");
+
+                // Restore the old objective since we are not committing this solve.
+                _lastPlanObjectiveEur = previousObjectiveEur;
+                return false;
+            }
+
+            if (!forced)
+                reason = $"Quarterly speculative solve accepted " +
+                         $"({previousObjectiveEur:F4} → {_lastPlanObjectiveEur:F4} EUR)";
 
             _lastPlannedQuarter = nowQuarter;
             _lastPriceSignature = currentSignature;

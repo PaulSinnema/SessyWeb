@@ -1,0 +1,38 @@
+﻿@using SessyController.Services.Statistics
+@using Radzen
+@using Radzen.Blazor
+
+<RadzenCard>
+    <RadzenText TextStyle="TextStyle.H6">📊 Arbitrage: Planned vs Realized</RadzenText>
+    <div style="width: 100%; overflow: auto;">
+        <RadzenChart Style="@($"height: 260px; width: {Math.Max(800, Dashboard!.DailyArbitrageTrends.Count * 80)}px")" MarginTop="30" MarginLeft="60" MarginRight="60">
+            <RadzenColumnSeries Data="@Dashboard.DailyArbitrageTrends"
+                                CategoryProperty="@nameof(DailyArbitrageTrend.Date)"
+                                ValueProperty="@nameof(DailyArbitrageTrend.PlannedEur)"
+                                Title="Planned (€)"
+                                Fill="#6366f1">
+                <ChildContent>
+                    <RadzenSeriesDataLabels Visible="true" />
+                </ChildContent>
+            </RadzenColumnSeries>
+            <RadzenColumnSeries Data="@Dashboard.DailyArbitrageTrends"
+                                CategoryProperty="@nameof(DailyArbitrageTrend.Date)"
+                                ValueProperty="@nameof(DailyArbitrageTrend.RealizedEur)"
+                                Title="Realized (€)"
+                                Fill="#22c55e">
+                <ChildContent>
+                    <RadzenSeriesDataLabels Visible="true" />
+                </ChildContent>
+            </RadzenColumnSeries>
+            <RadzenCategoryAxis FormatString="{0:dd-MM}" />
+            <RadzenValueAxis FormatString="€ {0:F2}">
+                <RadzenGridLines Visible="true" />
+            </RadzenValueAxis>
+            <RadzenLegend Position="LegendPosition.Bottom" />
+        </RadzenChart>
+    </div>
+</RadzenCard>
+
+@code {
+    [Parameter, EditorRequired] public DashboardStatistics? Dashboard { get; set; }
+}

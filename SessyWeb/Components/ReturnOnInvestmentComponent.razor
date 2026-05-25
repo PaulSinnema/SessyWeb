@@ -1,0 +1,88 @@
+﻿@using SessyController.Services.Statistics
+@using SessyWeb.Components
+@using Radzen
+@using Radzen.Blazor
+
+<RadzenCard>
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
+        <RadzenText TextStyle="TextStyle.H6">📈 Return on Investment</RadzenText>
+        @if (Dashboard!.UsesProjection)
+        {
+            <RadzenBadge BadgeStyle="BadgeStyle.Warning"
+                         Style="color: black;"
+                         Text="@($"Projection from {Dashboard.DataAvailableFrom:dd-MM-yyyy}")"
+                         title="Insufficient historical data — savings before this date are extrapolated using seasonal monthly averages." />
+        }
+    </RadzenStack>
+    <RadzenRow>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Total investment" Value="@($"€ {Dashboard!.TotalNetInvestmentEur:F2}")" />
+        </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Realized savings" Value="@($"€ {Dashboard!.TotalRealizedSavingsEur:F2}")" />
+        </RadzenColumn>
+        @if (Dashboard!.UsesProjection)
+        {
+            <RadzenColumn Size="6" SizeMD="3">
+                <StatCardComponent Title="Projected total savings" Value="@($"€ {Dashboard!.ProjectedTotalSavingsEur:F2}")" Highlight="true" />
+            </RadzenColumn>
+        }
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Remaining to recover" Value="@($"€ {Dashboard!.RemainingInvestmentEur:F2}")" />
+        </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Recovered" Value="@($"{Dashboard.RecoveredPct:F1} %")" Highlight="true" />
+        </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Projected annual savings" Value="@($"€ {Dashboard.TotalAnnualSavingsEur:F2}/year")" />
+        </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Payback period" Value="@(Dashboard.ProjectedPaybackYears >= 999 ? "—" : $"{Dashboard.ProjectedPaybackYears:F1} years")" />
+        </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Break-even date"
+                               Value="@(Dashboard.ProjectedBreakEvenDate.HasValue ? Dashboard.ProjectedBreakEvenDate.Value.ToString("dd-MM-yyyy") : "Unknown")"
+                               Highlight="true" />
+        </RadzenColumn>
+    </RadzenRow>
+
+    @if (Dashboard!.ComponentBreakdown.Any())
+    {
+        <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mt-4">Per component</RadzenText>
+        <RadzenDataGrid Data="@Dashboard.ComponentBreakdown"
+                        TItem="InvestmentCategoryStats"
+                        Density="Density.Compact"
+                        AllowSorting="false"
+                        AllowFiltering="false"
+                        AllowPaging="false">
+            <Columns>
+                <RadzenDataGridColumn Property="@nameof(InvestmentCategoryStats.Category)" Title="Component" />
+                <RadzenDataGridColumn Property="@nameof(InvestmentCategoryStats.InstallationDate)" Title="Since" FormatString="{0:dd-MM-yyyy}" />
+                <RadzenDataGridColumn Property="@nameof(InvestmentCategoryStats.NetAmountEur)" Title="Net (€)" FormatString="{0:F2}" />
+                <RadzenDataGridColumn Property="@nameof(InvestmentCategoryStats.AnnualSavingsEur)" Title="Savings (€/yr)" FormatString="{0:F2}" />
+                <RadzenDataGridColumn Property="@nameof(InvestmentCategoryStats.ProjectedTotalSavingsEur)" Title="Total saved (€)" FormatString="{0:F2}" />
+                <RadzenDataGridColumn Property="@nameof(InvestmentCategoryStats.RecoveredPct)" Title="Recovered (%)" FormatString="{0:F1}" />
+                <RadzenDataGridColumn TItem="InvestmentCategoryStats" Title="Payback (yr)">
+                    <Template Context="cat">
+                        @(cat.PaybackYears >= 999 ? "—" : $"{cat.PaybackYears:F1}")
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="InvestmentCategoryStats" Title="Break-even">
+                    <Template Context="cat">
+                        @(cat.BreakEvenDate.HasValue ? cat.BreakEvenDate.Value.ToString("dd-MM-yyyy") : "—")
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="InvestmentCategoryStats" Title="Battery cycles">
+                    <Template Context="cat">
+                        @(cat.BatteryCycles > 0 ? $"{cat.BatteryCycles:F0}" : "—")
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn Property="@nameof(InvestmentCategoryStats.SavingsSource)" Title="Savings basis" />
+            </Columns>
+        </RadzenDataGrid>
+    }
+</RadzenCard>
+
+@code {
+    [Parameter, EditorRequired] public DashboardStatistics? Dashboard { get; set; }
+}

@@ -1,0 +1,41 @@
+﻿@using SessyController.Services.Statistics
+@using SessyWeb.Components
+@using Radzen
+@using Radzen.Blazor
+
+<RadzenCard Style="height: 100%;">
+    <RadzenText TextStyle="TextStyle.H6">⚡ Energy Flows</RadzenText>
+    <RadzenRow>
+        <RadzenColumn Size="6">
+            <StatCardComponent Title="Total consumption" Value="@($"{Dashboard!.TotalConsumptionKWh:F1} kWh")" />
+        </RadzenColumn>
+        <RadzenColumn Size="6">
+            <StatCardComponent Title="Grid import" Value="@($"{Dashboard!.TotalGridImportKWh:F1} kWh")" />
+        </RadzenColumn>
+        <RadzenColumn Size="6">
+            <StatCardComponent Title="Grid export" Value="@($"{Dashboard!.TotalGridExportKWh:F1} kWh")" />
+        </RadzenColumn>
+        <RadzenColumn Size="6">
+            <StatCardComponent Title="Self sufficiency" Value="@($"{Dashboard!.SelfSufficiencyPct:F1} %")" />
+        </RadzenColumn>
+    </RadzenRow>
+    <RadzenText TextStyle="TextStyle.H6" Style="margin-top: 12px;">🏠 Consumption</RadzenText>
+    <RadzenRow>
+        <RadzenColumn Size="6">
+            <StatCardComponent Title="Avg daily" Value="@($"{Dashboard!.AvgDailyConsumptionKWh:F1} kWh/day")" />
+        </RadzenColumn>
+        <RadzenColumn Size="6">
+            <StatCardComponent Title="Peak daily" Value="@($"{Dashboard!.PeakDailyConsumptionKWh:F1} kWh")" />
+        </RadzenColumn>
+        <RadzenColumn Size="6">
+            <StatCardComponent Title="Weekday" Value="@($"{Dashboard!.WeekdayConsumptionKWh:F1} kWh")" />
+        </RadzenColumn>
+        <RadzenColumn Size="6">
+            <StatCardComponent Title="Weekend" Value="@($"{Dashboard!.WeekendConsumptionKWh:F1} kWh")" />
+        </RadzenColumn>
+    </RadzenRow>
+</RadzenCard>
+
+@code {
+    [Parameter, EditorRequired] public DashboardStatistics? Dashboard { get; set; }
+}

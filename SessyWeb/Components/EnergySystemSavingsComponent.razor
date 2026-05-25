@@ -1,0 +1,76 @@
+﻿@using SessyController.Services.Statistics
+@using SessyWeb.Components
+@using Radzen
+@using Radzen.Blazor
+
+<RadzenCard>
+    <RadzenText TextStyle="TextStyle.H6">⚡ Energy System Savings</RadzenText>
+    <RadzenRow Gap="8px">
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Annual savings"
+                               Value="@($"€ {Dashboard!.EnergySystemAnnualSavingsEur:F2}/year")"
+                               Highlight="true" />
+        </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Period savings"
+                               Value="@($"€ {Dashboard!.PeriodSavingsEur:F2}")" />
+        </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Export revenue"
+                               Value="@($"€ {Dashboard!.GridExportRevenueEur:F2} ({Dashboard.TotalGridExportKWh:F1} kWh)")" />
+        </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Arbitrage profit (realized)"
+                               Value="@($"€ {Dashboard!.ArbitrageProfitEur:F2}")" />
+        </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Arbitrage profit (planned)"
+                               Value="@($"€ {Dashboard!.PlannedArbitrageProfitEur:F2}")" />
+        </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Buy / sell price (avg)"
+                               Value="@($"€ {Dashboard!.WeightedAvgBuyPriceEurPerKWh:F4} / € {Dashboard.WeightedAvgSellPriceEurPerKWh:F4}/kWh")" />
+        </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Solar production"
+                               Value="@($"{Dashboard!.TotalSolarProductionKWh:F1} kWh")" />
+        </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Self-sufficiency"
+                               Value="@($"{Dashboard!.SelfSufficiencyPct:F1} %")"
+                               Highlight="true" />
+        </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Performance ratio"
+                               Value="@($"{Dashboard!.SolarPerformanceRatio * 100:F1} %")" />
+        </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Avg / peak daily solar"
+                               Value="@($"{Dashboard!.AvgDailySolarProductionKWh:F1} / {Dashboard.PeakDailySolarProductionKWh:F1} kWh")" />
+        </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Charged / discharged"
+                               Value="@($"{Dashboard!.TotalBatteryChargedKWh:F1} / {Dashboard.TotalBatteryDischargedKWh:F1} kWh")" />
+        </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Round-trip efficiency"
+                               Value="@(Dashboard!.BatteryRoundTripEfficiencyPct > 0 ? $"{Dashboard.BatteryRoundTripEfficiencyPct:F1} %" : "n/b")" />
+        </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Cycles (total / avg per battery)"
+                               Value="@($"{Dashboard!.BatteryCycles:F1} / {Dashboard.AvgCyclesPerBattery:F0}")" />
+        </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Cycles per day / avg SOC"
+                               Value="@($"{Dashboard!.BatteryCyclesPerDay:F2}/day — {Dashboard.AverageSocPct:F1} %")" />
+        </RadzenColumn>
+    </RadzenRow>
+    <RadzenText TextStyle="TextStyle.Caption" Style="margin-top: 0.75rem; opacity: 0.7;">
+        Annual savings = seasonal monthly averages (all historical data). Period savings = actual measured savings in the selected period (@($"{Dashboard!.PeriodDays:F0}") days).
+        Solar and battery are treated as one integrated system.
+    </RadzenText>
+</RadzenCard>
+
+@code {
+    [Parameter, EditorRequired] public DashboardStatistics? Dashboard { get; set; }
+}

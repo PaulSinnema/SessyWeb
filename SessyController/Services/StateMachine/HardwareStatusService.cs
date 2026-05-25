@@ -55,6 +55,9 @@ namespace SessyController.Services.StateMachine
         /// <summary>Total battery capacity (Wh).</summary>
         public double TotalCapacityWh { get; private set; }
 
+        /// <summary>Maximum combined charge power across all batteries (W).</summary>
+        public double MaxChargeSetpointW { get; private set; }
+
         /// <summary>State of charge as a percentage (0–100).</summary>
         public double SocPct => TotalCapacityWh > 0 ? CurrentSocWh / TotalCapacityWh * 100.0 : 0.0;
 
@@ -130,6 +133,7 @@ namespace SessyController.Services.StateMachine
         {
             // ── Battery ───────────────────────────────────────────────────
             TotalCapacityWh = _batteryContainer.GetTotalCapacity();
+            MaxChargeSetpointW = _batteryContainer.GetChargingCapacityInWattsPerHour();
 
             try
             {

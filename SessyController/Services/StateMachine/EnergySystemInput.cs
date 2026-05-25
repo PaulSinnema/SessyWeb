@@ -65,6 +65,9 @@ namespace SessyController.Services.StateMachine
         /// <summary>Total battery capacity (Wh).</summary>
         public virtual double TotalCapacityWh { get; protected set; }
 
+        /// <summary>Maximum combined charge power across all batteries (W).</summary>
+        public virtual double MaxChargeSetpointW { get; protected set; }
+
         /// <summary>True when the battery is at or above the full threshold.</summary>
         public virtual bool BatteryIsFull => TotalCapacityWh > 0 &&
                                      CurrentSocWh >= TotalCapacityWh * FullThresholdRatio;
@@ -118,6 +121,7 @@ namespace SessyController.Services.StateMachine
             // ── Hardware state — all from HardwareStatusService ───────────
             CurrentSocWh = _hardwareStatus.CurrentSocWh;
             TotalCapacityWh = _hardwareStatus.TotalCapacityWh;
+            MaxChargeSetpointW = _hardwareStatus.MaxChargeSetpointW;
             ActualBatteryPowerW = _hardwareStatus.ActualBatteryPowerW;
             InverterIsAvailable = _hardwareStatus.InverterIsAvailable;
 

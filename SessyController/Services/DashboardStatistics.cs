@@ -1,4 +1,6 @@
-﻿namespace SessyController.Services.Statistics
+﻿using SessyData.Model;
+
+namespace SessyController.Services.Statistics
 {
     /// <summary>
     /// Single source of truth for the Energy Statistics dashboard.
@@ -197,9 +199,34 @@
         /// <summary>Daily arbitrage: planned vs realized (for chart).</summary>
         public List<DailyArbitrageTrend> DailyArbitrageTrends { get; set; } = new();
 
+        // ── Plan vs Actual ──────────────────────────────────────────────────
+
+        /// <summary>
+        /// Pre-converted SOC chart points for the last 7 days.
+        /// Planned and actual SOC are expressed as percentages (0–100).
+        /// Populated by EnergyStatisticsService — independent of the date chooser period.
+        /// </summary>
+        public List<PlanVsActualChartPoint> PlanVsActualChartPoints { get; set; } = new();
+
+        /// <summary>Aggregate plan vs actual statistics for the last 7 days.</summary>
+        public PlanVsActualStats PlanVsActualStats { get; set; } = new();
+
         // ── Plan ────────────────────────────────────────────────────────────
 
         /// <summary>Statistics about the current MILP plan.</summary>
         public PlanStatistics? Plan { get; set; }
+    }
+
+    /// <summary>
+    /// A single quarter's planned vs actual SOC, pre-converted to percentages.
+    /// Used by PlanVsActualComponent for chart rendering without further calculation.
+    /// </summary>
+    public class PlanVsActualChartPoint
+    {
+        public DateTime Time { get; set; }
+        public double PlannedSocPct { get; set; }
+        public double ActualSocPct { get; set; }
+        public string CurtailmentMode { get; set; } = string.Empty;
+        public bool ModeMatch { get; set; }
     }
 }

@@ -1,0 +1,78 @@
+﻿@using Radzen
+@using Radzen.Blazor
+@using SessyController.Services.Statistics
+@inherits BaseComponent
+
+<RadzenCard>
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px" Style="margin-bottom: 8px;">
+        <RadzenText TextStyle="TextStyle.H6">📐 Planner Accuracy</RadzenText>
+        <RadzenSelectBar @bind-Value="_rangeHours" TValue="int" Change="@OnRangeChanged">
+            <Items>
+                <RadzenSelectBarItem Text="24h" Value="24" />
+                <RadzenSelectBarItem Text="48h" Value="48" />
+                <RadzenSelectBarItem Text="7d" Value="168" />
+            </Items>
+        </RadzenSelectBar>
+    </RadzenStack>
+
+    @* ── Summary stats ─────────────────────────────────────────── *@
+    <RadzenRow Gap="8px" Style="margin-bottom: 8px;">
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Quarters compared" Value="@($"{_stats.QuarterCount}")" />
+        </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Avg SOC deviation" Value="@($"{_stats.AvgSocDeviationPct:F1} %")"
+                               Highlight="@(_stats.AvgSocDeviationPct > 10)" />
+        </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Mode accuracy" Value="@($"{_stats.ModeAccuracyPct:F1} %")"
+                               Highlight="@(_stats.ModeAccuracyPct >= 90)" />
+        </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Curtailment quarters" Value="@($"{_stats.CurtailmentQuarters}")" />
+        </RadzenColumn>
+    </RadzenRow>
+
+    @* ── SOC chart ─────────────────────────────────────────────── *@
+    @if (_filtered.Any())
+    {
+        <div style="width: 100%; overflow-x: auto;">
+            <RadzenChart Style="@($"height: 280px; width: {Math.Max(800, _filtered.Count * 12)}px")"
+                         MarginTop="30" MarginLeft="60" MarginRight="20">
+
+                <RadzenLineSeries Data="@_filtered.Where(p => p.PlannedSocPct >= 0)"
+                                  CategoryProperty="@nameof(PlanVsActualChartPoint.Time)"
+                                  ValueProperty="@nameof(PlanVsActualChartPoint.PlannedSocPct)"
+                                  Title="Planned SOC (%)"
+                                  Stroke="#6366f1"
+                                  StrokeWidth="2"
+                                  LineType="LineType.Dashed" />
+
+                <RadzenLineSeries Data="@_filtered.Where(p => p.ActualSocPct >= 0)"
+                                  CategoryProperty="@nameof(PlanVsActualChartPoint.Time)"
+                                  ValueProperty="@nameof(PlanVsActualChartPoint.ActualSocPct)"
+                                  Title="Actual SOC (%)"
+                                  Stroke="#22c55e"
+                                  StrokeWidth="2" />
+
+                <RadzenCategoryAxis FormatString="{0:dd-MM HH:mm}"
+                                    Step="@_axisStep" >
+                    <RadzenGridLines Visible="true" />
+                    <RadzenAxisTitle Text="@nameof(PlanVsActualChartPoint.Time)" />
+                </RadzenCategoryAxis>
+                <RadzenValueAxis Min="0" Max="100" FormatString="{0:F0} %">
+                    <RadzenGridLines Visible="true" />
+                </RadzenValueAxis>
+                <RadzenLegend Position="LegendPosition.Bottom" />
+                <RadzenTooltip />
+
+            </RadzenChart>
+        </div>
+    }
+    else
+    {
+        <RadzenText TextStyle="TextStyle.Body2" Style="opacity: 0.6;">
+            No plan vs actual data available for the selected period.
+        </RadzenText>
+    }
+</RadzenCard>

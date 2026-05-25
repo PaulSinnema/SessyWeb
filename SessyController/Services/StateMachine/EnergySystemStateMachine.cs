@@ -16,12 +16,13 @@ namespace SessyController.Services.StateMachine
     ///
     /// Curtailment modes and inverter setpoints:
     ///   ZERO_EXPORT  — price negative, battery charging.
-    ///                  Battery keeps charging. Inverter: P1 throttle (InverterSetpointW = MaxValue,
-    ///                  CurtailmentMode = ZeroExport signals InverterCurtailmentService to throttle).
+    ///                  Battery keeps charging. Inverter: P1 throttle.
     ///   THROTTLE     — price negative, battery full.
     ///                  Battery disabled. Inverter: P1 throttle.
     ///   SHUTDOWN     — price negative, battery not full and not charging.
-    ///                  Battery disabled. Inverter: 0W.
+    ///                  Battery: forced charge at MaxChargeSetpointW. Inverter: 0W.
+    ///                  At negative prices grid electricity is cheaper than free solar —
+    ///                  shut the inverter down entirely and charge from the grid.
     ///
     /// InverterSetpointW semantics:
     ///   double.MaxValue = full output OR P1-controlled (CurtailmentMode determines which)
@@ -105,11 +106,13 @@ namespace SessyController.Services.StateMachine
                 };
             }
 
-            // SHUTDOWN: battery not full and not charging.
-            // Disable battery and shut down the inverter entirely.
+            // FORCE_CHARGE: battery not full and not charging during negative price.
+            // Charge at maximum power from the grid — at negative prices you are paid
+            // to consume, so grid electricity is cheaper than free solar.
+            // Inverter is shut down entirely to maximise grid consumption.
             if (!input.InverterIsAvailable)
             {
-                _logger.LogWarning("EnergyStateMachine: SHUTDOWN requested but inverter offline — falling back to MILP plan.");
+                _logger.LogWarning("EnergyStateMachine: FORCE_CHARGE requested but inverter offline — falling back to MILP plan.");
                 return new EnergySystemAction
                 {
                     BatteryMode = input.PlannedMode,
@@ -122,11 +125,11 @@ namespace SessyController.Services.StateMachine
 
             return new EnergySystemAction
             {
-                BatteryMode = Modes.Disabled,
-                BatterySetpointW = 0.0,
+                BatteryMode = Modes.Charging,
+                BatterySetpointW = input.MaxChargeSetpointW,
                 InverterSetpointW = 0.0,
                 CurtailmentMode = CurtailmentMode.Shutdown,
-                Reason = "Selling price negative + battery not full/charging → SHUTDOWN",
+                Reason = $"Selling price negative + battery not full/charging → FORCE_CHARGE at {input.MaxChargeSetpointW:F0}W, inverter 0W",
                 IsOverride = true
             };
         }

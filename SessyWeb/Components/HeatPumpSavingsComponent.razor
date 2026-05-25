@@ -1,0 +1,51 @@
+﻿@using SessyController.Services.Statistics
+@using SessyWeb.Components
+@using Radzen
+@using Radzen.Blazor
+
+<RadzenCard>
+    <RadzenText TextStyle="TextStyle.H6">🔥 Heat Pump Savings</RadzenText>
+    <RadzenRow Gap="8px">
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Gas price"
+                               Value="@($"€ {Dashboard!.GasPriceEurPerM3:F4}/m³")"
+                               Highlight="@Dashboard!.IsLiveGasPrice" />
+        </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Annual gas (before heat pump)"
+                               Value="@($"{Dashboard!.AnnualGasConsumptionM3:F0} m³/year")" />
+        </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Annual gas cost saved"
+                               Value="@($"€ {Dashboard!.AnnualGasCostSavedEur:F2}/year")" />
+        </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Standing charge saved"
+                               Value="@($"€ {Dashboard!.GasStandingChargeEurPerYear:F2}/year")" />
+        </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Heat pump electricity"
+                               Value="@($"{Dashboard!.AnnualElectricityConsumptionKWh:F0} kWh/year")" />
+        </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Electricity price (avg)"
+                               Value="@($"€ {Dashboard!.EffectiveElectricityPriceEurPerKWh:F4}/kWh")" />
+        </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Annual electricity cost"
+                               Value="@($"€ {Dashboard!.AnnualElectricityCostEur:F2}/year")" />
+        </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Net annual savings"
+                               Value="@($"€ {Dashboard!.HeatPumpAnnualSavingsEur:F2}/year")"
+                               Highlight="true" />
+        </RadzenColumn>
+    </RadzenRow>
+    <RadzenText TextStyle="TextStyle.Caption" Style="margin-top: 0.75rem; opacity: 0.7;">
+        @Dashboard!.GasPriceSource
+    </RadzenText>
+</RadzenCard>
+
+@code {
+    [Parameter, EditorRequired] public DashboardStatistics? Dashboard { get; set; }
+}

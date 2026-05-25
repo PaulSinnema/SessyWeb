@@ -38,6 +38,7 @@ namespace SessyController.Services
         private readonly IBatteryContainer _batteryContainer;
         private readonly IMilpService _milpService;
         private readonly HardwareStatusService _hardwareStatusService;
+        private readonly PlanVsActualService _planVsActualService;
 
         // Convenience property: total battery capacity in kWh from BatteryContainer.
         private double BatteryCapacityKWh => _batteryContainer.GetTotalCapacity() / 1000.0;
@@ -58,7 +59,8 @@ namespace SessyController.Services
                                        ICalculationService calculationService,
                                        IBatteryContainer batteryContainer,
                                        IMilpService milpService,
-                                       HardwareStatusService hardwareStatusService)
+                                       HardwareStatusService hardwareStatusService,
+                                       PlanVsActualService planVsActualService)
         {
             _measurementDataService = measurementDataService;
             _investmentDataService = investmentDataService;
@@ -76,6 +78,7 @@ namespace SessyController.Services
             _batteryContainer = batteryContainer;
             _milpService = milpService;
             _hardwareStatusService = hardwareStatusService;
+            _planVsActualService = planVsActualService;
         }
 
         /// <summary>
@@ -1390,9 +1393,40 @@ namespace SessyController.Services
                 // Charts
                 DailyArbitrageTrends = arbitrageTrends,
 
+                // Plan vs Actual — fixed 7-day window, independent of date chooser.
+                PlanVsActualChartPoints = await BuildPlanVsActualChartPointsAsync(now),
+                PlanVsActualStats = await _planVsActualService
+                                              .GetStatsAsync(now.AddDays(-7), now),
+
                 // Plan
                 Plan = await _milpService.GetPlanStatisticsAsync(now, _hardwareStatusService.CurrentSocWh),
             };
+        }
+
+        // ── Plan vs Actual ───────────────────────────────────────────────────
+
+        /// <summary>
+        /// Loads the last 7 days of plan vs actual data and converts SOC values to
+        /// percentages so the component needs no knowledge of battery capacity.
+        /// </summary>
+        private async Task<List<PlanVsActualChartPoint>> BuildPlanVsActualChartPointsAsync(
+            DateTime now)
+        {
+            var entries = await _planVsActualService.GetAsync(now.AddDays(-7), now);
+            double capacity = _batteryContainer.GetTotalCapacity();
+
+            return entries.Select(e => new PlanVsActualChartPoint
+            {
+                Time = e.Time,
+                PlannedSocPct = capacity > 0 && e.PlannedChargeLeftWh > 0
+                                    ? e.PlannedChargeLeftWh / capacity * 100.0
+                                    : -1,
+                ActualSocPct = capacity > 0 && e.ActualSocWh > 0
+                                    ? e.ActualSocWh / capacity * 100.0
+                                    : -1,
+                CurtailmentMode = e.CurtailmentMode,
+                ModeMatch = e.ModeMatch
+            }).ToList();
         }
 
         // ── Data access ──────────────────────────────────────────────────────
