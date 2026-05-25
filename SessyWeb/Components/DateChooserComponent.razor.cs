@@ -53,7 +53,7 @@ namespace SessyWeb.Components
                 DateChosen = _TimeZoneService!.Now.Date;
                 PeriodChosen = PeriodsEnums.Day;
 
-                var currentYear = DateTime.Now.Year;
+                var currentYear = _TimeZoneService!.Now.Year;
 
                 for (int index = 0; index < 50; index++)
                 {

@@ -19,7 +19,7 @@ namespace SessyWeb.Pages
         [Inject]
         private ConsumptionMonitorService? _consumptionMonitorService { get; set; }
 
-        private DateArgs? DateSelectionChosen { get; set; } = new DateArgs(PeriodsEnums.Day, DateTime.Now);
+        private DateArgs? DateSelectionChosen { get; set; }
 
         private RadzenChart? ConsumptionDayChart { get; set; }
         private RadzenChart? ConsumptionWeekChart { get; set; }
@@ -43,6 +43,7 @@ namespace SessyWeb.Pages
 
         protected override void OnParametersSet()
         {
+            DateSelectionChosen ??= new DateArgs(PeriodsEnums.Day, _timeZoneService!.Now);
             // DateSelectionChosen = new DateArgs(PeriodsEnums.Day, _timeZoneService!.Now);
 
             base.OnParametersSet();
