@@ -51,6 +51,10 @@ namespace SessyData.Model
 
         public DbSet<PlannedAction> PlannedActions => Set<PlannedAction>();
 
+        public DbSet<PlannedQuarter> PlannedQuarters => Set<PlannedQuarter>();
+
+        public DbSet<ActualQuarter> ActualQuarters => Set<ActualQuarter>();
+
         public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
         protected override void OnConfiguring(DbContextOptionsBuilder options)

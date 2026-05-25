@@ -51,12 +51,16 @@ namespace SessyController.Services
         private EnergySystemStateMachine _stateMachine;
         private EnergySystemInput _systemInput;
         private HardwareStatusService _hardwareStatus;
+        private ActualQuarterDataService _actualQuarterDataService;
 
         // Curtailment: throttles the solar inverter when price is negative.
         private InverterCurtailmentService _inverterCurtailmentService;
 
         private List<QuarterlyInfo> _quarterlyInfos = new();
         private bool _tombstoneRestoreAttempted = false;
+
+        // Track the last quarter for which a snapshot was written.
+        private DateTime _lastSnapshotQuarter = DateTime.MinValue;
 
         private const double FullThresholdRatio = 0.995;
 
@@ -99,6 +103,7 @@ namespace SessyController.Services
             _milpService = _scope.ServiceProvider.GetRequiredService<MilpService>();
             _hardwareStatus = _scope.ServiceProvider.GetRequiredService<HardwareStatusService>();
             _stateMachine = _scope.ServiceProvider.GetRequiredService<EnergySystemStateMachine>();
+            _actualQuarterDataService = _scope.ServiceProvider.GetRequiredService<ActualQuarterDataService>();
             _systemInput = new EnergySystemInput(
                 _hardwareStatus,
                 _milpService,
@@ -202,6 +207,9 @@ namespace SessyController.Services
                     // Evaluate state machine — all decisions made here.
                     var action = _stateMachine.Evaluate(_systemInput);
 
+                    // Write actual quarter record once per quarter.
+                    await WriteActualQuarterIfNewAsync(_systemInput, action).ConfigureAwait(false);
+
                     // ── Execute ───────────────────────────────────────────────────────
                     await ExecuteAction(action.BatteryMode, action.BatterySetpointW).ConfigureAwait(false);
                 }
@@ -244,6 +252,48 @@ namespace SessyController.Services
         /// max SOC:
         /// - always keep enough free headroom for the strongest upcoming net solar charging excursion
         /// </summary>
+
+        /// <summary>
+        /// Writes an ActualQuarter record once per quarter at the start of each new quarter.
+        /// Captures actual hardware state vs state machine decision for plan vs actual analysis.
+        /// </summary>
+        private async Task WriteActualQuarterIfNewAsync(
+            EnergySystemInput input,
+            SessyController.Services.StateMachine.EnergySystemAction action)
+        {
+            var nowQuarter = _timeZoneService.Now.DateFloorQuarter();
+
+            if (nowQuarter <= _lastSnapshotQuarter)
+                return;
+
+            try
+            {
+                var actual = new SessyData.Model.ActualQuarter
+                {
+                    Time = nowQuarter,
+                    ActualMode = _hardwareStatus.ActualBatteryStrategy,
+                    ActualPowerW = input.ActualBatteryPowerW,
+                    ActualSocWh = input.ActualSocWh,
+                    CurtailmentMode = action.CurtailmentMode.ToString(),
+                    StateMachineReason = action.Reason
+                };
+
+                await _actualQuarterDataService
+                    .AddOrUpdate(new List<ActualQuarter> { actual }, (item, set) => set.FirstOrDefault(q => q.Time == item.Time))
+                    .ConfigureAwait(false);
+
+                _lastSnapshotQuarter = nowQuarter;
+
+                _logger.LogInformation(
+                    $"ActualQuarter written for {nowQuarter:dd-MM HH:mm} — " +
+                    $"SOC={input.ActualSocWh:F0}Wh Mode={action.BatteryMode} " +
+                    $"Curtailment={action.CurtailmentMode}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"WriteActualQuarterIfNewAsync failed: {ex.Message}");
+            }
+        }
 
         private async Task ExecuteAction(Modes mode, double powerW)
         {

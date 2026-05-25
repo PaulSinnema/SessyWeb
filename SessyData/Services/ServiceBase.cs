@@ -114,7 +114,7 @@ namespace SessyData.Services
             });
         }
 
-        public virtual async Task Update(List<T> list, Func<T, DbSet<T>, T?> contains)
+        public virtual async Task Update(List<T> list, Func<T, DbSet<T>, T?>? contains)
         {
             EnsureUpdatable();
 
@@ -142,7 +142,7 @@ namespace SessyData.Services
             });
         }
 
-        public virtual async Task Remove(List<T> list, Func<T, DbSet<T>, T?>? contains)
+        public virtual async Task Remove(List<T> list, Func<T, DbSet<T>, T?>? contains = null)
         {
             EnsureUpdatable();
 

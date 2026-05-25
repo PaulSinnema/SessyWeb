@@ -33,6 +33,7 @@ namespace SessyController.Services
         private readonly TimeZoneService _timeZoneService;
         private readonly TaxesDataService _taxesDataService;
         private readonly PlannedActionDataService _plannedActionDataService;
+        private readonly PlannedQuarterDataService _plannedQuarterDataService;
 
         // ── Tombstoning ──────────────────────────────────────────────────────
 
@@ -170,17 +171,23 @@ namespace SessyController.Services
         /// But the current Quarter is filled with the CurrentSoc (from the battery) and thus the percentage
         /// returned is alway 0%.
         /// </remarks>
-        private double GetCurrentSocDeviationPct(DateTime now, double currentSocWh)
+        public double GetCurrentSocDeviationPct(DateTime now, double currentSocWh)
         {
             double capacityWh = _batteryContainer.GetTotalCapacity();
-            if (capacityWh <= 0 || !_plannedSocByQuarter.Any()) return 0.0;
+            if (capacityWh <= 0) return 0.0;
 
             var nowQuarter = now.DateFloorQuarter();
 
-            if (!_plannedSocByQuarter.TryGetValue(nowQuarter, out double expectedSocWh))
-                return 0.0;
+            // Primary: use in-memory planned SOC from last solve.
+            if (_plannedSocByQuarter.TryGetValue(nowQuarter, out double expectedSocWh))
+                return Math.Abs(currentSocWh - expectedSocWh) / capacityWh * 100.0;
 
-            return Math.Abs(currentSocWh - expectedSocWh) / capacityWh * 100.0;
+            // Fallback after restart: read from PlannedQuarter table.
+            var planned = _plannedQuarterDataService.GetForQuarterAsync(nowQuarter).GetAwaiter().GetResult();
+            if (planned != null && planned.PlannedChargeLeftWh > 0.0)
+                return Math.Abs(currentSocWh - planned.PlannedChargeLeftWh) / capacityWh * 100.0;
+
+            return 0.0;
         }
 
         private bool SocDeviationExceedsThreshold(double currentSocWh, out double deviationPct)
@@ -227,7 +234,8 @@ namespace SessyController.Services
             BatteryContainer batteryContainer,
             TimeZoneService timeZoneService,
             TaxesDataService taxesDataService,
-            PlannedActionDataService plannedActionDataService)
+            PlannedActionDataService plannedActionDataService,
+            PlannedQuarterDataService plannedQuarterDataService)
         {
             _logger = logger;
             _settingsConfigMonitor = settingsConfigMonitor;
@@ -236,6 +244,7 @@ namespace SessyController.Services
             _timeZoneService = timeZoneService;
             _taxesDataService = taxesDataService;
             _plannedActionDataService = plannedActionDataService;
+            _plannedQuarterDataService = plannedQuarterDataService;
 
             _settingsConfig = settingsConfigMonitor.CurrentValue
                 ?? throw new InvalidOperationException("ManagementSettings missing");
@@ -281,6 +290,28 @@ namespace SessyController.Services
                     .ToDictionary(qi => qi.Time, qi => qi.ChargeLeftWh);
 
                 await SavePlanAsync(_lastRebuildReason!).ConfigureAwait(false);
+
+                // Write PlannedQuarter rows for all future quarters — upsert so stale
+                // data from previous plan is overwritten.
+                var planStartQuarter = _timeZoneService.Now.DateFloorQuarter();
+                var plannedQuarters = _quarterlyInfos
+                    .Where(qi => qi.Time >= planStartQuarter)
+                    .Select(qi => new SessyData.Model.PlannedQuarter
+                    {
+                        Time = qi.Time,
+                        PlannedMode = qi.Mode.ToString(),
+                        PlannedPowerW = qi.PlannedChargePowerW > 0
+                                                ? qi.PlannedChargePowerW
+                                                : -qi.PlannedDischargePowerW,
+                        PlannedChargeLeftWh = qi.ChargeLeftWh,
+                        SellingPriceEurKWh = qi.SellingPrice,
+                        BuyingPriceEurKWh = qi.BuyingPrice,
+                        SolarForecastW = qi.SolarPowerPerQuarterInWatts,
+                        ConsumptionForecastW = qi.EstimatedConsumptionPerQuarterInWatts
+                    }).ToList();
+
+                await _plannedQuarterDataService.AddRange(plannedQuarters).ConfigureAwait(false);
+                _logger.LogInformation($"PlannedQuarters written: {plannedQuarters.Count} quarters from {planStartQuarter:dd-MM HH:mm}.");
             }
         }
 

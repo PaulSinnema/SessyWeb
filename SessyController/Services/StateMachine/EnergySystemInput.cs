@@ -59,6 +59,9 @@ namespace SessyController.Services.StateMachine
         /// <summary>Current state of charge (Wh).</summary>
         public virtual double CurrentSocWh { get; protected set; }
 
+        /// <summary>Alias for CurrentSocWh — used in snapshot writing for clarity.</summary>
+        public double ActualSocWh => CurrentSocWh;
+
         /// <summary>Total battery capacity (Wh).</summary>
         public virtual double TotalCapacityWh { get; protected set; }
 
