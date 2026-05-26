@@ -15,13 +15,13 @@ namespace SessyController.Services
     {
         private readonly PlannedQuarterDataService _plannedQuarterDataService;
         private readonly ActualQuarterDataService _actualQuarterDataService;
-        private readonly BatteryContainer _batteryContainer;
+        private readonly IBatteryContainer _batteryContainer;
         private readonly TimeZoneService _timeZoneService;
 
         public PlanVsActualService(
             PlannedQuarterDataService plannedQuarterDataService,
             ActualQuarterDataService actualQuarterDataService,
-            BatteryContainer batteryContainer,
+            IBatteryContainer batteryContainer,
             TimeZoneService timeZoneService)
         {
             _plannedQuarterDataService = plannedQuarterDataService;

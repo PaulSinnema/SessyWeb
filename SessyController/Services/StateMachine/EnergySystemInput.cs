@@ -1,5 +1,7 @@
-﻿using SessyCommon.Extensions;
+﻿using Microsoft.Extensions.Logging;
+using SessyCommon.Extensions;
 using SessyCommon.Services;
+using SessyController.Services;
 using SessyController.Interfaces;
 using SessyController.Services.Items;
 using static SessyController.Services.Items.ChargingModes;
@@ -25,19 +27,22 @@ namespace SessyController.Services.StateMachine
         private readonly IMilpService _milpService;
         private readonly BatteriesService _batteriesService;
         private readonly TimeZoneService _timeZoneService;
+        private readonly ILogger<EnergySystemInput>? _logger;
 
-        private const double FullThresholdRatio = 0.995;
+
 
         public EnergySystemInput(
             HardwareStatusService hardwareStatus,
             IMilpService milpService,
             BatteriesService batteriesService,
-            TimeZoneService timeZoneService)
+            TimeZoneService timeZoneService,
+            ILogger<EnergySystemInput>? logger = null)
         {
             _hardwareStatus = hardwareStatus;
             _milpService = milpService;
             _batteriesService = batteriesService;
             _timeZoneService = timeZoneService;
+            _logger = logger;
         }
 
         // ── Snapshot values (set by LoadAsync) ───────────────────────────
@@ -71,7 +76,7 @@ namespace SessyController.Services.StateMachine
 
         /// <summary>True when the battery is at or above the full threshold.</summary>
         public virtual bool BatteryIsFull => TotalCapacityWh > 0 &&
-                                     CurrentSocWh >= TotalCapacityWh * FullThresholdRatio;
+                                     CurrentSocWh >= TotalCapacityWh * BatteryConstants.FullThresholdRatio;
 
         /// <summary>
         /// Actual battery power (W) as reported by hardware.
@@ -84,7 +89,7 @@ namespace SessyController.Services.StateMachine
         /// True when the battery is actually charging according to hardware measurement.
         /// Uses actual power, NOT the planned mode — so NZH autonomous charging is included.
         /// </summary>
-        public virtual bool BatteryIsActuallyCharging => ActualBatteryPowerW < -50.0;
+        public virtual bool BatteryIsActuallyCharging => ActualBatteryPowerW < BatteryConstants.ChargingThresholdW;
 
         /// <summary>True when the solar inverter is reachable via Modbus.</summary>
         public virtual bool InverterIsAvailable { get; protected set; }
@@ -117,6 +122,8 @@ namespace SessyController.Services.StateMachine
             // BatteriesService already holds the fully calculated all-in prices.
             var quarterlyInfos = _batteriesService.GetQuarterlyInfos();
             var nowQi = quarterlyInfos.FirstOrDefault(q => q.Time == NowQuarter);
+            if (nowQi == null)
+                _logger?.LogWarning($"EnergySystemInput: no QuarterlyInfo found for {NowQuarter:dd-MM HH:mm} — SellingPrice defaults to 0.0, curtailment may be skipped.");
             SellingPriceEurPerKWh = nowQi?.SellingPrice ?? 0.0;
 
             // ── Hardware state — all from HardwareStatusService ───────────

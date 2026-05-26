@@ -2,6 +2,7 @@
 using SessyCommon.Configurations;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
+using SessyController.Services;
 using SessyController.Interfaces;
 using SessyController.Services.Items;
 using SessyController.Services.Optimization;
@@ -218,7 +219,7 @@ namespace SessyController.Services
 
         private const double ReserveWh = 0.0;
         private const double EmptyHysteresisWh = 50.0;
-        private const double FullThresholdRatio = 0.995;
+
         private const double NumericEpsWh = 0.001;
 
         private const int SelfUseLookAheadQuarters = 96;       // 24 hours
@@ -1073,7 +1074,7 @@ namespace SessyController.Services
             double capWh = _batteryContainer.GetTotalCapacity();
             double chargeStepWh = _batteryContainer.GetChargingCapacityInWattsPerHour() / 4.0;
             double dischargeStepWh = _batteryContainer.GetDischargingCapacityInWattsPerHour() / 4.0;
-            double fullThresholdWh = capWh * FullThresholdRatio;
+            double fullThresholdWh = capWh * BatteryConstants.FullThresholdRatio;
 
             static double Clamp(double value, double min, double max)
                 => value < min ? min : (value > max ? max : value);
@@ -1189,7 +1190,7 @@ namespace SessyController.Services
             double capWh = _batteryContainer.GetTotalCapacity();
             double chargeStepWh = _batteryContainer.GetChargingCapacityInWattsPerHour() / 4.0;
             double dischargeStepWh = _batteryContainer.GetDischargingCapacityInWattsPerHour() / 4.0;
-            double fullThresholdWh = capWh * FullThresholdRatio;
+            double fullThresholdWh = capWh * BatteryConstants.FullThresholdRatio;
 
             static double Clamp(double value, double min, double max)
                 => value < min ? min : (value > max ? max : value);
@@ -1275,7 +1276,7 @@ namespace SessyController.Services
             double socWh = await _batteryContainer.GetStateOfChargeInWatts().ConfigureAwait(false);
             double chargeStepWh = _batteryContainer.GetChargingCapacityInWattsPerHour() / 4.0;
             double dischargeStepWh = _batteryContainer.GetDischargingCapacityInWattsPerHour() / 4.0;
-            double fullThresholdWh = capWh * FullThresholdRatio;
+            double fullThresholdWh = capWh * BatteryConstants.FullThresholdRatio;
 
             bool netting = _nettingByTime.TryGetValue(nowQuarter, out var n) ? n : true;
 

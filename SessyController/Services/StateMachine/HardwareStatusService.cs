@@ -25,7 +25,7 @@ namespace SessyController.Services.StateMachine
         private readonly TimeZoneService _timeZoneService;
 
         private const int PollIntervalSeconds = 10;
-        private const double FullThresholdRatio = 0.995;
+
 
         public HardwareStatusService(
             LoggingService<HardwareStatusService> logger,
@@ -62,7 +62,7 @@ namespace SessyController.Services.StateMachine
         public double SocPct => TotalCapacityWh > 0 ? CurrentSocWh / TotalCapacityWh * 100.0 : 0.0;
 
         /// <summary>True when battery is at or above the full threshold.</summary>
-        public bool BatteryIsFull => TotalCapacityWh > 0 && CurrentSocWh >= TotalCapacityWh * FullThresholdRatio;
+        public bool BatteryIsFull => TotalCapacityWh > 0 && CurrentSocWh >= TotalCapacityWh * BatteryConstants.FullThresholdRatio;
 
         /// <summary>
         /// Actual battery power (W). Negative = charging, positive = discharging.
@@ -71,7 +71,7 @@ namespace SessyController.Services.StateMachine
         public double ActualBatteryPowerW { get; private set; }
 
         /// <summary>True when the battery is actually charging (hardware measurement).</summary>
-        public bool BatteryIsActuallyCharging => ActualBatteryPowerW < -50.0;
+        public bool BatteryIsActuallyCharging => ActualBatteryPowerW < BatteryConstants.ChargingThresholdW;
 
         /// <summary>Actual battery strategy as reported by the Sessy (for display).</summary>
         public string ActualBatteryStrategy { get; private set; } = string.Empty;

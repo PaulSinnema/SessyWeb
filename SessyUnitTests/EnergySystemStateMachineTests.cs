@@ -42,7 +42,8 @@ namespace SessyTests.Services
             double capacityWh,
             bool inverterAvailable,
             Modes plannedMode,
-            double plannedSetpointW = 4000.0) =>
+            double plannedSetpointW = 4000.0,
+            double maxChargeSetpointW = 5000.0) =>
             new TestInput(
                 priceNegative,
                 actualBatteryPowerW,
@@ -50,7 +51,8 @@ namespace SessyTests.Services
                 capacityWh,
                 inverterAvailable,
                 plannedMode,
-                plannedSetpointW);
+                plannedSetpointW,
+                maxChargeSetpointW);
 
         /// <summary>
         /// Concrete test subclass of EnergySystemInput.
@@ -70,7 +72,8 @@ namespace SessyTests.Services
                 double totalCapacityWh,
                 bool inverterIsAvailable,
                 Modes plannedMode,
-                double plannedSetpointW) : base(null!, null!, null!, null!)
+                double plannedSetpointW,
+                double maxChargeSetpointW = 5000.0) : base(null!, null!, null!, null!)
             {
                 _sellingPriceIsNegative = sellingPriceIsNegative;
                 ActualBatteryPowerW = actualBatteryPowerW;
@@ -81,6 +84,7 @@ namespace SessyTests.Services
                 InverterIsAvailable = inverterIsAvailable;
                 PlannedMode = plannedMode;
                 PlannedSetpointW = plannedSetpointW;
+                MaxChargeSetpointW = maxChargeSetpointW;
                 IsLoaded = true;
             }
 
@@ -254,17 +258,18 @@ namespace SessyTests.Services
         }
 
         // ══════════════════════════════════════════════════════════════════════
-        // SHUTDOWN — price negative, battery not full, not charging
+        // FORCE_CHARGE — price negative, battery not full, not charging
+        // Battery charges at max setpoint, inverter shut down entirely.
         // ══════════════════════════════════════════════════════════════════════
 
         [Fact]
-        public void PriceNegative_NotFull_NotCharging_InverterAvailable_Returns_Shutdown()
+        public void PriceNegative_NotFull_NotCharging_InverterAvailable_Returns_ForceCharge()
         {
             var action = _sut.Evaluate(Input(true, 0, HalfSoc, Capacity, true, Modes.ZeroNetHome));
 
-            Assert.Equal(Modes.Disabled, action.BatteryMode);
-            Assert.Equal(0, action.BatterySetpointW);
-            Assert.Equal(0.0, action.InverterSetpointW); // hard shutdown
+            Assert.Equal(Modes.Charging, action.BatteryMode);
+            Assert.Equal(5000.0, action.BatterySetpointW);  // MaxChargeSetpointW default
+            Assert.Equal(0.0, action.InverterSetpointW);    // inverter hard shutdown
             Assert.Equal(CurtailmentMode.Shutdown, action.CurtailmentMode);
             Assert.True(action.IsOverride);
         }
@@ -278,12 +283,13 @@ namespace SessyTests.Services
         }
 
         [Fact]
-        public void PriceNegative_NotFull_NotCharging_BelowFullThreshold_Returns_Shutdown()
+        public void PriceNegative_NotFull_NotCharging_BelowFullThreshold_Returns_ForceCharge()
         {
             double justBelowFull = Capacity * 0.994;
             var action = _sut.Evaluate(Input(true, 0, justBelowFull, Capacity, true, Modes.ZeroNetHome));
 
             Assert.Equal(CurtailmentMode.Shutdown, action.CurtailmentMode);
+            Assert.Equal(Modes.Charging, action.BatteryMode);
         }
 
         // ══════════════════════════════════════════════════════════════════════
@@ -322,9 +328,10 @@ namespace SessyTests.Services
             Assert.Equal(CurtailmentMode.None, _sut.CurrentAction.CurtailmentMode);
             Assert.Equal(Modes.Charging, _sut.CurrentAction.BatteryMode);
 
+            // Price negative + not charging + not full → FORCE_CHARGE: battery charges at max, inverter 0W.
             _sut.Evaluate(Input(true, 0, HalfSoc, Capacity, true, Modes.ZeroNetHome));
             Assert.Equal(CurtailmentMode.Shutdown, _sut.CurrentAction.CurtailmentMode);
-            Assert.Equal(Modes.Disabled, _sut.CurrentAction.BatteryMode);
+            Assert.Equal(Modes.Charging, _sut.CurrentAction.BatteryMode);
         }
 
         [Fact]
