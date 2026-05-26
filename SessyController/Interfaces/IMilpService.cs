@@ -1,7 +1,7 @@
 ﻿using SessyController.Services.Items;
 using SessyController.Services.Statistics;
 
-namespace SessyController.Services
+namespace SessyController.Interfaces
 {
     public interface IMilpService
     {

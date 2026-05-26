@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using Moq;
 using SessyCommon.Configurations;
 using SessyCommon.Services;
+using SessyController.Interfaces;
 using SessyController.Services;
 using SessyController.Services.Items;
 using SessyController.Services.Optimization;
@@ -104,7 +105,8 @@ namespace SessyTests.Services
                 calculationServiceMock.Object,
                 batteryContainerMock.Object,
                 milpServiceMock.Object,
-                null!);
+                null!,   // hardwareStatusService
+                null!);  // planVsActualService
         }
 
         // ── Grid flow tests ──────────────────────────────────────────────────
@@ -433,7 +435,8 @@ namespace SessyTests.Services
                 calculationServiceMock2.Object,
                 batteryContainerMock2.Object,
                 milpServiceMock2.Object,
-                null!);
+                null!,   // hardwareStatusService
+                null!);  // planVsActualService
 
             // Request full month — StatisticsFromDate clips it to May 15.
             var result = await sut.GetEnergyStatisticsAsync(DateTime.MinValue, PeriodEnd);

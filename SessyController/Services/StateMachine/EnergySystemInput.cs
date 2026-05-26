@@ -1,5 +1,6 @@
 ﻿using SessyCommon.Extensions;
 using SessyCommon.Services;
+using SessyController.Interfaces;
 using SessyController.Services.Items;
 using static SessyController.Services.Items.ChargingModes;
 

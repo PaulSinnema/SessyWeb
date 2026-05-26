@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Options;
 using SessyCommon.Configurations;
 using SessyCommon.Services;
+using SessyController.Interfaces;
 using SessyController.Services.Statistics;
 using SessyData.Services;
 

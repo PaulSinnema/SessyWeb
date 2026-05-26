@@ -2,6 +2,7 @@
 using SessyCommon.Configurations;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
+using SessyController.Interfaces;
 using SessyController.Services.Items;
 using SessyController.Services.Optimization;
 using SessyController.Services.Statistics;
@@ -131,6 +132,9 @@ namespace SessyController.Services
         private IDisposable? _settingsConfigSubscription;
         private IDisposable? _sessyBatteryConfigSubscription;
 
+        // Set by OnChange handlers — picked up as a forced rebuild reason on the next cycle.
+        private string? _configChangedReason;
+
         // ── Plan state ───────────────────────────────────────────────────────
 
         private List<QuarterlyInfo> _quarterlyInfos = new();
@@ -255,8 +259,18 @@ namespace SessyController.Services
             _sessyBatteryConfig = sessyBatteryConfigMonitor.CurrentValue
                 ?? throw new InvalidOperationException("Sessy:Batteries missing");
 
-            _settingsConfigSubscription = _settingsConfigMonitor.OnChange(s => _settingsConfig = s);
-            _sessyBatteryConfigSubscription = _sessyBatteryConfigMonitor.OnChange(s => _sessyBatteryConfig = s);
+            _settingsConfigSubscription = _settingsConfigMonitor.OnChange(s =>
+            {
+                _settingsConfig = s;
+                _configChangedReason = "SettingsConfig changed in appsettings.json";
+                _logger.LogInformation("MilpService: SettingsConfig changed — plan rebuild scheduled.");
+            });
+            _sessyBatteryConfigSubscription = _sessyBatteryConfigMonitor.OnChange(s =>
+            {
+                _sessyBatteryConfig = s;
+                _configChangedReason = "SessyBatteryConfig changed in appsettings.json";
+                _logger.LogInformation("MilpService: SessyBatteryConfig changed — plan rebuild scheduled.");
+            });
         }
 
         // ── Public API ───────────────────────────────────────────────────────
@@ -609,6 +623,12 @@ namespace SessyController.Services
             if (_planByTime.Count == 0)
             {
                 reason = "No plan exists";
+                forced = true;
+            }
+            else if (_configChangedReason != null)
+            {
+                reason = _configChangedReason;
+                _configChangedReason = null;
                 forced = true;
             }
             else if (_lastPriceSignature == null)
