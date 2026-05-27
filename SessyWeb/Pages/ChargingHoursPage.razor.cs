@@ -32,6 +32,13 @@ namespace SessyWeb.Pages
 
         public List<QuarterlyInfoView>? QuarterlyInfos { get; set; } = new();
 
+        // Measurement cache — avoids re-querying the DB every second on DataChanged.
+        // Invalidated when the date window or ShowAll flag changes.
+        private List<QuarterlyMeasurement>? _cachedMeasurements;
+        private DateTime _cachedFrom;
+        private DateTime _cachedTo;
+        private bool _showAllWhenCached;
+
         public double TotalSolarPowerExpectedToday { get; private set; }
         public double TotalSolarPowerExpectedTomorrow { get; private set; }
         public double TotalSolarPowerYesterday { get; private set; }
@@ -60,12 +67,13 @@ namespace SessyWeb.Pages
 
         private bool _showAll = false;
 
-        private bool ShowAll
+        public bool ShowAll
         {
             get => _showAll;
             set
             {
                 _showAll = value;
+                _cachedMeasurements = null; // Invalidate cache on ShowAll toggle.
 
                 Task task = GetQuarterlyInfos();
 
@@ -335,15 +343,29 @@ namespace SessyWeb.Pages
 
             if (ShowAll)
             {
-                // Historical measurements for the window.
-                var measurements = await _measurementDataService!.GetList(async set =>
-                {
-                    var result = set
-                        .Where(m => m.Time >= from && m.Time < to)
-                        .ToList();
+                // Only re-query the DB when the window or ShowAll flag changed.
+                bool windowChanged = _cachedMeasurements == null
+                    || _showAllWhenCached != ShowAll
+                    || _cachedFrom != from
+                    || _cachedTo != to;
 
-                    return await Task.FromResult(result);
-                }).ConfigureAwait(false);
+                if (windowChanged)
+                {
+                    _cachedMeasurements = await _measurementDataService!.GetList(async set =>
+                    {
+                        var result = set
+                            .Where(m => m.Time >= from && m.Time < to)
+                            .ToList();
+
+                        return await Task.FromResult(result);
+                    }).ConfigureAwait(false);
+
+                    _cachedFrom = from;
+                    _cachedTo = to;
+                    _showAllWhenCached = ShowAll;
+                }
+
+                var measurements = _cachedMeasurements!;
 
                 // Historical measurement times — these take priority over planning data.
                 var measuredTimes = new HashSet<DateTime>(measurements.Select(m => m.Time));
@@ -416,11 +438,9 @@ namespace SessyWeb.Pages
 
             if (isCurrentQuarter && _batteriesService != null)
             {
-                // Read actual mode and power from BatteriesService.
-                var actualPowerW = await _batteryContainer.GetTotalPowerInWatts().ConfigureAwait(false);
-                var actualMode = await _batteriesService.GetBatteryMode().ConfigureAwait(false);
-
-                displayState = actualMode;
+                // Use HardwareStatusService values — already polled every 10s, no extra HTTP call.
+                displayState = _hardwareStatusService!.ActualBatteryStrategy;
+                var actualPowerW = _hardwareStatusService.ActualBatteryPowerW;
                 chargePowerW = actualPowerW < 0 ? Math.Abs(actualPowerW) : 0.0;
                 dischargePowerW = actualPowerW > 0 ? actualPowerW : 0.0;
             }

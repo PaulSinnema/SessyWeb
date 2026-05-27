@@ -29,6 +29,14 @@
                                             OffsetY="-60"
                                             Fill="orange" />
                 }
+                @if (ShowAll && NowQuarter != null)
+                {
+                    <RadzenSeriesAnnotation Data="@NowQuarter"
+                                            Text="◀ now"
+                                            OffsetX="28"
+                                            OffsetY="-60"
+                                            Fill="white" />
+                }
             </ChildContent>
         </RadzenColumnSeries>
 

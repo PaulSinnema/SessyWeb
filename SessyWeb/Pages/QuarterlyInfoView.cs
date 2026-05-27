@@ -29,7 +29,7 @@
         public double ChargePowerW { get; set; }
         public double DischargePowerW { get; set; }
 
-        public double EstimatedConsumptionPerQuarterHourVisual => EstimatedConsumptionPerQuarterHour / 2500;
+        public double EstimatedConsumptionPerQuarterHourVisual => EstimatedConsumptionPerQuarterHour / 5000;
         public double ChargeNeededVisual => ChargeNeeded / 100000;
         public double ChargeLeftVisual => ChargeLeft / 100000;
 

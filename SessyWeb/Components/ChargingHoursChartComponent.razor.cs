@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Components;
 using Radzen.Blazor;
+using SessyCommon.Extensions;
 using SessyController.Services.Items;
 using SessyData.Services;
 using SessyWeb.Pages;
@@ -13,6 +14,14 @@ namespace SessyWeb.Components
 
         [Parameter]
         public List<QuarterlyInfoView> QuarterlyInfos { get; set; } = new();
+
+        [Parameter]
+        public bool ShowAll { get; set; }
+
+        // Annotation data point — only set when the exact current quarter exists in the series.
+        // Must be a reference to an item from QuarterlyInfos so Radzen can position it correctly.
+        public QuarterlyInfoView? NowQuarter =>
+            QuarterlyInfos.FirstOrDefault(q => q.Time == _timeZoneService!.Now.DateFloorQuarter());
 
         [Parameter]
         public string? GraphStyle { get; set; }
