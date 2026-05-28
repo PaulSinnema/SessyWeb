@@ -41,6 +41,11 @@
                                Highlight="true" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Self-consumption"
+                               Value="@($"{Dashboard!.SelfConsumptionPct:F1} %")"
+                               Highlight="true" />
+        </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
             <StatCardComponent Title="Performance ratio"
                                Value="@($"{Dashboard!.SolarPerformanceRatio * 100:F1} %")" />
         </RadzenColumn>

@@ -88,6 +88,9 @@ namespace SessyController.Services.Statistics
         /// <summary>Self-sufficiency in the selected period (%).</summary>
         public double SelfSufficiencyPct { get; set; }
 
+        /// <summary>Self-consumption in the selected period: share of solar production used on-site (%).</summary>
+        public double SelfConsumptionPct { get; set; }
+
         /// <summary>Solar performance ratio in the selected period (ratio, multiply by 100 for %).</summary>
         public double SolarPerformanceRatio { get; set; }
 

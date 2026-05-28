@@ -1356,6 +1356,7 @@ namespace SessyController.Services
                 PeriodSavingsEur = periodStats.TotalSavingsEur,
                 TotalSolarProductionKWh = periodStats.TotalSolarProductionKWh,
                 SelfSufficiencyPct = periodStats.SelfSufficiencyPct,
+                SelfConsumptionPct = periodStats.SelfConsumptionPct,
                 SolarPerformanceRatio = periodStats.SolarPerformanceRatio,
                 AvgDailySolarProductionKWh = periodStats.AvgDailySolarProductionKWh,
                 PeakDailySolarProductionKWh = periodStats.PeakDailySolarProductionKWh,
