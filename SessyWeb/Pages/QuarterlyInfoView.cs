@@ -58,7 +58,10 @@
         /// <summary>True when the selling price is negative (curtailment may be active).</summary>
         public bool IsCurtailed { get; set; }
 
-        public double SolarPowerVisual => SmoothedSolarPower * (ThrottlePct / 100.0) / 2.5;
+        public double SolarPowerVisual => SolarPowerPerQuarterHour / 2.5;
+
+        // Used by the "now" vertical line series — set to ChartMax by ChargingHoursChartComponent.
+        public double NowLineHeight { get; set; } = 0.0;
 
         public override string ToString()
         {

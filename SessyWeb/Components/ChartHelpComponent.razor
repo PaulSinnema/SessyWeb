@@ -1,0 +1,180 @@
+﻿@using Radzen
+@inherits BaseComponent
+
+<style>
+    .help-wrap {
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
+        color: #e0e0e0;
+        padding: 20px;
+        border-radius: 12px;
+        border: 1px solid #2a2a4a;
+        font-size: 13px;
+        line-height: 1.5;
+        width: 100%;
+        box-sizing: border-box;
+        max-height: 85vh;
+        overflow-y: auto;
+    }
+
+    .help-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border-bottom: 1px solid #2a2a4a;
+        padding-bottom: 12px;
+        margin-bottom: 16px;
+    }
+
+    .help-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px 32px;
+    }
+
+    @@media (orientation: portrait), (max-width: 560px) {
+        .help-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .help-wrap {
+            width: 100%;
+            max-width: 400px;
+        }
+    }
+
+    .help-section-title {
+        font-size: 11px;
+        font-weight: 700;
+        color: #8888ff;
+        text-transform: uppercase;
+        letter-spacing: 1.2px;
+        margin-bottom: 6px;
+        padding-bottom: 3px;
+        border-bottom: 1px solid #2a2a4a;
+    }
+
+    .help-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 14px;
+        table-layout: fixed;
+    }
+
+        .help-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .help-table td {
+            padding: 5px 4px;
+            border-bottom: 1px solid #1e1e38;
+            vertical-align: middle;
+        }
+
+        .help-table .c-swatch {
+            width: 22px;
+            text-align: center;
+        }
+
+        .help-table .c-label {
+            width: 160px;
+            color: #f0f0f0;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .help-table .c-desc {
+            color: #9999bb;
+        }
+</style>
+
+<div class="help-wrap">
+
+    <div class="help-header" style="padding-left: 48px;">
+        <span style="font-size:30px;">📊</span>
+        <div>
+            <div style="font-size:17px; font-weight:bold; color:#f0c040; line-height:1.2;">Chart Guide</div>
+            <div style="font-size:11px; color:#666;">SessyWeb — Home Energy Management</div>
+        </div>
+    </div>
+
+    <div class="help-grid">
+
+        @* ── Left column ── *@
+        <div>
+            <div class="help-section-title">💰 Price Series</div>
+            <table class="help-table">
+                @Row("#324ab2", "Buying price", "Tariff paid per kWh from grid (incl. taxes &amp; transport)")
+                @Row("#00aae4", "Selling price", "Tariff received per kWh exported to the grid")
+                @Row("#324ab2", "Smoothed buying", "Rolling average used by MILP planner to filter noise")
+                @Row("#00aae4", "Smoothed selling", "Rolling average of selling price")
+                @Row("orange", "Prices predicted →", "Day-Ahead forecast from this point onward")
+            </table>
+
+            <div class="help-section-title">☀️ Solar &amp; Consumption</div>
+            <table class="help-table">
+                @Row("gold", "Solar power", "Measured (past) or forecast (future) solar production")
+                @Row("#888", "Est. consumption", "Forecast home consumption per quarter-hour")
+                @Row("#ffd700", "Zero net home", "Battery balances home load — net grid flow ≈ 0")
+            </table>
+
+            <div class="help-section-title">📌 Other</div>
+            <table class="help-table">
+                @Row("#555", "Delta lowest price", "Gap between current price and the day's lowest price")
+                @Row("white", "Now  ▏", "Current quarter marker — visible in Show All mode")
+            </table>
+        </div>
+
+        @* ── Right column ── *@
+        <div>
+            <div class="help-section-title">🔋 Battery &amp; Plan</div>
+            <table class="help-table">
+                @Row("red", "Charge remaining", "Planned State of Charge (SOC) curve over time")
+                @Row("#b06500", "Charge needed", "Minimum SOC to cover future home consumption")
+                @Row("#ff6600", "Charge power", "Planned charging energy per quarter-hour (kWh)")
+                @Row("#00cc44", "Discharge power", "Planned discharging energy per quarter-hour (kWh)")
+                @Row("orange", "Revenue per quarter", "Realised arbitrage profit per 15-min slot (€)")
+            </table>
+
+            <div class="help-section-title">🖥️ Header Indicators</div>
+            <table class="help-table">
+                @IconRow("Battery (plan)", "Planned SOC%, active MILP mode and SOC deviation")
+                @IconRow("Battery (actual)", "Live hardware strategy and actual power in watts")
+                @IconRow("Inverter", "Current throttle % and last inverter setpoint (W)")
+                @IconRow("Curtailment", "ZeroExport · Throttle · Shutdown · ForceCharge")
+            </table>
+        </div>
+
+    </div>
+</div>
+
+@code {
+    RenderFragment Row(string color, string label, string desc) => b =>
+    {
+        b.OpenElement(0, "tr");
+        b.OpenElement(1, "td"); b.AddAttribute(2, "class", "c-swatch");
+        b.AddMarkupContent(3, $"<span style='color:{color};font-size:15px;'>■</span>");
+        b.CloseElement();
+        b.OpenElement(4, "td"); b.AddAttribute(5, "class", "c-label");
+        b.AddContent(6, label);
+        b.CloseElement();
+        b.OpenElement(7, "td"); b.AddAttribute(8, "class", "c-desc");
+        b.AddMarkupContent(9, desc);
+        b.CloseElement();
+        b.CloseElement();
+    };
+
+    RenderFragment IconRow(string label, string desc) => b =>
+    {
+        b.OpenElement(0, "tr");
+        b.OpenElement(1, "td"); b.AddAttribute(2, "class", "c-swatch");
+        b.AddMarkupContent(3, "<span style='color:#8888ff;font-size:13px;'>⬡</span>");
+        b.CloseElement();
+        b.OpenElement(4, "td"); b.AddAttribute(5, "class", "c-label");
+        b.AddContent(6, label);
+        b.CloseElement();
+        b.OpenElement(7, "td"); b.AddAttribute(8, "class", "c-desc");
+        b.AddContent(9, desc);
+        b.CloseElement();
+        b.CloseElement();
+    };
+}

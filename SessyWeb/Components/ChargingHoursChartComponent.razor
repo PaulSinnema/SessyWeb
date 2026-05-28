@@ -4,7 +4,14 @@
 
 @inherits BaseComponent
 
-<div style="width: 100%; overflow: auto;">
+<style>
+    /* Hide the "now" vertical line from the legend (always the last series). */
+    .now-chart .rz-legend-item:last-child {
+        display: none;
+    }
+</style>
+
+<div class="now-chart" style="width: 100%; overflow: auto;">
     <RadzenChart Style=@GraphStyle @ref=@QuarterlyHourChart>
         <RadzenLegend Position="@((ScreenInfo?.IsMobile ?? false) ? LegendPosition.Right : LegendPosition.Top)" Visible="true" />
         <RadzenChartTooltipOptions Shared="false" Visible="true" />
@@ -33,8 +40,8 @@
                 {
                     <RadzenSeriesAnnotation Data="@NowQuarter"
                                             Text="◀ now"
-                                            OffsetX="28"
-                                            OffsetY="-60"
+                                            OffsetX="50"
+                                            OffsetY="-150"
                                             Fill="white" />
                 }
             </ChildContent>
@@ -215,7 +222,6 @@
             </ChildContent>
         </RadzenAreaSeries>
 
-
         <RadzenAreaSeries Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
@@ -247,6 +253,21 @@
                 <RadzenSeriesDataLabels Visible="false" />
             </ChildContent>
         </RadzenAreaSeries>
+
+        @* Vertical "now" line — single full-height bar at the current quarter. *@
+        @if (ShowAll && NowQuarter != null)
+        {
+            <RadzenColumnSeries Data="@(new[] { NowQuarter })"
+                                CategoryProperty="Time"
+                                ValueProperty="NowLineHeight"
+                                Fill="rgba(255,255,255,0.3)"
+                                Stroke="white"
+                                StrokeWidth="1">
+                <ChildContent>
+                    <RadzenSeriesDataLabels Visible="false" />
+                </ChildContent>
+            </RadzenColumnSeries>
+        }
 
         <RadzenCategoryAxis Padding="40" Formatter="@Formatters.FormatAsDayHour" TickDistance="152">
             <RadzenGridLines Visible="true" />

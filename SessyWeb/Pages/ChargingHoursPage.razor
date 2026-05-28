@@ -169,15 +169,6 @@
                                             <DateChooserComponent SelectionChanged="@((DateArgs d) => SelectionChanged(d))" />
                                         </RadzenStack>
                                     </RadzenStack>
-
-                                    <RadzenStack Orientation="Orientation.Vertical" AlignItems="AlignItems.End" Style="width: 100%;">
-                                        <RadzenCard>
-                                            <RadzenButton @ref="ExplanationButton"
-                                                          Click="@(args => ShowTooltipWithHtml(ExplanationButton!.Element, new TooltipOptions() { Position = TooltipPosition.Left, Style = "background-color: transparent;", Duration = null }))">
-                                                <i class="fas fa-info" style="color: yellow; font-size: 24px;"></i>
-                                            </RadzenButton>
-                                        </RadzenCard>
-                                    </RadzenStack>
                                 }
                             </RadzenStack>
                         </RadzenStack>
@@ -332,12 +323,41 @@
     }
 }
 
+@* Info button — sticky at bottom-left, always visible *@
+<div style="position: sticky; bottom: calc(16px + env(safe-area-inset-bottom)); left: calc(16px + env(safe-area-inset-left));
+    width: fit-content; z-index: 1000; margin-top: 8px; transform: translateZ(0);">
+    <RadzenButton Click="@(() => _showHelp = !_showHelp)"
+                  Style="border-radius: 50%; width: 29px; height: 29px; background: #f0c040; box-shadow: 0 2px 8px rgba(0,0,0,0.5); padding: 0;">
+        <i class="fas fa-info" style="color: #1a1a2e; font-size: 12px;"></i>
+    </RadzenButton>
+</div>
+
+@if (_showHelp)
+{
+    <div style="position: fixed; inset: 0; z-index: 2000; overflow-y: auto;
+        background: rgba(0,0,0,0.6);
+        padding: calc(16px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));"
+         @onclick="@(() => _showHelp = false)">
+        <div style="position: relative; margin: auto; width: 100%; max-width: 820px; box-sizing: border-box;"
+             @onclick:stopPropagation="true">
+            <button @onclick="@(() => _showHelp = false)"
+                    style="position: absolute; top: 12px; left: 12px; z-index: 10;
+                width: 36px; height: 36px; border-radius: 50%;
+                background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4);
+                color: white; font-size: 18px; cursor: pointer;
+                display: flex; align-items: center; justify-content: center;">
+                ✕
+            </button>
+            <ChartHelpComponent />
+        </div>
+    </div>
+}
+
 @code {
     RadzenButton? ExplanationButton;
+    bool _showHelp = false;
 
     void ShowTooltipWithHtml(ElementReference elementReference, TooltipOptions? options = null)
         => tooltipService!.Open(elementReference, ds =>
-@<div style="background-color: transparent;">
-    <RadzenImage Path="/Images/ChartExplanation.jpg" Style="padding: 5px;" />
-</div>, options);
+@<ChartHelpComponent />, options);
 }

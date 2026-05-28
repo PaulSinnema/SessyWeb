@@ -1,9 +1,7 @@
-﻿using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
+﻿using Microsoft.Extensions.Options;
 using SessyCommon.Configurations;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
-using SessyController.Services;
 using SessyController.Services.Items;
 using SessyController.Services.Optimization;
 using SessyController.Services.StateMachine;
@@ -64,7 +62,7 @@ namespace SessyController.Services
         // Track the last quarter for which a snapshot was written.
         private DateTime _lastSnapshotQuarter = DateTime.MinValue;
 
-
+        private const double FullThresholdRatio = 0.995;
 
         public bool IsManualOverride => _settingsConfig.ManualOverride;
         public bool WeAreInControl { get; private set; } = true;
@@ -110,8 +108,7 @@ namespace SessyController.Services
                 _hardwareStatus,
                 _milpService,
                 this,
-                _timeZoneService,
-                _scope.ServiceProvider.GetRequiredService<ILogger<EnergySystemInput>>());
+                _timeZoneService);
 
             _logger.LogInformation("BatteriesService starting");
         }
@@ -136,9 +133,7 @@ namespace SessyController.Services
 
                     await Process(cancellationToken).ConfigureAwait(false);
 
-                    // Run every second when subscribers are listening (UI refresh),
-                    // otherwise every 60 seconds to reduce idle CPU load.
-                    delaySeconds = DataChanged != null ? 1 : 60;
+                    delaySeconds = DataChanged == null ? 1 : 60;
 
                     if (DataChanged != null)
                         await DataChanged.Invoke().ConfigureAwait(false);
@@ -171,7 +166,11 @@ namespace SessyController.Services
         public async Task Process(CancellationToken cancellationToken)
         {
             if (_epexPricesService == null || !_epexPricesService.IsInitialized())
+            {
+                _logger.LogInformation("BatteriesService: EPEX prices not yet initialized — retrying in 2s.");
+                await Task.Delay(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
                 return;
+            }
 
             await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
 
@@ -189,6 +188,11 @@ namespace SessyController.Services
                 }
 
                 await _consumptionMonitorService.EstimateConsumptionInWattsPerQuarter(_quarterlyInfos).ConfigureAwait(false);
+
+                // Solar forecast is updated every cycle unconditionally — before BuildPlanAsync.
+                // Because _quarterlyInfos is passed by reference into MilpService, the updated
+                // SolarPowerPerQuarterHour values are always visible to the solver regardless
+                // of whether the resulting plan is committed or rejected (speculative solve).
                 await _solarService.GetExpectedSolarPower(_quarterlyInfos).ConfigureAwait(false);
 
                 // SOC via HardwareStatusService (polled in background — no extra Sessy request).
@@ -276,10 +280,7 @@ namespace SessyController.Services
                 var actual = new SessyData.Model.ActualQuarter
                 {
                     Time = nowQuarter,
-                    // Store the state machine's battery mode (Charging/Discharging/ZeroNetHome/Disabled)
-                    // so ModeMatch in PlanVsActualService can compare it to PlannedMode directly.
-                    // The raw hardware strategy (POWER_STRATEGY_API/NOM) is intentionally not used here.
-                    ActualMode = action.BatteryMode.ToString(),
+                    ActualMode = _hardwareStatus.ActualBatteryStrategy,
                     ActualPowerW = input.ActualBatteryPowerW,
                     ActualSocWh = input.ActualSocWh,
                     CurtailmentMode = action.CurtailmentMode.ToString(),

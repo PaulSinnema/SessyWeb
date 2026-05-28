@@ -20,8 +20,7 @@ namespace SessyWeb.Components
 
         // Annotation data point — only set when the exact current quarter exists in the series.
         // Must be a reference to an item from QuarterlyInfos so Radzen can position it correctly.
-        public QuarterlyInfoView? NowQuarter =>
-            QuarterlyInfos.FirstOrDefault(q => q.Time == _timeZoneService!.Now.DateFloorQuarter());
+        public QuarterlyInfoView? NowQuarter { get; private set; }
 
         [Parameter]
         public string? GraphStyle { get; set; }
@@ -71,6 +70,12 @@ namespace SessyWeb.Components
             var taxes = await _taxesDataService!.GetTaxesForDate(now).ConfigureAwait(false);
             if (taxes != null)
                 ShowSellingPriceLabels = !taxes.Netting;
+
+            // Find the exact current quarter in the series and set its NowLineHeight to ChartMax
+            // so the vertical bar spans the full chart height.
+            NowQuarter = QuarterlyInfos.FirstOrDefault(q => q.Time == now.DateFloorQuarter());
+            if (NowQuarter != null)
+                NowQuarter.NowLineHeight = ChartMax;
         }
     }
 }
