@@ -519,27 +519,25 @@
 
                 @* ── SQL Console ────────────────────────────────────────────── *@
                 <RadzenTabsItem Text="SQL Console" Icon="terminal">
-                    <RadzenStack Orientation="Orientation.Vertical" Gap="1rem" Style="padding: 1rem;">
-                        <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true" Shade="Shade.Dark">
-                            Direct SQL access. Only use SELECT, UPDATE or DELETE — no DROP or ALTER.
-                        </RadzenAlert>
-                        <RadzenLabel Text="SQL Statement" />
-                        <RadzenTextArea @bind-Value="_sqlStatement"
-                                        Rows="5"
-                                        Style="width:100%; font-family:monospace;"
-                                        Placeholder="SELECT * FROM QuarterlyMeasurements WHERE SolarProductionKwh > 100;" />
-                        <RadzenRow>
-                            <RadzenColumn>
+                    <div style="display:flex; flex-direction:column; padding:1rem; gap:0.5rem;">
+                        <RadzenText TextStyle="TextStyle.Caption" Style="opacity:0.7; margin:0;">
+                            Direct SQL access. Only SELECT, UPDATE or DELETE — no DROP or ALTER.
+                        </RadzenText>
+                        <div style="display:flex; gap:0.5rem; align-items:flex-start;">
+                            <RadzenTextArea @bind-Value="_sqlStatement"
+                                            Rows="4"
+                                            Style="flex:1; font-family:monospace; resize:vertical;"
+                                            Placeholder="SELECT * FROM QuarterlyMeasurements WHERE SolarProductionKwh > 100;" />
+                            <div style="display:flex; flex-direction:column; gap:0.5rem;">
                                 <RadzenButton Text="Execute" Icon="play_arrow"
                                               ButtonStyle="ButtonStyle.Primary"
                                               Click="@ExecuteSqlAsync"
                                               IsBusy="@_sqlBusy" />
                                 <RadzenButton Text="Clear" Icon="clear"
                                               ButtonStyle="ButtonStyle.Light"
-                                              Style="margin-left:8px"
                                               Click="@(() => { _sqlStatement = string.Empty; _sqlResult = null; _sqlError = null; })" />
-                            </RadzenColumn>
-                        </RadzenRow>
+                            </div>
+                        </div>
                         @if (_sqlError != null)
                         {
                             <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true">@_sqlError</RadzenAlert>
@@ -551,15 +549,15 @@
                             {
                                 <div style="overflow-x:auto;">
                                     <RadzenDataGrid Data="@_sqlResult" TItem="Dictionary<string, object>"
-                                                    AllowSorting="false" AllowPaging="false"
-                                                    Style="width:100%">
+                                                    AllowSorting="false" AllowPaging="true"
+                                                    PageSize="15"
+                                                    PagerHorizontalAlign="HorizontalAlign.Left"
+                                                    Style="width:100%;">
                                         <Columns>
                                             @foreach (var col in _sqlColumns)
                                             {
                                                 var c = col;
-                                                <RadzenDataGridColumn TItem="Dictionary<string, object>"
-                                                                      Title="@c"
-                                                                      Property="@c">
+                                                <RadzenDataGridColumn TItem="Dictionary<string, object>" Title="@c">
                                                     <Template Context="row">
                                                         @(row.TryGetValue(c, out var v) ? v?.ToString() ?? "NULL" : "")
                                                     </Template>
@@ -570,7 +568,7 @@
                                 </div>
                             }
                         }
-                    </RadzenStack>
+                    </div>
                 </RadzenTabsItem>
 
                 @* ── Credits ───────────────────────────────────────────────── *@
