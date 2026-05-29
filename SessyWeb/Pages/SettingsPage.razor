@@ -16,6 +16,154 @@
 
             @* ── Investment Groups ─────────────────────────────────────────── *@
             <Tabs>
+                @* ── Management Settings ───────────────────────────────────── *@
+                <RadzenTabsItem Text="Management Settings" Icon="settings">
+                    <RadzenStack Orientation="Orientation.Vertical" Gap="1rem" Style="padding: 1rem; max-width: 900px;">
+
+                        @if (_settings == null)
+                        {
+                            <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+                        }
+                        else
+                        {
+                            @* ── Location ────────────────────────────────────── *@
+                            <RadzenFieldset Text="Location">
+                                <RadzenRow Gap="1rem">
+                                    <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Latitude" />
+                                        <RadzenNumeric @bind-Value="_settings.Latitude" Format="F6" Style="width:100%" />
+                                    </RadzenColumn>
+                                    <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Longitude" />
+                                        <RadzenNumeric @bind-Value="_settings.Longitude" Format="F6" Style="width:100%" />
+                                    </RadzenColumn>
+                                    <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Timezone" />
+                                        <RadzenTextBox @bind-Value="_settings.TimeZone" Style="width:100%" />
+                                    </RadzenColumn>
+                                </RadzenRow>
+                            </RadzenFieldset>
+
+                            @* ── Solar ───────────────────────────────────────── *@
+                            <RadzenFieldset Text="Solar">
+                                <RadzenRow Gap="1rem">
+                                    <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Solar correction factor" />
+                                        <RadzenNumeric @bind-Value="_settings.SolarCorrection" Format="F2" Style="width:100%" />
+                                    </RadzenColumn>
+                                    <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Annual production (kWh)" />
+                                        <RadzenNumeric @bind-Value="_settings.SolarAnnualProductionKWh" Format="F0" Style="width:100%" />
+                                    </RadzenColumn>
+                                    <RadzenColumn Size="12" SizeMD="4" Style="display:flex; align-items:flex-end; padding-bottom:4px;">
+                                        <RadzenCheckBox @bind-Value="_settings.SolarSystemShutsDownDuringNegativePrices" />
+                                        <RadzenLabel Text="Shut down at negative prices" Style="margin-left:8px" />
+                                    </RadzenColumn>
+                                </RadzenRow>
+                            </RadzenFieldset>
+
+                            @* ── Battery control ──────────────────────────────── *@
+                            <RadzenFieldset Text="Battery control">
+                                <RadzenRow Gap="1rem">
+                                    <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Cycle cost (€)" />
+                                        <RadzenNumeric @bind-Value="_settings.CycleCost" Format="F4" Style="width:100%" />
+                                    </RadzenColumn>
+                                    <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Zero Net Home min. profit (€/kWh)" />
+                                        <RadzenNumeric @bind-Value="_settings.NetZeroHomeMinProfit" Format="F4" Style="width:100%" />
+                                    </RadzenColumn>
+                                    <RadzenColumn Size="12" SizeMD="4" Style="display:flex; flex-direction:column; gap:8px; justify-content:flex-end;">
+                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
+                                            <RadzenCheckBox @bind-Value="_settings.ChargedInControl" />
+                                            <RadzenLabel Text="Charged in control" />
+                                        </RadzenStack>
+                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
+                                            <RadzenCheckBox @bind-Value="_settings.ManualOverride" />
+                                            <RadzenLabel Text="Manual override" />
+                                        </RadzenStack>
+                                    </RadzenColumn>
+                                </RadzenRow>
+                                @if (_settings.ManualOverride)
+                                {
+                                    <RadzenRow Gap="1rem" Style="margin-top:1rem;">
+                                        <RadzenColumn Size="12" SizeMD="4">
+                                            <RadzenLabel Text="Manual charging hours" />
+                                            <RadzenDropDown @bind-Value="_chargingHours"
+                                                            Data="@_allHours"
+                                                            Multiple="true" AllowClear="true"
+                                                            Placeholder="— select hours —" Style="width:100%"
+                                                            Change="@(() => OnChargingHoursChanged())" />
+                                        </RadzenColumn>
+                                        <RadzenColumn Size="12" SizeMD="4">
+                                            <RadzenLabel Text="Manual discharging hours" />
+                                            <RadzenDropDown @bind-Value="_dischargingHours"
+                                                            Data="@_allHours"
+                                                            Multiple="true" AllowClear="true"
+                                                            Placeholder="— select hours —" Style="width:100%"
+                                                            Change="@(() => OnDischargingHoursChanged())" />
+                                        </RadzenColumn>
+                                        <RadzenColumn Size="12" SizeMD="4">
+                                            <RadzenLabel Text="Manual Zero Net Home hours" />
+                                            <RadzenDropDown @bind-Value="_nzhHours"
+                                                            Data="@_allHours"
+                                                            Multiple="true" AllowClear="true"
+                                                            Placeholder="— select hours —" Style="width:100%"
+                                                            Change="@(() => OnNzhHoursChanged())" />
+                                        </RadzenColumn>
+                                    </RadzenRow>
+                                }
+                            </RadzenFieldset>
+
+                            @* ── Energy needs per month ───────────────────────── *@
+                            <RadzenFieldset Text="Estimated home energy needs per month (kWh)">
+                                <RadzenRow Gap="0.5rem">
+                                    @for (int m = 0; m < 12; m++)
+                                    {
+                                        int month = m;
+                                        <RadzenColumn Size="6" SizeMD="2">
+                                            <RadzenLabel Text="@_monthNames[month]" />
+                                            <RadzenNumeric Value="@_energyNeeds[month]"
+                                                           ValueChanged="@((double v) => _energyNeeds[month] = v)"
+                                                           Format="F0" Style="width:100%" />
+                                        </RadzenColumn>
+                                    }
+                                </RadzenRow>
+                            </RadzenFieldset>
+
+                            @* ── Statistics ───────────────────────────────────── *@
+                            <RadzenFieldset Text="Statistics">
+                                <RadzenRow Gap="1rem">
+                                    <RadzenColumn Size="12" SizeMD="6">
+                                        <RadzenLabel Text="Statistics from date (optional)" />
+                                        <RadzenDatePicker @bind-Value="_settings.StatisticsFromDate"
+                                                          DateFormat="dd-MM-yyyy"
+                                                          AllowClear="true"
+                                                          Placeholder="— all history —"
+                                                          Style="width:100%" />
+                                    </RadzenColumn>
+                                </RadzenRow>
+                            </RadzenFieldset>
+
+                            <RadzenRow>
+                                <RadzenColumn>
+                                    <RadzenButton Text="Save" Icon="save"
+                                                  ButtonStyle="ButtonStyle.Success"
+                                                  Click="@SaveSettingsAsync"
+                                                  IsBusy="@_settingsSaving" />
+                                    @if (_settingsSaved)
+                                    {
+                                        <RadzenText TextStyle="TextStyle.Caption" Style="margin-left:1rem; color:var(--rz-success);">
+                                            ✓ Saved
+                                        </RadzenText>
+                                    }
+                                </RadzenColumn>
+                            </RadzenRow>
+                        }
+
+                    </RadzenStack>
+                </RadzenTabsItem>
+
                 <RadzenTabsItem Text="Investment Groups" Icon="category">
                     <RadzenDataGrid @ref="groupsGrid"
                                     Data="@GroupList"
@@ -333,154 +481,6 @@
                             <RadzenDataGridColumn Property="@nameof(SessyWebControl.Status)" Title="Status" />
                         </Columns>
                     </RadzenDataGrid>
-                </RadzenTabsItem>
-
-                @* ── Management Settings ───────────────────────────────────── *@
-                <RadzenTabsItem Text="Management Settings" Icon="settings">
-                    <RadzenStack Orientation="Orientation.Vertical" Gap="1rem" Style="padding: 1rem; max-width: 900px;">
-
-                        @if (_settings == null)
-                        {
-                            <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
-                        }
-                        else
-                        {
-                            @* ── Location ────────────────────────────────────── *@
-                            <RadzenFieldset Text="Location">
-                                <RadzenRow Gap="1rem">
-                                    <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Latitude" />
-                                        <RadzenNumeric @bind-Value="_settings.Latitude" Format="F6" Style="width:100%" />
-                                    </RadzenColumn>
-                                    <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Longitude" />
-                                        <RadzenNumeric @bind-Value="_settings.Longitude" Format="F6" Style="width:100%" />
-                                    </RadzenColumn>
-                                    <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Timezone" />
-                                        <RadzenTextBox @bind-Value="_settings.TimeZone" Style="width:100%" />
-                                    </RadzenColumn>
-                                </RadzenRow>
-                            </RadzenFieldset>
-
-                            @* ── Solar ───────────────────────────────────────── *@
-                            <RadzenFieldset Text="Solar">
-                                <RadzenRow Gap="1rem">
-                                    <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Solar correction factor" />
-                                        <RadzenNumeric @bind-Value="_settings.SolarCorrection" Format="F2" Style="width:100%" />
-                                    </RadzenColumn>
-                                    <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Annual production (kWh)" />
-                                        <RadzenNumeric @bind-Value="_settings.SolarAnnualProductionKWh" Format="F0" Style="width:100%" />
-                                    </RadzenColumn>
-                                    <RadzenColumn Size="12" SizeMD="4" Style="display:flex; align-items:flex-end; padding-bottom:4px;">
-                                        <RadzenCheckBox @bind-Value="_settings.SolarSystemShutsDownDuringNegativePrices" />
-                                        <RadzenLabel Text="Shut down at negative prices" Style="margin-left:8px" />
-                                    </RadzenColumn>
-                                </RadzenRow>
-                            </RadzenFieldset>
-
-                            @* ── Battery control ──────────────────────────────── *@
-                            <RadzenFieldset Text="Battery control">
-                                <RadzenRow Gap="1rem">
-                                    <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Cycle cost (€)" />
-                                        <RadzenNumeric @bind-Value="_settings.CycleCost" Format="F4" Style="width:100%" />
-                                    </RadzenColumn>
-                                    <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Zero Net Home min. profit (€/kWh)" />
-                                        <RadzenNumeric @bind-Value="_settings.NetZeroHomeMinProfit" Format="F4" Style="width:100%" />
-                                    </RadzenColumn>
-                                    <RadzenColumn Size="12" SizeMD="4" Style="display:flex; flex-direction:column; gap:8px; justify-content:flex-end;">
-                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
-                                            <RadzenCheckBox @bind-Value="_settings.ChargedInControl" />
-                                            <RadzenLabel Text="Charged in control" />
-                                        </RadzenStack>
-                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
-                                            <RadzenCheckBox @bind-Value="_settings.ManualOverride" />
-                                            <RadzenLabel Text="Manual override" />
-                                        </RadzenStack>
-                                    </RadzenColumn>
-                                </RadzenRow>
-                                @if (_settings.ManualOverride)
-                                {
-                                    <RadzenRow Gap="1rem" Style="margin-top:1rem;">
-                                        <RadzenColumn Size="12" SizeMD="4">
-                                            <RadzenLabel Text="Manual charging hours" />
-                                            <RadzenDropDown @bind-Value="_chargingHours"
-                                                            Data="@_allHours"
-                                                            Multiple="true" AllowClear="true"
-                                                            Placeholder="— select hours —" Style="width:100%"
-                                                            Change="@(() => OnChargingHoursChanged())" />
-                                        </RadzenColumn>
-                                        <RadzenColumn Size="12" SizeMD="4">
-                                            <RadzenLabel Text="Manual discharging hours" />
-                                            <RadzenDropDown @bind-Value="_dischargingHours"
-                                                            Data="@_allHours"
-                                                            Multiple="true" AllowClear="true"
-                                                            Placeholder="— select hours —" Style="width:100%"
-                                                            Change="@(() => OnDischargingHoursChanged())" />
-                                        </RadzenColumn>
-                                        <RadzenColumn Size="12" SizeMD="4">
-                                            <RadzenLabel Text="Manual Zero Net Home hours" />
-                                            <RadzenDropDown @bind-Value="_nzhHours"
-                                                            Data="@_allHours"
-                                                            Multiple="true" AllowClear="true"
-                                                            Placeholder="— select hours —" Style="width:100%"
-                                                            Change="@(() => OnNzhHoursChanged())" />
-                                        </RadzenColumn>
-                                    </RadzenRow>
-                                }
-                            </RadzenFieldset>
-
-                            @* ── Energy needs per month ───────────────────────── *@
-                            <RadzenFieldset Text="Estimated home energy needs per month (kWh)">
-                                <RadzenRow Gap="0.5rem">
-                                    @for (int m = 0; m < 12; m++)
-                                    {
-                                        int month = m;
-                                        <RadzenColumn Size="6" SizeMD="2">
-                                            <RadzenLabel Text="@_monthNames[month]" />
-                                            <RadzenNumeric Value="@_energyNeeds[month]"
-                                                           ValueChanged="@((double v) => _energyNeeds[month] = v)"
-                                                           Format="F0" Style="width:100%" />
-                                        </RadzenColumn>
-                                    }
-                                </RadzenRow>
-                            </RadzenFieldset>
-
-                            @* ── Statistics ───────────────────────────────────── *@
-                            <RadzenFieldset Text="Statistics">
-                                <RadzenRow Gap="1rem">
-                                    <RadzenColumn Size="12" SizeMD="6">
-                                        <RadzenLabel Text="Statistics from date (optional)" />
-                                        <RadzenDatePicker @bind-Value="_settings.StatisticsFromDate"
-                                                          DateFormat="dd-MM-yyyy"
-                                                          AllowClear="true"
-                                                          Placeholder="— all history —"
-                                                          Style="width:100%" />
-                                    </RadzenColumn>
-                                </RadzenRow>
-                            </RadzenFieldset>
-
-                            <RadzenRow>
-                                <RadzenColumn>
-                                    <RadzenButton Text="Save" Icon="save"
-                                                  ButtonStyle="ButtonStyle.Success"
-                                                  Click="@SaveSettingsAsync"
-                                                  IsBusy="@_settingsSaving" />
-                                    @if (_settingsSaved)
-                                    {
-                                        <RadzenText TextStyle="TextStyle.Caption" Style="margin-left:1rem; color:var(--rz-success);">
-                                            ✓ Saved
-                                        </RadzenText>
-                                    }
-                                </RadzenColumn>
-                            </RadzenRow>
-                        }
-
-                    </RadzenStack>
                 </RadzenTabsItem>
 
                 @* ── Tips & Checks ──────────────────────────────────────────── *@

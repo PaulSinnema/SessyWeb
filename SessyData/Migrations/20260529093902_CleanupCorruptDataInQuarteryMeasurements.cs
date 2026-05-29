@@ -10,9 +10,11 @@ namespace SessyData.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            Console.WriteLine("Cleaning up solar corrupt data");
+
             // Cleanup corrupt data.
             migrationBuilder.Sql(
-                "DELETE FROM QuarterlyMeasurements WHERE SolarProductionKwh > 100;");
+                "DELETE FROM QuarterlyMeasurements WHERE SolarProductionKWh > 100;");
         }
 
         /// <inheritdoc />
