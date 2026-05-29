@@ -50,6 +50,9 @@ namespace SessyData.Model
         /// </summary>
         public string? DatabaseBackupDirectory { get; set; }
 
+        // ── Export ────────────────────────────────────────────────────────────
+        public string? ExportDirectory { get; set; }
+
         // ── Energy needs ──────────────────────────────────────────────────────
         [SkipCopy]
         public string? RequiredHomeEnergy { get; set; }

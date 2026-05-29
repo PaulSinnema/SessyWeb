@@ -1,71 +1,73 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <UserSecretsId>72ac0a3b-763a-45f6-a942-7fba8765e867</UserSecretsId>
-    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
-    <OutDir>$(SolutionDir)SessyWeb\bin\$(Configuration)\net10.0\</OutDir>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<UserSecretsId>72ac0a3b-763a-45f6-a942-7fba8765e867</UserSecretsId>
+		<DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+		<OutDir>$(SolutionDir)SessyWeb\bin\$(Configuration)\net10.0\</OutDir>
+	</PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'" />
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'" />
 
-   <ItemGroup>
-    <PackageReference Include="BlazorPro.BlazorSize" Version="9.0.0" />
-    <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="10.0.7" />
-    <PackageReference Include="Microsoft.Build" Version="18.4.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.7" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.7">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.7" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.7">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-    <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.23.0" />
-    <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="10.0.2" />
-    <PackageReference Include="NuGet.Packaging" Version="7.3.1" />
-    <PackageReference Include="NuGet.Protocol" Version="7.3.1" />
-    <PackageReference Include="Radzen.Blazor" Version="10.4.0" />
-    <PackageReference Include="System.Linq.Dynamic.Core" Version="1.7.2" />
-  </ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="BlazorPro.BlazorSize" Version="9.0.0" />
+		<PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="10.0.7" />
+		<PackageReference Include="Microsoft.Build" Version="18.4.0" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.7" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.7">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.7" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.7">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.23.0" />
+		<PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="10.0.2" />
+		<PackageReference Include="NuGet.Packaging" Version="7.3.1" />
+		<PackageReference Include="NuGet.Protocol" Version="7.3.1" />
+		<PackageReference Include="Radzen.Blazor" Version="10.4.0" />
+		<PackageReference Include="System.Linq.Dynamic.Core" Version="1.7.2" />
+		<PackageReference Include="DocumentFormat.OpenXml" Version="3.1.0" />
+		<PackageReference Include="System.IO.Packaging" Version="9.0.0" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\SessyCommon\SessyCommon.csproj" />
-    <ProjectReference Include="..\SessyController\SessyController.csproj" />
-    <ProjectReference Include="..\SessyData\SessyData.csproj" />
-  </ItemGroup>
-
-
-  <ItemGroup>
-    <None Include="wwwroot\Images\sessy.svg">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\SessyCommon\SessyCommon.csproj" />
+		<ProjectReference Include="..\SessyController\SessyController.csproj" />
+		<ProjectReference Include="..\SessyData\SessyData.csproj" />
+	</ItemGroup>
 
 
-  <ItemGroup>
-    <Folder Include="data\backups\" />
-    <Folder Include="SessyWeb\" />
-  </ItemGroup>
+	<ItemGroup>
+		<None Include="wwwroot\Images\sessy.svg">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
 
 
-  <ItemGroup>
-    <Content Update="wwwroot\favicon.ico">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-    <Content Update="wwwroot\Images\ChartExplanation.jpg">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Update="wwwroot\Images\sessy_web.png">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-    <Content Update="wwwroot\Images\sessy_transparant.png">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
+	<ItemGroup>
+		<Folder Include="data\backups\" />
+		<Folder Include="SessyWeb\" />
+	</ItemGroup>
+
+
+	<ItemGroup>
+		<Content Update="wwwroot\favicon.ico">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</Content>
+		<Content Update="wwwroot\Images\ChartExplanation.jpg">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</Content>
+		<Content Update="wwwroot\Images\sessy_web.png">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</Content>
+		<Content Update="wwwroot\Images\sessy_transparant.png">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</Content>
+	</ItemGroup>
 
 </Project>

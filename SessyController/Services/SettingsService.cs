@@ -132,6 +132,12 @@ namespace SessyController.Services
                 dirty = true;
             }
 
+            if (string.IsNullOrWhiteSpace(record.ExportDirectory))
+            {
+                record.ExportDirectory = "/data/exports";
+                dirty = true;
+            }
+
             if (!dirty) return;
 
             await _settingsDataService.Update(
@@ -169,6 +175,7 @@ namespace SessyController.Services
                 SolarAnnualProductionKWh = 0.0,
                 SolarSystemShutsDownDuringNegativePrices = false,
                 StatisticsFromDate = null,
+                ExportDirectory = "/data/exports",
             };
 
             defaults.ManualChargingHoursArray = [];

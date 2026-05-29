@@ -536,6 +536,14 @@
                                 <RadzenButton Text="Clear" Icon="clear"
                                               ButtonStyle="ButtonStyle.Light"
                                               Click="@(() => { _sqlStatement = string.Empty; _sqlResult = null; _sqlError = null; })" />
+                                <RadzenButton Text="CSV" Icon="download"
+                                              ButtonStyle="ButtonStyle.Secondary"
+                                              Disabled="@(_sqlResult == null || _sqlResult.Count == 0)"
+                                              Click="@ExportCsvAsync" />
+                                <RadzenButton Text="Excel" Icon="table_view"
+                                              ButtonStyle="ButtonStyle.Secondary"
+                                              Disabled="@(_sqlResult == null || _sqlResult.Count == 0)"
+                                              Click="@ExportXlsxAsync" />
                             </div>
                         </div>
                         @if (_sqlError != null)

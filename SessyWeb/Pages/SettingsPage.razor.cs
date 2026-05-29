@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Radzen;
@@ -505,7 +506,7 @@ namespace SessyWeb.Pages
         // ── SQL Console ───────────────────────────────────────────────────────
 
         [Inject] private IServiceScopeFactory? _scopeFactory { get; set; }
-
+        [Inject] private IJSRuntime? _js { get; set; }
         private string? _sqlStatement;
         private string? _sqlError;
         private string? _sqlRowsAffected;
@@ -588,6 +589,109 @@ namespace SessyWeb.Pages
             finally
             {
                 _sqlBusy = false;
+                StateHasChanged();
+            }
+        }
+
+        private string GetExportDirectory()
+        {
+            var dir = _settings?.ExportDirectory;
+            if (string.IsNullOrWhiteSpace(dir)) dir = "/data/exports";
+            if (!System.IO.Directory.Exists(dir))
+                System.IO.Directory.CreateDirectory(dir);
+            return dir;
+        }
+
+        private async Task ExportCsvAsync()
+        {
+            if (_sqlResult == null || _sqlColumns.Count == 0) return;
+            try
+            {
+                // Build CSV content.
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine(string.Join(",", _sqlColumns.Select(c => "\"" + c + "\"")));
+                foreach (var row in _sqlResult)
+                {
+                    var values = _sqlColumns.Select(c =>
+                    {
+                        var v = row.TryGetValue(c, out var val) ? val?.ToString() ?? string.Empty : string.Empty;
+                        return "\"" + v.Replace("\"", "\"\"") + "\"";
+                    });
+                    sb.AppendLine(string.Join(",", values));
+                }
+
+                var bytes = System.Text.Encoding.UTF8.GetBytes(sb.ToString());
+                using var stream = new System.IO.MemoryStream(bytes);
+                using var streamRef = new DotNetStreamReference(stream);
+                await _js!.InvokeVoidAsync("downloadFileFromStream", "query_export.csv", streamRef);
+            }
+            catch (Exception ex)
+            {
+                _sqlError = $"CSV export failed: {ex.Message}";
+                StateHasChanged();
+            }
+        }
+
+        private async Task ExportXlsxAsync()
+        {
+            if (_sqlResult == null || _sqlColumns.Count == 0) return;
+            try
+            {
+                using var ms = new System.IO.MemoryStream();
+
+                using (var doc = DocumentFormat.OpenXml.Packaging.SpreadsheetDocument.Create(ms, DocumentFormat.OpenXml.SpreadsheetDocumentType.Workbook, true))
+                {
+                    var workbookPart = doc.AddWorkbookPart();
+                    workbookPart.Workbook = new DocumentFormat.OpenXml.Spreadsheet.Workbook();
+
+                    var worksheetPart = workbookPart.AddNewPart<DocumentFormat.OpenXml.Packaging.WorksheetPart>();
+                    var sheetData = new DocumentFormat.OpenXml.Spreadsheet.SheetData();
+                    worksheetPart.Worksheet = new DocumentFormat.OpenXml.Spreadsheet.Worksheet(sheetData);
+
+                    var sheets = workbookPart.Workbook.AppendChild(new DocumentFormat.OpenXml.Spreadsheet.Sheets());
+                    sheets.Append(new DocumentFormat.OpenXml.Spreadsheet.Sheet
+                    {
+                        Id = workbookPart.GetIdOfPart(worksheetPart),
+                        SheetId = 1,
+                        Name = "Query"
+                    });
+
+                    static DocumentFormat.OpenXml.Spreadsheet.Cell CreateCell(string text) =>
+                        new DocumentFormat.OpenXml.Spreadsheet.Cell
+                        {
+                            DataType = DocumentFormat.OpenXml.Spreadsheet.CellValues.InlineString,
+                            InlineString = new DocumentFormat.OpenXml.Spreadsheet.InlineString(
+                                new DocumentFormat.OpenXml.Spreadsheet.Text(text))
+                        };
+
+                    // Header row.
+                    var headerRow = new DocumentFormat.OpenXml.Spreadsheet.Row();
+                    foreach (var col in _sqlColumns)
+                        headerRow.Append(CreateCell(col));
+                    sheetData.Append(headerRow);
+
+                    // Data rows.
+                    foreach (var row in _sqlResult)
+                    {
+                        var dataRow = new DocumentFormat.OpenXml.Spreadsheet.Row();
+                        foreach (var col in _sqlColumns)
+                        {
+                            var v = row.TryGetValue(col, out var val) ? val?.ToString() ?? string.Empty : string.Empty;
+                            dataRow.Append(CreateCell(v));
+                        }
+                        sheetData.Append(dataRow);
+                    }
+
+                    workbookPart.Workbook.Save();
+                }
+
+                ms.Position = 0;
+                using var streamRef = new DotNetStreamReference(ms);
+                await _js!.InvokeVoidAsync("downloadFileFromStream", "query_export.xlsx", streamRef);
+            }
+            catch (Exception ex)
+            {
+                _sqlError = $"Excel export failed: {ex.Message}";
                 StateHasChanged();
             }
         }

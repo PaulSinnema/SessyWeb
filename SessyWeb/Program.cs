@@ -207,6 +207,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<BatteryManagementController>();
 
 builder.Services.AddControllers();
+builder.Services.AddMemoryCache();
 builder.Services.AddRadzenComponents();
 
 // Remove the antiforgery token.
