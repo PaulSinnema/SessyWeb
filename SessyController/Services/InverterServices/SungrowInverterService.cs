@@ -1,5 +1,6 @@
-﻿using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Options;
 using SessyCommon.Configurations;
+using SessyController.Services;
 
 namespace SessyController.Services.InverterServices
 {
@@ -7,10 +8,10 @@ namespace SessyController.Services.InverterServices
     {
         public SungrowInverterService(LoggingService<SolarEdgeInverterService> logger,
                                       IHttpClientFactory httpClientFactory,
-                                      IOptionsMonitor<SettingsConfig> settingsConfig,
+                                      SettingsService settingsService,
                                       IOptionsMonitor<PowerSystemsConfig> powerSystemsConfig,
                                       IServiceScopeFactory serviceScopeFactory)
-            : base(logger, "Sungrow", httpClientFactory, settingsConfig, powerSystemsConfig, serviceScopeFactory)
+            : base(logger, "Sungrow", httpClientFactory, settingsService, powerSystemsConfig, serviceScopeFactory)
         {
         }
     }

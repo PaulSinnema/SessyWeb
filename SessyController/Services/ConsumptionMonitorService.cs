@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Options;
 using SessyCommon.Configurations;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
@@ -34,9 +34,9 @@ namespace SessyController.Services
 
         private LoggingService<ConsumptionMonitorService> _logger { get; set; }
         private TimeZoneService _timeZoneService { get; set; }
-        private IOptionsMonitor<SettingsConfig> _settingConfigMonitor { get; set; }
 
-        private SettingsConfig _settingConfig { get; set; }
+        private SettingsService _settingsService;
+        private Settings _settingConfig;
 
         public delegate Task DataChangedDelegate();
 
@@ -48,29 +48,28 @@ namespace SessyController.Services
                                          WeatherService weatherService,
                                          TimeZoneService timeZoneService,
                                          P1MeterContainer p1MeterContainer,
-                                         IOptionsMonitor<SettingsConfig> settingConfigMonitor,
+                                         SettingsService settingsService,
                                          IServiceScopeFactory serviceScopeFactory)
         {
             _logger = logger;
             _weatherService = weatherService;
             _timeZoneService = timeZoneService;
-            _settingConfigMonitor = settingConfigMonitor;
 
-            _settingConfig = settingConfigMonitor.CurrentValue;
+            _settingsService = settingsService;
+            _settingConfig = _settingsService.Current;
 
-            settingConfigMonitor.OnChange(config =>
+            _settingsService.SettingsChanged += s =>
             {
                 _p1Semaphore.Wait();
-
                 try
                 {
-                    _settingConfig = config;
+                    _settingConfig = s;
                 }
                 finally
                 {
                     _p1Semaphore.Release();
                 }
-            });
+            };
 
             _serviceScopeFactory = serviceScopeFactory;
 
@@ -445,7 +444,7 @@ namespace SessyController.Services
                     }
                 }
 
-                quarterlyInfo.EstimatedConsumptionPerQuarterInWatts = _settingConfig.EnergyNeedsPerMonth / 24.0; // Wh/day ÷ 24 hours = average Watts
+                quarterlyInfo.EstimatedConsumptionPerQuarterInWatts = _settingConfig.EnergyNeedsForCurrentMonth(_timeZoneService.Now.Month - 1) / 24.0; // Wh/day ÷ 24 hours = average Watts
             }
         }
 

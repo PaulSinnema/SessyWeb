@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Options;
 using SessyCommon.Configurations;
 using SessyCommon.Services;
 using SessyController.Interfaces;
@@ -30,7 +30,7 @@ namespace SessyController.Services
         private readonly InvestmentGroupDataService _groupService;
         private readonly TimeZoneService _timeZoneService;
         private readonly HeatPumpConfig _heatPumpConfig;
-        private readonly SettingsConfig _settingsConfig;
+        private Settings _settingsConfig;
         private readonly PowerSystemsConfig _powerSystemsConfig;
         private readonly IEPEXPricesService _epexPricesService;
         private readonly IGasPricesDataService _gasPricesDataService;
@@ -52,7 +52,7 @@ namespace SessyController.Services
                                        InvestmentGroupDataService groupService,
                                        TimeZoneService timeZoneService,
                                        IOptions<HeatPumpConfig> heatPumpConfig,
-                                       IOptions<SettingsConfig> settingsConfig,
+                                       SettingsService settingsService,
                                        IOptions<PowerSystemsConfig> powerSystemsConfig,
                                        IEPEXPricesService epexPricesService,
                                        IGasPricesDataService gasPricesDataService,
@@ -70,7 +70,8 @@ namespace SessyController.Services
             _groupService = groupService;
             _timeZoneService = timeZoneService;
             _heatPumpConfig = heatPumpConfig.Value;
-            _settingsConfig = settingsConfig.Value;
+            _settingsConfig = settingsService.Current;
+            settingsService.SettingsChanged += s => _settingsConfig = s;
             _powerSystemsConfig = powerSystemsConfig.Value;
             _epexPricesService = epexPricesService;
             _gasPricesDataService = gasPricesDataService;
@@ -218,6 +219,7 @@ namespace SessyController.Services
                     SavingsEur = stats.TotalSavingsEur,
                     ArbitrageProfitEur = stats.ArbitrageProfitEur,
                     SelfSufficiencyPct = stats.SelfSufficiencyPct,
+                    SelfConsumptionPct = stats.SelfConsumptionPct,
                     BatteryCycles = stats.BatteryCycles
                 });
 

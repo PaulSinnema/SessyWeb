@@ -1,4 +1,4 @@
-﻿using SessyCommon.Configurations;
+using SessyCommon.Configurations;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
 using SessyController.Managers;
@@ -10,7 +10,7 @@ namespace SessyController.Services.Items
     {
         private const double MinSolarPowerW = 50.0;
 
-        private readonly SettingsConfig _settingsConfig;
+        private readonly SettingsService _settingsService;
         private readonly TimeZoneService _timeZoneService;
         private readonly SolarInverterManager _solarInverterManager;
 
@@ -19,13 +19,13 @@ namespace SessyController.Services.Items
             double marketPrice,
             double buyingPrice,
             double sellingPrice,
-            SettingsConfig settingsConfig,
+            SettingsService settingsService,
             SolarInverterManager solarInverterManager,
             TimeZoneService timeZoneService)
         {
             Time = time;
 
-            _settingsConfig = settingsConfig;
+            _settingsService = settingsService;
             _solarInverterManager = solarInverterManager;
             _timeZoneService = timeZoneService;
 
@@ -41,7 +41,7 @@ namespace SessyController.Services.Items
         public static async Task<QuarterlyInfo> CreateAsync(
             DateTime time,
             double marketPrice,
-            SettingsConfig settingsConfig,
+            SettingsService settingsService,
             SolarInverterManager solarInverterManager,
             TimeZoneService timeZoneService,
             CalculationService calculationService)
@@ -54,7 +54,7 @@ namespace SessyController.Services.Items
                 marketPrice,
                 buying,
                 selling,
-                settingsConfig,
+                settingsService,
                 solarInverterManager,
                 timeZoneService);
         }
@@ -160,7 +160,7 @@ namespace SessyController.Services.Items
         // NOTE: In the old model Disabled depended on DeltaLowestPrice and solar vs consumption.
         // Keep the same idea, but make it purely derived so your UI doesn't break.
         public bool Disabled =>
-            DeltaLowestPrice < _settingsConfig.NetZeroHomeMinProfit &&
+            DeltaLowestPrice < _settingsService.Current.NetZeroHomeMinProfit &&
             SolarPowerPerQuarterInWatts < EstimatedConsumptionPerQuarterInWatts;
 
         public bool ZeroNetHome => Mode == Modes.ZeroNetHome || (!(Charging || Discharging || Disabled));

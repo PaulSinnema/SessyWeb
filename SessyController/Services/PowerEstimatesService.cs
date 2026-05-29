@@ -1,15 +1,17 @@
-﻿using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Options;
 using SessyCommon.Configurations;
 using SessyCommon.Services;
 using SessyController.Services.InverterServices;
 using SessyController.Services.Items;
+using SessyData.Model;
 using SessyData.Services;
 
 namespace SessyController.Services
 {
     public class PowerEstimatesService
     {
-        private SettingsConfig _settingsConfig { get; set; }
+        private SettingsService _settingsService;
+        private Settings _settingsConfig;
         private SessyBatteryConfig _sessyBatteryConfig { get; set; }
         private IServiceScopeFactory _serviceScopeFactory { get; set; }
         private EnergyHistoryDataService _energyHistoryService { get; set; }
@@ -25,17 +27,18 @@ namespace SessyController.Services
         private WeatherService _weatherService { get; set; }
 
         public PowerEstimatesService(LoggingService<BatteriesService> logger,
-                                IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
+                                SettingsService settingsService,
                                 IOptionsMonitor<SessyBatteryConfig> sessyBatteryConfigMonitor,
                                 EnergyHistoryDataService energyHistoryService,
                                 IServiceScopeFactory serviceScopeFactory)
         {
-            _settingsConfig = settingsConfigMonitor.CurrentValue;
+            _settingsService = settingsService;
+            _settingsConfig = _settingsService.Current;
+            _settingsService.SettingsChanged += s => _settingsConfig = s;
             _sessyBatteryConfig = sessyBatteryConfigMonitor.CurrentValue;
             _serviceScopeFactory = serviceScopeFactory;
             _energyHistoryService = energyHistoryService;
 
-            if (_settingsConfig == null) throw new InvalidOperationException("ManagementSettings missing");
             if (_sessyBatteryConfig == null) throw new InvalidOperationException("Sessy:Batteries missing");
 
             _scope = _serviceScopeFactory.CreateScope();

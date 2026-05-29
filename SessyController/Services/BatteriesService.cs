@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Options;
 using SessyCommon.Configurations;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
@@ -25,13 +25,12 @@ namespace SessyController.Services
         private readonly LoggingService<BatteriesService> _logger;
         private readonly IServiceScopeFactory _serviceScopeFactory;
 
-        private readonly IOptionsMonitor<SettingsConfig> _settingsConfigMonitor;
         private readonly IOptionsMonitor<SessyBatteryConfig> _sessyBatteryConfigMonitor;
 
-        private IDisposable? _settingsConfigSubscription;
         private IDisposable? _sessyBatteryConfigSubscription;
 
-        private SettingsConfig _settingsConfig;
+        private SettingsService _settingsService;
+        private Settings _settingsConfig;
         private SessyBatteryConfig _sessyBatteryConfig;
 
         private readonly SemaphoreSlim _semaphore = new(1, 1);
@@ -72,20 +71,20 @@ namespace SessyController.Services
 
         public BatteriesService(
             LoggingService<BatteriesService> logger,
-            IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
+            SettingsService settingsService,
             IOptionsMonitor<SessyBatteryConfig> sessyBatteryConfigMonitor,
             IServiceScopeFactory serviceScopeFactory)
         {
             _logger = logger;
             _serviceScopeFactory = serviceScopeFactory;
 
-            _settingsConfigMonitor = settingsConfigMonitor;
             _sessyBatteryConfigMonitor = sessyBatteryConfigMonitor;
 
-            _settingsConfig = settingsConfigMonitor.CurrentValue ?? throw new InvalidOperationException("ManagementSettings missing");
+            _settingsService = settingsService;
+            _settingsConfig = _settingsService.Current;
             _sessyBatteryConfig = sessyBatteryConfigMonitor.CurrentValue ?? throw new InvalidOperationException("Sessy:Batteries missing");
 
-            _settingsConfigSubscription = _settingsConfigMonitor.OnChange(settings => _settingsConfig = settings);
+            _settingsService.SettingsChanged += s => _settingsConfig = s;
             _sessyBatteryConfigSubscription = _sessyBatteryConfigMonitor.OnChange(settings => _sessyBatteryConfig = settings);
 
             _scope = _serviceScopeFactory.CreateScope();
@@ -122,6 +121,10 @@ namespace SessyController.Services
         protected override async Task ExecuteAsync(CancellationToken cancellationToken)
         {
             _logger.LogWarning("BatteriesService started ...");
+
+            // Wait until SettingsService has loaded settings from the database.
+            await _settingsService.WaitForReadyAsync().ConfigureAwait(false);
+            _settingsConfig = _settingsService.Current;
 
             var delaySeconds = 60;
 
@@ -604,7 +607,6 @@ namespace SessyController.Services
         {
             if (_isDisposed) return;
 
-            _settingsConfigSubscription?.Dispose();
             _sessyBatteryConfigSubscription?.Dispose();
 
             _quarterlyInfos.Clear();

@@ -1,8 +1,9 @@
-﻿using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Options;
 using SessyCommon.Configurations;
 using SessyCommon.Services;
 using SessyController.Interfaces;
 using SessyController.Services;
+using SessyData.Model;
 
 namespace SessyController.Managers
 {
@@ -10,8 +11,8 @@ namespace SessyController.Managers
     {
         private readonly LoggingService<SolarInverterManager> _logger;
         private TimeZoneService _timeZoneService;
-        private IOptionsMonitor<SettingsConfig> _settingsConfigMonitor;
-        private SettingsConfig _settingsConfig;
+        private SettingsService _settingsService;
+        private Settings _settingsConfig;
         private IOptionsMonitor<PowerSystemsConfig> _powerSystemConfigMonitor;
 
         private PowerSystemsConfig? _powerSystemsConfig { get; set; }
@@ -67,17 +68,14 @@ namespace SessyController.Managers
         public SolarInverterManager(IEnumerable<ISolarInverterService> inverterServices,
                                     LoggingService<SolarInverterManager> logger,
                                     TimeZoneService timezoneService,
-                                    IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
+                                    SettingsService settingsService,
                                     IOptionsMonitor<PowerSystemsConfig> powerSystemsConfigMonitor)
         {
             _logger = logger;
             _timeZoneService = timezoneService;
-            _settingsConfigMonitor = settingsConfigMonitor;
-            _settingsConfig = settingsConfigMonitor.CurrentValue;
-            _settingsConfigMonitor.OnChange((config) =>
-            {
-                _settingsConfig = config;
-            });
+            _settingsService = settingsService;
+            _settingsConfig = _settingsService.Current;
+            _settingsService.SettingsChanged += s => _settingsConfig = s;
 
             _powerSystemConfigMonitor = powerSystemsConfigMonitor;
             UpdatePowersystemConfig(inverterServices, _powerSystemConfigMonitor.CurrentValue);

@@ -1,4 +1,4 @@
-﻿using Djohnnie.SolarEdge.ModBus.TCP;
+using Djohnnie.SolarEdge.ModBus.TCP;
 using Djohnnie.SolarEdge.ModBus.TCP.Constants;
 using Microsoft.Extensions.Options;
 using SessyCommon.Configurations;
@@ -16,8 +16,8 @@ namespace SessyController.Services.InverterServices
     {
         public string ProviderName { get; private set; }
 
-        private IOptionsMonitor<SettingsConfig> _settingsConfigMonitor;
-        private SettingsConfig _settingsConfig;
+        private SettingsService _settingsService;
+        private Settings _settingsConfig;
 
         private LoggingService<SolarEdgeInverterService> _logger { get; set; }
         private IOptionsMonitor<PowerSystemsConfig> _powerSystemsConfigMonitor { get; set; }
@@ -75,18 +75,18 @@ namespace SessyController.Services.InverterServices
         public SunspecInverterService(LoggingService<SolarEdgeInverterService> logger,
                                       string providerName,
                                       IHttpClientFactory httpClientFactory,
-                                      IOptionsMonitor<SettingsConfig> settingsConfig,
+                                      SettingsService settingsService,
                                       IOptionsMonitor<PowerSystemsConfig> powerSystemsConfigMonitor,
                                       IServiceScopeFactory serviceScopeFactory)
         {
             _logger = logger;
             ProviderName = providerName;
-            _settingsConfigMonitor = settingsConfig;
-            _settingsConfig = _settingsConfigMonitor.CurrentValue;
+            _settingsService = settingsService;
+            _settingsConfig = _settingsService.Current;
             _powerSystemsConfigMonitor = powerSystemsConfigMonitor;
             _powerSystemConfig = _powerSystemsConfigMonitor.CurrentValue;
 
-            _settingsConfigMonitor.OnChange((config) => _settingsConfig = config);
+            _settingsService.SettingsChanged += s => _settingsConfig = s;
             _powerSystemsConfigMonitor.OnChange((config) => _powerSystemConfig = config);
 
             _scope = serviceScopeFactory.CreateScope();

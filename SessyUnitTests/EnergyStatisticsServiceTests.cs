@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Moq;
 using SessyCommon.Configurations;
@@ -62,7 +62,8 @@ namespace SessyTests.Services
                 GasStandingChargeEurPerYear = 185.0,
                 InstallationDate = new DateTime(2024, 3, 1)
             });
-            var settingsConfig = Options.Create(new SettingsConfig());
+            var settingsServiceMock = new Mock<SettingsService>(MockBehavior.Loose, null!, null!, null!);
+            settingsServiceMock.SetupGet(s => s.Current).Returns(new Settings());
             var powerSystemsConfig = Options.Create(new PowerSystemsConfig());
 
             // Mock via interfaces — avoids constructor issues with complex service dependencies.
@@ -97,7 +98,7 @@ namespace SessyTests.Services
                 _groupMock.Object,
                 _timeZoneMock.Object,
                 heatPumpConfig,
-                settingsConfig,
+                settingsServiceMock.Object,
                 powerSystemsConfig,
                 epexPricesServiceMock.Object,
                 gasPricesMock.Object,
@@ -393,7 +394,8 @@ namespace SessyTests.Services
                 .Setup(s => s.GetList(It.IsAny<Func<IQueryable<Investment>, Task<List<Investment>>>>()))
                 .ReturnsAsync(new List<Investment>());
 
-            var settingsConfig = Options.Create(new SettingsConfig { StatisticsFromDate = fromDate });
+            var settingsServiceMock2 = new Mock<SettingsService>(MockBehavior.Loose, null!, null!, null!);
+            settingsServiceMock2.SetupGet(s => s.Current).Returns(new Settings { StatisticsFromDate = fromDate });
             var heatPumpConfig = Options.Create(new HeatPumpConfig());
             var energyHistoryMock = new Mock<EnergyHistoryDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
             var epexMock = new Mock<EPEXPricesDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
@@ -427,7 +429,7 @@ namespace SessyTests.Services
                 groupMock2.Object,
                 _timeZoneMock.Object,
                 heatPumpConfig,
-                settingsConfig,
+                settingsServiceMock2.Object,
                 powerSystemsConfig,
                 epexPricesServiceMock2.Object,
                 gasPricesMock2.Object,

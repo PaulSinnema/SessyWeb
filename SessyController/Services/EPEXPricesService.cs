@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Options;
 using SessyCommon.Configurations;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
@@ -54,7 +54,6 @@ namespace SessyController.Services
 
         private ExpectedPriceService _expectedPriceService;
 
-        private IOptionsMonitor<SettingsConfig> _settingsConfigMonitor { get; set; }
 
         private IHttpClientFactory _httpClientFactory { get; set; }
 
@@ -65,7 +64,8 @@ namespace SessyController.Services
         private TaxesDataService _taxesService { get; set; }
         private SolarInverterManager _solarInverterManager { get; set; }
 
-        private SettingsConfig _settingsConfig { get; set; }
+        private SettingsService _settingsService;
+        private Settings _settingsConfig;
         private IDisposable? _settingsConfigMonitorSubscription { get; set; }
         private Taxes? _taxes { get; set; }
 
@@ -85,7 +85,7 @@ namespace SessyController.Services
                                     EPEXPricesDataService epexPricesDataService,
                                     GasPricesDataService gasPricesDataService,
                                     ExpectedPriceService expectedPriceService,
-                                    IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
+                                    SettingsService settingsService,
                                     TaxesDataService taxesService,
                                     SolarInverterManager solarInverterManager,
                                     CalculationService calculationService,
@@ -103,7 +103,6 @@ namespace SessyController.Services
             _gasPricesDataService = gasPricesDataService;
             _expectedPriceService = expectedPriceService;
             _solarInverterManager = solarInverterManager;
-            _settingsConfigMonitor = settingsConfigMonitor;
             _httpClientFactory = httpClientFactory;
             _calculationService = calculationService;
 
@@ -111,9 +110,10 @@ namespace SessyController.Services
 
             _taxesService = taxesService;
 
-            _settingsConfig = _settingsConfigMonitor.CurrentValue;
+            _settingsService = settingsService;
+            _settingsConfig = _settingsService.Current;
 
-            _settingsConfigMonitorSubscription = _settingsConfigMonitor.OnChange((settings) => _settingsConfig = settings);
+            _settingsService.SettingsChanged += s => _settingsConfig = s;
 
             _logger = logger;
         }
@@ -128,6 +128,10 @@ namespace SessyController.Services
         /// </summary>
         protected override async Task ExecuteAsync(CancellationToken cancelationToken)
         {
+            // Wait until SettingsService has loaded settings from the database.
+            await _settingsService.WaitForReadyAsync().ConfigureAwait(false);
+            _settingsConfig = _settingsService.Current;
+
             _taxes = await _taxesService.GetTaxesForDate(_timeZoneService.Now.Date);
 
             _logger.LogWarning("EPEX Hourly Infos Service started ...");
@@ -440,7 +444,7 @@ namespace SessyController.Services
                 QuarterlyInfo.CreateAsync(
                     ep.Time,
                     ep!.Price!.Value,
-                    _settingsConfig,
+                    _settingsService,
                     _solarInverterManager,
                     _timeZoneService,
                     _calculationService));
@@ -706,7 +710,6 @@ namespace SessyController.Services
         {
             if (!_isDisposed)
             {
-                _settingsConfigMonitorSubscription.Dispose();
 
                 _isDisposed = true;
             }

@@ -137,6 +137,8 @@ builder.Services.AddSingleton<PlannedActionDataService>();
 builder.Services.AddSingleton<PlannedQuarterDataService>();
 builder.Services.AddSingleton<ActualQuarterDataService>();
 builder.Services.AddSingleton<PlanVsActualService>();
+builder.Services.AddSingleton<SettingsDataService>();
+builder.Services.AddSingleton<SettingsService>();
 builder.Services.AddSingleton<ExpectedPriceService>();
 builder.Services.AddSingleton<SessyWebControlDataService>();
 builder.Services.AddSingleton<TaxesDataService>();
@@ -157,6 +159,9 @@ builder.Services.AddSingleton<ISolarInverterService, GoodWeInverterService>();
 builder.Services.AddSingleton<ISolarInverterService, HuaweiInverterService>();
 builder.Services.AddSingleton<ISolarInverterService, SungrowInverterService>();
 builder.Services.AddSingleton<ISolarInverterService, VictronInverterService>();
+
+// SettingsService must start first — all other background services depend on Settings.Current.
+builder.Services.AddHostedService(provider => provider.GetRequiredService<SettingsService>());
 
 builder.Services.AddHostedService(provider => provider.GetRequiredService<EPEXPricesService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<BatteriesService>());
@@ -238,6 +243,10 @@ var app = builder.Build();
 DockerService.IsRunningInDocker(true);
 
 ServiceLocator.ServiceProvider = app.Services;
+
+// Wire TimeZoneService to update its timezone when settings change in the database.
+app.Services.GetRequiredService<SettingsService>().SettingsChanged += s =>
+    app.Services.GetRequiredService<TimeZoneService>().UpdateTimezone(s.TimeZone);
 
 Console.WriteLine("Migrating database (if needed)");
 

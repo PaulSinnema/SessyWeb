@@ -162,6 +162,13 @@ namespace SessyWeb.Pages
                 await controlGrid.FirstPage();
             }
 
+            // Load management settings the first time the tab renders.
+            if (!_settingsInitialised)
+            {
+                _settingsInitialised = true;
+                await LoadSettingsAsync();
+            }
+
             // Load checks the first time the Tips & Checks tab renders.
             if (!_checksInitialised)
             {
@@ -388,6 +395,110 @@ namespace SessyWeb.Pages
                 });
             }
             finally { IsBusy = false; }
+        }
+
+        // ── Management Settings ───────────────────────────────────────────────
+
+        [Inject] private SettingsDataService? _settingsDataService { get; set; }
+        [Inject] private SettingsService? _settingsService { get; set; }
+
+        private Settings? _settings;
+        private bool _settingsSaving;
+        private bool _settingsSaved;
+        private bool _settingsInitialised;
+
+        // Multi-select bindings for manual hours.
+        private IEnumerable<int> _chargingHours = [];
+        private IEnumerable<int> _dischargingHours = [];
+        private IEnumerable<int> _nzhHours = [];
+
+        // Monthly energy needs array (12 entries).
+        private double[] _energyNeeds = new double[12];
+
+        private static readonly IEnumerable<int> _allHours = Enumerable.Range(0, 24);
+
+        private void OnChargingHoursChanged()
+        {
+            // Remove hours claimed by other lists.
+            _chargingHours = _chargingHours.Except(_dischargingHours).Except(_nzhHours).ToList();
+            _settings!.ManualChargingHoursArray = _chargingHours.ToArray();
+        }
+
+        private void OnDischargingHoursChanged()
+        {
+            _dischargingHours = _dischargingHours.Except(_chargingHours).Except(_nzhHours).ToList();
+            _settings!.ManualDischargingHoursArray = _dischargingHours.ToArray();
+        }
+
+        private void OnNzhHoursChanged()
+        {
+            _nzhHours = _nzhHours.Except(_chargingHours).Except(_dischargingHours).ToList();
+            _settings!.ManualNetZeroHomeHoursArray = _nzhHours.ToArray();
+        }
+
+        private static readonly string[] _monthNames =
+        [
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        ];
+
+        private async Task LoadSettingsAsync()
+        {
+            var list = await _settingsDataService!.GetList(set =>
+                Task.FromResult(set.ToList()));
+
+            _settings = list.FirstOrDefault() ?? new Settings();
+
+            _chargingHours = _settings.ManualChargingHoursArray.ToList();
+            _dischargingHours = _settings.ManualDischargingHoursArray.ToList();
+            _nzhHours = _settings.ManualNetZeroHomeHoursArray.ToList();
+
+            var stored = _settings.RequiredHomeEnergyArray;
+            for (int i = 0; i < 12; i++)
+                _energyNeeds[i] = i < stored.Length ? stored[i] : 0.0;
+
+            StateHasChanged();
+        }
+
+        private async Task SaveSettingsAsync()
+        {
+            if (_settings == null) return;
+
+            _settingsSaving = true;
+            _settingsSaved = false;
+            StateHasChanged();
+
+            try
+            {
+                _settings.ManualChargingHoursArray = _chargingHours.ToArray();
+                _settings.ManualDischargingHoursArray = _dischargingHours.ToArray();
+                _settings.ManualNetZeroHomeHoursArray = _nzhHours.ToArray();
+                _settings.RequiredHomeEnergyArray = _energyNeeds;
+
+                if (_settings.Id == 0)
+                {
+                    await _settingsDataService!.Add(
+                        [_settings],
+                        (item, set) => set.Any());
+                }
+                else
+                {
+                    await _settingsDataService!.Update(
+                        [_settings],
+                        (item, set) => set.FirstOrDefault(s => s.Id == item.Id));
+                }
+
+                // Notify all services that settings have changed.
+                if (_settingsService != null)
+                    await _settingsService.RefreshAsync();
+
+                _settingsSaved = true;
+            }
+            finally
+            {
+                _settingsSaving = false;
+                StateHasChanged();
+            }
         }
     }
 }

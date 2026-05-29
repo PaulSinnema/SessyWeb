@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Options;
 using SessyCommon.Configurations;
 using SessyCommon.Services;
 using SessyController.Services.Items;
@@ -10,30 +10,30 @@ namespace SessyController.Services
     public class SessyMonitorService : BackgroundService
     {
         private LoggingService<SessyMonitorService> _logger { get; set; }
-        private IOptionsMonitor<SettingsConfig> _settingsConfigMonitor { get; set; }
         private IOptionsMonitor<SessyBatteryConfig> _sessyBatteryConfigMonitor { get; set; }
         private TimeZoneService _timeZoneService { get; set; }
         private IServiceScopeFactory _serviceScopeFactory { get; set; }
         private SessyStatusHistoryService _sessyStatusHistoryService { get; set; }
-        private SettingsConfig _settingsConfig { get; set; }
+        private SettingsService _settingsService;
+        private Settings _settingsConfig;
         private SessyBatteryConfig _sessyBatteryConfig { get; set; }
         private IServiceScope _scope { get; set; }
         private SessyService _sessyService { get; set; }
         private BatteryContainer _batteryContainer { get; set; }
 
         public SessyMonitorService(LoggingService<SessyMonitorService> logger,
-                                  IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
+                                  SettingsService settingsService,
                                   IOptionsMonitor<SessyBatteryConfig> sessyBatteryConfigMonitor,
                                   TimeZoneService timeZoneService,
                                   IServiceScopeFactory serviceScopeFactory)
         {
             _logger = logger;
-            _settingsConfigMonitor = settingsConfigMonitor;
             _sessyBatteryConfigMonitor = sessyBatteryConfigMonitor;
             _timeZoneService = timeZoneService;
             _serviceScopeFactory = serviceScopeFactory;
 
-            _settingsConfig = settingsConfigMonitor.CurrentValue;
+            _settingsService = settingsService;
+            _settingsConfig = _settingsService.Current;
             _sessyBatteryConfig = _sessyBatteryConfigMonitor.CurrentValue;
 
             _scope = _serviceScopeFactory.CreateScope();

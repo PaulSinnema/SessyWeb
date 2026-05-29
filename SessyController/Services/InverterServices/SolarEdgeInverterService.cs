@@ -1,5 +1,6 @@
-﻿using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Options;
 using SessyCommon.Configurations;
+using SessyController.Services;
 using SessyCommon.Services;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -33,11 +34,11 @@ namespace SessyController.Services.InverterServices
         public SolarEdgeInverterService(LoggingService<SolarEdgeInverterService> logger,
                                         TimeZoneService timezoneService,
                                         IHttpClientFactory httpClientFactory,
-                                        IOptionsMonitor<SettingsConfig> settingsConfig,
+                                        SettingsService settingsService,
                                         IOptionsMonitor<PowerSystemsConfig> powerSystemsConfig,
                                         IOptions<SolarEdgeCloudConfig> cloudConfig,
                                         IServiceScopeFactory serviceScopeFactory)
-            : base(logger, "SolarEdge", httpClientFactory, settingsConfig, powerSystemsConfig, serviceScopeFactory)
+            : base(logger, "SolarEdge", httpClientFactory, settingsService, powerSystemsConfig, serviceScopeFactory)
         {
             _logger = logger;
             _timezoneService = timezoneService;

@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Options;
 using SessyCommon.Configurations;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
@@ -29,7 +29,6 @@ namespace SessyController.Services
     public sealed class MilpService : IMilpService
     {
         private readonly LoggingService<MilpService> _logger;
-        private readonly IOptionsMonitor<SettingsConfig> _settingsConfigMonitor;
         private readonly IOptionsMonitor<SessyBatteryConfig> _sessyBatteryConfigMonitor;
         private readonly BatteryContainer _batteryContainer;
         private readonly TimeZoneService _timeZoneService;
@@ -127,10 +126,10 @@ namespace SessyController.Services
             }
         }
 
-        private SettingsConfig _settingsConfig;
+        private SettingsService _settingsService;
+        private Settings _settingsConfig;
         private SessyBatteryConfig _sessyBatteryConfig;
 
-        private IDisposable? _settingsConfigSubscription;
         private IDisposable? _sessyBatteryConfigSubscription;
 
         // Set by OnChange handlers — picked up as a forced rebuild reason on the next cycle.
@@ -238,7 +237,7 @@ namespace SessyController.Services
 
         public MilpService(
             LoggingService<MilpService> logger,
-            IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
+            SettingsService settingsService,
             IOptionsMonitor<SessyBatteryConfig> sessyBatteryConfigMonitor,
             BatteryContainer batteryContainer,
             TimeZoneService timeZoneService,
@@ -247,7 +246,6 @@ namespace SessyController.Services
             PlannedQuarterDataService plannedQuarterDataService)
         {
             _logger = logger;
-            _settingsConfigMonitor = settingsConfigMonitor;
             _sessyBatteryConfigMonitor = sessyBatteryConfigMonitor;
             _batteryContainer = batteryContainer;
             _timeZoneService = timeZoneService;
@@ -255,17 +253,17 @@ namespace SessyController.Services
             _plannedActionDataService = plannedActionDataService;
             _plannedQuarterDataService = plannedQuarterDataService;
 
-            _settingsConfig = settingsConfigMonitor.CurrentValue
-                ?? throw new InvalidOperationException("ManagementSettings missing");
+            _settingsService = settingsService;
+            _settingsConfig = _settingsService.Current;
             _sessyBatteryConfig = sessyBatteryConfigMonitor.CurrentValue
                 ?? throw new InvalidOperationException("Sessy:Batteries missing");
 
-            _settingsConfigSubscription = _settingsConfigMonitor.OnChange(s =>
+            _settingsService.SettingsChanged += s =>
             {
                 _settingsConfig = s;
-                _configChangedReason = "SettingsConfig changed in appsettings.json";
-                _logger.LogInformation("MilpService: SettingsConfig changed — plan rebuild scheduled.");
-            });
+                _configChangedReason = "Management settings changed in database";
+                _logger.LogInformation("MilpService: settings changed — plan rebuild scheduled.");
+            };
             _sessyBatteryConfigSubscription = _sessyBatteryConfigMonitor.OnChange(s =>
             {
                 _sessyBatteryConfig = s;
@@ -436,7 +434,6 @@ namespace SessyController.Services
 
         public void Dispose()
         {
-            _settingsConfigSubscription?.Dispose();
             _sessyBatteryConfigSubscription?.Dispose();
         }
 

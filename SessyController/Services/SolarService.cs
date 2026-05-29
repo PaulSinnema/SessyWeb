@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Options;
 using SessyCommon.Configurations;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
@@ -28,11 +28,11 @@ namespace SessyController.Services
 
         private SolarInverterManager _solarInverterManager { get; set; }
 
-        private SettingsConfig _settingsConfig { get; set; }
+        private SettingsService _settingsService;
+        private Settings _settingsConfig;
 
         private IDisposable? _settingsConfigSubscription { get; set; }
 
-        private IOptionsMonitor<SettingsConfig> _settingsConfigMonitor { get; set; }
 
         private IServiceScopeFactory _serviceScopeFactory { get; set; }
 
@@ -52,7 +52,7 @@ namespace SessyController.Services
                             SolarDataService solarDataService,
                             InverterMeasurementDataService inverterMeasurementService,
                             SolarInverterManager solarInverterManager,
-                            IOptionsMonitor<SettingsConfig> settingsConfigMonitor,
+                            SettingsService settingsService,
                             IServiceScopeFactory serviceScopeFactory)
         {
             _configuration = configuration;
@@ -65,11 +65,11 @@ namespace SessyController.Services
             _solarDataService = solarDataService;
             _inverterMeasurementService = inverterMeasurementService;
             _solarInverterManager = solarInverterManager;
-            _settingsConfigMonitor = settingsConfigMonitor;
             _serviceScopeFactory = serviceScopeFactory;
 
-            _settingsConfig = _settingsConfigMonitor.CurrentValue;
-            _settingsConfigSubscription = _settingsConfigMonitor.OnChange((settings) => _settingsConfig = settings);
+            _settingsService = settingsService;
+            _settingsConfig = _settingsService.Current;
+            _settingsService.SettingsChanged += s => _settingsConfig = s;
         }
 
         /// <summary>
@@ -385,7 +385,7 @@ namespace SessyController.Services
 
             foreach (PhotoVoltaic solarPanel in endpoint.SolarPanels.Values)
             {
-                double solarFactor = GetSolarFactor(solarAzimuth, solarAltitude, solarPanel.Orientation, solarPanel.Tilt);
+                double? solarFactor = GetSolarFactor(solarAzimuth, solarAltitude, solarPanel.Orientation, solarPanel.Tilt);
 
                 currentHourlyInfo.SolarPowerPerQuarterHour += CalculateSolarPowerPerQuarterHour(solarData.GlobalRadiation, solarFactor, solarPanel, solarAltitude);
             }
@@ -429,13 +429,13 @@ namespace SessyController.Services
             }
         }
 
-        public double CalculateSolarPowerPerQuarterHour(double globalRadiation, double solarFactor, PhotoVoltaic solarPanel, double solarAltitude)
+        public double CalculateSolarPowerPerQuarterHour(double globalRadiation, double? solarFactor, PhotoVoltaic solarPanel, double solarAltitude)
         {
             double totalPeakPower = solarPanel.PeakPowerForArray;
 
             double altitudeFactor = (solarAltitude > 10) ? 1.0 : Math.Max(0, solarAltitude / 10.0);
 
-            double powerkWatt = globalRadiation * (totalPeakPower / 1000.0) * solarFactor * altitudeFactor / 1000.0 / 4.0; // kW per quarter hour
+            double powerkWatt = globalRadiation * (totalPeakPower / 1000.0) * solarFactor ?? 0.0 * altitudeFactor / 1000.0 / 4.0; // kW per quarter hour
 
             return powerkWatt;
         }
@@ -483,7 +483,7 @@ namespace SessyController.Services
         /// the panel's orientation and tilt, and applies a correction factor from the settings.
         /// The factor represents the effective fraction of solar radiation received by the panel.
         /// </summary>
-        private double GetSolarFactor(double solarAzimuth, double solarAltitude, double orientationDegrees, double tilt)
+        private double? GetSolarFactor(double solarAzimuth, double solarAltitude, double orientationDegrees, double tilt)
         {
             double angleDifference = Math.Abs(orientationDegrees - solarAzimuth);
             if (angleDifference > 180) angleDifference = 360 - angleDifference;
@@ -507,7 +507,6 @@ namespace SessyController.Services
         {
             if (!isDisposed)
             {
-                _settingsConfigSubscription.Dispose();
                 isDisposed = true;
             }
         }

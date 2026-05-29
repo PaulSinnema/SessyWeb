@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Options;
 using NodaTime;
 using NodaTime.Extensions;
 using SessyCommon.Configurations;
@@ -9,41 +9,45 @@ namespace SessyCommon.Services
 {
     public class TimeZoneService
     {
-        private SettingsConfig _settingsConfig { get; set; }
-
-        private static TimeZoneInfo? _timeZone { get; set; }
+        private string _currentTimezone;
+        private static TimeZoneInfo? _timeZone;
 
         public TimeZoneInfo TimeZone => _timeZone!;
 
         public TimeZoneService(IOptions<SettingsConfig> settingsConfig)
         {
-            _settingsConfig = settingsConfig.Value;
-
-            if (!string.IsNullOrWhiteSpace(_settingsConfig?.Timezone))
-                _timeZone = TimeZoneInfo.FindSystemTimeZoneById(_settingsConfig.Timezone);
-            else
-                throw new InvalidOperationException("Time zone is missing in appsettings.json");
+            _currentTimezone = settingsConfig.Value?.Timezone ?? "Europe/Amsterdam";
+            _timeZone = TimeZoneInfo.FindSystemTimeZoneById(_currentTimezone);
         }
 
         /// <summary>
-        /// Gets the local time using the time zone set in appsettings.json.
+        /// Updates the active timezone at runtime when settings change.
+        /// Called via the SettingsChanged event subscription in Program.cs.
+        /// </summary>
+        public void UpdateTimezone(string? timezone)
+        {
+            if (string.IsNullOrWhiteSpace(timezone) || timezone == _currentTimezone)
+                return;
+
+            _timeZone = TimeZoneInfo.FindSystemTimeZoneById(timezone);
+            _currentTimezone = timezone;
+        }
+
+        /// <summary>
+        /// Gets the local time using the configured timezone.
         /// Virtual so it can be overridden in unit tests via Moq.
         /// </summary>
 #if DEBUG
         public virtual DateTime Now => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _timeZone!).AddMinutes(-7);
-
 #else
         public virtual DateTime Now => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _timeZone!);
 #endif
 
-        /// <summary>
-        /// Gets the sunlight level for time zone, latitude and longitude.
-        /// </summary>
+        /// <summary>Gets the sunlight level for the given coordinates.</summary>
         public SunlightLevel GetSunlightLevel(double latitude, double longitude)
         {
-            DateTimeZone zone = DateTimeZoneProviders.Tzdb[_settingsConfig.Timezone!];
+            DateTimeZone zone = DateTimeZoneProviders.Tzdb[_currentTimezone];
             ZonedDateTime now = SystemClock.Instance.InZone(zone).GetCurrentZonedDateTime();
-
             return SunlightCalculator.GetSunlightAt(now, latitude, longitude);
         }
 
@@ -54,14 +58,7 @@ namespace SessyCommon.Services
 
         public static DateTime FromUnixTime(long? unixTime)
         {
-            if (unixTime.HasValue)
-            {
-                return FromUnixTime(unixTime.Value);
-            }
-            else
-            {
-                return DateTime.MinValue;
-            }
+            return unixTime.HasValue ? FromUnixTime(unixTime.Value) : DateTime.MinValue;
         }
     }
 }

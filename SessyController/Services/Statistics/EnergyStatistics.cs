@@ -370,6 +370,7 @@
         public double ArbitrageProfitEur { get; set; }
         public double PlannedArbitrageProfitEur { get; set; }
         public double SelfSufficiencyPct { get; set; }
+        public double SelfConsumptionPct { get; set; }
         public double BatteryCycles { get; set; }
     }
 
