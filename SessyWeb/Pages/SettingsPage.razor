@@ -517,6 +517,62 @@
                     </RadzenStack>
                 </RadzenTabsItem>
 
+                @* ── SQL Console ────────────────────────────────────────────── *@
+                <RadzenTabsItem Text="SQL Console" Icon="terminal">
+                    <RadzenStack Orientation="Orientation.Vertical" Gap="1rem" Style="padding: 1rem;">
+                        <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true" Shade="Shade.Dark">
+                            Direct SQL access. Only use SELECT, UPDATE or DELETE — no DROP or ALTER.
+                        </RadzenAlert>
+                        <RadzenLabel Text="SQL Statement" />
+                        <RadzenTextArea @bind-Value="_sqlStatement"
+                                        Rows="5"
+                                        Style="width:100%; font-family:monospace;"
+                                        Placeholder="SELECT * FROM QuarterlyMeasurements WHERE SolarProductionKwh > 100;" />
+                        <RadzenRow>
+                            <RadzenColumn>
+                                <RadzenButton Text="Execute" Icon="play_arrow"
+                                              ButtonStyle="ButtonStyle.Primary"
+                                              Click="@ExecuteSqlAsync"
+                                              IsBusy="@_sqlBusy" />
+                                <RadzenButton Text="Clear" Icon="clear"
+                                              ButtonStyle="ButtonStyle.Light"
+                                              Style="margin-left:8px"
+                                              Click="@(() => { _sqlStatement = string.Empty; _sqlResult = null; _sqlError = null; })" />
+                            </RadzenColumn>
+                        </RadzenRow>
+                        @if (_sqlError != null)
+                        {
+                            <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true">@_sqlError</RadzenAlert>
+                        }
+                        @if (_sqlResult != null)
+                        {
+                            <RadzenText TextStyle="TextStyle.Caption">@_sqlRowsAffected</RadzenText>
+                            @if (_sqlResult.Count > 0)
+                            {
+                                <div style="overflow-x:auto;">
+                                    <RadzenDataGrid Data="@_sqlResult" TItem="Dictionary<string, object>"
+                                                    AllowSorting="false" AllowPaging="false"
+                                                    Style="width:100%">
+                                        <Columns>
+                                            @foreach (var col in _sqlColumns)
+                                            {
+                                                var c = col;
+                                                <RadzenDataGridColumn TItem="Dictionary<string, object>"
+                                                                      Title="@c"
+                                                                      Property="@c">
+                                                    <Template Context="row">
+                                                        @(row.TryGetValue(c, out var v) ? v?.ToString() ?? "NULL" : "")
+                                                    </Template>
+                                                </RadzenDataGridColumn>
+                                            }
+                                        </Columns>
+                                    </RadzenDataGrid>
+                                </div>
+                            }
+                        }
+                    </RadzenStack>
+                </RadzenTabsItem>
+
                 @* ── Credits ───────────────────────────────────────────────── *@
                 <RadzenTabsItem Text="Credits" Icon="favorite">
                     <RadzenStack Orientation="Orientation.Vertical" Gap="2rem" Style="padding: 1.5rem; max-width: 900px;">

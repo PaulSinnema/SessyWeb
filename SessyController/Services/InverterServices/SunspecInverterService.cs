@@ -551,15 +551,18 @@ namespace SessyController.Services.InverterServices
 
                     var values = quarterGroup
                         .Select(g => g.Value)
-                        .Where(v => !double.IsNaN(v) && !double.IsInfinity(v))
+                        .Where(v => !double.IsNaN(v) && !double.IsInfinity(v) && v >= 0.0)
+                        .OrderBy(v => v)
                         .ToList();
 
                     if (values.Count < 1)
                         continue;
 
-                    // Convert average Watts over the quarter to kWh:
-                    // kWh = W * 0.25h / 1000
-                    var avgWatts = values.Average();
+                    // Use median instead of average to suppress outliers (e.g. corrupt Modbus reads on startup).
+                    var mid = values.Count / 2;
+                    var avgWatts = values.Count % 2 == 0
+                        ? (values[mid - 1] + values[mid]) / 2.0
+                        : values[mid];
                     var kWh = avgWatts * 0.25 / 1000.0;
 
                     var entry = new InverterMeasurement

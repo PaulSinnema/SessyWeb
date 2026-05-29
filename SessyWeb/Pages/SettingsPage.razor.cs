@@ -1,4 +1,6 @@
 ﻿using Microsoft.AspNetCore.Components;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Radzen;
 using Radzen.Blazor;
 using SessyCommon.Services;
@@ -497,6 +499,95 @@ namespace SessyWeb.Pages
             finally
             {
                 _settingsSaving = false;
+                StateHasChanged();
+            }
+        }
+        // ── SQL Console ───────────────────────────────────────────────────────
+
+        [Inject] private IServiceScopeFactory? _scopeFactory { get; set; }
+
+        private string? _sqlStatement;
+        private string? _sqlError;
+        private string? _sqlRowsAffected;
+        private bool _sqlBusy;
+        private List<Dictionary<string, object>>? _sqlResult;
+        private List<string> _sqlColumns = [];
+
+        private static readonly HashSet<string> _blockedKeywords =
+            new(StringComparer.OrdinalIgnoreCase) { "DROP", "ALTER", "CREATE", "TRUNCATE" };
+
+        private async Task ExecuteSqlAsync()
+        {
+            if (string.IsNullOrWhiteSpace(_sqlStatement)) return;
+
+            // Block destructive DDL statements.
+            var upper = _sqlStatement.ToUpperInvariant();
+            foreach (var kw in _blockedKeywords)
+            {
+                if (upper.Contains(kw))
+                {
+                    _sqlError = $"Statement contains blocked keyword: {kw}";
+                    _sqlResult = null;
+                    return;
+                }
+            }
+
+            _sqlBusy = true;
+            _sqlError = null;
+            _sqlResult = null;
+            _sqlRowsAffected = null;
+            StateHasChanged();
+
+            try
+            {
+                using var scope = _scopeFactory!.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<ModelContext>();
+                var conn = db.Database.GetDbConnection();
+
+                await conn.OpenAsync();
+                try
+                {
+                    using var cmd = conn.CreateCommand();
+                    cmd.CommandText = _sqlStatement;
+
+                    var isSelect = upper.TrimStart().StartsWith("SELECT");
+
+                    if (isSelect)
+                    {
+                        using var reader = await cmd.ExecuteReaderAsync();
+                        _sqlColumns = Enumerable.Range(0, reader.FieldCount)
+                            .Select(i => reader.GetName(i))
+                            .ToList();
+                        var rows = new List<Dictionary<string, object>>();
+                        while (await reader.ReadAsync())
+                        {
+                            var row = new Dictionary<string, object>();
+                            for (int i = 0; i < reader.FieldCount; i++)
+                                row[reader.GetName(i)] = reader.IsDBNull(i) ? (object)"NULL" : reader.GetValue(i);
+                            rows.Add(row);
+                        }
+                        _sqlResult = rows;
+                        _sqlRowsAffected = $"{rows.Count} row(s) returned.";
+                    }
+                    else
+                    {
+                        var affected = await cmd.ExecuteNonQueryAsync();
+                        _sqlResult = [];
+                        _sqlRowsAffected = $"{affected} row(s) affected.";
+                    }
+                }
+                finally
+                {
+                    await conn.CloseAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                _sqlError = ex.Message;
+            }
+            finally
+            {
+                _sqlBusy = false;
                 StateHasChanged();
             }
         }

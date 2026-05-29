@@ -358,11 +358,11 @@ namespace SessyController.Services
 #if !DEBUG
             var localTime = _timeZoneService.Now;
 
-            if (_settingsConfig.ManualChargingHours != null && _settingsConfig.ManualChargingHours.Contains(localTime.Hour))
+            if (_settingsConfig.ManualChargingHoursArray.Contains(localTime.Hour))
                 await _batteryContainer.StartCharging(_batteryContainer.GetChargingCapacityInWattsPerHour()).ConfigureAwait(false);
-            else if (_settingsConfig.ManualDischargingHours != null && _settingsConfig.ManualDischargingHours.Contains(localTime.Hour))
+            else if (_settingsConfig.ManualDischargingHoursArray.Contains(localTime.Hour))
                 await _batteryContainer.StartDisharging(_batteryContainer.GetDischargingCapacityInWattsPerHour()).ConfigureAwait(false);
-            else if (_settingsConfig.ManualNetZeroHomeHours != null && _settingsConfig.ManualNetZeroHomeHours.Contains(localTime.Hour))
+            else if (_settingsConfig.ManualNetZeroHomeHoursArray.Contains(localTime.Hour))
                 await _batteryContainer.StartNetZeroHome().ConfigureAwait(false);
             else
                 await _batteryContainer.StopAll().ConfigureAwait(false);
