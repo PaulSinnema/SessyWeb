@@ -168,7 +168,9 @@ namespace SessyController.Services.InverterServices
                         if (!CollectedPowerData.ContainsKey(config.Key))
                             CollectedPowerData.Add(config.Key, new Dictionary<DateTime, double>());
 
-                        CollectedPowerData[config.Key].Add(date, ActualSolarPowerInWatts);
+                        // Only store valid readings — NaN signals a corrupt Modbus scale factor.
+                        if (!double.IsNaN(ActualSolarPowerInWatts))
+                            CollectedPowerData[config.Key].Add(date, ActualSolarPowerInWatts);
 
                         await StoreData(CollectedPowerData).ConfigureAwait(false);
                     }
@@ -241,6 +243,10 @@ namespace SessyController.Services.InverterServices
                             SunspecConsts.I_AC_Power_SF).ConfigureAwait(false);
 
                     var result = power.Value * Math.Pow(10, scaleFactor.Value);
+
+                    // Reject corrupt Modbus values — a scale factor outside [-10, 0] is physically impossible.
+                    if (scaleFactor.Value < -10 || scaleFactor.Value > 0)
+                        return double.NaN;
 
                     // Update timestamp so health check can determine availability
                     // without making a separate Modbus connection.
@@ -535,6 +541,7 @@ namespace SessyController.Services.InverterServices
                 var id = collectionKeyValue.Key;
                 var collection = collectionKeyValue.Value;
 
+                // Group all samples by their quarter-hour timestamp
                 var quarterGroups = collection
                     .GroupBy(c => c.Key.DateFloorQuarter())
                     .OrderBy(g => g.Key)
@@ -543,40 +550,38 @@ namespace SessyController.Services.InverterServices
                 foreach (var quarterGroup in quarterGroups)
                 {
                     var quarter = quarterGroup.Key;
+
                     var nextQuarter = quarter.AddMinutes(15);
 
-                    // Only store completed quarters.
+                    // Only store completed quarters
                     if (now < nextQuarter)
                         continue;
 
                     var values = quarterGroup
-                        .Select(g => g.Value)
-                        .Where(v => !double.IsNaN(v) && !double.IsInfinity(v) && v >= 0.0)
-                        .OrderBy(v => v)
-                        .ToList();
+                            .Select(g => g.Value)
+                            .Where(v => !double.IsNaN(v) && !double.IsInfinity(v))
+                            .ToList();
 
                     if (values.Count < 1)
                         continue;
 
-                    // Use median instead of average to suppress outliers (e.g. corrupt Modbus reads on startup).
-                    var mid = values.Count / 2;
-                    var avgWatts = values.Count % 2 == 0
-                        ? (values[mid - 1] + values[mid]) / 2.0
-                        : values[mid];
-                    var kWh = avgWatts * 0.25 / 1000.0;
+                    var averagePower = values.Average() / 4000; // kWh per kwartier
 
                     var entry = new InverterMeasurement
                     {
                         ProviderName = ProviderName,
                         InverterId = id,
                         Time = quarter,
-                        SolarProductionKWh = kWh
+                        SolarProductionKWh = averagePower
                     };
 
-                    await _inverterMeasurementService.Add(new List<InverterMeasurement> { entry }).ConfigureAwait(false);
+                    await _inverterMeasurementService.Add(new List<InverterMeasurement> { entry });
 
+                    // Remove processed items from memory
                     foreach (var item in quarterGroup)
+                    {
                         collection.Remove(item.Key);
+                    }
                 }
             }
         }

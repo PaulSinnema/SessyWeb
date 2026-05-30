@@ -543,18 +543,18 @@ namespace SessyWeb.Pages
             {
                 using var scope = _scopeFactory!.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<ModelContext>();
-                var conn = db.Database.GetDbConnection();
 
-                await conn.OpenAsync();
-                try
+                var isSelect = upper.TrimStart().StartsWith("SELECT");
+
+                if (isSelect)
                 {
-                    using var cmd = conn.CreateCommand();
-                    cmd.CommandText = _sqlStatement;
-
-                    var isSelect = upper.TrimStart().StartsWith("SELECT");
-
-                    if (isSelect)
+                    // Use raw ADO.NET for SELECT — EF Core ExecuteSqlRaw does not return result sets.
+                    var conn = db.Database.GetDbConnection();
+                    await conn.OpenAsync();
+                    try
                     {
+                        using var cmd = conn.CreateCommand();
+                        cmd.CommandText = _sqlStatement;
                         using var reader = await cmd.ExecuteReaderAsync();
                         _sqlColumns = Enumerable.Range(0, reader.FieldCount)
                             .Select(i => reader.GetName(i))
@@ -570,16 +570,17 @@ namespace SessyWeb.Pages
                         _sqlResult = rows;
                         _sqlRowsAffected = $"{rows.Count} row(s) returned.";
                     }
-                    else
+                    finally
                     {
-                        var affected = await cmd.ExecuteNonQueryAsync();
-                        _sqlResult = [];
-                        _sqlRowsAffected = $"{affected} row(s) affected.";
+                        await conn.CloseAsync();
                     }
                 }
-                finally
+                else
                 {
-                    await conn.CloseAsync();
+                    // Use EF Core for UPDATE/DELETE — ensures correct connection and WAL checkpoint.
+                    var affected = await db.Database.ExecuteSqlRawAsync(_sqlStatement);
+                    _sqlResult = [];
+                    _sqlRowsAffected = $"{affected} row(s) affected.";
                 }
             }
             catch (Exception ex)

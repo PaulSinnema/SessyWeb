@@ -1,0 +1,123 @@
+﻿@page "/dataeditor"
+@inherits PageBase
+@using SessyController.Services
+@using Radzen
+@using Radzen.Blazor
+
+<RadzenLayout Style="height: 80vh;">
+    <RadzenHeader Style="height: 100%; margin: 0px; padding: 0px;">
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Style="height:100%; margin: 0px; padding: 0px;">
+            <RadzenLabel Text="Data Editor" class="h4 m-2" />
+        </RadzenStack>
+    </RadzenHeader>
+
+    <RadzenBody Style="margin: 8px; padding: 0px; overflow-y: auto;">
+        <div style="display:flex; flex-direction:column; padding:1rem; gap:0.75rem;">
+
+            @* ── Table selector + filter ── *@
+            <div style="display:flex; gap:0.75rem; align-items:flex-end; flex-wrap:wrap;">
+                <div>
+                    <RadzenLabel Text="Table" />
+                    <RadzenDropDown @bind-Value="_selectedTable"
+                                    Data="@_tables"
+                                    TextProperty="DisplayName"
+                                    Style="width:220px;"
+                                    Change="@OnTableChanged" />
+                </div>
+                <div style="flex:1; min-width:200px;">
+                    <RadzenLabel Text="Filter (WHERE clause)" />
+                    <RadzenTextBox @bind-Value="_whereClause"
+                                   Style="width:100%; font-family:monospace;"
+                                   Placeholder="e.g. Time > '2026-05-01' AND SolarProductionKWh > 1" />
+                </div>
+                <RadzenButton Text="Load" Icon="search"
+                              ButtonStyle="ButtonStyle.Primary"
+                              Click="@LoadDataAsync"
+                              IsBusy="@_loading" />
+            </div>
+
+            @* ── Error ── *@
+            @if (_error != null)
+            {
+                <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true">@_error</RadzenAlert>
+            }
+
+            @* ── Grid ── *@
+            @if (_result != null && _selectedTable != null)
+            {
+                <RadzenText TextStyle="TextStyle.Caption">@_result.TotalCount row(s) total — page @_page of @TotalPages</RadzenText>
+
+                <div style="overflow-x:auto;">
+                    <table class="rz-grid-table" style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+                        <thead>
+                            <tr>
+                                @foreach (var col in _result.Columns)
+                                {
+                                    <th style="padding:6px 10px; text-align:left; border-bottom:2px solid var(--rz-border-color); white-space:nowrap; background:var(--rz-base-background-color);">
+                                        @col
+                                    </th>
+                                }
+                                <th style="padding:6px 10px; background:var(--rz-base-background-color);"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in _result.Rows)
+                            {
+                                var r = row;
+                                var rowId = r.TryGetValue("Id", out var id) ? id?.ToString() : null;
+                                var isEditing = _editingRowId == rowId;
+
+                                <tr style="border-bottom:1px solid var(--rz-border-color);">
+                                    @foreach (var col in _result.Columns)
+                                    {
+                                        var c = col;
+                                        <td style="padding:4px 8px; white-space:nowrap;">
+                                            @if (isEditing && c != "Id")
+                                            {
+                                                <RadzenTextBox Value="@GetEditValue(c)"
+                                                               ValueChanged="@((string v) => SetEditValue(c, v))"
+                                                               Style="width:100%; min-width:80px;" />
+                                            }
+                                            else
+                                            {
+                                                @(r.TryGetValue(c, out var v) ? v?.ToString() ?? "NULL" : "")
+                                            }
+                                        </td>
+                                    }
+                                    <td style="padding:4px 8px; white-space:nowrap;">
+                                        @if (isEditing)
+                                        {
+                                            <RadzenButton Icon="check" ButtonStyle="ButtonStyle.Success" Size="ButtonSize.Small"
+                                                          Click="@(() => SaveRowAsync(r))" IsBusy="@_saving" />
+                                            <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                                          Style="margin-left:4px;"
+                                                          Click="@CancelEdit" />
+                                        }
+                                        else
+                                        {
+                                            <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                                          Click="@(() => StartEdit(r))" />
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                @* ── Pagination ── *@
+                <div style="display:flex; gap:0.5rem; align-items:center;">
+                    <RadzenButton Icon="first_page" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                  Disabled="@(_page <= 1)" Click="@(() => GoToPage(1))" />
+                    <RadzenButton Icon="chevron_left" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                  Disabled="@(_page <= 1)" Click="@(() => GoToPage(_page - 1))" />
+                    <RadzenText TextStyle="TextStyle.Caption">@_page / @TotalPages</RadzenText>
+                    <RadzenButton Icon="chevron_right" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                  Disabled="@(_page >= TotalPages)" Click="@(() => GoToPage(_page + 1))" />
+                    <RadzenButton Icon="last_page" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                  Disabled="@(_page >= TotalPages)" Click="@(() => GoToPage(TotalPages))" />
+                </div>
+            }
+        </div>
+    </RadzenBody>
+</RadzenLayout>

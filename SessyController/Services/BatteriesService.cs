@@ -55,7 +55,7 @@ namespace SessyController.Services
         // Curtailment: throttles the solar inverter when price is negative.
         private InverterCurtailmentService _inverterCurtailmentService;
 
-        private List<QuarterlyInfo> _quarterlyInfos = new();
+        private List<QuarterlyInfo> _quarterlyInfos { get; set; } = new();
         private bool _tombstoneRestoreAttempted = false;
 
         // Track the last quarter for which a snapshot was written.
