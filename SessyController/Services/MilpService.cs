@@ -527,6 +527,25 @@ namespace SessyController.Services
                         : qi.BuyingPrice;
                 }
 
+                // If tomorrow's solar surplus is enough to fully recharge the battery
+                // from empty, the energy discharged tonight will be replenished for free.
+                // In that case the opportunity cost is zero — cap selfUseValue at the
+                // current selling price so the MILP discharges more aggressively.
+                // Find the first future date that has solar surplus and sum it.
+                // This correctly handles quarters before/after midnight.
+                var firstSolarSurplusDate = futureWindow
+                    .FirstOrDefault(x => x.NetLoadWh < 0.0)?.Time.Date;
+
+                double nextDaySolarSurplusWh = firstSolarSurplusDate.HasValue
+                    ? futureWindow
+                        .Where(x => x.Time.Date == firstSolarSurplusDate.Value)
+                        .Where(x => x.NetLoadWh < 0.0)
+                        .Sum(x => -x.NetLoadWh)
+                    : 0.0;
+
+                if (netting && nextDaySolarSurplusWh >= capWh)
+                    selfUseValue = Math.Min(selfUseValue, qi.SellingPrice);
+
                 _futureSelfUseValueByTime[qi.Time] = selfUseValue;
 
                 // Minimum SOC: reserve energy for future consumption without solar.
