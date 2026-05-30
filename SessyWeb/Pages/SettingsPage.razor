@@ -73,6 +73,11 @@
                                         <RadzenLabel Text="Zero Net Home min. profit (€/kWh)" />
                                         <RadzenNumeric @bind-Value="_settings.NetZeroHomeMinProfit" Format="F4" Style="width:100%" />
                                     </RadzenColumn>
+                                    <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Night reserve cap (%)" />
+                                        <RadzenNumeric @bind-Value="_settings.NightReserveCapPct" Format="F0" Min="0" Max="100" Style="width:100%" />
+                                        <RadzenText TextStyle="TextStyle.Caption">0 = default (33%)</RadzenText>
+                                    </RadzenColumn>
                                     <RadzenColumn Size="12" SizeMD="4" Style="display:flex; flex-direction:column; gap:8px; justify-content:flex-end;">
                                         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
                                             <RadzenCheckBox @bind-Value="_settings.ChargedInControl" />

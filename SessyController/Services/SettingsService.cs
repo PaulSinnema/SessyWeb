@@ -53,6 +53,7 @@ namespace SessyController.Services
             await EnsureDefaultsSeededAsync().ConfigureAwait(false);
             await PatchExistingRecordAsync().ConfigureAwait(false);
             await LoadAsync().ConfigureAwait(false);
+            SettingsChanged?.Invoke(_current);
             _ready.TrySetResult();
         }
 

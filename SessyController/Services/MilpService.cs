@@ -568,7 +568,10 @@ namespace SessyController.Services
                     }
 
                     // Cap at half capacity to avoid over-reserving on long winter nights.
-                    minSocWh = Clamp(nightReserveWh * ReserveSafetyFactor, ReserveWh, capWh * 0.5);
+                    double nightCapRatio = _settingsConfig.NightReserveCapPct > 0
+                        ? _settingsConfig.NightReserveCapPct / 100.0
+                        : 0.33;
+                    minSocWh = Clamp(nightReserveWh * ReserveSafetyFactor, ReserveWh, capWh * nightCapRatio);
                 }
 
                 _minSocWhByTime[qi.Time] = minSocWh;

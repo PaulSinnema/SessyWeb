@@ -41,6 +41,13 @@ namespace SessyData.Model
         public double SolarAnnualProductionKWh { get; set; }
         public bool SolarSystemShutsDownDuringNegativePrices { get; set; }
 
+        // ── Battery planning ─────────────────────────────────────────────────
+        /// <summary>
+        /// Night reserve cap as a percentage of total capacity (0-100).
+        /// When 0, defaults to 33%. Limits how much energy is held back for nightly consumption.
+        /// </summary>
+        public double NightReserveCapPct { get; set; }
+
         // ── Statistics ────────────────────────────────────────────────────────
         public DateTime? StatisticsFromDate { get; set; }
 
