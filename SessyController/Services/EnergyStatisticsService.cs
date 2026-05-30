@@ -17,7 +17,8 @@ namespace SessyController.Services
     ///
     /// Unit conventions:
     ///   QuarterlyMeasurement.GridImportWh/GridExportWh  — Wh per quarter → / 1000 for kWh
-    ///   QuarterlyMeasurement.SolarProductionKWh         — kWh per quarter (already kWh)
+    ///   InverterMeasurement.SolarProductionKWh          — kWh per quarter (source of truth)
+    ///   SolarData.GlobalRadiation                          — W/m² per hour (KNMI)
     ///   QuarterlyMeasurement.BatteryPowerWatts           — Watts; negative=charging, positive=discharging
     ///   QuarterlyMeasurement.BatteryStateOfChargeWh      — Wh
     /// </summary>
@@ -40,6 +41,8 @@ namespace SessyController.Services
         private readonly IMilpService _milpService;
         private readonly HardwareStatusService _hardwareStatusService;
         private readonly PlanVsActualService _planVsActualService;
+        private readonly InverterMeasurementDataService _inverterMeasurementDataService;
+        private readonly SolarDataService _solarDataDataService;
 
         // Convenience property: total battery capacity in kWh from BatteryContainer.
         private double BatteryCapacityKWh => _batteryContainer.GetTotalCapacity() / 1000.0;
@@ -61,7 +64,9 @@ namespace SessyController.Services
                                        IBatteryContainer batteryContainer,
                                        IMilpService milpService,
                                        HardwareStatusService hardwareStatusService,
-                                       PlanVsActualService planVsActualService)
+                                       PlanVsActualService planVsActualService,
+                                       InverterMeasurementDataService inverterMeasurementDataService,
+                                       SolarDataService solarDataDataService)
         {
             _measurementDataService = measurementDataService;
             _investmentDataService = investmentDataService;
@@ -81,6 +86,8 @@ namespace SessyController.Services
             _milpService = milpService;
             _hardwareStatusService = hardwareStatusService;
             _planVsActualService = planVsActualService;
+            _inverterMeasurementDataService = inverterMeasurementDataService;
+            _solarDataDataService = solarDataDataService;
         }
 
         /// <summary>
@@ -183,10 +190,10 @@ namespace SessyController.Services
 
             // Order matters: self-consumed solar depends on battery totals.
             CalculateGridFlows(measurements, stats);
-            CalculateSolarStats(measurements, stats);
-            CalculateConsumptionStats(measurements, stats);
+            await CalculateSolarStatsAsync(measurements, stats);
+            await CalculateConsumptionStatsAsync(measurements, stats);
             CalculateBatteryStats(measurements, stats);
-            CalculateSelfConsumedSolar(measurements, stats);
+            await CalculateSelfConsumedSolarAsync(measurements, stats);
             CalculateFinancialStats(measurements, stats);
 
             return stats;
@@ -653,20 +660,19 @@ namespace SessyController.Services
             if (kWp <= 0)
                 return _settingsConfig.SolarAnnualProductionKWh;
 
-            // Calculate measured performance ratio from available QuarterlyMeasurements.
-            var measurements = await GetMeasurementsAsync(
-                _timeZoneService.Now.AddYears(-1), _timeZoneService.Now);
+            // Calculate measured performance ratio from InverterMeasurements + SolarData.
+            var start = _timeZoneService.Now.AddYears(-1);
+            var end = _timeZoneService.Now;
 
-            var withRadiation = measurements
-                .Where(m => m.GlobalRadiation > 0 && m.SolarProductionKWh > 0)
-                .ToList();
+            var solarByQuarter = await GetSolarByQuarterAsync(start, end);
+            var radiationByHour = await GetRadiationByHourAsync(start, end);
 
-            if (!withRadiation.Any())
+            if (!solarByQuarter.Any() || !radiationByHour.Any())
                 return _settingsConfig.SolarAnnualProductionKWh;
 
             // PR = measured kWh / theoretical kWh
-            double measuredKWh = withRadiation.Sum(m => m.SolarProductionKWh);
-            double theoreticalKWh = withRadiation.Sum(m => m.GlobalRadiation / 1000.0 * kWp * 0.25);
+            double measuredKWh = solarByQuarter.Values.Sum();
+            double theoreticalKWh = radiationByHour.Values.Sum(r => r / 1000.0 * kWp * 1.0);
             double pr = theoreticalKWh > 0 ? measuredKWh / theoreticalKWh : 0.0;
 
             if (pr <= 0 || pr > 1.0)
@@ -681,8 +687,8 @@ namespace SessyController.Services
             }
 
             // Blend with configured value when less than 3 months of data available.
-            double measuredMonths = withRadiation
-                .Select(m => new { m.Time.Year, m.Time.Month })
+            double measuredMonths = solarByQuarter.Keys
+                .Select(t => new { t.Year, t.Month })
                 .Distinct()
                 .Count();
 
@@ -757,7 +763,7 @@ namespace SessyController.Services
                         .Where(m => m.BatteryPowerWatts > 0)
                         .Sum(m => m.SellingPriceEur * m.BatteryDischargedKWh);
 
-                    double solarKWh = measurements.Sum(m => m.SolarProductionKWh);
+                    double solarKWh = await GetSolarProductionKWhAsync(current, monthEnd);
                     double avgBuyPrice = measurements.Any()
                         ? measurements.Average(m => m.BuyingPriceEur)
                         : 0.0;
@@ -985,33 +991,35 @@ namespace SessyController.Services
             stats.TotalGridExportKWh = measurements.Sum(m => m.GridExportKWh);
         }
 
-        private void CalculateSolarStats(
+        private async Task CalculateSolarStatsAsync(
             List<QuarterlyMeasurement> measurements, EnergyStatistics stats)
         {
             if (!measurements.Any())
                 return;
 
-            stats.TotalSolarProductionKWh = measurements.Sum(m => m.SolarProductionKWh);
+            var start = measurements.Min(m => m.Time);
+            var end = measurements.Max(m => m.Time);
+
+            // Solar production from InverterMeasurements (source of truth).
+            var solarByQuarter = await GetSolarByQuarterAsync(start, end);
+            stats.TotalSolarProductionKWh = solarByQuarter.Values.Sum();
 
             stats.PeakDailySolarProductionKWh = measurements
                 .GroupBy(m => m.Time.Date)
-                .Select(g => g.Sum(m => m.SolarProductionKWh))
+                .Select(g => g.Sum(m => solarByQuarter.TryGetValue(m.Time, out var kwh) ? kwh : 0.0))
                 .DefaultIfEmpty(0)
                 .Max();
 
             // Performance ratio: actual vs theoretical based on KNMI global radiation.
-            // GlobalRadiation is measured per hour (W/m²) but stored per quarter-hour.
-            // To avoid counting the same hour 4 times, use distinct hours only.
             double solarInstallationKWp = _powerSystemsConfig.Endpoints?
                 .SelectMany(provider => provider.Value.Values)
                 .Where(ep => ep.SolarPanels != null)
                 .SelectMany(ep => ep.SolarPanels!.Values)
                 .Sum(pv => pv.PeakPowerForArray) / 1000.0 ?? 0.0;
 
-            // Sum distinct hourly radiation values to avoid 4x counting.
-            double theoreticalKWh = measurements
-                .GroupBy(m => new { m.Time.Date, m.Time.Hour })
-                .Sum(g => g.First().GlobalRadiation / 1000.0 * solarInstallationKWp * 1.0); // × 1h
+            // Radiation from SolarData — distinct hours to avoid 4x counting.
+            var radiationByHour = await GetRadiationByHourAsync(start, end);
+            double theoreticalKWh = radiationByHour.Values.Sum(r => r / 1000.0 * solarInstallationKWp * 1.0);
 
             stats.SolarPerformanceRatio = theoreticalKWh > 0
                 ? stats.TotalSolarProductionKWh / theoreticalKWh
@@ -1026,7 +1034,7 @@ namespace SessyController.Services
         /// Per quarter: solar self-consumed = min(solar, consumption_from_own_sources)
         /// where consumption = grid_import + solar + battery_discharge - battery_charge - grid_export
         /// </summary>
-        private static void CalculateSelfConsumedSolar(
+        private async Task CalculateSelfConsumedSolarAsync(
             List<QuarterlyMeasurement> measurements, EnergyStatistics stats)
         {
             if (stats.TotalSolarProductionKWh <= 0)
@@ -1035,26 +1043,27 @@ namespace SessyController.Services
                 return;
             }
 
+            if (!measurements.Any()) return;
+            var start = measurements.Min(m => m.Time);
+            var end = measurements.Max(m => m.Time);
+            var solarByQuarter = await GetSolarByQuarterAsync(start, end);
+
             // Per quarter: how much solar went directly to household or battery (not to grid)?
             double selfConsumed = 0.0;
             foreach (var m in measurements)
             {
-                if (m.SolarProductionKWh <= 0) continue;
-
-                // Net household demand this quarter (positive = consuming, negative = surplus)
-                double netDemand = m.GridImportKWh - m.GridExportKWh
-                    + (m.BatteryPowerWatts < 0 ? Math.Abs(m.BatteryPowerWatts) * 0.25 / 1000.0 : 0)
-                    - (m.BatteryPowerWatts > 0 ? m.BatteryPowerWatts * 0.25 / 1000.0 : 0);
+                var solarKWh = solarByQuarter.TryGetValue(m.Time, out var kwh) ? kwh : 0.0;
+                if (solarKWh <= 0) continue;
 
                 // Solar self-consumed = solar minus what went to the grid directly
                 double solarToGrid = Math.Max(0, m.GridExportKWh - (m.BatteryPowerWatts > 0 ? m.BatteryPowerWatts * 0.25 / 1000.0 : 0));
-                selfConsumed += Math.Max(0, m.SolarProductionKWh - solarToGrid);
+                selfConsumed += Math.Max(0, solarKWh - solarToGrid);
             }
 
             stats.SelfConsumedSolarKWh = Math.Min(selfConsumed, stats.TotalSolarProductionKWh);
         }
 
-        private static void CalculateConsumptionStats(
+        private async Task CalculateConsumptionStatsAsync(
             List<QuarterlyMeasurement> measurements, EnergyStatistics stats)
         {
             // Total consumption via energy balance.
@@ -1063,10 +1072,17 @@ namespace SessyController.Services
                 stats.TotalSolarProductionKWh -
                 stats.TotalGridExportKWh);
 
+            if (!measurements.Any()) return;
+            var start = measurements.Min(m => m.Time);
+            var end = measurements.Max(m => m.Time);
+            var solarByQuarter = await GetSolarByQuarterAsync(start, end);
+
+            double Solar(DateTime t) => solarByQuarter.TryGetValue(t, out var kwh) ? kwh : 0.0;
+
             // Peak daily consumption from per-quarter grid import.
             stats.PeakDailyConsumptionKWh = measurements
                 .GroupBy(m => m.Time.Date)
-                .Select(g => g.Sum(m => m.GridImportKWh + m.SolarProductionKWh - m.GridExportKWh))
+                .Select(g => g.Sum(m => m.GridImportKWh + Solar(m.Time) - m.GridExportKWh))
                 .Where(v => v > 0)
                 .DefaultIfEmpty(0)
                 .Max();
@@ -1075,12 +1091,12 @@ namespace SessyController.Services
             stats.WeekdayConsumptionKWh = measurements
                 .Where(m => m.Time.DayOfWeek != DayOfWeek.Saturday &&
                             m.Time.DayOfWeek != DayOfWeek.Sunday)
-                .Sum(m => Math.Max(0, m.GridImportKWh + m.SolarProductionKWh - m.GridExportKWh));
+                .Sum(m => Math.Max(0, m.GridImportKWh + Solar(m.Time) - m.GridExportKWh));
 
             stats.WeekendConsumptionKWh = measurements
                 .Where(m => m.Time.DayOfWeek == DayOfWeek.Saturday ||
                             m.Time.DayOfWeek == DayOfWeek.Sunday)
-                .Sum(m => Math.Max(0, m.GridImportKWh + m.SolarProductionKWh - m.GridExportKWh));
+                .Sum(m => Math.Max(0, m.GridImportKWh + Solar(m.Time) - m.GridExportKWh));
         }
 
         private void CalculateBatteryStats(
@@ -1447,6 +1463,41 @@ namespace SessyController.Services
 
                 return await Task.FromResult(result);
             });
+        }
+
+        /// <summary>
+        /// Returns total solar production in kWh for the given period from InverterMeasurements.
+        /// </summary>
+        private async Task<double> GetSolarProductionKWhAsync(DateTime start, DateTime end)
+        {
+            var inverterMeasurements = await _inverterMeasurementDataService.GetList(async set =>
+                await Task.FromResult(set.Where(m => m.Time >= start && m.Time <= end).ToList()));
+            return inverterMeasurements.Sum(m => m.SolarProductionKWh);
+        }
+
+        /// <summary>
+        /// Returns solar production in kWh grouped by quarter-hour Time for the given period.
+        /// </summary>
+        private async Task<Dictionary<DateTime, double>> GetSolarByQuarterAsync(DateTime start, DateTime end)
+        {
+            var inverterMeasurements = await _inverterMeasurementDataService.GetList(async set =>
+                await Task.FromResult(set.Where(m => m.Time >= start && m.Time <= end).ToList()));
+            return inverterMeasurements
+                .GroupBy(m => m.Time)
+                .ToDictionary(g => g.Key, g => g.Sum(m => m.SolarProductionKWh));
+        }
+
+        /// <summary>
+        /// Returns GlobalRadiation (W/m²) grouped by hour for the given period from SolarData.
+        /// </summary>
+        private async Task<Dictionary<(DateTime Date, int Hour), double>> GetRadiationByHourAsync(DateTime start, DateTime end)
+        {
+            var solarData = await _solarDataDataService.GetList(async set =>
+                await Task.FromResult(set.Where(s => s.Time >= start && s.Time <= end).ToList()));
+            return solarData
+                .Where(s => s.Time.HasValue)
+                .GroupBy(s => (s.Time!.Value.Date, s.Time.Value.Hour))
+                .ToDictionary(g => g.Key, g => g.Average(s => s.GlobalRadiation));
         }
     }
 }

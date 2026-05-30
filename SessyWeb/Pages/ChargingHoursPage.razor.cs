@@ -290,11 +290,7 @@ namespace SessyWeb.Pages
                 return await Task.FromResult(result);
             });
 
-            if (measurements.Any(m => m.SolarProductionKWh > 0))
-                return measurements.Sum(m => m.SolarProductionKWh);
-
-            // Fallback for dates not yet in QuarterlyMeasurements:
-            // use InverterMeasurements directly.
+            // Solar production comes from InverterMeasurements (source of truth).
             if (_inverterMeasurementDataService != null)
             {
                 var inverterMeasurements = await _inverterMeasurementDataService.GetList(async set =>
@@ -367,6 +363,18 @@ namespace SessyWeb.Pages
 
                 var measurements = _cachedMeasurements!;
 
+                // Fetch solar production from InverterMeasurements for the full display period.
+                var solarByQuarter = new Dictionary<DateTime, double>();
+                if (_inverterMeasurementDataService != null)
+                {
+                    var inverterData = await _inverterMeasurementDataService.GetList(async set =>
+                        await Task.FromResult(set.Where(m => m.Time >= from && m.Time < to).ToList()))
+                        .ConfigureAwait(false);
+                    solarByQuarter = inverterData
+                        .GroupBy(m => m.Time)
+                        .ToDictionary(g => g.Key, g => g.Sum(m => m.SolarProductionKWh));
+                }
+
                 // Historical measurement times — these take priority over planning data.
                 var measuredTimes = new HashSet<DateTime>(measurements.Select(m => m.Time));
 
@@ -380,18 +388,28 @@ namespace SessyWeb.Pages
                     views.Add(await FillQuarterlyInfoView(qi, averageBuyingPrice, averageSellingPrice).ConfigureAwait(false));
 
                 foreach (var m in measurements)
-                    views.Add(FillQuarterlyInfoView(m));
+                    views.Add(FillQuarterlyInfoView(m, solarByQuarter));
             }
             else
             {
                 // Non-showall: show from now quarter onward.
-                // For the current quarter, use the actual measurement if available
-                // (it reflects the real executed mode, not just the plan).
                 var nowQ = _timeZoneService!.Now.DateFloorQuarter();
 
                 var currentMeasurement = await _measurementDataService!.Get(async set =>
                     await Task.FromResult(set.FirstOrDefault(m => m.Time == nowQ)))
                     .ConfigureAwait(false);
+
+                // Fetch solar for the visible period from InverterMeasurements.
+                var nowSolarByQuarter = new Dictionary<DateTime, double>();
+                if (_inverterMeasurementDataService != null)
+                {
+                    var inverterData = await _inverterMeasurementDataService.GetList(async set =>
+                        await Task.FromResult(set.Where(m => m.Time >= nowQ.Date && m.Time <= nowQ).ToList()))
+                        .ConfigureAwait(false);
+                    nowSolarByQuarter = inverterData
+                        .GroupBy(m => m.Time)
+                        .ToDictionary(g => g.Key, g => g.Sum(m => m.SolarProductionKWh));
+                }
 
                 var planItems = listFromBatteryService
                     .Where(q => q.Time >= nowQ && q.Time < nowQ.Date.AddDays(2))
@@ -401,10 +419,21 @@ namespace SessyWeb.Pages
                 foreach (var qi in planItems)
                 {
                     if (qi.Time == nowQ && currentMeasurement != null)
-                        // Current quarter: show actual measurement (real mode) instead of plan.
-                        views.Add(FillQuarterlyInfoView(currentMeasurement));
+                    {
+                        var view = FillQuarterlyInfoView(currentMeasurement, nowSolarByQuarter);
+                        // Fallback to planned solar if no measured value available yet.
+                        if (view.SolarPowerPerQuarterHour == 0.0)
+                            view.SolarPowerPerQuarterHour = qi.SolarPowerPerQuarterHour;
+                        views.Add(view);
+                    }
                     else
-                        views.Add(await FillQuarterlyInfoView(qi, averageBuyingPrice, averageSellingPrice).ConfigureAwait(false));
+                    {
+                        var view = await FillQuarterlyInfoView(qi, averageBuyingPrice, averageSellingPrice).ConfigureAwait(false);
+                        // Override solar with measured value if available.
+                        if (nowSolarByQuarter.TryGetValue(qi.Time, out var measuredSolar) && measuredSolar > 0)
+                            view.SolarPowerPerQuarterHour = measuredSolar;
+                        views.Add(view);
+                    }
                 }
             }
 
@@ -495,7 +524,7 @@ namespace SessyWeb.Pages
             });
         }
 
-        public QuarterlyInfoView FillQuarterlyInfoView(QuarterlyMeasurement measurement)
+        public QuarterlyInfoView FillQuarterlyInfoView(QuarterlyMeasurement measurement, Dictionary<DateTime, double>? solarByQuarter = null)
         {
             double totalCapacityWh = _batteryContainer!.GetTotalCapacity();
             double chargeLeftPct = totalCapacityWh > 0
@@ -504,6 +533,8 @@ namespace SessyWeb.Pages
 
             // Display state is derived from BatteryMode via ChargingModes.GetDisplayMode().
             string displayState = ChargingModes.GetDisplayMode(ChargingModes.GetMode(measurement.BatteryMode));
+
+            var solarKWh = solarByQuarter != null && solarByQuarter.TryGetValue(measurement.Time, out var s) ? s : 0.0;
 
             return new QuarterlyInfoView
             {
@@ -526,8 +557,8 @@ namespace SessyWeb.Pages
                 ChargeNeeded = 0.0,
 
                 EstimatedConsumptionPerQuarterHour = 0.0,
-                SolarPowerPerQuarterHour = measurement.SolarProductionKWh,
-                SolarGlobalRadiation = measurement.GlobalRadiation,
+                SolarPowerPerQuarterHour = solarKWh,
+                SolarGlobalRadiation = 0.0, // Radiation comes from SolarData
 
                 ChargeLeftPercentage = chargeLeftPct,
                 DisplayState = displayState,
@@ -536,7 +567,7 @@ namespace SessyWeb.Pages
                     : measurement.SellingPriceEur,
 
                 ChargeNeededPercentage = 0.0,
-                SmoothedSolarPower = measurement.SolarProductionKWh,
+                SmoothedSolarPower = solarKWh,
 
                 SessionCost = null,
                 DeltaLowestPrice = 0.0,

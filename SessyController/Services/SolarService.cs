@@ -303,9 +303,7 @@ namespace SessyController.Services
                 extrapolatedCount++;
             }
 
-            if (extrapolatedCount > 0)
-                _logger.LogInformation(
-                    $"Solar extrapolation: {extrapolatedCount} quarters estimated from {ExtrapolationLookbackDays}-day average radiation.");
+            _logger.LogWarning($"Solar extrapolation: {extrapolatedCount} quarters estimated from {ExtrapolationLookbackDays}-day average radiation.");
         }
 
         private async Task ApplyPerformanceFactor(List<QuarterlyInfo> hourlyInfos, DateTime now)
@@ -314,7 +312,7 @@ namespace SessyController.Services
             // Without live solar data the forecast cannot be corrected reliably.
             if (!_solarInverterManager.IsAvailable && !_solarInverterManager.ActiveInverterServices.Any(s => s.SupportsFallback))
             {
-                _logger.LogInformation("All inverters offline with no fallback — skipping performance factor, using forecast as-is.");
+                _logger.LogWarning("Solar: All inverters offline with no fallback — skipping performance factor, using forecast as-is.");
                 return;
             }
 
@@ -329,7 +327,7 @@ namespace SessyController.Services
 
             if (pastInfos.Count == 0)
             {
-                _logger.LogInformation("Did not find any past quarter hours, performance factor will not be applied.");
+                _logger.LogWarning("Solar: No past quarter hours found — performance factor not applied.");
                 return;
             }
 
@@ -338,7 +336,7 @@ namespace SessyController.Services
 
             if (forecastToNow <= 0.0)
             {
-                _logger.LogInformation("Forecast is zero until now, performance will not be applied.");
+                _logger.LogWarning("Solar: Forecast is zero until now — performance factor not applied.");
                 return;
             }
 
@@ -352,7 +350,7 @@ namespace SessyController.Services
 
             if (realizedToNow <= 0.0)
             {
-                _logger.LogInformation("No realized solar data available — skipping performance factor.");
+                _logger.LogWarning("Solar: No realized solar data available — skipping performance factor.");
                 return;
             }
 
@@ -362,7 +360,7 @@ namespace SessyController.Services
             // Clamp to a reasonable range to avoid extreme corrections.
             factor = Math.Max(0.2, Math.Min(5.0, factor));
 
-            _logger.LogInformation($"Performance factor applied: {factor:F2} (Realized={realizedToNow:F2} kWh, Forecast={forecastToNow:F2} kWh)");
+            _logger.LogWarning($"Solar: Performance factor applied: {factor:F2} (Realized={realizedToNow:F2} kWh, Forecast={forecastToNow:F2} kWh)");
 
             // Adjust quarterInfos for today only.
             foreach (var q in todayInfos)
@@ -383,10 +381,11 @@ namespace SessyController.Services
 
             CalculateSolarPosition(currentHourlyInfo.Time.AddMinutes(30), latitude, longitude, out solarAltitude, out solarAzimuth);
 
+            if (endpoint.SolarPanels == null || !endpoint.SolarPanels.Any()) return;
+
             foreach (PhotoVoltaic solarPanel in endpoint.SolarPanels.Values)
             {
                 double? solarFactor = GetSolarFactor(solarAzimuth, solarAltitude, solarPanel.Orientation, solarPanel.Tilt);
-
                 currentHourlyInfo.SolarPowerPerQuarterHour += CalculateSolarPowerPerQuarterHour(solarData.GlobalRadiation, solarFactor, solarPanel, solarAltitude);
             }
         }
@@ -435,16 +434,19 @@ namespace SessyController.Services
 
             double altitudeFactor = (solarAltitude > 10) ? 1.0 : Math.Max(0, solarAltitude / 10.0);
 
-            double powerkWatt = globalRadiation * (totalPeakPower / 1000.0) * solarFactor ?? 0.0 * altitudeFactor / 1000.0 / 4.0; // kW per quarter hour
+            double powerkWatt = globalRadiation * (totalPeakPower / 1000.0) * (solarFactor ?? 0.0) * altitudeFactor / 1000.0 / 4.0; // kW per quarter hour
 
             return powerkWatt;
         }
 
         private void CalculateSolarPosition(DateTime dateTime, double latitude, double longitude, out double altitude, out double azimuth)
         {
-            // Determine timezone offset automatically.
-            TimeZoneInfo tz = TimeZoneInfo.FindSystemTimeZoneById("W. Europe Standard Time");
-            TimeSpan offset = tz.GetUtcOffset(dateTime);
+            // Determine timezone offset — use configured timezone, fallback to UTC+1/+2.
+            TimeZoneInfo? tz = null;
+            try { tz = TimeZoneInfo.FindSystemTimeZoneById(_settingsConfig.TimeZone ?? "Europe/Amsterdam"); } catch { }
+            if (tz == null)
+                try { tz = TimeZoneInfo.FindSystemTimeZoneById("W. Europe Standard Time"); } catch { }
+            TimeSpan offset = tz != null ? tz.GetUtcOffset(dateTime) : TimeSpan.FromHours(1);
             int timezoneOffset = (int)offset.TotalHours;
 
             int dayOfYear = dateTime.DayOfYear;
@@ -498,7 +500,7 @@ namespace SessyController.Services
             // Sun behind solar panel — factor becomes zero.
             var factor = Math.Max(0, cosThetaI);
 
-            return factor * _settingsConfig.SolarCorrection;
+            return factor * (_settingsConfig?.SolarCorrection ?? 1.0);
         }
 
         private bool isDisposed = false;

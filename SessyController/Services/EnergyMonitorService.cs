@@ -208,9 +208,8 @@ namespace SessyController.Services
                 GridExportWh = gridExportWh,
                 BuyingPriceEur = quarterlyInfo?.BuyingPrice ?? 0.0,
                 SellingPriceEur = quarterlyInfo?.SellingPrice ?? 0.0,
-                GlobalRadiation = hourExpectancy?.GlobalRadiation ?? 0.0,
                 BatteryStateOfChargeWh = socWh,
-                // Battery mode and solar are filled in by BatteriesService.
+                // Battery mode is filled in by BatteriesService. Solar comes from InverterMeasurements.
             };
 
             await _measurementService.Add(new List<QuarterlyMeasurement> { measurement });

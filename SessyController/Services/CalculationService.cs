@@ -326,7 +326,8 @@ namespace SessyController.Services
 
                 case SessyData.Model.BatteryMode.ZeroNetHome:
                     // Room = SOC available for self-consumption balancing.
-                    roomInWatt = (measurement.BatteryStateOfChargeWh + measurement.SolarProductionKWh * 1000.0) * 4.0;
+                    // Solar is not stored on QuarterlyMeasurement — use SOC only.
+                    roomInWatt = measurement.BatteryStateOfChargeWh * 4.0;
                     roomInWatt = Math.Min(roomInWatt, dischargingCapacityW);
                     break;
 

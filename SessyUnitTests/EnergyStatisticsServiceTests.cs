@@ -17,6 +17,8 @@ namespace SessyTests.Services
     public class EnergyStatisticsServiceTests
     {
         private readonly Mock<QuarterlyMeasurementDataService> _measurementMock;
+        private readonly Mock<InverterMeasurementDataService> _inverterMeasurementMock;
+        private readonly Mock<SolarDataService> _solarDataMock;
         private readonly Mock<InvestmentDataService> _investmentMock;
         private readonly Mock<EnergyHistoryDataService> _energyHistoryMock;
         private readonly Mock<EPEXPricesDataService> _epexMock;
@@ -90,6 +92,14 @@ namespace SessyTests.Services
             consumptionMock.Setup(s => s.GetList(It.IsAny<Func<IQueryable<Consumption>, Task<List<Consumption>>>>()))
                            .ReturnsAsync(new List<Consumption>());
 
+            var scopeFactoryMock2 = BuildScopeFactory();
+            _inverterMeasurementMock = new Mock<InverterMeasurementDataService>(MockBehavior.Loose, scopeFactoryMock2.Object);
+            _inverterMeasurementMock.Setup(s => s.GetList(It.IsAny<Func<IQueryable<InverterMeasurement>, Task<List<InverterMeasurement>>>>()))
+                                    .ReturnsAsync(new List<InverterMeasurement>());
+            _solarDataMock = new Mock<SolarDataService>(MockBehavior.Loose, scopeFactoryMock2.Object);
+            _solarDataMock.Setup(s => s.GetList(It.IsAny<Func<IQueryable<SolarData>, Task<List<SolarData>>>>()))
+                          .ReturnsAsync(new List<SolarData>());
+
             _sut = new EnergyStatisticsService(
                 _measurementMock.Object,
                 _investmentMock.Object,
@@ -107,7 +117,9 @@ namespace SessyTests.Services
                 batteryContainerMock.Object,
                 milpServiceMock.Object,
                 null!,   // hardwareStatusService
-                null!);  // planVsActualService
+                null!,   // planVsActualService
+                _inverterMeasurementMock.Object,
+                _solarDataMock.Object);
         }
 
         // ── Grid flow tests ──────────────────────────────────────────────────
@@ -146,10 +158,14 @@ namespace SessyTests.Services
         [Fact]
         public async Task GetEnergyStatistics_CalculatesTotalSolarProductionCorrectly()
         {
-            // 4 quarters × 1.0 kWh solar = 4.0 kWh total.
-            SetupMeasurements(Enumerable.Range(0, 4).Select(i => new QuarterlyMeasurement
+            // 4 quarters × 1.0 kWh solar = 4.0 kWh total — from InverterMeasurements.
+            var times = Enumerable.Range(0, 4).Select(i => PeriodStart.AddMinutes(i * 15)).ToList();
+            SetupMeasurements(times.Select(t => new QuarterlyMeasurement { Time = t }).ToList());
+            SetupInverterMeasurements(times.Select(t => new InverterMeasurement
             {
-                Time = PeriodStart.AddMinutes(i * 15),
+                Time = t,
+                InverterId = "1",
+                ProviderName = "Test",
                 SolarProductionKWh = 1.0
             }).ToList());
 
@@ -167,7 +183,11 @@ namespace SessyTests.Services
             // Self consumed = 1.0 - 0.2 = 0.8 kWh = 80%.
             SetupMeasurements(new List<QuarterlyMeasurement>
             {
-                new() { Time = PeriodStart, SolarProductionKWh = 1.0, GridImportWh = 0, GridExportWh = 200 }
+                new() { Time = PeriodStart, GridImportWh = 0, GridExportWh = 200 }
+            });
+            SetupInverterMeasurements(new List<InverterMeasurement>
+            {
+                new() { Time = PeriodStart, InverterId = "1", ProviderName = "Test", SolarProductionKWh = 1.0 }
             });
 
             var result = await _sut.GetEnergyStatisticsAsync(PeriodStart, PeriodEnd);
@@ -188,13 +208,16 @@ namespace SessyTests.Services
                 new()
                 {
                     Time = PeriodStart,
-                    SolarProductionKWh = 0.5,
                     GridImportWh = 0,
                     GridExportWh = 600,
                     BatteryPowerWatts = 1600, // discharging: 1600W * 0.25h / 1000 = 0.4 kWh
                     BatteryMode = BatteryMode.Discharging,
                     IsReliable = true
                 }
+            });
+            SetupInverterMeasurements(new List<InverterMeasurement>
+            {
+                new() { Time = PeriodStart, InverterId = "1", ProviderName = "Test", SolarProductionKWh = 0.5 }
             });
 
             var result = await _sut.GetEnergyStatisticsAsync(PeriodStart, PeriodEnd);
@@ -336,7 +359,7 @@ namespace SessyTests.Services
             // Consumption = import + solar - export = 500 + 200 - 100 = 600 Wh = 0.6 kWh.
             SetupMeasurements(new List<QuarterlyMeasurement>
             {
-                new() { Time = PeriodStart, GridImportWh = 500, GridExportWh = 100, SolarProductionKWh = 0.2 }
+                new() { Time = PeriodStart, GridImportWh = 500, GridExportWh = 100.2 }
             });
 
             var result = await _sut.GetEnergyStatisticsAsync(PeriodStart, PeriodEnd);
@@ -352,10 +375,10 @@ namespace SessyTests.Services
             // does not remove either day (lastTime.TimeOfDay = 23:45 is not < 23:45).
             var measurements = new List<QuarterlyMeasurement>
             {
-                new() { Time = new DateTime(2026, 5, 1,  0,  0, 0), GridImportWh = 500, SolarProductionKWh = 0, GridExportWh = 0 },
-                new() { Time = new DateTime(2026, 5, 1, 23, 45, 0), GridImportWh = 500, SolarProductionKWh = 0, GridExportWh = 0 },
-                new() { Time = new DateTime(2026, 5, 2,  0,  0, 0), GridImportWh = 250, SolarProductionKWh = 0, GridExportWh = 0 },
-                new() { Time = new DateTime(2026, 5, 2, 23, 45, 0), GridImportWh = 250, SolarProductionKWh = 0, GridExportWh = 0 }
+                new() { Time = new DateTime(2026, 5, 1,  0,  0, 0), GridImportWh = 500, GridExportWh = 0 },
+                new() { Time = new DateTime(2026, 5, 1, 23, 45, 0), GridImportWh = 500, GridExportWh = 0 },
+                new() { Time = new DateTime(2026, 5, 2,  0,  0, 0), GridImportWh = 250, GridExportWh = 0 },
+                new() { Time = new DateTime(2026, 5, 2, 23, 45, 0), GridImportWh = 250, GridExportWh = 0 }
             };
             SetupMeasurements(measurements);
 
@@ -384,10 +407,10 @@ namespace SessyTests.Services
                 .Setup(s => s.GetList(It.IsAny<Func<IQueryable<QuarterlyMeasurement>, Task<List<QuarterlyMeasurement>>>>()))
                 .ReturnsAsync(new List<QuarterlyMeasurement>
                 {
-                    new() { Time = fromDate,                                          GridImportWh = 150, GridExportWh = 0, SolarProductionKWh = 0 },
-                    new() { Time = fromDate.AddHours(23).AddMinutes(45),             GridImportWh = 150, GridExportWh = 0, SolarProductionKWh = 0 },
-                    new() { Time = fromDate.AddDays(10),                             GridImportWh = 100, GridExportWh = 0, SolarProductionKWh = 0 },
-                    new() { Time = fromDate.AddDays(10).AddHours(23).AddMinutes(45), GridImportWh = 100, GridExportWh = 0, SolarProductionKWh = 0 }
+                    new() { Time = fromDate,                                          GridImportWh = 150, GridExportWh = 0 },
+                    new() { Time = fromDate.AddHours(23).AddMinutes(45),             GridImportWh = 150, GridExportWh = 0 },
+                    new() { Time = fromDate.AddDays(10),                             GridImportWh = 100, GridExportWh = 0 },
+                    new() { Time = fromDate.AddDays(10).AddHours(23).AddMinutes(45), GridImportWh = 100, GridExportWh = 0 }
                 });
 
             investmentMock
@@ -438,7 +461,9 @@ namespace SessyTests.Services
                 batteryContainerMock2.Object,
                 milpServiceMock2.Object,
                 null!,   // hardwareStatusService
-                null!);  // planVsActualService
+                null!,   // planVsActualService
+                _inverterMeasurementMock.Object,
+                _solarDataMock.Object);
 
             // Request full month — StatisticsFromDate clips it to May 15.
             var result = await sut.GetEnergyStatisticsAsync(DateTime.MinValue, PeriodEnd);
@@ -495,7 +520,6 @@ namespace SessyTests.Services
                     Time = PeriodStart,
                     GridImportWh = 2000,
                     GridExportWh = 0,
-                    SolarProductionKWh = 0,
                     BatteryPowerWatts = -1800, // charging from grid
                     BatteryMode = BatteryMode.Charging
                 }
@@ -716,6 +740,13 @@ namespace SessyTests.Services
         {
             _measurementMock
                 .Setup(s => s.GetList(It.IsAny<Func<IQueryable<QuarterlyMeasurement>, Task<List<QuarterlyMeasurement>>>>()))
+                .ReturnsAsync(data);
+        }
+
+        private void SetupInverterMeasurements(List<InverterMeasurement> data)
+        {
+            _inverterMeasurementMock
+                .Setup(s => s.GetList(It.IsAny<Func<IQueryable<InverterMeasurement>, Task<List<InverterMeasurement>>>>()))
                 .ReturnsAsync(data);
         }
 

@@ -11,7 +11,6 @@ namespace SessyData.Model
     /// Unit conventions:
     ///   BatteryPowerWatts        — Watts; negative = charging, positive = discharging
     ///   BatteryStateOfChargeWh   — Wh
-    ///   SolarProductionKWh       — kWh per quarter-hour (measured by inverter)
     ///   GridImportWh             — Wh imported from grid this quarter (P1 delta)
     ///   GridExportWh             — Wh exported to grid this quarter (P1 delta)
     ///   BuyingPriceEur           — EUR/kWh (incl. taxes)
@@ -57,9 +56,6 @@ namespace SessyData.Model
 
         // ── Solar ─────────────────────────────────────────────────────────────
 
-        /// <summary>Solar energy produced this quarter in kWh (inverter measurement).</summary>
-        public double SolarProductionKWh { get; set; }
-
         // ── Grid (P1 meter deltas) ────────────────────────────────────────────
 
         /// <summary>Energy imported from grid this quarter in Wh (P1 delta).</summary>
@@ -90,10 +86,6 @@ namespace SessyData.Model
 
         // ── Derived helpers (not stored) ──────────────────────────────────────
 
-        /// <summary>Solar energy produced this quarter in kWh (convenience alias).</summary>
-        [NotMapped]
-        public double SolarProductionWh => SolarProductionKWh * 1000.0;
-
         /// <summary>Grid import in kWh.</summary>
         [NotMapped]
         public double GridImportKWh => GridImportWh / 1000.0;
@@ -117,8 +109,7 @@ namespace SessyData.Model
         public override string ToString() =>
             $"{Time:yyyy-MM-dd HH:mm} | Mode={BatteryMode} | " +
             $"Battery={BatteryPowerWatts:F0}W SOC={BatteryStateOfChargeWh:F0}Wh | " +
-            $"Solar={SolarProductionKWh:F4}kWh | " +
-            $"Import={GridImportWh:F0}Wh Export={GridExportWh:F0}Wh | " +
+$"Import={GridImportWh:F0}Wh Export={GridExportWh:F0}Wh | " +
             $"Buy={BuyingPriceEur:F4} Sell={SellingPriceEur:F4}";
 
         public void Update(QuarterlyMeasurement updateInfo)
@@ -127,12 +118,10 @@ namespace SessyData.Model
             BatteryStateOfChargeWh = updateInfo.BatteryStateOfChargeWh;
             BatteryMode = updateInfo.BatteryMode;
             IsReliable = updateInfo.IsReliable;
-            SolarProductionKWh = updateInfo.SolarProductionKWh;
             GridImportWh = updateInfo.GridImportWh;
             GridExportWh = updateInfo.GridExportWh;
             BuyingPriceEur = updateInfo.BuyingPriceEur;
             SellingPriceEur = updateInfo.SellingPriceEur;
-            GlobalRadiation = updateInfo.GlobalRadiation;
             PlannedRevenueEur = updateInfo.PlannedRevenueEur;
         }
     }

@@ -1215,7 +1215,10 @@ namespace SessyController.Services
 
                 if (act.Mode == Modes.Charging)
                 {
-                    if (soc + chargeStepWh > maxSocWh + NumericEpsWh)
+                    // Use planned power if available, otherwise fall back to max capacity.
+                    double plannedChargeWh = act.PowerW > 10 ? act.PowerW * 0.25 : chargeStepWh;
+
+                    if (soc + plannedChargeWh > maxSocWh + NumericEpsWh)
                     {
                         act.Mode = Modes.ZeroNetHome;
                         act.PowerW = 0;
@@ -1224,13 +1227,16 @@ namespace SessyController.Services
                     }
                     else
                     {
-                        soc = Clamp(soc + chargeStepWh, 0.0, capWh);
+                        soc = Clamp(soc + plannedChargeWh, 0.0, capWh);
                         targetSocWh = maxSocWh;
                     }
                 }
                 else if (act.Mode == Modes.Discharging)
                 {
-                    if (soc - dischargeStepWh < minSocWh + EmptyHysteresisWh + NumericEpsWh)
+                    // Use planned power if available, otherwise fall back to max capacity.
+                    double plannedDischargeWh = act.PowerW > 10 ? act.PowerW * 0.25 : dischargeStepWh;
+
+                    if (soc - plannedDischargeWh < minSocWh + EmptyHysteresisWh + NumericEpsWh)
                     {
                         act.Mode = Modes.ZeroNetHome;
                         act.PowerW = 0;
@@ -1239,7 +1245,7 @@ namespace SessyController.Services
                     }
                     else
                     {
-                        soc = Clamp(soc - dischargeStepWh, 0.0, capWh);
+                        soc = Clamp(soc - plannedDischargeWh, 0.0, capWh);
                         targetSocWh = minSocWh;
                     }
                 }
@@ -1316,6 +1322,33 @@ namespace SessyController.Services
 
                 if (socWh - requiredWh < minSocWh + EmptyHysteresisWh + NumericEpsWh)
                     return new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
+
+                if (qi != null)
+                {
+                    double netLoadWh = qi.NetLoadWh;
+                    bool dischargingForOwnConsumption = netLoadWh > 0.0;
+
+                    if (!dischargingForOwnConsumption)
+                    {
+                        // Solar surplus already covers consumption — discharge goes to export.
+                        // Only allow when selling price justifies cycle cost.
+                        double exportThreshold = selfUseValue + _settingsConfig.CycleCost + ExportPremiumEur;
+                        if (qi.SellingPrice < exportThreshold)
+                            return new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
+                    }
+                    else if (!netting)
+                    {
+                        double exportThreshold = selfUseValue + _settingsConfig.CycleCost + ExportPremiumEur;
+                        if (qi.SellingPrice < exportThreshold)
+                            return new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
+                    }
+                    else
+                    {
+                        // Netting ON, positive net load: only discharge when sell price covers buy minus cycle cost.
+                        if (qi.SellingPrice < qi.BuyingPrice - _settingsConfig.CycleCost)
+                            return new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
+                    }
+                }
 
                 return planned;
             }
