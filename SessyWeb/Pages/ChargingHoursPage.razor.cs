@@ -35,9 +35,13 @@ namespace SessyWeb.Pages
         // Measurement cache — avoids re-querying the DB every second on DataChanged.
         // Invalidated when the date window or ShowAll flag changes.
         private List<QuarterlyMeasurement>? _cachedMeasurements;
+        private Dictionary<DateTime, double> _cachedSolarByQuarter = new();
+        private DateTime _cachedSolarFrom;
+        private DateTime _cachedSolarTo;
         private DateTime _cachedFrom;
         private DateTime _cachedTo;
         private bool _showAllWhenCached;
+        private DateTime _cacheTimestamp;
 
         public double TotalSolarPowerExpectedToday { get; private set; }
         public double TotalSolarPowerExpectedTomorrow { get; private set; }
@@ -339,11 +343,15 @@ namespace SessyWeb.Pages
 
             if (ShowAll)
             {
-                // Only re-query the DB when the window or ShowAll flag changed.
+                // Re-query when the window/ShowAll changed, or when the visible window
+                // includes the current quarter and the cache predates it (new data arrived).
+                var nowQuarter = _timeZoneService!.Now.DateFloorQuarter();
+                bool windowIncludesNow = nowQuarter >= from && nowQuarter < to;
                 bool windowChanged = _cachedMeasurements == null
                     || _showAllWhenCached != ShowAll
                     || _cachedFrom != from
-                    || _cachedTo != to;
+                    || _cachedTo != to
+                    || (windowIncludesNow && _cacheTimestamp < nowQuarter);
 
                 if (windowChanged)
                 {
@@ -359,21 +367,22 @@ namespace SessyWeb.Pages
                     _cachedFrom = from;
                     _cachedTo = to;
                     _showAllWhenCached = ShowAll;
+                    _cacheTimestamp = nowQuarter;
                 }
 
                 var measurements = _cachedMeasurements!;
 
-                // Fetch solar production from InverterMeasurements for the full display period.
-                var solarByQuarter = new Dictionary<DateTime, double>();
-                if (_inverterMeasurementDataService != null)
+                // Fetch solar from InverterMeasurements — refresh whenever measurements were refreshed.
+                if (_inverterMeasurementDataService != null && windowChanged)
                 {
                     var inverterData = await _inverterMeasurementDataService.GetList(async set =>
                         await Task.FromResult(set.Where(m => m.Time >= from && m.Time < to).ToList()))
                         .ConfigureAwait(false);
-                    solarByQuarter = inverterData
+                    _cachedSolarByQuarter = inverterData
                         .GroupBy(m => m.Time)
                         .ToDictionary(g => g.Key, g => g.Sum(m => m.SolarProductionKWh));
                 }
+                var solarByQuarter = _cachedSolarByQuarter;
 
                 // Historical measurement times — these take priority over planning data.
                 var measuredTimes = new HashSet<DateTime>(measurements.Select(m => m.Time));
@@ -387,8 +396,23 @@ namespace SessyWeb.Pages
                 foreach (var qi in planItems)
                     views.Add(await FillQuarterlyInfoView(qi, averageBuyingPrice, averageSellingPrice).ConfigureAwait(false));
 
+                // Plan solar by quarter — fallback when a measurement has no inverter data yet
+                // (InverterMeasurements are written slightly after QuarterlyMeasurements).
+                var planSolarByQuarter = listFromBatteryService
+                    .GroupBy(q => q.Time)
+                    .ToDictionary(g => g.Key, g => g.First().SolarPowerPerQuarterHour);
+
                 foreach (var m in measurements)
-                    views.Add(FillQuarterlyInfoView(m, solarByQuarter));
+                {
+                    var view = FillQuarterlyInfoView(m, solarByQuarter);
+                    if (view.SolarPowerPerQuarterHour == 0.0
+                        && !solarByQuarter.ContainsKey(m.Time)
+                        && planSolarByQuarter.TryGetValue(m.Time, out var planSolar))
+                    {
+                        view.SolarPowerPerQuarterHour = planSolar;
+                    }
+                    views.Add(view);
+                }
             }
             else
             {
@@ -399,17 +423,20 @@ namespace SessyWeb.Pages
                     await Task.FromResult(set.FirstOrDefault(m => m.Time == nowQ)))
                     .ConfigureAwait(false);
 
-                // Fetch solar for the visible period from InverterMeasurements.
-                var nowSolarByQuarter = new Dictionary<DateTime, double>();
-                if (_inverterMeasurementDataService != null)
+                // Fetch solar for today from InverterMeasurements — use cache when possible.
+                if (_inverterMeasurementDataService != null &&
+                    (_cachedSolarFrom != nowQ.Date || _cachedSolarTo != nowQ.AddMinutes(15)))
                 {
                     var inverterData = await _inverterMeasurementDataService.GetList(async set =>
                         await Task.FromResult(set.Where(m => m.Time >= nowQ.Date && m.Time <= nowQ).ToList()))
                         .ConfigureAwait(false);
-                    nowSolarByQuarter = inverterData
+                    _cachedSolarByQuarter = inverterData
                         .GroupBy(m => m.Time)
                         .ToDictionary(g => g.Key, g => g.Sum(m => m.SolarProductionKWh));
+                    _cachedSolarFrom = nowQ.Date;
+                    _cachedSolarTo = nowQ.AddMinutes(15);
                 }
+                var nowSolarByQuarter = _cachedSolarByQuarter;
 
                 var planItems = listFromBatteryService
                     .Where(q => q.Time >= nowQ && q.Time < nowQ.Date.AddDays(2))
