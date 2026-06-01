@@ -303,7 +303,7 @@ namespace SessyController.Services
                 extrapolatedCount++;
             }
 
-            _logger.LogInformation($"Solar extrapolation: {extrapolatedCount} quarters estimated from {ExtrapolationLookbackDays}-day average radiation.");
+            _logger.LogWarning($"Solar extrapolation: {extrapolatedCount} quarters estimated from {ExtrapolationLookbackDays}-day average radiation.");
         }
 
         private async Task ApplyPerformanceFactor(List<QuarterlyInfo> hourlyInfos, DateTime now)
@@ -327,7 +327,7 @@ namespace SessyController.Services
 
             if (pastInfos.Count == 0)
             {
-                _logger.LogWarning("Solar: No past quarter hours found — performance factor not applied.");
+                _logger.LogInformation("Solar: No past quarter hours found — performance factor not applied.");
                 return;
             }
 
@@ -336,7 +336,7 @@ namespace SessyController.Services
 
             if (forecastToNow <= 0.0)
             {
-                _logger.LogWarning("Solar: Forecast is zero until now — performance factor not applied.");
+                // Normal at night or before sunrise — return silently.
                 return;
             }
 

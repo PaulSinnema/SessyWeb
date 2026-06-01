@@ -58,8 +58,9 @@
                                Value="@($"{Dashboard!.TotalBatteryChargedKWh:F1} / {Dashboard.TotalBatteryDischargedKWh:F1} kWh")" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Round-trip efficiency"
-                               Value="@(Dashboard!.BatteryRoundTripEfficiencyPct > 0 ? $"{Dashboard.BatteryRoundTripEfficiencyPct:F1} %" : "n/b")" />
+            <StatCardComponent Title="Round-trip efficiency (planned / total / avg)"
+                               Value="@RoundTripEfficiencyValue"
+                               InfoTooltip="@RoundTripEfficiencyTooltip" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
             <StatCardComponent Title="Cycles (total / avg per battery)"
@@ -76,6 +77,3 @@
     </RadzenText>
 </RadzenCard>
 
-@code {
-    [Parameter, EditorRequired] public DashboardStatistics? Dashboard { get; set; }
-}

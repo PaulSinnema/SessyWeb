@@ -69,6 +69,12 @@
         /// <summary>SOC at the end of the period (kWh) — used for round-trip efficiency correction.</summary>
         public double EndSocKWh { get; set; }
 
+        /// <summary>Energy charged in planned Charging mode only (kWh).</summary>
+        public double PlannedBatteryChargedKWh { get; set; }
+
+        /// <summary>Energy discharged in planned Discharging mode only (kWh).</summary>
+        public double PlannedBatteryDischargedKWh { get; set; }
+
         public double ReliableBatteryChargedKWh { get; set; }
 
         /// <summary>
@@ -84,20 +90,41 @@
         public double BatteryCyclesPerDay { get; set; }
 
         /// <summary>
-        /// Battery round-trip efficiency (discharged / charged).
-        /// Calculated from reliable periods only to exclude overheating/shutdown distortion.
-        /// Only meaningful when at least 1 kWh has been charged AND discharged.
-        /// Returns 0 when insufficient data to avoid misleading values.
+        /// Round-trip efficiency for planned charge/discharge cycles only (BatteryMode 1+2).
+        /// Only meaningful when the measurement period is long enough for the SOC imbalance
+        /// to be negligible (at least 30 days). Returns 0 otherwise.
+        /// </summary>
+        public double PlannedRoundTripEfficiencyPct =>
+            PlannedBatteryChargedKWh >= 1.0
+            && PlannedBatteryDischargedKWh > 0
+            && PeriodDays >= 30
+                ? Math.Max(0.0, Math.Min(100.0,
+                    (PlannedBatteryDischargedKWh - (EndSocKWh - StartSocKWh) * PlannedBatteryChargedKWh /
+                     Math.Max(ReliableBatteryChargedKWh, 1.0)) /
+                    PlannedBatteryChargedKWh * 100.0))
+                : 0.0;
+
+        /// <summary>
+        /// Round-trip efficiency over all modes including ZeroNetHome.
+        /// SOC-corrected to account for net charge/discharge imbalance over the period.
         /// </summary>
         public double BatteryRoundTripEfficiencyPct =>
             ReliableBatteryChargedKWh >= 1.0 && ReliableBatteryDischargedKWh > 0
-                // Correct for SOC difference: if the battery ends higher than it started,
-                // subtract that delta from discharged (that energy was charged but not yet
-                // discharged). If it ends lower, add the delta (discharged from pre-period charge).
                 ? Math.Max(0.0, Math.Min(100.0,
                     (ReliableBatteryDischargedKWh - (EndSocKWh - StartSocKWh)) /
                     ReliableBatteryChargedKWh * 100.0))
                 : 0.0;
+
+        /// <summary>
+        /// Weighted average of planned and total round-trip efficiency.
+        /// Falls back to total-only when planned data is insufficient.
+        /// </summary>
+        public double AverageRoundTripEfficiencyPct =>
+            PlannedRoundTripEfficiencyPct > 0 && BatteryRoundTripEfficiencyPct > 0
+                ? (PlannedBatteryChargedKWh * PlannedRoundTripEfficiencyPct +
+                   ReliableBatteryChargedKWh * BatteryRoundTripEfficiencyPct) /
+                  (PlannedBatteryChargedKWh + ReliableBatteryChargedKWh)
+                : BatteryRoundTripEfficiencyPct;
 
         /// <summary>Average state of charge percentage.</summary>
         public double AverageSocPct { get; set; }

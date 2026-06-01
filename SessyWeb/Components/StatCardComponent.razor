@@ -1,9 +1,17 @@
 ﻿@* StatCard.razor — small statistic display card *@
 @using Radzen
+@using Radzen.Blazor
 
 <RadzenCard Style="@($"padding: 8px; background: {(Highlight ? "var(--rz-success-lighter)" : "inherit")}")">
     <RadzenText TextStyle="TextStyle.Caption" style="color: var(--rz-text-secondary-color);">@Title</RadzenText>
-    <RadzenText TextStyle="TextStyle.H6" style="@(Highlight ? "color: var(--rz-success);" : "")">@Value</RadzenText>
+    <div style="display: flex; align-items: center; gap: 6px;">
+        <RadzenText TextStyle="TextStyle.H6" style="@(Highlight ? "color: var(--rz-success);" : "")">@Value</RadzenText>
+        @if (!string.IsNullOrEmpty(InfoTooltip))
+        {
+            <RadzenIcon Icon="info" Style="font-size: 14px; opacity: 0.6; cursor: help;"
+                        title="@InfoTooltip" />
+        }
+    </div>
 </RadzenCard>
 
 @code {
@@ -12,4 +20,7 @@
 
     /// <summary>When true, renders the card with a green highlight (for key metrics).</summary>
     [Parameter] public bool Highlight { get; set; } = false;
+
+    /// <summary>Optional tooltip shown on the info icon next to the value.</summary>
+    [Parameter] public string InfoTooltip { get; set; } = string.Empty;
 }

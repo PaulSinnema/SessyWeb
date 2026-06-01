@@ -1118,6 +1118,15 @@ namespace SessyController.Services
             stats.ReliableBatteryChargedKWh = reliable.Sum(m => m.BatteryChargedKWh);
             stats.ReliableBatteryDischargedKWh = reliable.Sum(m => m.BatteryDischargedKWh);
 
+            // Planned-only efficiency: charge from Charging mode, discharge from Discharging mode.
+            // Cross-mode: a planned cycle charges in mode 1 and discharges in mode 2.
+            stats.PlannedBatteryChargedKWh = reliable
+                .Where(m => m.BatteryMode == BatteryMode.Charging)
+                .Sum(m => m.BatteryChargedKWh);
+            stats.PlannedBatteryDischargedKWh = reliable
+                .Where(m => m.BatteryMode == BatteryMode.Discharging)
+                .Sum(m => m.BatteryDischargedKWh);
+
             // SOC at start and end of period for round-trip efficiency correction.
             var withSocOrdered = measurements
                 .Where(m => m.BatteryStateOfChargeWh > 0)
@@ -1396,6 +1405,8 @@ namespace SessyController.Services
                 TotalBatteryChargedKWh = periodStats.TotalBatteryChargedKWh,
                 TotalBatteryDischargedKWh = periodStats.TotalBatteryDischargedKWh,
                 BatteryRoundTripEfficiencyPct = periodStats.BatteryRoundTripEfficiencyPct,
+                PlannedRoundTripEfficiencyPct = periodStats.PlannedRoundTripEfficiencyPct,
+                AverageRoundTripEfficiencyPct = periodStats.AverageRoundTripEfficiencyPct,
                 BatteryCycles = periodStats.BatteryCycles,
                 BatteryCyclesPerDay = periodStats.BatteryCyclesPerDay,
                 AverageSocPct = periodStats.AverageSocPct,

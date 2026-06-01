@@ -132,6 +132,8 @@ namespace SessyController.Services.Statistics
 
         /// <summary>Battery round-trip efficiency (reliable periods only) (%).</summary>
         public double BatteryRoundTripEfficiencyPct { get; set; }
+        public double PlannedRoundTripEfficiencyPct { get; set; }
+        public double AverageRoundTripEfficiencyPct { get; set; }
 
         /// <summary>Total equivalent battery cycles since installation.</summary>
         public double BatteryCycles { get; set; }
