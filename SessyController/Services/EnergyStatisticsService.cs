@@ -1118,6 +1118,15 @@ namespace SessyController.Services
             stats.ReliableBatteryChargedKWh = reliable.Sum(m => m.BatteryChargedKWh);
             stats.ReliableBatteryDischargedKWh = reliable.Sum(m => m.BatteryDischargedKWh);
 
+            // SOC at start and end of period for round-trip efficiency correction.
+            var withSocOrdered = measurements
+                .Where(m => m.BatteryStateOfChargeWh > 0)
+                .OrderBy(m => m.Time)
+                .ToList();
+
+            stats.StartSocKWh = withSocOrdered.Any() ? withSocOrdered.First().BatteryStateOfChargeWh / 1000.0 : 0.0;
+            stats.EndSocKWh = withSocOrdered.Any() ? withSocOrdered.Last().BatteryStateOfChargeWh / 1000.0 : 0.0;
+
             // Battery cycles: total charged kWh / capacity.
             // CyclesPerDay: use all days (not just complete) for a stable rate.
             // With few complete days the rate would be very noisy otherwise.

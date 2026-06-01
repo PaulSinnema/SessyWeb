@@ -303,7 +303,7 @@ namespace SessyController.Services
                 extrapolatedCount++;
             }
 
-            _logger.LogWarning($"Solar extrapolation: {extrapolatedCount} quarters estimated from {ExtrapolationLookbackDays}-day average radiation.");
+            _logger.LogInformation($"Solar extrapolation: {extrapolatedCount} quarters estimated from {ExtrapolationLookbackDays}-day average radiation.");
         }
 
         private async Task ApplyPerformanceFactor(List<QuarterlyInfo> hourlyInfos, DateTime now)

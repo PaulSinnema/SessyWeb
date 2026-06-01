@@ -63,6 +63,12 @@
         /// Used for round-trip efficiency to exclude periods with known data quality issues
         /// (e.g. battery overheating causing premature shutdown mid-cycle).
         /// </summary>
+        /// <summary>SOC at the start of the period (kWh) — used for round-trip efficiency correction.</summary>
+        public double StartSocKWh { get; set; }
+
+        /// <summary>SOC at the end of the period (kWh) — used for round-trip efficiency correction.</summary>
+        public double EndSocKWh { get; set; }
+
         public double ReliableBatteryChargedKWh { get; set; }
 
         /// <summary>
@@ -85,7 +91,12 @@
         /// </summary>
         public double BatteryRoundTripEfficiencyPct =>
             ReliableBatteryChargedKWh >= 1.0 && ReliableBatteryDischargedKWh > 0
-                ? Math.Min(100.0, ReliableBatteryDischargedKWh / ReliableBatteryChargedKWh * 100.0)
+                // Correct for SOC difference: if the battery ends higher than it started,
+                // subtract that delta from discharged (that energy was charged but not yet
+                // discharged). If it ends lower, add the delta (discharged from pre-period charge).
+                ? Math.Max(0.0, Math.Min(100.0,
+                    (ReliableBatteryDischargedKWh - (EndSocKWh - StartSocKWh)) /
+                    ReliableBatteryChargedKWh * 100.0))
                 : 0.0;
 
         /// <summary>Average state of charge percentage.</summary>
