@@ -1,173 +1,155 @@
 ﻿@inherits BaseComponent
 
 @{
-    var style = "padding: 0px; margin: 0px; height: 20px;";
-    var fixedWidthStyle = $"{style} width: 150px; height: 25px;";
-    var threeQuarterWidthStyle = $"{style} width: 80px; height: 25px;";
-    var oneQuarterWidthStyle = $"{style} width: 67px; height: 25px;";
-    var state = $"   {QuarterlyInfo?.DisplayState}";
+    var q = QuarterlyInfo;
+    string fmt(double? v, string f = "0.00") => (v ?? 0).ToString(f, System.Globalization.CultureInfo.GetCultureInfo("nl-NL"));
+
+    // State accent color.
+    string stateColor = q?.DisplayState switch
+    {
+        "Charging" => "#ffaa33",
+        "Discharging" => "#66ff99",
+        _ => "var(--rz-text-color, #9aa)"
+    };
+
+    bool hasPlan = !string.IsNullOrEmpty(q?.PlannedDisplayState);
+    bool hasDeviation = !string.IsNullOrEmpty(q?.PlanDeviationReason);
+    bool charging = (q?.ChargePowerW ?? 0) > 10;
+    bool discharging = (q?.DischargePowerW ?? 0) > 10;
 }
 
-<RadzenRow>
-    <RadzenColumn Size="8">
-        <RadzenTextBox Value="Date and time" disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-    <RadzenColumn Size="2">
-        <RadzenDatePicker Value=@QuarterlyInfo?.Time ShowButton="false" disabled TValue="DateTime" Style=@fixedWidthStyle />
-    </RadzenColumn>
-</RadzenRow>
+<div class="sw-tt">
+    <div class="sw-tt-head">
+        <span class="sw-tt-title">@q?.Time.ToString("dd MMM HH:mm", System.Globalization.CultureInfo.GetCultureInfo("nl-NL"))</span>
+        <span class="sw-tt-state" style="color:@stateColor;">@q?.DisplayState</span>
+    </div>
 
-<RadzenRow>
-    <RadzenColumn Size="8">
-        <RadzenTextBox Value="Selling price" disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-    <RadzenColumn Size="2">
-        <RadzenNumeric Format="0.0000" ShowUpDown="false" Value=@QuarterlyInfo?.SellingPrice disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-</RadzenRow>
+    <div class="sw-tt-grid">
+        <span class="sw-tt-k">Buy / Sell</span>
+        <span class="sw-tt-v">@fmt(q?.BuyingPrice, "0.0000") / @fmt(q?.SellingPrice, "0.0000")</span>
 
-<RadzenRow>
-    <RadzenColumn Size="8">
-        <RadzenTextBox Value="Buying price" disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-    <RadzenColumn Size="2">
-        <RadzenNumeric Format="0.0000" ShowUpDown="false" Value=@QuarterlyInfo?.BuyingPrice disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-</RadzenRow>
+        <span class="sw-tt-k">Market</span>
+        <span class="sw-tt-v">@fmt(q?.MarketPrice, "0.0000")</span>
 
-<RadzenRow>
-    <RadzenColumn Size="8">
-        <RadzenTextBox Value="Market price" disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-    <RadzenColumn Size="2">
-        <RadzenNumeric Format="0.0000" ShowUpDown="false" Value=@QuarterlyInfo?.MarketPrice disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-</RadzenRow>
+        <span class="sw-tt-k">Revenue</span>
+        <span class="sw-tt-v">@fmt(q?.Profit)</span>
 
-<RadzenRow>
-    <RadzenColumn Size="8">
-        <RadzenTextBox Value="Revenue" disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-    <RadzenColumn Size="2">
-        <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@QuarterlyInfo?.Profit disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-</RadzenRow>
+        <span class="sw-tt-k">Solar / radiation</span>
+        <span class="sw-tt-v">@fmt(q?.SolarPowerPerQuarterHour) / @fmt(q?.SolarGlobalRadiation)</span>
 
-<RadzenRow>
-    <RadzenColumn Size="8">
-        <RadzenTextBox Value="State" disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-    <RadzenColumn Size="2">
-        <RadzenTextBox Value=@state disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-</RadzenRow>
+        <span class="sw-tt-k">Consumption</span>
+        <span class="sw-tt-v">@fmt(q?.EstimatedConsumptionPerQuarterHour)</span>
 
-<RadzenRow>
-    <RadzenColumn Size="8">
-        <RadzenTextBox Value="Solar power" disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-    <RadzenColumn Size="2">
-        <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@QuarterlyInfo?.SolarPowerPerQuarterHour disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-</RadzenRow>
+        <span class="sw-tt-k">Charge left</span>
+        <span class="sw-tt-v">@fmt(q?.ChargeLeft, "0") Wh · @fmt(q?.ChargeLeftPercentage, "0.0")%</span>
 
-<RadzenRow>
-    <RadzenColumn Size="8">
-        <RadzenTextBox Value="Global radiation" disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-    <RadzenColumn Size="2">
-        <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@QuarterlyInfo?.SolarGlobalRadiation disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-</RadzenRow>
+        <span class="sw-tt-k">Charge needed</span>
+        <span class="sw-tt-v">@fmt(q?.ChargeNeeded, "0") Wh · @fmt(q?.ChargeNeededPercentage, "0.0")%</span>
+    </div>
 
-<RadzenRow>
-    <RadzenColumn Size="8">
-        <RadzenTextBox Value="Charge left %" disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-    <RadzenColumn Size="2">
-        <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@QuarterlyInfo?.ChargeLeft disabled Style=@threeQuarterWidthStyle />
-        <RadzenNumeric Format="0.0" ShowUpDown="false" Value=@QuarterlyInfo?.ChargeLeftPercentage disabled Style=@oneQuarterWidthStyle />
-    </RadzenColumn>
-</RadzenRow>
+    <div class="sw-tt-sep"></div>
 
-<RadzenRow>
-    <RadzenColumn Size="8">
-        <RadzenTextBox Value="Charge needed" disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-    <RadzenColumn Size="2">
-        <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@QuarterlyInfo?.ChargeNeeded disabled Style=@threeQuarterWidthStyle />
-        <RadzenNumeric Format="0.0" ShowUpDown="false" Value=@QuarterlyInfo?.ChargeNeededPercentage disabled Style=@oneQuarterWidthStyle />
-    </RadzenColumn>
-</RadzenRow>
+    <div class="sw-tt-grid">
+        <span class="sw-tt-k">Actual power</span>
+        <span class="sw-tt-v">
+            @if (charging)
+            {
+                <span style="color:#ffaa33;">charge @fmt(q?.ChargePowerW, "0") W</span>
+            }
+            else if (discharging)
+            {
+                <span style="color:#66ff99;">discharge @fmt(q?.DischargePowerW, "0") W</span>
+            }
+            else
+            {
+                <span>idle</span>
+            }
+        </span>
 
-<RadzenRow>
-    <RadzenColumn Size="8">
-        <RadzenTextBox Value="@(QuarterlyInfo?.DisplayState == "Zero net home" ? "Charge power (W, measured)" : "Charge power (W, setpoint)")" disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-    <RadzenColumn Size="2">
-        <RadzenNumeric Format="0" ShowUpDown="false" Value=@QuarterlyInfo?.ChargePowerW disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-</RadzenRow>
+        @if (hasPlan)
+        {
+            <span class="sw-tt-k">Planned</span>
+            <span class="sw-tt-v">
+                @q?.PlannedDisplayState
+                @if ((q?.PlannedChargePowerW ?? 0) > 10)
+                {
+                    <text> · </text><span style="color:#ffaa33;">@fmt(q?.PlannedChargePowerW, "0") W</span>
+                }
+                else if ((q?.PlannedDischargePowerW ?? 0) > 10)
+                {
+                    <text> · </text><span style="color:#66ff99;">@fmt(q?.PlannedDischargePowerW, "0") W</span>
+                }
+            </span>
 
-<RadzenRow>
-    <RadzenColumn Size="8">
-        <RadzenTextBox Value="@(QuarterlyInfo?.DisplayState == "Zero net home" ? "Discharge power (W, measured)" : "Discharge power (W, setpoint)")" disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-    <RadzenColumn Size="2">
-        <RadzenNumeric Format="0" ShowUpDown="false" Value=@QuarterlyInfo?.DischargePowerW disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-</RadzenRow>
+            <span class="sw-tt-k">Planned SOC</span>
+            <span class="sw-tt-v">@fmt(q?.PlannedChargeLeftWh, "0") Wh</span>
+        }
+    </div>
 
-<RadzenRow>
-    <RadzenColumn Size="8">
-        <RadzenTextBox Value="Planned state" disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-    <RadzenColumn Size="2">
-        <RadzenTextBox Value=@QuarterlyInfo?.PlannedDisplayState disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-</RadzenRow>
+    @if (hasDeviation)
+    {
+        <div class="sw-tt-note">@q?.PlanDeviationReason</div>
+    }
+</div>
 
-<RadzenRow>
-    <RadzenColumn Size="8">
-        <RadzenTextBox Value="Planned charge (W)" disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-    <RadzenColumn Size="2">
-        <RadzenNumeric Format="0" ShowUpDown="false" Value=@QuarterlyInfo?.PlannedChargePowerW disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-</RadzenRow>
+<style>
+    .sw-tt {
+        font-size: 12px;
+        line-height: 1.35;
+        min-width: 300px;
+        max-width: 360px;
+        padding: 2px 4px;
+    }
 
-<RadzenRow>
-    <RadzenColumn Size="8">
-        <RadzenTextBox Value="Planned discharge (W)" disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-    <RadzenColumn Size="2">
-        <RadzenNumeric Format="0" ShowUpDown="false" Value=@QuarterlyInfo?.PlannedDischargePowerW disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-</RadzenRow>
+    .sw-tt-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-bottom: 4px;
+        gap: 8px;
+    }
 
-<RadzenRow>
-    <RadzenColumn Size="8">
-        <RadzenTextBox Value="Planned charge left (Wh)" disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-    <RadzenColumn Size="2">
-        <RadzenNumeric Format="0" ShowUpDown="false" Value=@QuarterlyInfo?.PlannedChargeLeftWh disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-</RadzenRow>
+    .sw-tt-title {
+        font-weight: 600;
+    }
 
-<RadzenRow>
-    <RadzenColumn Size="8">
-        <RadzenTextBox Value="Est. consumption" disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-    <RadzenColumn Size="2">
-        <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@QuarterlyInfo?.EstimatedConsumptionPerQuarterHour disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-</RadzenRow>
+    .sw-tt-state {
+        font-weight: 600;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: .03em;
+    }
 
-<RadzenRow>
-    <RadzenColumn Size="8">
-        <RadzenTextBox Value="Session cost" disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-    <RadzenColumn Size="2">
-        <RadzenNumeric Format="0.00" ShowUpDown="false" Value=@QuarterlyInfo?.SessionCost disabled Style=@fixedWidthStyle />
-    </RadzenColumn>
-</RadzenRow>
+    .sw-tt-grid {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        column-gap: 10px;
+        row-gap: 1px;
+    }
+
+    .sw-tt-k {
+        opacity: .7;
+        white-space: nowrap;
+    }
+
+    .sw-tt-v {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .sw-tt-sep {
+        height: 1px;
+        background: currentColor;
+        opacity: .15;
+        margin: 5px 0;
+    }
+
+    .sw-tt-note {
+        margin-top: 5px;
+        font-style: italic;
+        opacity: .8;
+        font-size: 11px;
+        border-left: 2px solid currentColor;
+        padding-left: 6px;
+    }
+</style>

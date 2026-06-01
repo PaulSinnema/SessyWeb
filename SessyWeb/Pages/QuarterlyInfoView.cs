@@ -35,6 +35,9 @@
         public double PlannedChargeLeftWh { get; set; }
         public string PlannedDisplayState { get; set; } = string.Empty;
 
+        // Explains why actual execution deviated from the plan (empty when matching).
+        public string PlanDeviationReason { get; set; } = string.Empty;
+
         // Visual scaling matching ChargePowerVisual / DischargePowerVisual.
         public double PlannedChargePowerVisual => -(PlannedChargePowerW / 18000.0);
         public double PlannedDischargePowerVisual => PlannedDischargePowerW / 18000.0;
@@ -61,7 +64,6 @@
         }
         public double AverageBuyingPrice { get; set; }
         public double AverageSellingPrice { get; set; }
-        public double? SessionCost { get; set; } = null;
 
         /// <summary>Inverter throttle percentage (0-100). 100 = full output, 0 = shutdown.</summary>
         public double ThrottlePct { get; set; } = 100.0;

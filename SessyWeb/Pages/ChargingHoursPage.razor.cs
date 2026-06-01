@@ -546,7 +546,6 @@ namespace SessyWeb.Pages
                 AverageBuyingPrice = averageBuyingPrice,
                 AverageSellingPrice = averageSellingPrice,
 
-                SessionCost = null,
                 DeltaLowestPrice = quarterlyInfo.DeltaLowestPrice,
 
                 ChargePowerW = chargePowerW,
@@ -599,6 +598,53 @@ namespace SessyWeb.Pages
                 view.PlannedChargePowerW = Math.Abs(plan.PlannedPowerW);
             else if (string.Equals(plan.PlannedMode, "Discharging", StringComparison.OrdinalIgnoreCase))
                 view.PlannedDischargePowerW = Math.Abs(plan.PlannedPowerW);
+
+            view.PlanDeviationReason = DeterminePlanDeviationReason(view, plan);
+        }
+
+        /// <summary>
+        /// Explains why the executed action differs from the plan, based on actual
+        /// display state, planned mode and runtime context (solar/SOC/price).
+        /// Returns empty string when actual matches the plan.
+        /// </summary>
+        private static string DeterminePlanDeviationReason(QuarterlyInfoView view, PlannedQuarter plan)
+        {
+            bool actualCharging = view.ChargePowerW > 10;
+            bool actualDischarging = view.DischargePowerW > 10;
+            string actualMode = actualCharging ? "Charging"
+                : actualDischarging ? "Discharging"
+                : "ZeroNetHome";
+
+            string plannedMode = string.IsNullOrEmpty(plan.PlannedMode) ? "ZeroNetHome" : plan.PlannedMode;
+
+            if (string.Equals(actualMode, plannedMode, StringComparison.OrdinalIgnoreCase))
+                return string.Empty;
+
+            // Planned discharge but did not discharge.
+            // The planner maximises profit over the whole horizon, so the most common
+            // reason is that other quarters offer a better selling price — the battery
+            // holds its energy for those. Price context first, physical limits last.
+            if (string.Equals(plannedMode, "Discharging", StringComparison.OrdinalIgnoreCase) && !actualDischarging)
+            {
+                if (view.IsCurtailed || view.SellingPrice < 0.0)
+                    return "Negative export price — discharge skipped.";
+                return "Better selling price expected in other quarters — energy held back.";
+            }
+
+            // Planned charge but did not charge.
+            if (string.Equals(plannedMode, "Charging", StringComparison.OrdinalIgnoreCase) && !actualCharging)
+            {
+                if (view.SolarPowerPerQuarterHour > 0.0)
+                    return "Solar charged the battery instead of the grid.";
+                return "Cheaper buying price expected in other quarters — charge deferred.";
+            }
+
+            // Plan idle but battery acted — realtime price/SOC made action profitable.
+            if (string.Equals(plannedMode, "ZeroNetHome", StringComparison.OrdinalIgnoreCase)
+                && (actualCharging || actualDischarging))
+                return $"Realtime price/SOC made {actualMode.ToLowerInvariant()} profitable.";
+
+            return $"Plan {plannedMode.ToLowerInvariant()}, actual {actualMode.ToLowerInvariant()}.";
         }
 
         public QuarterlyInfoView FillQuarterlyInfoView(QuarterlyMeasurement measurement, Dictionary<DateTime, double>? solarByQuarter = null)
@@ -646,7 +692,6 @@ namespace SessyWeb.Pages
                 ChargeNeededPercentage = 0.0,
                 SmoothedSolarPower = solarKWh,
 
-                SessionCost = null,
                 DeltaLowestPrice = 0.0,
 
                 // Actual battery power from measurement.
