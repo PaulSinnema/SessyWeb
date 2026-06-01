@@ -58,7 +58,7 @@ namespace SessyController.Services
             _settingsService = settingsService;
             _settingConfig = _settingsService.Current;
 
-            _settingsService.SettingsChanged += s =>
+            _settingsService.SettingsChanged += (s, _) =>
             {
                 _p1Semaphore.Wait();
                 try

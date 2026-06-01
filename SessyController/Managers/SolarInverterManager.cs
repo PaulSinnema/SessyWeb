@@ -75,7 +75,7 @@ namespace SessyController.Managers
             _timeZoneService = timezoneService;
             _settingsService = settingsService;
             _settingsConfig = _settingsService.Current;
-            _settingsService.SettingsChanged += s => _settingsConfig = s;
+            _settingsService.SettingsChanged += (s, _) => _settingsConfig = s;
 
             _powerSystemConfigMonitor = powerSystemsConfigMonitor;
             UpdatePowersystemConfig(inverterServices, _powerSystemConfigMonitor.CurrentValue);

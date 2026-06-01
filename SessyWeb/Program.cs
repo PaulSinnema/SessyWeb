@@ -246,7 +246,7 @@ DockerService.IsRunningInDocker(true);
 ServiceLocator.ServiceProvider = app.Services;
 
 // Wire TimeZoneService to update its timezone when settings change in the database.
-app.Services.GetRequiredService<SettingsService>().SettingsChanged += s =>
+app.Services.GetRequiredService<SettingsService>().SettingsChanged += (s, _) =>
     app.Services.GetRequiredService<TimeZoneService>().UpdateTimezone(s.TimeZone);
 
 Console.WriteLine("Migrating database (if needed)");

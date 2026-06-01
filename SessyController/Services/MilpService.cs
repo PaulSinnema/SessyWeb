@@ -258,11 +258,16 @@ namespace SessyController.Services
             _sessyBatteryConfig = sessyBatteryConfigMonitor.CurrentValue
                 ?? throw new InvalidOperationException("Sessy:Batteries missing");
 
-            _settingsService.SettingsChanged += s =>
+            _settingsService.SettingsChanged += (s, isStartup) =>
             {
                 _settingsConfig = s;
-                _configChangedReason = "Management settings changed in database";
-                _logger.LogInformation("MilpService: settings changed — plan rebuild scheduled.");
+                if (!isStartup)
+                {
+                    // Only trigger a rebuild when the user actually changed settings,
+                    // not on every application startup.
+                    _configChangedReason = "Management settings changed in database";
+                    _logger.LogInformation("MilpService: settings changed — plan rebuild scheduled.");
+                }
             };
             _sessyBatteryConfigSubscription = _sessyBatteryConfigMonitor.OnChange(s =>
             {

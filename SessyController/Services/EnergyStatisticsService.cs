@@ -76,7 +76,7 @@ namespace SessyController.Services
             _timeZoneService = timeZoneService;
             _heatPumpConfig = heatPumpConfig.Value;
             _settingsConfig = settingsService.Current;
-            settingsService.SettingsChanged += s => _settingsConfig = s;
+            settingsService.SettingsChanged += (s, _) => _settingsConfig = s;
             _powerSystemsConfig = powerSystemsConfig.Value;
             _epexPricesService = epexPricesService;
             _gasPricesDataService = gasPricesDataService;

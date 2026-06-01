@@ -86,7 +86,7 @@ namespace SessyController.Services.InverterServices
             _powerSystemsConfigMonitor = powerSystemsConfigMonitor;
             _powerSystemConfig = _powerSystemsConfigMonitor.CurrentValue;
 
-            _settingsService.SettingsChanged += s => _settingsConfig = s;
+            _settingsService.SettingsChanged += (s, _) => _settingsConfig = s;
             _powerSystemsConfigMonitor.OnChange((config) => _powerSystemConfig = config);
 
             _scope = serviceScopeFactory.CreateScope();

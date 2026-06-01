@@ -69,7 +69,7 @@ namespace SessyController.Services
 
             _settingsService = settingsService;
             _settingsConfig = _settingsService.Current;
-            _settingsService.SettingsChanged += s => _settingsConfig = s;
+            _settingsService.SettingsChanged += (s, _) => _settingsConfig = s;
         }
 
         /// <summary>

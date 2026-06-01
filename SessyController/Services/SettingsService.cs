@@ -36,7 +36,7 @@ namespace SessyController.Services
         /// The new Settings object is passed as argument so subscribers
         /// do not need to read Current themselves.
         /// </summary>
-        public event Action<Settings>? SettingsChanged;
+        public event Action<Settings, bool>? SettingsChanged; // bool = isStartup
 
         public SettingsService(
             SettingsDataService settingsDataService,
@@ -53,7 +53,7 @@ namespace SessyController.Services
             await EnsureDefaultsSeededAsync().ConfigureAwait(false);
             await PatchExistingRecordAsync().ConfigureAwait(false);
             await LoadAsync().ConfigureAwait(false);
-            SettingsChanged?.Invoke(_current);
+            SettingsChanged?.Invoke(_current, true);
             _ready.TrySetResult();
         }
 
@@ -72,7 +72,7 @@ namespace SessyController.Services
         public async Task RefreshAsync()
         {
             await LoadAsync().ConfigureAwait(false);
-            SettingsChanged?.Invoke(_current);
+            SettingsChanged?.Invoke(_current, false);
             _logger.LogInformation("SettingsService: settings refreshed — SettingsChanged fired.");
         }
 

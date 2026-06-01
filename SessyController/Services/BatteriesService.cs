@@ -84,7 +84,7 @@ namespace SessyController.Services
             _settingsConfig = _settingsService.Current;
             _sessyBatteryConfig = sessyBatteryConfigMonitor.CurrentValue ?? throw new InvalidOperationException("Sessy:Batteries missing");
 
-            _settingsService.SettingsChanged += s => _settingsConfig = s;
+            _settingsService.SettingsChanged += (s, _) => _settingsConfig = s;
             _sessyBatteryConfigSubscription = _sessyBatteryConfigMonitor.OnChange(settings => _sessyBatteryConfig = settings);
 
             _scope = _serviceScopeFactory.CreateScope();
