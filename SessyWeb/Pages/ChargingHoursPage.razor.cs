@@ -19,6 +19,7 @@ namespace SessyWeb.Pages
         [Inject] public TooltipService? tooltipService { get; set; }
         [Inject] public QuarterlyMeasurementDataService? _measurementDataService { get; set; }
         [Inject] public InverterMeasurementDataService? _inverterMeasurementDataService { get; set; }
+        [Inject] public PlannedQuarterDataService? _plannedQuarterDataService { get; set; }
         [Inject] public SolarService? _solarService { get; set; }
         [Inject] public TimeZoneService? _timeZoneService { get; set; }
         [Inject] public BatteryContainer? _batteryContainer { get; set; }
@@ -402,6 +403,9 @@ namespace SessyWeb.Pages
                     .GroupBy(q => q.Time)
                     .ToDictionary(g => g.Key, g => g.First().SolarPowerPerQuarterHour);
 
+                // Planned state from PlannedQuarter — shown alongside actuals for measured quarters.
+                var plannedByQuarter = await GetPlannedByQuarterAsync(from, to).ConfigureAwait(false);
+
                 foreach (var m in measurements)
                 {
                     var view = FillQuarterlyInfoView(m, solarByQuarter);
@@ -411,6 +415,7 @@ namespace SessyWeb.Pages
                     {
                         view.SolarPowerPerQuarterHour = planSolar;
                     }
+                    ApplyPlannedValues(view, plannedByQuarter);
                     views.Add(view);
                 }
             }
@@ -546,9 +551,54 @@ namespace SessyWeb.Pages
 
                 ChargePowerW = chargePowerW,
                 DischargePowerW = dischargePowerW,
+
+                // For plan quarters the plan equals the displayed values.
+                PlannedChargePowerW = quarterlyInfo.PlannedChargePowerW,
+                PlannedDischargePowerW = quarterlyInfo.PlannedDischargePowerW,
+                PlannedChargeLeftWh = quarterlyInfo.ChargeLeftWh,
+                PlannedDisplayState = quarterlyInfo.GetDisplayMode() ?? string.Empty,
+
                 IsCurtailed = quarterlyInfo.SellingPriceIsNegative,
                 ThrottlePct = quarterlyInfo.SellingPriceIsNegative ? currentThrottlePercentage : 100.0
             });
+        }
+
+        /// <summary>
+        /// Loads planned quarters from the database for the given window, keyed by time.
+        /// Returns empty dictionary when the service is unavailable.
+        /// </summary>
+        private async Task<Dictionary<DateTime, PlannedQuarter>> GetPlannedByQuarterAsync(DateTime from, DateTime to)
+        {
+            if (_plannedQuarterDataService == null)
+                return new Dictionary<DateTime, PlannedQuarter>();
+
+            var planned = await _plannedQuarterDataService.GetList(async set =>
+                await Task.FromResult(set.Where(p => p.Time >= from && p.Time < to).ToList()))
+                .ConfigureAwait(false);
+
+            return planned
+                .GroupBy(p => p.Time)
+                .ToDictionary(g => g.Key, g => g.First());
+        }
+
+        /// <summary>
+        /// Copies planned mode, power and SOC onto the view for plan-vs-actual display.
+        /// </summary>
+        private static void ApplyPlannedValues(QuarterlyInfoView view, Dictionary<DateTime, PlannedQuarter> plannedByQuarter)
+        {
+            if (!plannedByQuarter.TryGetValue(view.Time, out var plan))
+                return;
+
+            view.PlannedDisplayState = plan.PlannedMode;
+            view.PlannedChargeLeftWh = plan.PlannedChargeLeftWh;
+
+            // PlannedMode determines whether the power is charge or discharge.
+            // PlannedPowerW is stored signed (discharge negative); the visual props
+            // expect magnitudes, so take the absolute value here.
+            if (string.Equals(plan.PlannedMode, "Charging", StringComparison.OrdinalIgnoreCase))
+                view.PlannedChargePowerW = Math.Abs(plan.PlannedPowerW);
+            else if (string.Equals(plan.PlannedMode, "Discharging", StringComparison.OrdinalIgnoreCase))
+                view.PlannedDischargePowerW = Math.Abs(plan.PlannedPowerW);
         }
 
         public QuarterlyInfoView FillQuarterlyInfoView(QuarterlyMeasurement measurement, Dictionary<DateTime, double>? solarByQuarter = null)

@@ -120,6 +120,42 @@
 
 <RadzenRow>
     <RadzenColumn Size="8">
+        <RadzenTextBox Value="Planned state" disabled Style=@fixedWidthStyle />
+    </RadzenColumn>
+    <RadzenColumn Size="2">
+        <RadzenTextBox Value=@QuarterlyInfo?.PlannedDisplayState disabled Style=@fixedWidthStyle />
+    </RadzenColumn>
+</RadzenRow>
+
+<RadzenRow>
+    <RadzenColumn Size="8">
+        <RadzenTextBox Value="Planned charge (W)" disabled Style=@fixedWidthStyle />
+    </RadzenColumn>
+    <RadzenColumn Size="2">
+        <RadzenNumeric Format="0" ShowUpDown="false" Value=@QuarterlyInfo?.PlannedChargePowerW disabled Style=@fixedWidthStyle />
+    </RadzenColumn>
+</RadzenRow>
+
+<RadzenRow>
+    <RadzenColumn Size="8">
+        <RadzenTextBox Value="Planned discharge (W)" disabled Style=@fixedWidthStyle />
+    </RadzenColumn>
+    <RadzenColumn Size="2">
+        <RadzenNumeric Format="0" ShowUpDown="false" Value=@QuarterlyInfo?.PlannedDischargePowerW disabled Style=@fixedWidthStyle />
+    </RadzenColumn>
+</RadzenRow>
+
+<RadzenRow>
+    <RadzenColumn Size="8">
+        <RadzenTextBox Value="Planned charge left (Wh)" disabled Style=@fixedWidthStyle />
+    </RadzenColumn>
+    <RadzenColumn Size="2">
+        <RadzenNumeric Format="0" ShowUpDown="false" Value=@QuarterlyInfo?.PlannedChargeLeftWh disabled Style=@fixedWidthStyle />
+    </RadzenColumn>
+</RadzenRow>
+
+<RadzenRow>
+    <RadzenColumn Size="8">
         <RadzenTextBox Value="Est. consumption" disabled Style=@fixedWidthStyle />
     </RadzenColumn>
     <RadzenColumn Size="2">

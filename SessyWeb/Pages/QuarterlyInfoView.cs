@@ -29,6 +29,17 @@
         public double ChargePowerW { get; set; }
         public double DischargePowerW { get; set; }
 
+        // Planned values from PlannedQuarter — shown alongside actuals for comparison.
+        public double PlannedChargePowerW { get; set; }
+        public double PlannedDischargePowerW { get; set; }
+        public double PlannedChargeLeftWh { get; set; }
+        public string PlannedDisplayState { get; set; } = string.Empty;
+
+        // Visual scaling matching ChargePowerVisual / DischargePowerVisual.
+        public double PlannedChargePowerVisual => -(PlannedChargePowerW / 18000.0);
+        public double PlannedDischargePowerVisual => PlannedDischargePowerW / 18000.0;
+        public double PlannedChargeLeftVisual => PlannedChargeLeftWh / 100000.0;
+
         public double EstimatedConsumptionPerQuarterHourVisual => EstimatedConsumptionPerQuarterHour / 5000;
         public double ChargeNeededVisual => ChargeNeeded / 100000;
         public double ChargeLeftVisual => ChargeLeft / 100000;

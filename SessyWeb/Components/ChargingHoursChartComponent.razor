@@ -254,6 +254,40 @@
             </ChildContent>
         </RadzenAreaSeries>
 
+        <RadzenLineSeries Data="@QuarterlyInfos"
+                          Smooth="true"
+                          CategoryProperty="Time"
+                          Stroke="#ffaa33"
+                          StrokeWidth="2.5"
+                          LineType="LineType.Dashed"
+                          Title="Planned charge"
+                          ValueProperty="PlannedChargePowerVisual">
+            <TooltipTemplate Context="data">
+                <ChargingHoursTooltip QuarterlyInfo=@data />
+            </TooltipTemplate>
+            <ChildContent>
+                <RadzenMarkers Visible="false" />
+                <RadzenSeriesDataLabels Visible="false" />
+            </ChildContent>
+        </RadzenLineSeries>
+
+        <RadzenLineSeries Data="@QuarterlyInfos"
+                          Smooth="true"
+                          CategoryProperty="Time"
+                          Stroke="#66ff99"
+                          StrokeWidth="2.5"
+                          LineType="LineType.Dashed"
+                          Title="Planned discharge"
+                          ValueProperty="PlannedDischargePowerVisual">
+            <TooltipTemplate Context="data">
+                <ChargingHoursTooltip QuarterlyInfo=@data />
+            </TooltipTemplate>
+            <ChildContent>
+                <RadzenMarkers Visible="false" />
+                <RadzenSeriesDataLabels Visible="false" />
+            </ChildContent>
+        </RadzenLineSeries>
+
         @* Vertical "now" line — single full-height bar at the current quarter. *@
         @if (ShowAll && NowQuarter != null)
         {
