@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Sqlite.Infrastructure.Internal;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using SessyCommon.Services;
 
 namespace SessyData.Model
 {
@@ -21,7 +22,7 @@ namespace SessyData.Model
                 throw new InvalidOperationException($"Connection string not found");
             }
 
-            _connectionString = extension.ConnectionString;
+            _connectionString = DockerService.ConnectionString(extension.ConnectionString);
         }
 
         public DbSet<SessyStatusHistory> SessyStatusHistory => Set<SessyStatusHistory>();

@@ -24,5 +24,38 @@
 
             return isRunningInDocker;
         }
+
+        public static string FileName(string path, bool writeToConsole = false)
+        {
+            if(IsRunningInDocker(writeToConsole))
+            {
+                if(path.StartsWith('.'))
+                    return path.Substring(1);
+
+                return path;
+            }
+            else
+            {
+                if(!path.StartsWith("."))
+                    return "." + path;
+
+                return path;
+            }
+        }
+
+        public static string? ConnectionString(string? path, bool writeToConsole = false)
+        {
+            if (path != null)
+            {
+                var pathParts = path.Split('=');
+                var databasePath = pathParts[1].TrimStart(' ');
+
+                databasePath = FileName(databasePath);
+
+                return pathParts[0] + "=" + databasePath;
+            }
+
+            return path;
+        }
     }
 }

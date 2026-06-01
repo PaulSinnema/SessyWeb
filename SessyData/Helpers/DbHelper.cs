@@ -25,8 +25,6 @@ namespace SessyData.Helpers
         {
             try
             {
-                var isRunningInDocker = DockerService.IsRunningInDocker();
-
                 using var scope = _serviceScopeFactory.CreateScope();
                 var timeZoneService = scope.ServiceProvider.GetRequiredService<TimeZoneService>();
                 var settingsConfig = scope.ServiceProvider.GetRequiredService<IOptions<SettingsConfig>>().Value;
@@ -35,7 +33,7 @@ namespace SessyData.Helpers
 
                 var dbContext = scope.ServiceProvider.GetRequiredService<ModelContext>();
                 var filename = $"Sessy_{now.Year:D4}_{now.Month:D2}_{now.Day:D2}_{now.Hour:D2}_{now.Minute:D2}_{now.Second:D2}.bak";
-                var directory = (isRunningInDocker ? "" : ".") + settingsConfig.DatabaseBackupDirectory ?? "/data/backups";
+                var directory = DockerService.FileName(settingsConfig.DatabaseBackupDirectory ?? "/SessyController/Data/backups");
                 var backupFilePath = Path.Combine(directory, filename).Replace("\\", "/");
 
                 Directory.CreateDirectory(directory);

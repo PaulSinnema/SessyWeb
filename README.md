@@ -82,7 +82,7 @@ Copy the example below to `/SessyController/Config/appsettings.json` on your NAS
   },
 
   "ConnectionStrings": {
-    "SQLiteConnection": "Data Source=Sessy.db"
+    "SQLiteConnection": "Data Source=/SessyController/Data/Sessy.db"
   },
 
   "AllowedHosts": "*",
@@ -136,7 +136,7 @@ Copy the example below to `/SessyController/Config/appsettings.json` on your NAS
 
   "ManagementSettings": {
     "Timezone": "Europe/Amsterdam",
-    "DatabaseBackupDirectory": "/data/backups"
+    "DatabaseBackupDirectory": "/SessyController/Data/backups"
   }
 }
 ```
@@ -162,8 +162,8 @@ All other settings (cycle cost, reserve percentage, efficiency factors, consumpt
 
 | NAS path | Container path |
 |---|---|
-| `/SessyController/Config` | `/SessyController/Config` |
-| `/SessyController/data` | `/data` |
+| `/volume1/SessyController/Config` | `/SessyController/Config` |
+| `/volume1/SessyController/Data` | `/SessyController/Data` |
 
 **Environment variables**
 
