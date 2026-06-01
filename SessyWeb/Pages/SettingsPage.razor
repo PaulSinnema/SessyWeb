@@ -75,8 +75,18 @@
                                     </RadzenColumn>
                                     <RadzenColumn Size="12" SizeMD="4">
                                         <RadzenLabel Text="Night reserve cap (%)" />
-                                        <RadzenNumeric @bind-Value="_settings.NightReserveCapPct" Format="F0" Min="0" Max="100" Style="width:100%" />
+                                        <RadzenNumeric TValue="double" @bind-Value="_settings.NightReserveCapPct" Format="F0" Min="0" Max="100" Style="width:100%" />
                                         <RadzenText TextStyle="TextStyle.Caption">0 = default (33%)</RadzenText>
+                                    </RadzenColumn>
+                                    <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Discharge efficiency factor (0.0–1.0)" />
+                                        <RadzenNumeric TValue="double" @bind-Value="_settings.DischargingEfficiencyFactor" Format="F2" Min="0" Max="1" Style="width:100%" />
+                                        <RadzenText TextStyle="TextStyle.Caption">0 = use appsettings factor per battery</RadzenText>
+                                    </RadzenColumn>
+                                    <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Charge efficiency factor (0.0–1.0)" />
+                                        <RadzenNumeric TValue="double" @bind-Value="_settings.ChargingEfficiencyFactor" Format="F2" Min="0" Max="1" Style="width:100%" />
+                                        <RadzenText TextStyle="TextStyle.Caption">0 = use appsettings factor per battery</RadzenText>
                                     </RadzenColumn>
                                     <RadzenColumn Size="12" SizeMD="4" Style="display:flex; flex-direction:column; gap:8px; justify-content:flex-end;">
                                         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">

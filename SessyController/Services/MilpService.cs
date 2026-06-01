@@ -741,8 +741,16 @@ namespace SessyController.Services
                 double capacityKWh = capacityWh / 1000.0;
                 double socKWh = socWh / 1000.0;
 
-                double maxChargeKW = _sessyBatteryConfig.TotalChargingCapacity / 1000.0;
-                double maxDischargeKW = _sessyBatteryConfig.TotalDischargingCapacity / 1000.0;
+                // When a DB override factor is set, apply it to the raw (unfactored) capacity.
+                // When 0, fall back to the per-battery factors already applied in appsettings.
+                double maxChargeKW = _settingsConfig.ChargingEfficiencyFactor > 0.0
+                    ? _sessyBatteryConfig.TotalRawChargingCapacity / 1000.0 * _settingsConfig.ChargingEfficiencyFactor
+                    : _sessyBatteryConfig.TotalChargingCapacity / 1000.0;
+                // When a DB override factor is set, apply it to the raw (unfactored) capacity.
+                // When 0, fall back to the per-battery factors already applied in appsettings.
+                double maxDischargeKW = _settingsConfig.DischargingEfficiencyFactor > 0.0
+                    ? _sessyBatteryConfig.TotalRawDischargingCapacity / 1000.0 * _settingsConfig.DischargingEfficiencyFactor
+                    : _sessyBatteryConfig.TotalDischargingCapacity / 1000.0;
 
                 var nowQuarterTime = _timeZoneService.Now.DateFloorQuarter();
 

@@ -48,6 +48,18 @@ namespace SessyData.Model
         /// </summary>
         public double NightReserveCapPct { get; set; }
 
+        /// <summary>
+        /// Override for the effective discharge efficiency factor (0.0–1.0).
+        /// When 0, the per-battery DischargingEfficiencyFactor from appsettings is used.
+        /// </summary>
+        public double DischargingEfficiencyFactor { get; set; }
+
+        /// <summary>
+        /// Override for the effective charge efficiency factor (0.0–1.0).
+        /// When 0, the per-battery ChargingEfficiencyFactor from appsettings is used.
+        /// </summary>
+        public double ChargingEfficiencyFactor { get; set; }
+
         // ── Statistics ────────────────────────────────────────────────────────
         public DateTime? StatisticsFromDate { get; set; }
 
