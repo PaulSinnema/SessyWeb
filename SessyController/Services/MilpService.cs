@@ -1383,6 +1383,12 @@ namespace SessyController.Services
                 if (socWh + chargeStepWh > maxSocWh + NumericEpsWh)
                     return new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
 
+                // If planned charge power is less than estimated consumption, ZeroNetHome
+                // is more accurate — the inverter will self-regulate to cover the load.
+                if (qi != null && planned.PowerW > 0 &&
+                    planned.PowerW < qi.EstimatedConsumptionPerQuarterInWatts)
+                    return new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
+
                 return planned;
             }
 
@@ -1420,6 +1426,11 @@ namespace SessyController.Services
                         if (qi.SellingPrice < qi.BuyingPrice - _settingsConfig.CycleCost)
                             return new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
                     }
+
+                    // If planned discharge power is less than estimated consumption, ZeroNetHome
+                    // is more accurate — the inverter will self-regulate to cover the load.
+                    if (planned.PowerW > 0 && planned.PowerW < qi.EstimatedConsumptionPerQuarterInWatts)
+                        return new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
                 }
 
                 return planned;
