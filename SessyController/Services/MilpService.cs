@@ -495,6 +495,7 @@ namespace SessyController.Services
 
                 var futureWindow = ordered
                     .Skip(i + 1)
+                    .Where(x => !x.IsPriceExpected)  // only real prices for self-use and reserve
                     .Take(SelfUseLookAheadQuarters)
                     .Select(x => new
                     {
@@ -634,6 +635,36 @@ namespace SessyController.Services
 
                 _maxSocWhByTime[qi.Time] = maxSocWh;
             }
+
+            // ── Bridge reserve ───────────────────────────────────────────────
+            // At the last quarter with a real (non-predicted) price, raise minSocWh
+            // to cover estimated net consumption during the blind period that follows
+            // (from end of known prices until new prices become available ~13:00).
+            var lastKnownQuarter = ordered.LastOrDefault(q => !q.IsPriceExpected);
+            var predictedQuarters = ordered.Where(q => q.IsPriceExpected).ToList();
+
+            if (lastKnownQuarter != null && predictedQuarters.Any())
+            {
+                double bridgeReserveWh = predictedQuarters
+                    .Where(x => x.NetLoadWh > 0.0)
+                    .Sum(x => x.NetLoadWh)
+                    * ReserveSafetyFactor;
+
+                double nightCapRatio = _settingsConfig.NightReserveCapPct > 0
+                    ? _settingsConfig.NightReserveCapPct / 100.0
+                    : 0.33;
+
+                bridgeReserveWh = Clamp(bridgeReserveWh, ReserveWh, capWh * nightCapRatio);
+
+                if (_minSocWhByTime.TryGetValue(lastKnownQuarter.Time, out var existing))
+                    _minSocWhByTime[lastKnownQuarter.Time] = Math.Max(existing, bridgeReserveWh);
+                else
+                    _minSocWhByTime[lastKnownQuarter.Time] = bridgeReserveWh;
+
+                _logger.LogInformation(
+                    $"Bridge reserve: {bridgeReserveWh:F0} Wh held at {lastKnownQuarter.Time:HH:mm} " +
+                    $"to cover {predictedQuarters.Count} predicted quarters.");
+            }
         }
 
         // ── Plan building ────────────────────────────────────────────────────
@@ -728,7 +759,10 @@ namespace SessyController.Services
             {
                 long hash = 0;
 
-                foreach (var q in infos.OrderBy(x => x.Time))
+                // Only include real (non-predicted) prices in the signature.
+                // Predicted prices change daily at midnight which would cause
+                // unnecessary plan rebuilds.
+                foreach (var q in infos.Where(x => !x.IsPriceExpected).OrderBy(x => x.Time))
                 {
                     hash += q.Time.Ticks;
                     hash += (long)q.BuyingPrice;
@@ -760,8 +794,11 @@ namespace SessyController.Services
                 var nowQuarterTime = _timeZoneService.Now.DateFloorQuarter();
 
                 // Only plan from the next quarter onwards — the current quarter is already executing.
+                // Only plan on quarters with real (non-predicted) prices.
+                // Predicted quarters are used only for bridge reserve calculation.
                 var allQuarters = _quarterlyInfos
                     .Where(q => q.Time >= nowQuarterTime.AddMinutes(15))
+                    .Where(q => !q.IsPriceExpected)
                     .OrderBy(q => q.Time)
                     .ToList();
 
