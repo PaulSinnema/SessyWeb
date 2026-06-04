@@ -842,12 +842,16 @@ namespace SessyController.Services
                 // Use BatteryPowerWatts directly — not BatteryMode — because in
                 // ZeroNetHome mode the battery also discharges (positive watts) but
                 // the mode is ZeroNetHome, not Discharging.
+                // Planned Discharging mode only for revenue — excludes ZeroNetHome low-power
+                // self-consumption discharge which is not arbitrage.
+                // With netting ON, discharged energy is worth max(sell, buy).
                 double revenue = measurements
-                    .Where(m => m.BatteryPowerWatts > 0)
-                    .Sum(m => m.SellingPriceEur * m.BatteryDischargedKWh);
+                    .Where(m => m.BatteryMode == BatteryMode.Discharging && m.BatteryPowerWatts > 0)
+                    .Sum(m => Math.Max(m.SellingPriceEur, m.BuyingPriceEur) * m.BatteryDischargedKWh);
 
+                // Planned Charging mode only for cost.
                 double cost = measurements
-                    .Where(m => m.BatteryPowerWatts < 0)
+                    .Where(m => m.BatteryMode == BatteryMode.Charging && m.BatteryPowerWatts < 0)
                     .Sum(m => m.BuyingPriceEur * m.BatteryChargedKWh);
 
                 int month = current.Month;
@@ -903,13 +907,6 @@ namespace SessyController.Services
             double dischPerDay = discharging.Count / totalDays;
             double chargPerDay = charging.Count / totalDays;
 
-            // Note: solar storage value is already included in BuildSeasonalSolarSavingsAsync
-            // via self-consumption calculation. Only pure arbitrage (grid charge/discharge)
-            // is calculated here to avoid double-counting.
-            double avgBuyPrice = measurements.Any(m => m.BuyingPriceEur > 0)
-                ? measurements.Where(m => m.BuyingPriceEur > 0).Average(m => m.BuyingPriceEur)
-                : 0.25;
-
             // Load EPEX prices for arbitrage simulation.
             var epexFrom = dataEnd.AddYears(-1);
             var epexPrices = await _epexDataService.GetList(async set =>
@@ -922,6 +919,16 @@ namespace SessyController.Services
             });
 
             if (!epexPrices.Any()) return null;
+
+            double avgSellPrice = measurements.Where(m => m.SellingPriceEur > 0).Any()
+                ? measurements.Where(m => m.SellingPriceEur > 0).Average(m => m.SellingPriceEur)
+                : 0.20;
+            double avgBuyPrice = measurements.Where(m => m.BuyingPriceEur > 0).Any()
+                ? measurements.Where(m => m.BuyingPriceEur > 0).Average(m => m.BuyingPriceEur)
+                : 0.27;
+
+            // Overall average EPEX price for seasonal ratio calculation.
+            double overallEpexAvg = epexPrices.Any() ? epexPrices.Average(p => p.Price!.Value) : 0.15;
 
             var result = new Dictionary<int, double>();
 
@@ -940,15 +947,19 @@ namespace SessyController.Services
                 }
 
                 int n = monthPrices.Count;
-                double avgCheap = monthPrices.Take(n / 4).Average();
-                double avgExpensive = monthPrices.Skip(3 * n / 4).Average();
+                double cheapRatio = monthPrices.Take(n / 4).Average() / overallEpexAvg;
+                double expensiveRatio = monthPrices.Skip(3 * n / 4).Average() / overallEpexAvg;
+
+                // Scale measured prices by seasonal EPEX ratio for this month.
+                double effectiveSell = avgSellPrice * expensiveRatio;
+                double effectiveBuy = avgBuyPrice * cheapRatio;
 
                 int daysInMonth = DateTime.DaysInMonth(dataEnd.Year, month);
                 double chargedKWh = chargPerDay * daysInMonth * avgChargeW * 0.25 / 1000.0;
                 double dischargedKWh = dischPerDay * daysInMonth * avgDischargeW * 0.25 / 1000.0;
 
-                double arbitrageRevenue = dischargedKWh * avgExpensive;
-                double arbitrageCost = chargedKWh * Math.Max(0, avgCheap);
+                double arbitrageRevenue = dischargedKWh * Math.Max(effectiveSell, effectiveBuy);
+                double arbitrageCost = chargedKWh * Math.Max(0, effectiveBuy);
 
                 result[month] = arbitrageRevenue - arbitrageCost;
             }
