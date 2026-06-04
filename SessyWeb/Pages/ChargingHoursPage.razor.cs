@@ -408,7 +408,7 @@ namespace SessyWeb.Pages
 
                 foreach (var m in measurements)
                 {
-                    var view = FillQuarterlyInfoView(m, solarByQuarter);
+                    var view = FillQuarterlyInfoView(m, solarByQuarter, planSolarByQuarter);
                     if (view.SolarPowerPerQuarterHour == 0.0
                         && !solarByQuarter.ContainsKey(m.Time)
                         && planSolarByQuarter.TryGetValue(m.Time, out var planSolar))
@@ -580,6 +580,9 @@ namespace SessyWeb.Pages
 
             for (int i = 0; i < views.Count; i++)
             {
+                // Measured quarters have real data — keep as-is.
+                if (views[i].IsMeasured) continue;
+
                 var range = views
                     .Skip(Math.Max(0, i - half))
                     .Take(windowSize)
@@ -600,6 +603,9 @@ namespace SessyWeb.Pages
 
             for (int i = 0; i < views.Count; i++)
             {
+                // Measured quarters already have real or plan-fallback solar — keep as-is.
+                if (views[i].IsMeasured) continue;
+
                 var range = views
                     .Skip(Math.Max(0, i - half))
                     .Take(windowSize)
@@ -692,7 +698,7 @@ namespace SessyWeb.Pages
             return $"Plan {plannedMode.ToLowerInvariant()}, actual {actualMode.ToLowerInvariant()}.";
         }
 
-        public QuarterlyInfoView FillQuarterlyInfoView(QuarterlyMeasurement measurement, Dictionary<DateTime, double>? solarByQuarter = null)
+        public QuarterlyInfoView FillQuarterlyInfoView(QuarterlyMeasurement measurement, Dictionary<DateTime, double>? solarByQuarter = null, Dictionary<DateTime, double>? planSolarByQuarter = null)
         {
             double totalCapacityWh = _batteryContainer!.GetTotalCapacity();
             double chargeLeftPct = totalCapacityWh > 0
@@ -710,6 +716,7 @@ namespace SessyWeb.Pages
                 SessionId = null,
 
                 IsPriceExpected = false,
+                IsMeasured = true,
                 BuyingPrice = measurement.BuyingPriceEur,
                 SellingPrice = measurement.SellingPriceEur,
                 MarketPrice = 0.0,
@@ -735,7 +742,10 @@ namespace SessyWeb.Pages
                     : measurement.SellingPriceEur,
 
                 ChargeNeededPercentage = 0.0,
-                SmoothedSolarPower = solarKWh,
+                // Use plan solar as fallback when InverterMeasurement not yet written.
+                SmoothedSolarPower = solarKWh > 0.0 ? solarKWh
+                    : planSolarByQuarter != null && planSolarByQuarter.TryGetValue(measurement.Time, out var planSolar) ? planSolar
+                    : 0.0,
 
                 DeltaLowestPrice = 0.0,
 

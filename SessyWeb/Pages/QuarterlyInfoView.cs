@@ -6,6 +6,9 @@
         public int? SessionId { get; set; }
         public string DisplayState { get; set; } = string.Empty;
         public bool IsPriceExpected { get; set; }
+
+        /// <summary>True when this quarter has real measured data (QuarterlyMeasurement).</summary>
+        public bool IsMeasured { get; set; }
         public double Price { get; set; }
         public double BuyingPrice { get; set; }
         public double SellingPrice { get; set; }
