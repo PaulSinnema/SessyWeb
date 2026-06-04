@@ -39,6 +39,11 @@ namespace SessyController.Services
         private PowerSystemsConfig _powerSystemsConfig { get; set; }
         private TimeZoneService _timeZoneService { get; set; }
 
+        // Exponentially smoothed performance factor — avoids wild swings from
+        // momentary cloud cover. Alpha = 0.3: new observations have 30% weight.
+        private double _smoothedPerformanceFactor = 1.0;
+        private const double PerformanceFactorAlpha = 0.3;
+
         // Number of past days to use for global radiation extrapolation.
         private const int ExtrapolationLookbackDays = 14;
 
@@ -355,12 +360,27 @@ namespace SessyController.Services
             }
 
             // Calculate performance factor.
-            var factor = realizedToNow / forecastToNow;
+            // Only apply when forecast is significant enough to avoid noise from
+            // low early-morning values producing extreme correction factors.
+            if (forecastToNow < 0.5)
+            {
+                _logger.LogInformation($"Solar: Forecast too low ({forecastToNow:F2} kWh) — performance factor not applied.");
+                return;
+            }
+
+            var rawFactor = realizedToNow / forecastToNow;
 
             // Clamp to a reasonable range to avoid extreme corrections.
-            factor = Math.Max(0.2, Math.Min(5.0, factor));
+            rawFactor = Math.Max(0.2, Math.Min(2.0, rawFactor));
 
-            _logger.LogWarning($"Solar: Performance factor applied: {factor:F2} (Realized={realizedToNow:F2} kWh, Forecast={forecastToNow:F2} kWh)");
+            // Apply exponential moving average to smooth out momentary fluctuations
+            // (e.g. passing clouds). Alpha=0.3: new observation has 30% weight.
+            _smoothedPerformanceFactor = PerformanceFactorAlpha * rawFactor
+                + (1.0 - PerformanceFactorAlpha) * _smoothedPerformanceFactor;
+
+            var factor = _smoothedPerformanceFactor;
+
+            _logger.LogWarning($"Solar: Performance factor applied: {factor:F2} (raw={rawFactor:F2}, Realized={realizedToNow:F2} kWh, Forecast={forecastToNow:F2} kWh)");
 
             // Adjust quarterInfos for today only.
             foreach (var q in todayInfos)
