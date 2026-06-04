@@ -156,6 +156,48 @@ namespace SessyController.Services
         ///          × (1 + GasValueAddedTaxPct / 100)
         /// Returns null when no Taxes record is available.
         /// </summary>
+        /// <summary>
+        /// Batch-calculates buying and selling prices for a list of timestamps using
+        /// the EPEXPrices and Taxes caches — avoids per-item semaphore overhead.
+        /// </summary>
+        public async Task<Dictionary<DateTime, (double Buying, double Selling)>> CalculateEnergyPricesBatchAsync(
+            IEnumerable<DateTime> times)
+        {
+            await _calcuculateEnergyPriceSemaphore.WaitAsync();
+
+            try
+            {
+                await FillTaxesCache().ConfigureAwait(false);
+
+                var result = new Dictionary<DateTime, (double, double)>();
+
+                foreach (var time in times)
+                {
+                    (EPEXPrices? epexPrice, Taxes taxes) = await GetEpexPriceFromCache(time);
+
+                    if (epexPrice?.Price == null || taxes == null)
+                        continue;
+
+                    var vatFactor = taxes.ValueAddedTax / 100.0 + 1.0;
+
+                    // Buying: always includes energy tax.
+                    var buying = (epexPrice.Price.Value + taxes.EnergyTax + taxes.PurchaseCompensation) * vatFactor;
+
+                    // Selling: energy tax only when netting is active.
+                    var sellingEnergyTax = taxes.Netting ? taxes.EnergyTax : 0.0;
+                    var selling = (epexPrice.Price.Value + sellingEnergyTax + taxes.ReturnDeliveryCompensation) * vatFactor;
+
+                    result[time] = (buying, selling);
+                }
+
+                return result;
+            }
+            finally
+            {
+                _calcuculateEnergyPriceSemaphore.Release();
+            }
+        }
+
         public virtual async Task<double?> CalculateGasPriceAsync(double marketPriceEurPerM3)
         {
             await FillTaxesCache().ConfigureAwait(false);

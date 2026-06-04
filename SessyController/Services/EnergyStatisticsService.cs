@@ -1485,7 +1485,7 @@ namespace SessyController.Services
         private async Task<List<QuarterlyMeasurement>> GetMeasurementsAsync(
             DateTime start, DateTime end)
         {
-            return await _measurementDataService.GetList(async set =>
+            var measurements = await _measurementDataService.GetList(async set =>
             {
                 var result = set
                     .Where(m => m.Time >= start && m.Time <= end)
@@ -1494,6 +1494,22 @@ namespace SessyController.Services
 
                 return await Task.FromResult(result);
             });
+
+            // Recalculate BuyingPriceEur and SellingPriceEur from EPEXPrices + current Taxes
+            // so that statistics always reflect the current tax structure.
+            var prices = await _calculationService.CalculateEnergyPricesBatchAsync(
+                measurements.Select(m => m.Time));
+
+            foreach (var m in measurements)
+            {
+                if (prices.TryGetValue(m.Time, out var p))
+                {
+                    m.BuyingPriceEur = p.Buying;
+                    m.SellingPriceEur = p.Selling;
+                }
+            }
+
+            return measurements;
         }
 
         /// <summary>
