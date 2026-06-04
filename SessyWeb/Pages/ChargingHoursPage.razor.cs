@@ -22,6 +22,7 @@ namespace SessyWeb.Pages
         [Inject] public PlannedQuarterDataService? _plannedQuarterDataService { get; set; }
         [Inject] public SolarService? _solarService { get; set; }
         [Inject] public TimeZoneService? _timeZoneService { get; set; }
+        [Inject] public ICalculationService? _calculationService { get; set; }
         [Inject] public BatteryContainer? _batteryContainer { get; set; }
         [Inject] FinancialResultsService? _finacialResultsService { get; set; }
         [Inject] private HardwareStatusService? _hardwareStatusService { get; set; }
@@ -406,8 +407,19 @@ namespace SessyWeb.Pages
                 // Planned state from PlannedQuarter — shown alongside actuals for measured quarters.
                 var plannedByQuarter = await GetPlannedByQuarterAsync(from, to).ConfigureAwait(false);
 
+                // Batch-calculate buying/selling prices from EPEXPrices + Taxes.
+                var measurementPrices = _calculationService != null
+                    ? await _calculationService.CalculateEnergyPricesBatchAsync(measurements.Select(m => m.Time))
+                    : new Dictionary<DateTime, EnergyPrice>();
+
                 foreach (var m in measurements)
                 {
+                    if (measurementPrices.TryGetValue(m.Time, out var p))
+                    {
+                        m.BuyingPriceEur = p.Buying;
+                        m.SellingPriceEur = p.Selling;
+                    }
+
                     var view = FillQuarterlyInfoView(m, solarByQuarter, planSolarByQuarter);
                     if (view.SolarPowerPerQuarterHour == 0.0
                         && !solarByQuarter.ContainsKey(m.Time)
@@ -452,6 +464,17 @@ namespace SessyWeb.Pages
                 {
                     if (qi.Time == nowQ && currentMeasurement != null)
                     {
+                        // Compute prices for current measurement.
+                        if (_calculationService != null)
+                        {
+                            var p = await _calculationService.CalculateEnergyPricesBatchAsync(
+                                new[] { currentMeasurement.Time });
+                            if (p.TryGetValue(currentMeasurement.Time, out var prices))
+                            {
+                                currentMeasurement.BuyingPriceEur = prices.Buying;
+                                currentMeasurement.SellingPriceEur = prices.Selling;
+                            }
+                        }
                         var view = FillQuarterlyInfoView(currentMeasurement, nowSolarByQuarter);
                         // Fallback to planned solar if no measured value available yet.
                         if (view.SolarPowerPerQuarterHour == 0.0)

@@ -160,7 +160,7 @@ namespace SessyController.Services
         /// Batch-calculates buying and selling prices for a list of timestamps using
         /// the EPEXPrices and Taxes caches — avoids per-item semaphore overhead.
         /// </summary>
-        public async Task<Dictionary<DateTime, (double Buying, double Selling)>> CalculateEnergyPricesBatchAsync(
+        public async Task<Dictionary<DateTime, EnergyPrice>> CalculateEnergyPricesBatchAsync(
             IEnumerable<DateTime> times)
         {
             await _calcuculateEnergyPriceSemaphore.WaitAsync();
@@ -169,7 +169,7 @@ namespace SessyController.Services
             {
                 await FillTaxesCache().ConfigureAwait(false);
 
-                var result = new Dictionary<DateTime, (double, double)>();
+                var result = new Dictionary<DateTime, EnergyPrice>();
 
                 foreach (var time in times)
                 {
@@ -187,7 +187,7 @@ namespace SessyController.Services
                     var sellingEnergyTax = taxes.Netting ? taxes.EnergyTax : 0.0;
                     var selling = (epexPrice.Price.Value + sellingEnergyTax + taxes.ReturnDeliveryCompensation) * vatFactor;
 
-                    result[time] = (buying, selling);
+                    result[time] = new EnergyPrice(buying, selling);
                 }
 
                 return result;
@@ -309,6 +309,15 @@ namespace SessyController.Services
 
                 return await Task.FromResult(result);
             });
+
+            // Compute prices from EPEXPrices + Taxes.
+            var prices = await CalculateEnergyPricesBatchAsync(measurements.Select(m => m.Time));
+            foreach (var m in measurements)
+                if (prices.TryGetValue(m.Time, out var p))
+                {
+                    m.BuyingPriceEur = p.Buying;
+                    m.SellingPriceEur = p.Selling;
+                }
 
             foreach (var m in measurements)
             {

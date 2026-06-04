@@ -490,8 +490,6 @@ namespace SessyController.Services
                     BatteryPowerWatts = batteryPowerWatts,
                     BatteryStateOfChargeWh = socWh,
                     BatteryMode = mode,
-                    BuyingPriceEur = currentQuarterlyInfo.BuyingPrice,
-                    SellingPriceEur = currentQuarterlyInfo.SellingPrice,
                     PlannedRevenueEur = currentQuarterlyInfo.Profit,
                 };
 

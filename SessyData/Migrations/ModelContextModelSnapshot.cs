@@ -352,9 +352,6 @@ namespace SessyData.Migrations
                     b.Property<double>("BatteryStateOfChargeWh")
                         .HasColumnType("REAL");
 
-                    b.Property<double>("BuyingPriceEur")
-                        .HasColumnType("REAL");
-
                     b.Property<double>("GlobalRadiation")
                         .HasColumnType("REAL");
 
@@ -368,9 +365,6 @@ namespace SessyData.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<double>("PlannedRevenueEur")
-                        .HasColumnType("REAL");
-
-                    b.Property<double>("SellingPriceEur")
                         .HasColumnType("REAL");
 
                     b.Property<DateTime>("Time")

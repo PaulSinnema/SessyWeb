@@ -206,8 +206,6 @@ namespace SessyController.Services
                 Time = time,
                 GridImportWh = gridImportWh,
                 GridExportWh = gridExportWh,
-                BuyingPriceEur = quarterlyInfo?.BuyingPrice ?? 0.0,
-                SellingPriceEur = quarterlyInfo?.SellingPrice ?? 0.0,
                 BatteryStateOfChargeWh = socWh,
                 // Battery mode is filled in by BatteriesService. Solar comes from InverterMeasurements.
             };

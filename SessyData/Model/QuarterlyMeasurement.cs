@@ -13,8 +13,8 @@ namespace SessyData.Model
     ///   BatteryStateOfChargeWh   — Wh
     ///   GridImportWh             — Wh imported from grid this quarter (P1 delta)
     ///   GridExportWh             — Wh exported to grid this quarter (P1 delta)
-    ///   BuyingPriceEur           — EUR/kWh (incl. taxes)
-    ///   SellingPriceEur          — EUR/kWh (incl. taxes)
+    ///   BuyingPriceEur           — EUR/kWh (incl. taxes, computed from EPEXPrices + Taxes, not stored)
+    ///   SellingPriceEur          — EUR/kWh (incl. taxes, computed from EPEXPrices + Taxes, not stored)
     ///   GlobalRadiation          — W/m² (KNMI)
     /// </summary>
     [Index(nameof(Time))]
@@ -67,9 +67,13 @@ namespace SessyData.Model
         // ── Prices ────────────────────────────────────────────────────────────
 
         /// <summary>Effective buying price this quarter in EUR/kWh (incl. taxes).</summary>
+        /// <summary>Computed from EPEXPrices + Taxes — not stored in DB.</summary>
+        [NotMapped]
         public double BuyingPriceEur { get; set; }
 
         /// <summary>Effective selling price this quarter in EUR/kWh (incl. taxes).</summary>
+        /// <summary>Computed from EPEXPrices + Taxes — not stored in DB.</summary>
+        [NotMapped]
         public double SellingPriceEur { get; set; }
 
         // ── Weather ───────────────────────────────────────────────────────────
@@ -120,8 +124,7 @@ $"Import={GridImportWh:F0}Wh Export={GridExportWh:F0}Wh | " +
             IsReliable = updateInfo.IsReliable;
             GridImportWh = updateInfo.GridImportWh;
             GridExportWh = updateInfo.GridExportWh;
-            BuyingPriceEur = updateInfo.BuyingPriceEur;
-            SellingPriceEur = updateInfo.SellingPriceEur;
+            // BuyingPriceEur and SellingPriceEur are computed — not persisted.
             PlannedRevenueEur = updateInfo.PlannedRevenueEur;
         }
     }
