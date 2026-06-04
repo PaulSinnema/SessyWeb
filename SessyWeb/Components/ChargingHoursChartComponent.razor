@@ -148,7 +148,7 @@
                           Stroke="gold"
                           Title="Solar power"
                           LineType="LineType.Solid"
-                          ValueProperty="SolarPowerVisual">
+                          ValueProperty="SmoothedSolarPowerVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
             </TooltipTemplate>
@@ -180,7 +180,7 @@
                           CategoryProperty="Time"
                           Title="Estimate consumption"
                           LineType="LineType.Solid"
-                          ValueProperty="EstimatedConsumptionPerQuarterHourVisual">
+                          ValueProperty="SmoothedConsumptionVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
             </TooltipTemplate>

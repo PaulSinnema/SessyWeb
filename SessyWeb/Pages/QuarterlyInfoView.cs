@@ -72,6 +72,10 @@
         public bool IsCurtailed { get; set; }
 
         public double SolarPowerVisual => SolarPowerPerQuarterHour / 2.5;
+        public double SmoothedSolarPowerVisual => SmoothedSolarPower / 2.5;
+
+        public double SmoothedConsumptionPerQuarterHour { get; set; }
+        public double SmoothedConsumptionVisual => SmoothedConsumptionPerQuarterHour / 5000;
 
         // Used by the "now" vertical line series — set to ChartMax by ChargingHoursChartComponent.
         public double NowLineHeight { get; set; } = 0.0;

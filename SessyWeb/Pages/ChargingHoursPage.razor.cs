@@ -476,6 +476,10 @@ namespace SessyWeb.Pages
                 .OrderBy(v => v.Time)
                 .ToList();
 
+            // Apply moving average smoothing to consumption and solar for visualization.
+            ApplyConsumptionSmoothing(QuarterlyInfos, windowSize: 12);
+            ApplySolarSmoothing(QuarterlyInfos, windowSize: 12);
+
             HandleScreenHeight();
             await InvokeAsync(StateHasChanged);
         }
@@ -566,6 +570,47 @@ namespace SessyWeb.Pages
         /// Loads planned quarters from the database for the given window, keyed by time.
         /// Returns empty dictionary when the service is unavailable.
         /// </summary>
+        /// <summary>
+        /// Applies a centered moving average to EstimatedConsumptionPerQuarterHour
+        /// and stores the result in SmoothedConsumptionPerQuarterHour for display.
+        /// </summary>
+        private static void ApplyConsumptionSmoothing(List<QuarterlyInfoView> views, int windowSize = 4)
+        {
+            int half = windowSize / 2;
+
+            for (int i = 0; i < views.Count; i++)
+            {
+                var range = views
+                    .Skip(Math.Max(0, i - half))
+                    .Take(windowSize)
+                    .Select(v => v.EstimatedConsumptionPerQuarterHour)
+                    .ToList();
+
+                views[i].SmoothedConsumptionPerQuarterHour = range.Any() ? range.Average() : 0.0;
+            }
+        }
+
+        /// <summary>
+        /// Applies a centered moving average to SolarPowerPerQuarterHour,
+        /// skipping zero values so nearby real measurements fill the gaps.
+        /// </summary>
+        private static void ApplySolarSmoothing(List<QuarterlyInfoView> views, int windowSize = 4)
+        {
+            int half = windowSize / 2;
+
+            for (int i = 0; i < views.Count; i++)
+            {
+                var range = views
+                    .Skip(Math.Max(0, i - half))
+                    .Take(windowSize)
+                    .Select(v => v.SolarPowerPerQuarterHour)
+                    .Where(v => v > 0.0)
+                    .ToList();
+
+                views[i].SmoothedSolarPower = range.Any() ? range.Average() : views[i].SmoothedSolarPower;
+            }
+        }
+
         private async Task<Dictionary<DateTime, PlannedQuarter>> GetPlannedByQuarterAsync(DateTime from, DateTime to)
         {
             if (_plannedQuarterDataService == null)
