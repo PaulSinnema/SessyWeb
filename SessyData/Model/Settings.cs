@@ -5,6 +5,24 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace SessyData.Model
 {
+    /// <summary>
+    /// Controls how the battery system optimises its charge/discharge behaviour.
+    /// </summary>
+    public enum OptimizationStrategy
+    {
+        /// <summary>Maximise profit: charge cheap, discharge expensive, ignore solar headroom.</summary>
+        ProfitMaximization = 0,
+
+        /// <summary>Maximise self-consumption: reserve battery headroom for solar, minimise export.</summary>
+        SelfConsumption = 1,
+
+        /// <summary>Balanced: profit-first but always reserve headroom for solar surplus.</summary>
+        Balanced = 2,
+
+        /// <summary>Battery-saving: only charge/discharge at large price spreads to reduce cycle count.</summary>
+        BatterySaving = 3,
+    }
+
     public class Settings : IUpdatable<Settings>
     {
         [Key]
@@ -113,6 +131,45 @@ namespace SessyData.Model
             int idx = Math.Clamp(monthIndex, 0, arr.Length - 1);
             return arr[idx];
         }
+
+        /// <summary>Optimisation strategy for the battery system.</summary>
+        public OptimizationStrategy Strategy { get; set; } = OptimizationStrategy.Balanced;
+
+        // ── MILP tuning parameters ────────────────────────────────────────────
+
+        /// <summary>
+        /// How many quarters ahead the planner looks when estimating self-use value and
+        /// night reserve. 96 = 24 hours. Larger values make planning more conservative
+        /// (more energy held back for future use).
+        /// </summary>
+        public int SelfUseLookAheadQuarters { get; set; } = 96;
+
+        /// <summary>
+        /// Safety margin applied on top of the calculated night/bridge reserve.
+        /// 1.10 = keep 10% extra. Increase if the battery regularly runs empty overnight.
+        /// </summary>
+        public double ReserveSafetyFactor { get; set; } = 1.10;
+
+        /// <summary>
+        /// Safety margin applied to the expected solar surplus when reserving battery
+        /// headroom. 1.05 = reserve 5% more than the raw forecast surplus.
+        /// Increase if the battery is often full when the sun peaks.
+        /// </summary>
+        public double SolarHeadroomSafetyFactor { get; set; } = 1.05;
+
+        /// <summary>
+        /// Price tolerance for cheap-refill top-ups. If the current buying price is within
+        /// this many euros of the cheapest future price, the planner will charge now rather
+        /// than waiting. 0.01 = 1 cent tolerance.
+        /// </summary>
+        public double CheapRefillToleranceEur { get; set; } = 0.01;
+
+        /// <summary>
+        /// Extra premium required above the self-use value before the planner exports
+        /// (discharges to grid). 0.02 = selling price must exceed self-use value by at
+        /// least 2 cents before export is triggered.
+        /// </summary>
+        public double ExportPremiumEur { get; set; } = 0.02;
 
         public void Update(Settings updateInfo)
         {

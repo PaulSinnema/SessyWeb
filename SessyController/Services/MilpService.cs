@@ -221,11 +221,11 @@ namespace SessyController.Services
 
         private const double NumericEpsWh = 0.001;
 
-        private const int SelfUseLookAheadQuarters = 96;       // 24 hours
-        private const double ReserveSafetyFactor = 1.10;       // keep 10% extra energy
-        private const double SolarHeadroomSafetyFactor = 1.05;
-        private const double CheapRefillToleranceEur = 0.01;
-        private const double ExportPremiumEur = 0.02;
+        private int SelfUseLookAheadQuarters => _settingsConfig?.SelfUseLookAheadQuarters > 0 ? _settingsConfig.SelfUseLookAheadQuarters : 96;
+        private double ReserveSafetyFactor => _settingsConfig?.ReserveSafetyFactor > 0 ? _settingsConfig.ReserveSafetyFactor : 1.10;
+        private double SolarHeadroomSafetyFactor => _settingsConfig?.SolarHeadroomSafetyFactor > 0 ? _settingsConfig.SolarHeadroomSafetyFactor : 1.05;
+        private double CheapRefillToleranceEur => _settingsConfig?.CheapRefillToleranceEur >= 0 ? _settingsConfig.CheapRefillToleranceEur : 0.01;
+        private double ExportPremiumEur => _settingsConfig?.ExportPremiumEur >= 0 ? _settingsConfig.ExportPremiumEur : 0.02;
 
         // ── Internal plan action record ──────────────────────────────────────
 
@@ -460,6 +460,15 @@ namespace SessyController.Services
             _maxSocWhByTime.Clear();
             _futureSelfUseValueByTime.Clear();
 
+            // Debug: log strategy and tuning parameters.
+            _logger.LogWarning(
+                $"MILP settings: Strategy={_settingsConfig?.Strategy}, " +
+                $"SelfUseLookAhead={SelfUseLookAheadQuarters}, " +
+                $"ReserveSafety={ReserveSafetyFactor:F2}, " +
+                $"SolarHeadroom={SolarHeadroomSafetyFactor:F2}, " +
+                $"CheapRefill={CheapRefillToleranceEur:F3}, " +
+                $"ExportPremium={ExportPremiumEur:F3}");
+
             if (_quarterlyInfos.Count == 0)
                 return;
 
@@ -552,7 +561,19 @@ namespace SessyController.Services
                 if (netting && nextDaySolarSurplusWh >= capWh)
                     selfUseValue = Math.Min(selfUseValue, qi.SellingPrice);
 
-                _futureSelfUseValueByTime[qi.Time] = selfUseValue;
+                _futureSelfUseValueByTime[qi.Time] = _settingsConfig.Strategy switch
+                {
+                    // Self-consumption: own use is worth the full avoided import cost.
+                    OptimizationStrategy.SelfConsumption
+                        => Math.Max(selfUseValue, qi.BuyingPrice),
+
+                    // Battery-saving: only discharge when spread is large enough.
+                    OptimizationStrategy.BatterySaving
+                        => selfUseValue + _settingsConfig.CycleCost,
+
+                    // Profit and Balanced: no adjustment.
+                    _ => selfUseValue,
+                };
 
                 // Minimum SOC: reserve energy for future consumption without solar.
                 //
@@ -628,7 +649,26 @@ namespace SessyController.Services
                 }
 
                 double solarHeadroomWh = Clamp(maxCumulativeFillWh * SolarHeadroomSafetyFactor, 0.0, capWh);
-                double maxSocWh = Clamp(capWh - solarHeadroomWh, ReserveWh, capWh);
+
+                // Apply optimization strategy to headroom calculation.
+                double maxSocWh = _settingsConfig.Strategy switch
+                {
+                    // Profit: no headroom — MILP decides based on prices alone.
+                    OptimizationStrategy.ProfitMaximization
+                        => capWh,
+
+                    // Self-consumption: double headroom — aggressively reserve for solar.
+                    OptimizationStrategy.SelfConsumption
+                        => Clamp(capWh - solarHeadroomWh * 2.0, ReserveWh, capWh),
+
+                    // Battery-saving: same headroom as Balanced — spread is controlled
+                    // via CheapRefillToleranceEur and ExportPremiumEur settings.
+                    OptimizationStrategy.BatterySaving
+                        => Clamp(capWh - solarHeadroomWh, ReserveWh, capWh),
+
+                    // Balanced: original behaviour.
+                    _ => Clamp(capWh - solarHeadroomWh, ReserveWh, capWh),
+                };
 
                 if (maxSocWh < minSocWh)
                     maxSocWh = minSocWh;

@@ -406,6 +406,26 @@ namespace SessyWeb.Pages
         [Inject] private SettingsService? _settingsService { get; set; }
 
         private Settings? _settings;
+
+        private record StrategyItem(string Text, OptimizationStrategy Value);
+
+        private readonly List<StrategyItem> _strategies =
+        [
+            new("Profit maximization", OptimizationStrategy.ProfitMaximization),
+            new("Self-consumption", OptimizationStrategy.SelfConsumption),
+            new("Balanced", OptimizationStrategy.Balanced),
+            new("Battery saving", OptimizationStrategy.BatterySaving),
+        ];
+
+        private void ResetMilpDefaults()
+        {
+            if (_settings == null) return;
+            _settings.SelfUseLookAheadQuarters = 96;
+            _settings.ReserveSafetyFactor = 1.10;
+            _settings.SolarHeadroomSafetyFactor = 1.05;
+            _settings.CheapRefillToleranceEur = 0.01;
+            _settings.ExportPremiumEur = 0.02;
+        }
         private bool _settingsSaving;
         private bool _settingsSaved;
         private bool _settingsInitialised;

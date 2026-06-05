@@ -433,6 +433,9 @@ namespace SessyData.Migrations
                     b.Property<double>("ChargingEfficiencyFactor")
                         .HasColumnType("REAL");
 
+                    b.Property<double>("CheapRefillToleranceEur")
+                        .HasColumnType("REAL");
+
                     b.Property<double>("CycleCost")
                         .HasColumnType("REAL");
 
@@ -444,6 +447,9 @@ namespace SessyData.Migrations
 
                     b.Property<string>("ExportDirectory")
                         .HasColumnType("TEXT");
+
+                    b.Property<double>("ExportPremiumEur")
+                        .HasColumnType("REAL");
 
                     b.Property<string>("Hours")
                         .HasColumnType("TEXT");
@@ -475,7 +481,16 @@ namespace SessyData.Migrations
                     b.Property<string>("RequiredHomeEnergy")
                         .HasColumnType("TEXT");
 
+                    b.Property<double>("ReserveSafetyFactor")
+                        .HasColumnType("REAL");
+
+                    b.Property<int>("SelfUseLookAheadQuarters")
+                        .HasColumnType("INTEGER");
+
                     b.Property<double>("SolarAnnualProductionKWh")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("SolarHeadroomSafetyFactor")
                         .HasColumnType("REAL");
 
                     b.Property<bool>("SolarSystemShutsDownDuringNegativePrices")
@@ -483,6 +498,9 @@ namespace SessyData.Migrations
 
                     b.Property<DateTime?>("StatisticsFromDate")
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("Strategy")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("TimeZone")
                         .HasColumnType("TEXT");
