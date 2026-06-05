@@ -800,12 +800,12 @@ namespace SessyController.Services
                 long hash = 0;
 
                 // Only include real (non-predicted) prices in the signature.
-                // Predicted prices change daily at midnight which would cause
-                // unnecessary plan rebuilds.
+                // Use TimeOfDay instead of absolute Ticks so the signature does not change
+                // at midnight when the planning window shifts and new quarters are added.
                 foreach (var q in infos.Where(x => !x.IsPriceExpected).OrderBy(x => x.Time))
                 {
-                    hash += q.Time.Ticks;
-                    hash += (long)q.BuyingPrice;
+                    hash = hash * 31 + q.Time.TimeOfDay.Ticks;
+                    hash = hash * 31 + (long)(q.BuyingPrice * 100000);
                 }
 
                 return hash;
