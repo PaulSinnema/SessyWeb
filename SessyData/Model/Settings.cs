@@ -37,7 +37,6 @@ namespace SessyData.Model
         public double NetZeroHomeMinProfit { get; set; }
 
         // ── Solar ─────────────────────────────────────────────────────────────
-        public double? SolarCorrection { get; set; }
         public double SolarAnnualProductionKWh { get; set; }
         public bool SolarSystemShutsDownDuringNegativePrices { get; set; }
 

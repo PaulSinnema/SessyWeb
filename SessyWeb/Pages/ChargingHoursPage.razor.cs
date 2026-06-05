@@ -460,6 +460,9 @@ namespace SessyWeb.Pages
                     .OrderBy(q => q.Time)
                     .ToList();
 
+                var nowPlanSolarByQuarter = planItems
+                    .ToDictionary(q => q.Time, q => q.SolarPowerPerQuarterHour);
+
                 foreach (var qi in planItems)
                 {
                     if (qi.Time == nowQ && currentMeasurement != null)
@@ -475,7 +478,7 @@ namespace SessyWeb.Pages
                                 currentMeasurement.SellingPriceEur = prices.Selling;
                             }
                         }
-                        var view = FillQuarterlyInfoView(currentMeasurement, nowSolarByQuarter);
+                        var view = FillQuarterlyInfoView(currentMeasurement, nowSolarByQuarter, nowPlanSolarByQuarter);
                         // Fallback to planned solar if no measured value available yet.
                         if (view.SolarPowerPerQuarterHour == 0.0)
                             view.SolarPowerPerQuarterHour = qi.SolarPowerPerQuarterHour;

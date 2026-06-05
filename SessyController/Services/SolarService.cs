@@ -42,7 +42,12 @@ namespace SessyController.Services
         // Exponentially smoothed performance factor — avoids wild swings from
         // momentary cloud cover. Alpha = 0.3: new observations have 30% weight.
         private double _smoothedPerformanceFactor = 1.0;
-        private const double PerformanceFactorAlpha = 0.3;
+        private double _lastLoggedPerformanceFactor = 1.0;
+        private DateTime _lastLoggedPerformanceDate = DateTime.MinValue;
+        private DateTime _historicalFactorDate = DateTime.MinValue;
+        private const double PerformanceFactorAlpha = 0.1;  // Slow EMA — historical factor is the primary correction
+        private const double PerformanceFactorLogThreshold = 0.05;
+        private const int HistoricalFactorLookbackDays = 30;
 
         // Number of past days to use for global radiation extrapolation.
         private const int ExtrapolationLookbackDays = 14;
@@ -311,6 +316,87 @@ namespace SessyController.Services
             _logger.LogInformation($"Solar extrapolation: {extrapolatedCount} quarters estimated from {ExtrapolationLookbackDays}-day average radiation.");
         }
 
+        /// <summary>
+        /// Calculates the average performance factor over the last N days by comparing
+        /// realized solar production (InverterMeasurements) to radiation-based forecast
+        /// (SolarData). Uses median over 30 days to filter outliers.
+        /// Returns 1.0 when insufficient data is available.
+        /// </summary>
+        /// <summary>
+        /// Calculates the historical performance factor from the last N days by comparing
+        /// realized solar (InverterMeasurements) to the forecast computed from SolarData
+        /// + panel configuration — only for quarters where both are available and radiation > 0.
+        /// </summary>
+        private async Task<double> CalculateHistoricalPerformanceFactorAsync(DateTime now)
+        {
+            var from = now.Date.AddDays(-HistoricalFactorLookbackDays);
+            var to = now.Date;
+
+            // Load SolarData with radiation > 0.
+            var solarDataList = await _solarDataService.GetList(async set =>
+                await Task.FromResult(set
+                    .Where(s => s.Time.HasValue && s.Time >= from && s.Time < to && s.GlobalRadiation > 0)
+                    .ToList()));
+
+            if (!solarDataList.Any())
+                return 1.0;
+
+            // Load realized solar for the same period.
+            var realizedList = await _inverterMeasurementService.GetList(async set =>
+                await Task.FromResult(set
+                    .Where(m => m.Time >= from && m.Time < to)
+                    .ToList()));
+
+            var realizedByTime = realizedList.ToDictionary(m => m.Time, m => m.SolarProductionKWh);
+
+            var endpointConfigs = _powerSystemsConfig?.Endpoints;
+            if (endpointConfigs == null || !endpointConfigs.Any())
+                return 1.0;
+
+            var latitude = _settingsConfig.Latitude;
+            var longitude = _settingsConfig.Longitude;
+            double totalForecast = 0.0;
+            double totalRealized = 0.0;
+
+            foreach (var solarData in solarDataList)
+            {
+                if (!solarData.Time.HasValue) continue;
+                if (!realizedByTime.TryGetValue(solarData.Time.Value, out var realized)) continue;
+
+                CalculateSolarPosition(solarData.Time.Value.AddMinutes(30), latitude, longitude,
+                    out double solarAltitude, out double solarAzimuth);
+
+                if (solarAltitude <= 0) continue;
+
+                double forecast = 0.0;
+                foreach (var config in endpointConfigs.Values)
+                {
+                    foreach (var endpoint in config.Values)
+                    {
+                        if (endpoint.SolarPanels == null || !endpoint.SolarPanels.Any()) continue;
+                        foreach (PhotoVoltaic panel in endpoint.SolarPanels.Values)
+                        {
+                            double? sf = GetSolarFactor(solarAzimuth, solarAltitude, panel.Orientation, panel.Tilt);
+                            forecast += CalculateSolarPowerPerQuarterHour(
+                                solarData.GlobalRadiation, sf, panel, solarAltitude);
+                        }
+                    }
+                }
+
+                totalForecast += forecast;
+                totalRealized += realized;
+            }
+
+            if (totalForecast <= 1.0)
+                return 1.0;
+
+            double factor = totalRealized / totalForecast;
+            _logger.LogInformation($"Solar: Historical performance factor = {factor:F2} " +
+                $"(Realized={totalRealized:F1} kWh, Forecast={totalForecast:F1} kWh, {HistoricalFactorLookbackDays} days)");
+            return Math.Max(0.2, Math.Min(3.0, factor));
+        }
+
+
         private async Task ApplyPerformanceFactor(List<QuarterlyInfo> hourlyInfos, DateTime now)
         {
             // Skip performance factor correction when no inverter is available.
@@ -319,6 +405,18 @@ namespace SessyController.Services
             {
                 _logger.LogWarning("Solar: All inverters offline with no fallback — skipping performance factor, using forecast as-is.");
                 return;
+            }
+
+            // At the start of each new day, reset the EMA to the historical average
+            // factor calculated from the last 30 days of realized vs forecast data.
+            // This avoids the EMA starting from 1.0 each day and taking many cycles
+            // to converge to the correct value.
+            if (now.Date != _historicalFactorDate)
+            {
+                var historicalFactor = await CalculateHistoricalPerformanceFactorAsync(now).ConfigureAwait(false);
+                _smoothedPerformanceFactor = historicalFactor;
+                _historicalFactorDate = now.Date;
+                _logger.LogInformation($"Solar: Historical performance factor reset to {historicalFactor:F2} based on last {HistoricalFactorLookbackDays} days.");
             }
 
             // Only quarter hours of today
@@ -362,7 +460,7 @@ namespace SessyController.Services
             // Calculate performance factor.
             // Only apply when forecast is significant enough to avoid noise from
             // low early-morning values producing extreme correction factors.
-            if (forecastToNow < 0.5)
+            if (forecastToNow < 2.0)  // Require meaningful forecast before adjusting EMA
             {
                 _logger.LogInformation($"Solar: Forecast too low ({forecastToNow:F2} kWh) — performance factor not applied.");
                 return;
@@ -371,7 +469,7 @@ namespace SessyController.Services
             var rawFactor = realizedToNow / forecastToNow;
 
             // Clamp to a reasonable range to avoid extreme corrections.
-            rawFactor = Math.Max(0.2, Math.Min(2.0, rawFactor));
+            rawFactor = Math.Max(0.2, Math.Min(3.0, rawFactor));
 
             // Apply exponential moving average to smooth out momentary fluctuations
             // (e.g. passing clouds). Alpha=0.3: new observation has 30% weight.
@@ -380,7 +478,15 @@ namespace SessyController.Services
 
             var factor = _smoothedPerformanceFactor;
 
-            _logger.LogWarning($"Solar: Performance factor applied: {factor:F2} (raw={rawFactor:F2}, Realized={realizedToNow:F2} kWh, Forecast={forecastToNow:F2} kWh)");
+            // Log once per day or when factor changes significantly.
+            bool newDay = now.Date != _lastLoggedPerformanceDate;
+            bool significantChange = Math.Abs(factor - _lastLoggedPerformanceFactor) >= PerformanceFactorLogThreshold;
+            if (newDay || significantChange)
+            {
+                _logger.LogWarning($"Solar: Performance factor applied: {factor:F2} (raw={rawFactor:F2}, Realized={realizedToNow:F2} kWh, Forecast={forecastToNow:F2} kWh)");
+                _lastLoggedPerformanceFactor = factor;
+                _lastLoggedPerformanceDate = now.Date;
+            }
 
             // Adjust quarterInfos for today only.
             foreach (var q in todayInfos)
@@ -520,7 +626,9 @@ namespace SessyController.Services
             // Sun behind solar panel — factor becomes zero.
             var factor = Math.Max(0, cosThetaI);
 
-            return factor * (_settingsConfig?.SolarCorrection ?? 1.0);
+            // SolarCorrection is no longer applied here — the historical performance
+            // factor calculated from InverterMeasurements vs SolarData replaces it.
+            return factor;
         }
 
         private bool isDisposed = false;

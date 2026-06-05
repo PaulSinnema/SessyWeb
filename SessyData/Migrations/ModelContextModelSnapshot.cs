@@ -478,9 +478,6 @@ namespace SessyData.Migrations
                     b.Property<double>("SolarAnnualProductionKWh")
                         .HasColumnType("REAL");
 
-                    b.Property<double?>("SolarCorrection")
-                        .HasColumnType("REAL");
-
                     b.Property<bool>("SolarSystemShutsDownDuringNegativePrices")
                         .HasColumnType("INTEGER");
 

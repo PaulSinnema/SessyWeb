@@ -98,12 +98,6 @@ namespace SessyController.Services
                 dirty = true;
             }
 
-            if (record.SolarCorrection == null || record.SolarCorrection == 0.0)
-            {
-                record.SolarCorrection = 1.0;
-                dirty = true;
-            }
-
             if (record.CycleCost == 0.0)
             {
                 record.CycleCost = 0.05;
@@ -172,7 +166,6 @@ namespace SessyController.Services
                 ManualOverride = false,
                 CycleCost = 0.05,
                 NetZeroHomeMinProfit = 0.005,
-                SolarCorrection = 1.0,
                 SolarAnnualProductionKWh = 0.0,
                 SolarSystemShutsDownDuringNegativePrices = false,
                 StatisticsFromDate = null,
