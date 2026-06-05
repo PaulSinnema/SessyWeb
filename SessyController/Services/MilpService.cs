@@ -461,7 +461,7 @@ namespace SessyController.Services
             _futureSelfUseValueByTime.Clear();
 
             // Debug: log strategy and tuning parameters.
-            _logger.LogWarning(
+            _logger.LogInformation(
                 $"MILP settings: Strategy={_settingsConfig?.Strategy}, " +
                 $"SelfUseLookAhead={SelfUseLookAheadQuarters}, " +
                 $"ReserveSafety={ReserveSafetyFactor:F2}, " +
