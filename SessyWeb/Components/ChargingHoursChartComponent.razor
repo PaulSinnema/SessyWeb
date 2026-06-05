@@ -31,9 +31,9 @@
                 @if (IsExpected(QuarterlyInfos))
                 {
                     <RadzenSeriesAnnotation Data="@QuarterlyInfos.First(q => q.IsPriceExpected)"
-                                            Text="Prices are predicted, plan will be calculated after EPEX prices arrive →"
-                                            OffsetX="30"
-                                            OffsetY="-60"
+                                            Text="↑ Prices are predicted, plan will be calculated after EPEX prices arrive →"
+                                            OffsetX="220"
+                                            OffsetY="300"
                                             Fill="orange" />
                 }
                 @if (ShowAll && NowQuarter != null)
