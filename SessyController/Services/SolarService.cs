@@ -347,7 +347,9 @@ namespace SessyController.Services
                     .Where(m => m.Time >= from && m.Time < to)
                     .ToList()));
 
-            var realizedByTime = realizedList.ToDictionary(m => m.Time, m => m.SolarProductionKWh);
+            var realizedByTime = realizedList
+                .GroupBy(m => m.Time)
+                .ToDictionary(g => g.Key, g => g.First().SolarProductionKWh);
 
             var endpointConfigs = _powerSystemsConfig?.Endpoints;
             if (endpointConfigs == null || !endpointConfigs.Any())

@@ -186,7 +186,9 @@ namespace SessyController.Services
                 if (!_tombstoneRestoreAttempted)
                 {
                     _tombstoneRestoreAttempted = true;
+#if !DEBUG
                     await _milpService.TryRestorePlanAsync().ConfigureAwait(false);
+#endif
                 }
 
                 await _consumptionMonitorService.EstimateConsumptionInWattsPerQuarter(_quarterlyInfos).ConfigureAwait(false);

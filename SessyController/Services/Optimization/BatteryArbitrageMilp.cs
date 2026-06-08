@@ -2,18 +2,11 @@
 
 namespace SessyController.Services.Optimization
 {
-    public enum ActionMode
-    {
-        Idle = 0,
-        Charge = 1,
-        Discharge = 2
-    }
+    public enum ActionMode { Idle = 0, Charge = 1, Discharge = 2 }
 
     public sealed record BatterySpec(
         double CapacityKWh,
         double InitialSocKWh,
-        double MinSocKWh,
-        double MaxSocKWh,
         double MaxChargeKW,
         double MaxDischargeKW,
         double ChargeEfficiency,
@@ -22,23 +15,16 @@ namespace SessyController.Services.Optimization
 
     public sealed record SessyOptions(
         int QuarterMinutes,
-        double ActiveQuarterPenaltyEur,
-        bool ForbidSimultaneousChargeDischarge,
-        int TimeLimitMs,
-        double CycleCostEurPerKWh = 0.0
+        double CycleCostEurPerKWh,
+        int TimeLimitMs
     );
 
     /// <summary>
-    /// FIX 1: Per-quarter SOC envelope for the MILP solver.
-    /// The solver must keep SOC within [MinSocKWh, MaxSocKWh] at the END of each quarter.
-    /// These are built from _minSocWhByTime / _maxSocWhByTime in BatteriesService
-    /// and reflect solar headroom + self-use reserves.
+    /// Per-quarter SOC bounds.
+    /// MinSocKWh: minimum SOC at end of this quarter (night reserve).
+    /// MaxSocKWh: maximum SOC at end of this quarter (solar headroom).
     /// </summary>
-    public sealed record SocBound(
-        DateTime Time,
-        double MinSocKWh,
-        double MaxSocKWh
-    );
+    public sealed record SocBound(DateTime Time, double MinSocKWh, double MaxSocKWh);
 
     public sealed record PlanStep(
         DateTime Start,
@@ -49,53 +35,54 @@ namespace SessyController.Services.Optimization
         double SocEndKWh
     );
 
-    public sealed record PlanResult(
-        bool Optimal,
-        double ObjectiveEur,
-        IReadOnlyList<PlanStep> Plan
-    );
+    public sealed record PlanResult(bool Optimal, double ObjectiveEur, IReadOnlyList<PlanStep> Plan);
 
     /// <summary>
-    /// One quarter-hour price point for the MILP solver.
-    /// Prices are in EUR/kWh.
-    /// SelfUseValueEurPerKWh: value of discharging for own consumption instead of exporting.
-    /// When netting is active this equals SellEurPerKWh (no distinction).
-    /// When netting is disabled this equals the future weighted average buy price,
-    /// reflecting the avoided import cost — which is typically much higher than the
-    /// low export rate.
+    /// Input per quarter for the MILP solver.
+    /// BuyEurPerKWh:   full consumer buy price incl. taxes.
+    /// SellEurPerKWh:  sell/export price.
+    /// NetLoadWh:      household load minus solar (Wh). Positive = needs power; negative = solar surplus.
+    /// SolarSurplusWh: unused — kept for future logging.
     /// </summary>
     public sealed record PricePoint(
         DateTime Start,
         double BuyEurPerKWh,
         double SellEurPerKWh,
         double NetLoadWh,
-        double SelfUseValueEurPerKWh = 0.0
+        double SolarSurplusWh,
+        double EffectiveChargeCostEurPerKWh = -1.0  // -1 = use BuyEurPerKWh
     );
 
     public static class BatteryArbitrageMilp
     {
         /// <summary>
-        /// Solve the battery arbitrage MILP.
+        /// Solve the battery arbitrage MILP for profit maximisation.
         ///
-        /// FIX 1: Added optional <paramref name="socBounds"/> parameter.
-        /// When provided, each quarter's SOC variable is constrained to the
-        /// [MinSocKWh, MaxSocKWh] range supplied by BatteriesService, which
-        /// encodes solar headroom and self-use reserves directly into the solve.
-        /// This replaces the old approach of correcting the plan post-hoc via
-        /// EnsureEnergyForPlannedDischargeAsync(), which produced suboptimal plans.
+        /// Objective (maximise):
+        ///   discharge_t * max(buy_t, sell_t)   — discharging avoids import or earns export revenue
+        ///   - gridCharge_t * buy_t              — grid charging costs money
+        ///   - cycleCost * (gridCharge_t + discharge_t)
+        ///
+        /// ZeroNetHome (the inverter's self-regulation mode) handles household load coverage
+        /// automatically — the solver does NOT need to model per-quarter own-use.
+        /// The solver's job is purely to decide WHEN to charge/discharge for maximum arbitrage.
+        ///
+        /// SOC transition:
+        ///   soc[t+1] = soc[t] + gridCharge[t]*dt*η_c - discharge[t]*dt/η_d - netLoadKWh[t]
+        ///
+        /// netLoadKWh < 0 (solar surplus) raises SOC automatically.
+        /// netLoadKWh > 0 (household load) drains SOC automatically.
         /// </summary>
-        public static PlanResult Solve(
+        public static PlanResult? Solve(
             IReadOnlyList<PricePoint> pricePoints,
             BatterySpec spec,
             SessyOptions opt,
-            IReadOnlyList<SocBound>? socBounds = null)
+            IReadOnlyList<SocBound> socBounds)
         {
-            if (pricePoints == null || pricePoints.Count == 0)
-                return EmptyResult();
+            if (pricePoints == null || pricePoints.Count == 0) return null;
 
-            Solver? solver = Solver.CreateSolver("CBC_MIXED_INTEGER_PROGRAMMING");
-            if (solver == null)
-                return EmptyResult();
+            var solver = Solver.CreateSolver("CBC_MIXED_INTEGER_PROGRAMMING");
+            if (solver == null) return null;
 
             if (opt.TimeLimitMs > 0)
                 solver.SetTimeLimit(opt.TimeLimitMs);
@@ -103,205 +90,110 @@ namespace SessyController.Services.Optimization
             int n = pricePoints.Count;
             double dtHours = opt.QuarterMinutes / 60.0;
 
-            // FIX 1: Build a per-quarter bound lookup (indexed by quarter start time).
-            // Falls back to global spec bounds when no per-quarter bound is present.
-            var socBoundByTime = socBounds != null
-                ? socBounds.ToDictionary(b => b.Time)
-                : new Dictionary<DateTime, SocBound>();
+            var boundByTime = socBounds.ToDictionary(b => b.Time);
 
-            // ----------------------------------------------------------------
-            // Variables
-            // ----------------------------------------------------------------
+            // ── Variables ────────────────────────────────────────────────────
 
-            var chargeKw = new Variable[n];
-            var dischargeKw = new Variable[n];
+            var gridCharge = new Variable[n];
+            var discharge = new Variable[n];
             var isCharge = new Variable[n];
             var isDischarge = new Variable[n];
-
-            // soc[t] = SOC at START of quarter t; soc[n] = SOC after last quarter.
-            // FIX 1: Each soc[t+1] (= SOC at END of quarter t) gets its own
-            // per-quarter min/max rather than the single global bound.
-            // soc[0] uses the global bounds (it is the current measured SOC).
             var soc = new Variable[n + 1];
 
-            soc[0] = solver.MakeNumVar(spec.MinSocKWh, spec.MaxSocKWh, "soc_0");
+            soc[0] = solver.MakeNumVar(0.0, spec.CapacityKWh, "soc_0");
 
             for (int t = 0; t < n; t++)
             {
-                // FIX 1: Determine per-quarter SOC bounds for the END of quarter t.
-                // soc[t+1] represents the battery level after quarter t completes.
-                DateTime quarterTime = pricePoints[t].Start;
-
-                double minSoc = spec.MinSocKWh;
-                double maxSoc = spec.MaxSocKWh;
-
-                if (socBoundByTime.TryGetValue(quarterTime, out var bound))
+                double mn = 0.0, mx = spec.CapacityKWh;
+                if (boundByTime.TryGetValue(pricePoints[t].Start, out var b))
                 {
-                    // Per-quarter bounds tighten (never loosen) the global bounds.
-                    minSoc = Math.Max(minSoc, bound.MinSocKWh);
-                    maxSoc = Math.Min(maxSoc, bound.MaxSocKWh);
-
-                    // Guard: if the per-quarter bounds are mutually infeasible
-                    // (e.g. at the planning horizon edge where solar headroom
-                    // exceeds capacity), fall back to global bounds rather than
-                    // making the model infeasible.
-                    if (minSoc > maxSoc)
-                    {
-                        minSoc = spec.MinSocKWh;
-                        maxSoc = spec.MaxSocKWh;
-                    }
+                    mn = Math.Max(0.0, Math.Min(b.MinSocKWh, spec.CapacityKWh));
+                    mx = Math.Max(mn, Math.Min(b.MaxSocKWh, spec.CapacityKWh));
                 }
 
-                soc[t + 1] = solver.MakeNumVar(minSoc, maxSoc, $"soc_{t + 1}");
+                soc[t + 1] = solver.MakeNumVar(mn, mx, $"soc_{t + 1}");
+                gridCharge[t] = solver.MakeNumVar(0.0, spec.MaxChargeKW, $"gc_{t}");
+                discharge[t] = solver.MakeNumVar(0.0, spec.MaxDischargeKW, $"dis_{t}");
+                isCharge[t] = solver.MakeIntVar(0.0, 1.0, $"ic_{t}");
+                isDischarge[t] = solver.MakeIntVar(0.0, 1.0, $"id_{t}");
 
-                chargeKw[t] = solver.MakeNumVar(0.0, spec.MaxChargeKW, $"charge_{t}");
-                dischargeKw[t] = solver.MakeNumVar(0.0, spec.MaxDischargeKW, $"discharge_{t}");
-
-                isCharge[t] = solver.MakeIntVar(0.0, 1.0, $"isCharge_{t}");
-                isDischarge[t] = solver.MakeIntVar(0.0, 1.0, $"isDischarge_{t}");
-
-                // Enforce charge/discharge limits via binary activity flags
-                solver.Add(chargeKw[t] <= spec.MaxChargeKW * isCharge[t]);
-                solver.Add(dischargeKw[t] <= spec.MaxDischargeKW * isDischarge[t]);
-
-                // No simultaneous charge + discharge
+                solver.Add(gridCharge[t] <= spec.MaxChargeKW * isCharge[t]);
+                solver.Add(discharge[t] <= spec.MaxDischargeKW * isDischarge[t]);
                 solver.Add(isCharge[t] + isDischarge[t] <= 1.0);
             }
 
-            // Fix initial SOC to measured value
-            solver.Add(soc[0] == Clamp(spec.InitialSocKWh, spec.MinSocKWh, spec.MaxSocKWh));
+            solver.Add(soc[0] == Clamp(spec.InitialSocKWh, 0.0, spec.CapacityKWh));
 
-            // ----------------------------------------------------------------
-            // SOC transition constraints
-            // ----------------------------------------------------------------
+            // ── SOC transition ───────────────────────────────────────────────
 
             for (int t = 0; t < n; t++)
             {
                 double netLoadKWh = pricePoints[t].NetLoadWh / 1000.0;
 
-                // SOC dynamics:
-                //   soc[t+1] = soc[t]
-                //              + charge_t  * dt * η_charge
-                //              - discharge_t * dt / η_discharge
-                //              - net_household_load_t
-                //
-                // Net load is subtracted unconditionally: the MILP models the
-                // battery's net energy balance. Positive net load (consumption >
-                // solar) drains the battery; negative net load (solar surplus)
-                // fills it. The mode-aware household-load handling in
-                // BatteriesService's SOC simulation mirrors this model.
                 solver.Add(
                     soc[t + 1] ==
                     soc[t]
-                    + (chargeKw[t] * dtHours * spec.ChargeEfficiency)
-                    - (dischargeKw[t] * dtHours / spec.DischargeEfficiency)
+                    + gridCharge[t] * dtHours * spec.ChargeEfficiency
+                    - discharge[t] * dtHours / spec.DischargeEfficiency
                     - netLoadKWh
                 );
             }
 
-            // ----------------------------------------------------------------
-            // Objective: maximise profit = revenue from discharge - cost of charge
-            // ----------------------------------------------------------------
-            //
-            // When netting is active:
-            //   discharge coefficient = sell price (export revenue)
-            //
-            // When netting is disabled (SelfUseValueEurPerKWh > SellEurPerKWh):
-            //   discharge coefficient = max(sell, selfUseValue)
-            //   This rewards discharging for own consumption (avoided import cost)
-            //   even when the export rate is low.
-            //
-            // The MILP does not explicitly model whether discharged energy goes to
-            // the household or to the grid — that is determined by NetLoadWh.
-            // Using max(sell, selfUseValue) as the coefficient ensures the solver
-            // values discharge correctly in both netting-on and netting-off scenarios.
+            // ── Objective ────────────────────────────────────────────────────
+            // discharge earns max(buy, sell): if sell > buy (e.g. negative prices) export wins;
+            // otherwise avoiding import at buy price is the value.
+            // grid charging costs buy + cycleCost.
 
-            Objective objective = solver.Objective();
+            var objective = solver.Objective();
 
             for (int t = 0; t < n; t++)
             {
                 double buy = pricePoints[t].BuyEurPerKWh;
                 double sell = pricePoints[t].SellEurPerKWh;
-                double selfUse = pricePoints[t].SelfUseValueEurPerKWh;
+                double cc = opt.CycleCostEurPerKWh;
+                double chargeCost = pricePoints[t].EffectiveChargeCostEurPerKWh >= 0.0
+                    ? pricePoints[t].EffectiveChargeCostEurPerKWh
+                    : buy;
 
-                // Effective discharge value: use the higher of export rate and
-                // self-use value so the solver picks the best option automatically.
-                double dischargeValue = Math.Max(sell, selfUse);
+                // Discharge value = max(buy, sell) minus threshold and cycle cost.
+                // Add a small penalty when discharge is not profitable to prevent the solver
+                // from discharging arbitrarily when indifferent (dischargeValue = 0).
+                double dischargeValue = Math.Max(buy, sell) - chargeCost - cc;
+                double dischargeCoeff = dischargeValue > 0.001
+                    ? dischargeValue * dtHours
+                    : -0.001 * dtHours;  // small penalty to prefer ZeroNetHome
 
-                // Charging costs money (negative contribution).
-                objective.SetCoefficient(chargeKw[t], -(buy + opt.CycleCostEurPerKWh) * dtHours);
+                objective.SetCoefficient(discharge[t], dischargeCoeff);
 
-                // Discharging earns money (positive contribution).
-                objective.SetCoefficient(dischargeKw[t], dischargeValue * dtHours);
-
-                // Small penalty per active quarter to prefer fewer, larger actions.
-                if (opt.ActiveQuarterPenaltyEur != 0.0)
-                {
-                    objective.SetCoefficient(isCharge[t], -opt.ActiveQuarterPenaltyEur);
-                    objective.SetCoefficient(isDischarge[t], -opt.ActiveQuarterPenaltyEur);
-                }
+                // Grid charging is only worthwhile at low prices (future discharge will be profitable).
+                objective.SetCoefficient(gridCharge[t], -(chargeCost + cc) * dtHours);
             }
 
             objective.SetMaximization();
 
-            // ----------------------------------------------------------------
-            // Solve
-            // ----------------------------------------------------------------
+            // ── Solve ────────────────────────────────────────────────────────
 
             var status = solver.Solve();
-
-            bool hasSolution =
-                status == Solver.ResultStatus.OPTIMAL ||
-                status == Solver.ResultStatus.FEASIBLE;
-
-            if (!hasSolution)
-            {
-                // Do NOT read objective.Value() or SolutionValue() here —
-                // OR-Tools behaviour is undefined when no solution exists.
-                return EmptyResult();
-            }
-
-            double objectiveValue = objective.Value();
+            bool ok = status == Solver.ResultStatus.OPTIMAL || status == Solver.ResultStatus.FEASIBLE;
+            if (!ok) return null;
 
             var plan = new List<PlanStep>(n);
-
             for (int t = 0; t < n; t++)
             {
-                double cKw = chargeKw[t].SolutionValue();
-                double dKw = dischargeKw[t].SolutionValue();
-                double socStart = soc[t].SolutionValue();
-                double socEnd = soc[t + 1].SolutionValue();
+                double cKw = gridCharge[t].SolutionValue();
+                double dKw = discharge[t].SolutionValue();
+                double s0 = soc[t].SolutionValue();
+                double s1 = soc[t + 1].SolutionValue();
 
                 ActionMode mode = ActionMode.Idle;
+                if (cKw > 0.01) mode = ActionMode.Charge;
+                else if (dKw > 0.01) mode = ActionMode.Discharge;
 
-                if (cKw > 0.001 && dKw <= 0.001)
-                    mode = ActionMode.Charge;
-                else if (dKw > 0.001 && cKw <= 0.001)
-                    mode = ActionMode.Discharge;
-
-                plan.Add(new PlanStep(
-                    Start: pricePoints[t].Start,
-                    Mode: mode,
-                    ChargeKW: cKw,
-                    DischargeKW: dKw,
-                    SocStartKWh: socStart,
-                    SocEndKWh: socEnd
-                ));
+                plan.Add(new PlanStep(pricePoints[t].Start, mode, cKw, dKw, s0, s1));
             }
 
-            return new PlanResult(
-                Optimal: status == Solver.ResultStatus.OPTIMAL,
-                ObjectiveEur: objectiveValue,
-                Plan: plan
-            );
+            return new PlanResult(status == Solver.ResultStatus.OPTIMAL, objective.Value(), plan);
         }
-
-        private static PlanResult EmptyResult() =>
-            new PlanResult(
-                Optimal: false,
-                ObjectiveEur: 0.0,
-                Plan: new List<PlanStep>()
-            );
 
         private static double Clamp(double v, double min, double max)
             => v < min ? min : (v > max ? max : v);

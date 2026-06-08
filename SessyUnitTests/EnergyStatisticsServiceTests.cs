@@ -81,6 +81,8 @@ namespace SessyTests.Services
             var calculationServiceMock = new Mock<ICalculationService>();
             calculationServiceMock.Setup(s => s.CalculateGasPriceAsync(It.IsAny<double>()))
                                   .ReturnsAsync((double?)null);
+            calculationServiceMock.Setup(s => s.CalculateEnergyPricesBatchAsync(It.IsAny<IEnumerable<DateTime>>()))
+                                  .ReturnsAsync(new Dictionary<DateTime, EnergyPrice>());
 
             // Mock IBatteryContainer — 3 × 5400 Wh = 16200 Wh total capacity.
             var batteryContainerMock = new Mock<IBatteryContainer>();
@@ -360,6 +362,12 @@ namespace SessyTests.Services
             SetupMeasurements(new List<QuarterlyMeasurement>
             {
                 new() { Time = PeriodStart, GridImportWh = 500, GridExportWh = 100.2 }
+            });
+
+            // Solar production = 0.2 kWh for this quarter.
+            SetupInverterMeasurements(new List<InverterMeasurement>
+            {
+                new() { Time = PeriodStart, SolarProductionKWh = 0.2 }
             });
 
             var result = await _sut.GetEnergyStatisticsAsync(PeriodStart, PeriodEnd);
@@ -663,36 +671,39 @@ namespace SessyTests.Services
             var pricePoints =
                 Enumerable.Range(0, 8).Select(i => new PricePoint(
                     baseTime.AddMinutes(i * 15),
-                    BuyEurPerKWh: 0.05, SellEurPerKWh: 0.05, NetLoadWh: 0,
-                    SelfUseValueEurPerKWh: 0.05))
+                    BuyEurPerKWh: 0.05, SellEurPerKWh: 0.05, NetLoadWh: 0, SolarSurplusWh: 0,
+                    EffectiveChargeCostEurPerKWh: 0.05))
                 .Concat(Enumerable.Range(8, 8).Select(i => new PricePoint(
                     baseTime.AddMinutes(i * 15),
-                    BuyEurPerKWh: 0.30, SellEurPerKWh: 0.30, NetLoadWh: 0,
-                    SelfUseValueEurPerKWh: 0.30)))
+                    BuyEurPerKWh: 0.30, SellEurPerKWh: 0.30, NetLoadWh: 0, SolarSurplusWh: 0,
+                    EffectiveChargeCostEurPerKWh: 0.05)))
                 .ToList();
 
-            var result = BatteryArbitrageMilp.Solve(pricePoints, MakeSpec(4.0), MakeOpt(0.02));
+            var bounds = MakeBounds(pricePoints.Select(p => p.Start));
+            var result = BatteryArbitrageMilp.Solve(pricePoints, MakeSpec(4.0), MakeOpt(0.02), bounds);
 
-            Assert.True(result.Plan.Any(p => p.Mode == ActionMode.Charge), "Expected charging");
-            Assert.True(result.Plan.Any(p => p.Mode == ActionMode.Discharge), "Expected discharging");
+            Assert.True(result!.Plan.Any(p => p.Mode == ActionMode.Charge), "Expected charging");
+            Assert.True(result!.Plan.Any(p => p.Mode == ActionMode.Discharge), "Expected discharging");
         }
 
         [Fact]
         public void BatteryArbitrageMilp_NettingOff_SelfUseValueDrivesDischarge()
         {
             var baseTime = new DateTime(2027, 1, 1);
+            // High buy price + positive net load: own-use discharge should be profitable.
             var pricePoints = new List<PricePoint>
             {
-                new(baseTime,                BuyEurPerKWh: 0.05, SellEurPerKWh: 0.03, NetLoadWh: 500,  SelfUseValueEurPerKWh: 0.25),
-                new(baseTime.AddMinutes(15), BuyEurPerKWh: 0.05, SellEurPerKWh: 0.03, NetLoadWh: 500,  SelfUseValueEurPerKWh: 0.25),
-                new(baseTime.AddMinutes(30), BuyEurPerKWh: 0.25, SellEurPerKWh: 0.03, NetLoadWh: 2000, SelfUseValueEurPerKWh: 0.25),
-                new(baseTime.AddMinutes(45), BuyEurPerKWh: 0.25, SellEurPerKWh: 0.03, NetLoadWh: 2000, SelfUseValueEurPerKWh: 0.25),
+                new(baseTime,                BuyEurPerKWh: 0.05, SellEurPerKWh: 0.03, NetLoadWh: 500,  SolarSurplusWh: 0, EffectiveChargeCostEurPerKWh: 0.05),
+                new(baseTime.AddMinutes(15), BuyEurPerKWh: 0.05, SellEurPerKWh: 0.03, NetLoadWh: 500,  SolarSurplusWh: 0, EffectiveChargeCostEurPerKWh: 0.05),
+                new(baseTime.AddMinutes(30), BuyEurPerKWh: 0.25, SellEurPerKWh: 0.03, NetLoadWh: 2000, SolarSurplusWh: 0, EffectiveChargeCostEurPerKWh: 0.05),
+                new(baseTime.AddMinutes(45), BuyEurPerKWh: 0.25, SellEurPerKWh: 0.03, NetLoadWh: 2000, SolarSurplusWh: 0, EffectiveChargeCostEurPerKWh: 0.05),
             };
 
-            var result = BatteryArbitrageMilp.Solve(pricePoints, MakeSpec(8.0), MakeOpt(0.02));
+            var bounds = MakeBounds(pricePoints.Select(p => p.Start));
+            var result = BatteryArbitrageMilp.Solve(pricePoints, MakeSpec(8.0), MakeOpt(0.02), bounds);
 
-            Assert.True(result.Plan.Any(p => p.Mode == ActionMode.Discharge),
-                "Expected discharge during high-consumption quarters with high self-use value");
+            Assert.True(result!.Plan.Any(p => p.Mode == ActionMode.Discharge),
+                "Expected discharge during high-consumption quarters");
         }
 
         [Fact]
@@ -701,35 +712,33 @@ namespace SessyTests.Services
             var baseTime = new DateTime(2027, 1, 1);
             var pricePoints = Enumerable.Range(0, 4).Select(i => new PricePoint(
                 baseTime.AddMinutes(i * 15),
-                BuyEurPerKWh: 0.03, SellEurPerKWh: 0.03, NetLoadWh: 0,
-                SelfUseValueEurPerKWh: 0.03
+                BuyEurPerKWh: 0.03, SellEurPerKWh: 0.03, NetLoadWh: 0, SolarSurplusWh: 0
             )).ToList();
 
-            // Empty battery: no free energy to discharge, charging deeply unprofitable.
             var spec = new BatterySpec(
                 CapacityKWh: 16.2, InitialSocKWh: 0.0,
-                MinSocKWh: 0.0, MaxSocKWh: 16.2,
                 MaxChargeKW: 5.4, MaxDischargeKW: 5.1,
                 ChargeEfficiency: 0.95, DischargeEfficiency: 0.95);
 
-            var result = BatteryArbitrageMilp.Solve(pricePoints, spec, MakeOpt(0.20));
+            var bounds = MakeBounds(pricePoints.Select(p => p.Start));
+            var result = BatteryArbitrageMilp.Solve(pricePoints, spec, MakeOpt(0.20), bounds);
 
-            Assert.False(result.Plan.Any(p => p.Mode == ActionMode.Charge), "Expected no charging");
-            Assert.False(result.Plan.Any(p => p.Mode == ActionMode.Discharge), "Expected no discharging");
+            Assert.False(result!.Plan.Any(p => p.Mode == ActionMode.Charge), "Expected no charging");
+            Assert.False(result!.Plan.Any(p => p.Mode == ActionMode.Discharge), "Expected no discharging");
         }
 
         [Fact]
-        public void BatteryArbitrageMilp_SelfUseValueDefaultsToZero_WhenNotProvided()
+        public void BatteryArbitrageMilp_SolvesWithoutThrowingWhenSolarSurplusIsZero()
         {
             var baseTime = new DateTime(2027, 1, 1);
             var pricePoints = new List<PricePoint>
             {
-                new(baseTime,                BuyEurPerKWh: 0.05, SellEurPerKWh: 0.25, NetLoadWh: 0),
-                new(baseTime.AddMinutes(15), BuyEurPerKWh: 0.05, SellEurPerKWh: 0.25, NetLoadWh: 0),
+                new(baseTime,                BuyEurPerKWh: 0.05, SellEurPerKWh: 0.25, NetLoadWh: 0, SolarSurplusWh: 0),
+                new(baseTime.AddMinutes(15), BuyEurPerKWh: 0.05, SellEurPerKWh: 0.25, NetLoadWh: 0, SolarSurplusWh: 0),
             };
 
-            // Should not throw — default SelfUseValueEurPerKWh = 0.0.
-            var result = BatteryArbitrageMilp.Solve(pricePoints, MakeSpec(8.0), MakeOpt(0.02));
+            var bounds = MakeBounds(pricePoints.Select(p => p.Start));
+            var result = BatteryArbitrageMilp.Solve(pricePoints, MakeSpec(8.0), MakeOpt(0.02), bounds);
 
             Assert.NotNull(result);
         }
@@ -784,13 +793,15 @@ namespace SessyTests.Services
 
         private static BatterySpec MakeSpec(double initialSocKWh) => new BatterySpec(
             CapacityKWh: 16.2, InitialSocKWh: initialSocKWh,
-            MinSocKWh: 0.0, MaxSocKWh: 16.2,
             MaxChargeKW: 5.4, MaxDischargeKW: 5.1,
             ChargeEfficiency: 0.95, DischargeEfficiency: 0.95);
 
         private static SessyOptions MakeOpt(double cycleCost) => new SessyOptions(
-            QuarterMinutes: 15, ActiveQuarterPenaltyEur: 0.0,
-            ForbidSimultaneousChargeDischarge: true, TimeLimitMs: 5000,
-            CycleCostEurPerKWh: cycleCost);
+            QuarterMinutes: 15,
+            CycleCostEurPerKWh: cycleCost,
+            TimeLimitMs: 5000);
+
+        private static IReadOnlyList<SocBound> MakeBounds(IEnumerable<DateTime> times, double minKWh = 0.0, double maxKWh = 16.2)
+            => times.Select(t => new SocBound(t, minKWh, maxKWh)).ToList();
     }
 }
