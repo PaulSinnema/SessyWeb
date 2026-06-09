@@ -144,11 +144,6 @@
                                 </RadzenRow>
                                 <RadzenRow Gap="1rem">
                                     <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Look-ahead (quarters)" />
-                                        <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">How many quarters ahead (1 quarter = 15 min) the planner looks for self-use value and reserve. Default: 96 (24 hours).</RadzenText>
-                                        <RadzenNumeric @bind-Value="_settings.SelfUseLookAheadQuarters" Format="F0" Style="width:100%" />
-                                    </RadzenColumn>
-                                    <RadzenColumn Size="12" SizeMD="4">
                                         <RadzenLabel Text="Reserve safety factor" />
                                         <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">Safety margin on top of the calculated night/bridge reserve. 1.10 = keep 10% extra. Default: 1.10.</RadzenText>
                                         <RadzenNumeric @bind-Value="_settings.ReserveSafetyFactor" Format="F2" Style="width:100%" />
@@ -157,18 +152,6 @@
                                         <RadzenLabel Text="Solar headroom safety factor" />
                                         <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">Extra margin when reserving battery space for solar surplus. 1.05 = reserve 5% more than forecast. Default: 1.05.</RadzenText>
                                         <RadzenNumeric @bind-Value="_settings.SolarHeadroomSafetyFactor" Format="F2" Style="width:100%" />
-                                    </RadzenColumn>
-                                </RadzenRow>
-                                <RadzenRow Gap="1rem">
-                                    <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Cheap refill tolerance (€/kWh)" />
-                                        <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">If current buy price is within this margin of the cheapest future price, charge now instead of waiting. Default: €0.01.</RadzenText>
-                                        <RadzenNumeric @bind-Value="_settings.CheapRefillToleranceEur" Format="F3" Style="width:100%" />
-                                    </RadzenColumn>
-                                    <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Export premium (€/kWh)" />
-                                        <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">Selling price must exceed self-use value by at least this amount before the planner exports energy. Default: €0.02.</RadzenText>
-                                        <RadzenNumeric @bind-Value="_settings.ExportPremiumEur" Format="F3" Style="width:100%" />
                                     </RadzenColumn>
                                 </RadzenRow>
                             </RadzenFieldset>

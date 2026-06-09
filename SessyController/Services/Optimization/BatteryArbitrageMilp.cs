@@ -19,11 +19,6 @@ namespace SessyController.Services.Optimization
         int TimeLimitMs
     );
 
-    /// <summary>
-    /// Per-quarter SOC bounds.
-    /// MinSocKWh: minimum SOC at end of this quarter (night reserve).
-    /// MaxSocKWh: maximum SOC at end of this quarter (solar headroom).
-    /// </summary>
     public sealed record SocBound(DateTime Time, double MinSocKWh, double MaxSocKWh);
 
     public sealed record PlanStep(
@@ -37,41 +32,33 @@ namespace SessyController.Services.Optimization
 
     public sealed record PlanResult(bool Optimal, double ObjectiveEur, IReadOnlyList<PlanStep> Plan);
 
-    /// <summary>
-    /// Input per quarter for the MILP solver.
-    /// BuyEurPerKWh:   full consumer buy price incl. taxes.
-    /// SellEurPerKWh:  sell/export price.
-    /// NetLoadWh:      household load minus solar (Wh). Positive = needs power; negative = solar surplus.
-    /// SolarSurplusWh: unused — kept for future logging.
-    /// </summary>
     public sealed record PricePoint(
         DateTime Start,
         double BuyEurPerKWh,
         double SellEurPerKWh,
         double NetLoadWh,
-        double SolarSurplusWh,
-        double EffectiveChargeCostEurPerKWh = -1.0  // -1 = use BuyEurPerKWh
+        double SolarSurplusWh
     );
 
     public static class BatteryArbitrageMilp
     {
         /// <summary>
-        /// Solve the battery arbitrage MILP for profit maximisation.
+        /// Pure arbitrage MILP — no manual thresholds or charge cost overrides.
         ///
         /// Objective (maximise):
-        ///   discharge_t * max(buy_t, sell_t)   — discharging avoids import or earns export revenue
-        ///   - gridCharge_t * buy_t              — grid charging costs money
-        ///   - cycleCost * (gridCharge_t + discharge_t)
-        ///
-        /// ZeroNetHome (the inverter's self-regulation mode) handles household load coverage
-        /// automatically — the solver does NOT need to model per-quarter own-use.
-        /// The solver's job is purely to decide WHEN to charge/discharge for maximum arbitrage.
+        ///   discharge_t * max(buy_t, sell_t)
+        ///   - gridCharge_t * buy_t
+        ///   - cycleCost * (discharge_t + gridCharge_t)
         ///
         /// SOC transition:
-        ///   soc[t+1] = soc[t] + gridCharge[t]*dt*η_c - discharge[t]*dt/η_d - netLoadKWh[t]
+        ///   soc[t+1] = soc[t]
+        ///            + gridCharge[t] * dt * chargeEff
+        ///            - discharge[t]  * dt / dischargeEff
+        ///            - netLoadKWh[t]
         ///
         /// netLoadKWh < 0 (solar surplus) raises SOC automatically.
-        /// netLoadKWh > 0 (household load) drains SOC automatically.
+        /// maxSoc per quarter accounts for solar surplus so the solver is never
+        /// forced to discharge just because the battery is full and solar is producing.
         /// </summary>
         public static PlanResult? Solve(
             IReadOnlyList<PricePoint> pricePoints,
@@ -140,9 +127,6 @@ namespace SessyController.Services.Optimization
             }
 
             // ── Objective ────────────────────────────────────────────────────
-            // discharge earns max(buy, sell): if sell > buy (e.g. negative prices) export wins;
-            // otherwise avoiding import at buy price is the value.
-            // grid charging costs buy + cycleCost.
 
             var objective = solver.Objective();
 
@@ -151,22 +135,9 @@ namespace SessyController.Services.Optimization
                 double buy = pricePoints[t].BuyEurPerKWh;
                 double sell = pricePoints[t].SellEurPerKWh;
                 double cc = opt.CycleCostEurPerKWh;
-                double chargeCost = pricePoints[t].EffectiveChargeCostEurPerKWh >= 0.0
-                    ? pricePoints[t].EffectiveChargeCostEurPerKWh
-                    : buy;
 
-                // Discharge value = max(buy, sell) minus threshold and cycle cost.
-                // Add a small penalty when discharge is not profitable to prevent the solver
-                // from discharging arbitrarily when indifferent (dischargeValue = 0).
-                double dischargeValue = Math.Max(buy, sell) - chargeCost - cc;
-                double dischargeCoeff = dischargeValue > 0.001
-                    ? dischargeValue * dtHours
-                    : -0.001 * dtHours;  // small penalty to prefer ZeroNetHome
-
-                objective.SetCoefficient(discharge[t], dischargeCoeff);
-
-                // Grid charging is only worthwhile at low prices (future discharge will be profitable).
-                objective.SetCoefficient(gridCharge[t], -(chargeCost + cc) * dtHours);
+                objective.SetCoefficient(discharge[t], (Math.Max(buy, sell) - cc) * dtHours);
+                objective.SetCoefficient(gridCharge[t], -(buy + cc) * dtHours);
             }
 
             objective.SetMaximization();

@@ -104,12 +104,6 @@ namespace SessyController.Services
                 dirty = true;
             }
 
-            if (record.SelfUseLookAheadQuarters == 0)
-            {
-                record.SelfUseLookAheadQuarters = 96;
-                dirty = true;
-            }
-
             if (record.ReserveSafetyFactor == 0.0)
             {
                 record.ReserveSafetyFactor = 1.10;
@@ -119,18 +113,6 @@ namespace SessyController.Services
             if (record.SolarHeadroomSafetyFactor == 0.0)
             {
                 record.SolarHeadroomSafetyFactor = 1.05;
-                dirty = true;
-            }
-
-            if (record.CheapRefillToleranceEur == 0.0)
-            {
-                record.CheapRefillToleranceEur = 0.01;
-                dirty = true;
-            }
-
-            if (record.ExportPremiumEur == 0.0)
-            {
-                record.ExportPremiumEur = 0.02;
                 dirty = true;
             }
 

@@ -452,36 +452,31 @@ namespace SessyController.Services
 
                 if (quarters.Count == 0) return false;
 
-                // Build price points.
-                // Discharge threshold = 75th percentile of buy prices in the window.
-                // The solver only discharges when the current price is in the top 25%,
-                // ensuring it targets the most profitable discharge windows.
-                var sortedBuyPrices = quarters.Select(q => q.BuyingPrice).OrderBy(p => p).ToList();
-                int p75idx = (int)(sortedBuyPrices.Count * 0.75);
-                double dischargeThreshold = sortedBuyPrices[Math.Min(p75idx, sortedBuyPrices.Count - 1)];
-
+                // Build price points — pure prices, no manual thresholds.
                 var pricePoints = quarters.Select(q =>
                 {
                     double solarSurplusWh = q.NetLoadWh < 0.0 ? -q.NetLoadWh : 0.0;
-                    // effectiveChargeCost = dischargeThreshold - cycleCost so that
-                    // dischargeValue = buy - effectiveChargeCost - cc > 0 only when buy > dischargeThreshold.
-                    double chargeCost = dischargeThreshold - _settingsConfig.CycleCost;
-                    return new PricePoint(q.Time, q.BuyingPrice, q.SellingPrice, q.NetLoadWh, solarSurplusWh, chargeCost);
+                    return new PricePoint(q.Time, q.BuyingPrice, q.SellingPrice, q.NetLoadWh, solarSurplusWh);
                 }).ToList();
 
-                // Build SOC bounds
+                // Build SOC bounds.
+                // maxSoc per quarter is reduced by the solar surplus of that quarter so the
+                // solver is never forced to discharge just to stay feasible when the battery
+                // is full and solar is producing.
                 var socBounds = quarters.Select(q =>
                 {
                     double mn = _minSocWhByTime.TryGetValue(q.Time, out var minV) ? minV / 1000.0 : 0.0;
                     double mx = _maxSocWhByTime.TryGetValue(q.Time, out var maxV) ? maxV / 1000.0 : capKWh;
 
                     mn = Math.Max(0.0, Math.Min(mn, capKWh));
-                    mx = Math.Max(mn, Math.Min(mx, capKWh));
 
-                    // Guard: if current SOC is below minimum, cap minimum to current SOC.
-                    if (mn > socKWh) mn = socKWh;
-                    mx = Math.Max(mx, socKWh);
+                    // Leave headroom for solar surplus this quarter.
+                    double solarSurplusKWh = q.NetLoadWh < 0.0 ? -q.NetLoadWh / 1000.0 : 0.0;
+                    mx = Math.Min(mx, capKWh - solarSurplusKWh);
+                    mx = Math.Max(mn, Math.Min(mx, capKWh));
                     mx = Math.Max(mx, mn + 0.01);
+
+                    if (mn > socKWh) mn = socKWh;
 
                     return new SocBound(q.Time, mn, mx);
                 }).ToList();

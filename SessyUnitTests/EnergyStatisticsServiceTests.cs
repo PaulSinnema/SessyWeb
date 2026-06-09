@@ -671,12 +671,10 @@ namespace SessyTests.Services
             var pricePoints =
                 Enumerable.Range(0, 8).Select(i => new PricePoint(
                     baseTime.AddMinutes(i * 15),
-                    BuyEurPerKWh: 0.05, SellEurPerKWh: 0.05, NetLoadWh: 0, SolarSurplusWh: 0,
-                    EffectiveChargeCostEurPerKWh: 0.05))
+                    BuyEurPerKWh: 0.05, SellEurPerKWh: 0.05, NetLoadWh: 0, SolarSurplusWh: 0))
                 .Concat(Enumerable.Range(8, 8).Select(i => new PricePoint(
                     baseTime.AddMinutes(i * 15),
-                    BuyEurPerKWh: 0.30, SellEurPerKWh: 0.30, NetLoadWh: 0, SolarSurplusWh: 0,
-                    EffectiveChargeCostEurPerKWh: 0.05)))
+                    BuyEurPerKWh: 0.30, SellEurPerKWh: 0.30, NetLoadWh: 0, SolarSurplusWh: 0)))
                 .ToList();
 
             var bounds = MakeBounds(pricePoints.Select(p => p.Start));
@@ -693,10 +691,10 @@ namespace SessyTests.Services
             // High buy price + positive net load: own-use discharge should be profitable.
             var pricePoints = new List<PricePoint>
             {
-                new(baseTime,                BuyEurPerKWh: 0.05, SellEurPerKWh: 0.03, NetLoadWh: 500,  SolarSurplusWh: 0, EffectiveChargeCostEurPerKWh: 0.05),
-                new(baseTime.AddMinutes(15), BuyEurPerKWh: 0.05, SellEurPerKWh: 0.03, NetLoadWh: 500,  SolarSurplusWh: 0, EffectiveChargeCostEurPerKWh: 0.05),
-                new(baseTime.AddMinutes(30), BuyEurPerKWh: 0.25, SellEurPerKWh: 0.03, NetLoadWh: 2000, SolarSurplusWh: 0, EffectiveChargeCostEurPerKWh: 0.05),
-                new(baseTime.AddMinutes(45), BuyEurPerKWh: 0.25, SellEurPerKWh: 0.03, NetLoadWh: 2000, SolarSurplusWh: 0, EffectiveChargeCostEurPerKWh: 0.05),
+                new(baseTime,                BuyEurPerKWh: 0.05, SellEurPerKWh: 0.03, NetLoadWh: 500,  SolarSurplusWh: 0),
+                new(baseTime.AddMinutes(15), BuyEurPerKWh: 0.05, SellEurPerKWh: 0.03, NetLoadWh: 500,  SolarSurplusWh: 0),
+                new(baseTime.AddMinutes(30), BuyEurPerKWh: 0.25, SellEurPerKWh: 0.03, NetLoadWh: 2000, SolarSurplusWh: 0),
+                new(baseTime.AddMinutes(45), BuyEurPerKWh: 0.25, SellEurPerKWh: 0.03, NetLoadWh: 2000, SolarSurplusWh: 0),
             };
 
             var bounds = MakeBounds(pricePoints.Select(p => p.Start));
