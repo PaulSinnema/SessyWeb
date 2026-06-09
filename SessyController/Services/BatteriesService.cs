@@ -194,13 +194,7 @@ namespace SessyController.Services
                 if (!_tombstoneRestoreAttempted)
                 {
                     _tombstoneRestoreAttempted = true;
-#if !DEBUG
                     await _milpService.TryRestorePlanAsync().ConfigureAwait(false);
-#else
-                    // In DEBUG: clear any persisted plan so a fresh plan is built immediately,
-                    // giving fast feedback without waiting for the speculative solve trigger.
-                    await _milpService.ClearPlanAsync().ConfigureAwait(false);
-#endif
                 }
 
                 await _consumptionMonitorService.EstimateConsumptionInWattsPerQuarter(_quarterlyInfos).ConfigureAwait(false);
