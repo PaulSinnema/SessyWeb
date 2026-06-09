@@ -248,47 +248,51 @@ namespace SessyWeb.Pages
         /// </summary>
         private async Task BatteriesServiceDataChanged()
         {
-            await InvokeAsync(async () =>
+            IsBusy = true;
+            await InvokeAsync(StateHasChanged); // show spinner immediately
+
+            try
             {
-                IsBusy = true;
+                var now = _timeZoneService!.Now;
+                var today = now.Date;
+                var yesterday = today.AddDays(-1);
+                var tomorrow = today.AddDays(1);
 
-                try
+                // Heavy work runs outside InvokeAsync so the Blazor circuit thread
+                // is not blocked — DB queries, price calculations, plan building.
+                await GetQuarterlyInfos();
+
+                var realizedToday = await GetRealizedSolarForDate(today).ConfigureAwait(false);
+                var forecastRemainingToday = _solarService == null ? 0.0 : _solarService.GetRemainingForecastToday(today, _timeZoneService!.Now);
+                var totalSolarToday = realizedToday + forecastRemainingToday;
+                var totalSolarTomorrow = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(tomorrow);
+                var totalSolarYesterday = await GetRealizedSolarForDate(yesterday).ConfigureAwait(false);
+                var revenueYesterday = await GetRealizedRevenueForDate(yesterday).ConfigureAwait(false);
+                var revenueToday = await GetRealizedRevenueForDate(today).ConfigureAwait(false);
+                var batteryPct = await _batteriesService!.getBatteryPercentage().ConfigureAwait(false);
+                var batteryMode = await _batteriesService.GetBatteryMode().ConfigureAwait(false);
+                var planStats = await _milpService!.GetPlanStatisticsAsync(_timeZoneService!.Now, _hardwareStatusService?.CurrentSocWh ?? 0.0).ConfigureAwait(false);
+
+                // Apply results and trigger a single UI update.
+                await InvokeAsync(() =>
                 {
-                    var now = _timeZoneService!.Now;
-                    var today = now.Date;
-                    var yesterday = today.AddDays(-1);
-                    var tomorrow = today.AddDays(1);
-
-                    await GetQuarterlyInfos();
-
-                    // Today: realized solar so far + forecast for remaining quarters.
-                    var realizedToday = await GetRealizedSolarForDate(today).ConfigureAwait(false);
-                    var forecastRemainingToday = _solarService == null ? 0.0 : _solarService.GetRemainingForecastToday(today, _timeZoneService!.Now);
-                    TotalSolarPowerExpectedToday = realizedToday + forecastRemainingToday;
-                    TotalSolarPowerExpectedTomorrow = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(tomorrow);
-
-                    // Yesterday's realized solar from QuarterlyMeasurements.
-                    TotalSolarPowerYesterday = await GetRealizedSolarForDate(yesterday).ConfigureAwait(false);
-
-                    // Yesterday revenue: realized profit from Performance table (historical).
-                    TotalRevenueYesterday = await GetRealizedRevenueForDate(yesterday).ConfigureAwait(false);
-
-                    // Today revenue: expected/planned profit from the current plan (QuarterlyInfos).
-                    TotalRevenueToday = await GetRealizedRevenueForDate(today).ConfigureAwait(false); //GetPlannedRevenueForDate(today);
-
-                    BatteryPercentage = await _batteriesService!.getBatteryPercentage().ConfigureAwait(false);
-                    BatteryMode = await _batteriesService.GetBatteryMode().ConfigureAwait(false);
-
-                    var planStats = await _milpService!.GetPlanStatisticsAsync(_timeZoneService!.Now, _hardwareStatusService?.CurrentSocWh ?? 0.0).ConfigureAwait(false);
+                    TotalSolarPowerExpectedToday = totalSolarToday;
+                    TotalSolarPowerExpectedTomorrow = totalSolarTomorrow;
+                    TotalSolarPowerYesterday = totalSolarYesterday;
+                    TotalRevenueYesterday = revenueYesterday;
+                    TotalRevenueToday = revenueToday;
+                    BatteryPercentage = batteryPct;
+                    BatteryMode = batteryMode;
                     SocDeviationPct = planStats.SocDeviationPct;
-                }
-                finally
-                {
-                    IsBusy = false;
-                }
-
+                    HandleScreenHeight();
+                    StateHasChanged();
+                });
+            }
+            finally
+            {
+                IsBusy = false;
                 await InvokeAsync(StateHasChanged);
-            });
+            }
         }
 
         private async Task<double> GetRealizedSolarForDate(DateTime date)
