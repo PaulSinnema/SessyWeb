@@ -28,6 +28,7 @@ namespace SessyWeb.Pages
         [Inject] private HardwareStatusService? _hardwareStatusService { get; set; }
         [Inject] private EnergySystemStateMachine? _stateMachine { get; set; }
         [Inject] private IMilpService? _milpService { get; set; }
+        [Inject] private SettingsService? _settingsService { get; set; }
 
         private double SocDeviationPct { get; set; } = 0.0;
         [Inject] SolarInverterManager? _solarInverterManager { get; set; }
@@ -338,6 +339,11 @@ namespace SessyWeb.Pages
 
             var listFromBatteryService = _batteriesService?.GetQuarterlyInfos() ?? new List<QuarterlyInfo>();
 
+            // Apply solar and consumption smoothing on QuarterlyInfo before building views.
+            QuarterlyInfo.ApplySolarSmoothing(listFromBatteryService, windowSize: 12);
+            QuarterlyInfo.ApplyConsumptionSmoothing(listFromBatteryService, windowSize: 12);
+
+            double totalCapacityWh = _batteryContainer?.GetTotalCapacity() ?? 0.0;
             double averageSellingPrice = listFromBatteryService.Count > 0 ? listFromBatteryService.Average(qi => qi.SellingPrice) : 0.0;
             double averageBuyingPrice = listFromBatteryService.Count > 0 ? listFromBatteryService.Average(qi => qi.BuyingPrice) : 0.0;
 
@@ -396,7 +402,7 @@ namespace SessyWeb.Pages
                     .ToList();
 
                 foreach (var qi in planItems)
-                    views.Add(await FillQuarterlyInfoView(qi, averageBuyingPrice, averageSellingPrice).ConfigureAwait(false));
+                    views.Add(new QuarterlyInfoView(qi, totalCapacityWh, null, averageBuyingPrice, averageSellingPrice));
 
                 // Plan solar by quarter — fallback when a measurement has no inverter data yet
                 // (InverterMeasurements are written slightly after QuarterlyMeasurements).
@@ -420,14 +426,13 @@ namespace SessyWeb.Pages
                         m.SellingPriceEur = p.Selling;
                     }
 
-                    var view = FillQuarterlyInfoView(m, solarByQuarter, planSolarByQuarter);
-                    if (view.SolarPowerPerQuarterHour == 0.0
-                        && !solarByQuarter.ContainsKey(m.Time)
-                        && planSolarByQuarter.TryGetValue(m.Time, out var planSolar))
-                    {
-                        view.SolarPowerPerQuarterHour = planSolar;
-                    }
-                    ApplyPlannedValues(view, plannedByQuarter);
+                    double solarKWh = solarByQuarter != null && solarByQuarter.TryGetValue(m.Time, out var s) ? s : 0.0;
+                    double planSolarKWh = planSolarByQuarter.TryGetValue(m.Time, out var ps) ? ps : 0.0;
+
+                    var realizedQi = new QuarterlyInfo(m, solarKWh, planSolarKWh,
+                        _settingsService!, _solarInverterManager!, _timeZoneService!);
+                    plannedByQuarter.TryGetValue(m.Time, out var pq);
+                    var view = new QuarterlyInfoView(realizedQi, totalCapacityWh, pq, averageBuyingPrice, averageSellingPrice);
                     views.Add(view);
                 }
             }
@@ -467,7 +472,6 @@ namespace SessyWeb.Pages
                 {
                     if (qi.Time == nowQ && currentMeasurement != null)
                     {
-                        // Compute prices for current measurement.
                         if (_calculationService != null)
                         {
                             var p = await _calculationService.CalculateEnergyPricesBatchAsync(
@@ -478,19 +482,23 @@ namespace SessyWeb.Pages
                                 currentMeasurement.SellingPriceEur = prices.Selling;
                             }
                         }
-                        var view = FillQuarterlyInfoView(currentMeasurement, nowSolarByQuarter, nowPlanSolarByQuarter);
-                        // Fallback to planned solar if no measured value available yet.
-                        if (view.SolarPowerPerQuarterHour == 0.0)
-                            view.SolarPowerPerQuarterHour = qi.SolarPowerPerQuarterHour;
-                        views.Add(view);
+
+                        double solarKWh = nowSolarByQuarter != null && nowSolarByQuarter.TryGetValue(currentMeasurement.Time, out var s) ? s : 0.0;
+                        double planSolarKWh = nowPlanSolarByQuarter.TryGetValue(currentMeasurement.Time, out var ps) ? ps : qi.SolarPowerPerQuarterHour;
+
+                        var realizedQi = new QuarterlyInfo(currentMeasurement, solarKWh, planSolarKWh,
+                            _settingsService!, _solarInverterManager!, _timeZoneService!);
+                        views.Add(new QuarterlyInfoView(realizedQi, totalCapacityWh, null, averageBuyingPrice, averageSellingPrice));
                     }
                     else
                     {
-                        var view = await FillQuarterlyInfoView(qi, averageBuyingPrice, averageSellingPrice).ConfigureAwait(false);
-                        // Override solar with measured value if available.
-                        if (nowSolarByQuarter.TryGetValue(qi.Time, out var measuredSolar) && measuredSolar > 0)
-                            view.SolarPowerPerQuarterHour = measuredSolar;
-                        views.Add(view);
+                        bool isNow = qi.Time == nowQ;
+                        if (nowSolarByQuarter != null && nowSolarByQuarter.TryGetValue(qi.Time, out var measuredSolar) && measuredSolar > 0)
+                            qi.SolarPowerPerQuarterHour = measuredSolar;
+                        string? actualDisplay = isNow ? _hardwareStatusService!.ActualBatteryStrategy : null;
+                        double? actualPowerW = isNow ? _hardwareStatusService!.ActualBatteryPowerW : null;
+                        views.Add(new QuarterlyInfoView(qi, totalCapacityWh, null, averageBuyingPrice, averageSellingPrice,
+                            actualDisplay, actualPowerW, currentThrottlePercentage));
                     }
                 }
             }
@@ -502,94 +510,8 @@ namespace SessyWeb.Pages
                 .OrderBy(v => v.Time)
                 .ToList();
 
-            // Apply moving average smoothing to consumption and solar for visualization.
-            ApplyConsumptionSmoothing(QuarterlyInfos, windowSize: 12);
-            ApplySolarSmoothing(QuarterlyInfos, windowSize: 12);
-
             HandleScreenHeight();
             await InvokeAsync(StateHasChanged);
-        }
-
-        public async Task<QuarterlyInfoView> FillQuarterlyInfoView(QuarterlyInfo quarterlyInfo, double averageBuyingPrice, double averageSellingPrice)
-        {
-            var totalCapacityWh = _batteryContainer!.GetTotalCapacity();
-            var chargeLeftWh = quarterlyInfo.ChargeLeftWh;
-            var chargeNeededWh = quarterlyInfo.ChargeNeededWh;
-            var chargeLeftPct = totalCapacityWh > 0 ? (chargeLeftWh / totalCapacityWh) * 100.0 : 0.0;
-
-            // For the current quarter: show actual battery state instead of MILP plan.
-            // The MILP plan may differ from what the battery is actually doing because
-            // GetExecutableActionForNowAsync applies real-time corrections (e.g. export
-            // threshold check that overrides Discharging → ZeroNetHome).
-            bool isCurrentQuarter = quarterlyInfo.Time == _timeZoneService!.Now.DateFloorQuarter();
-
-            string displayState;
-            double chargePowerW;
-            double dischargePowerW;
-
-            if (isCurrentQuarter && _batteriesService != null)
-            {
-                // Use HardwareStatusService values — already polled every 10s, no extra HTTP call.
-                displayState = _hardwareStatusService!.ActualBatteryStrategy;
-                var actualPowerW = _hardwareStatusService.ActualBatteryPowerW;
-                chargePowerW = actualPowerW < 0 ? Math.Abs(actualPowerW) : 0.0;
-                dischargePowerW = actualPowerW > 0 ? actualPowerW : 0.0;
-            }
-            else
-            {
-                displayState = quarterlyInfo.GetDisplayMode() ?? string.Empty;
-                chargePowerW = quarterlyInfo.PlannedChargePowerW;
-                dischargePowerW = quarterlyInfo.PlannedDischargePowerW;
-            }
-
-            return await Task.FromResult(new QuarterlyInfoView
-            {
-                Time = quarterlyInfo.Time,
-                SessionId = null,
-
-                IsPriceExpected = quarterlyInfo.IsPriceExpected,
-                BuyingPrice = quarterlyInfo.BuyingPrice,
-                SellingPrice = quarterlyInfo.SellingPrice,
-                MarketPrice = quarterlyInfo.MarketPrice,
-
-                Profit = quarterlyInfo.Profit,
-
-                SmoothedBuyingPrice = quarterlyInfo.SmoothedBuyingPrice,
-                SmoothedSellingPrice = quarterlyInfo.SmoothedSellingPrice,
-
-                VisualizeInChart = quarterlyInfo.VisualizeInChart(),
-
-                ChargeLeft = chargeLeftWh,
-                ChargeNeeded = chargeNeededWh,
-
-                EstimatedConsumptionPerQuarterHour = quarterlyInfo.EstimatedConsumptionPerQuarterInWatts,
-                SolarPowerPerQuarterHour = quarterlyInfo.SolarPowerPerQuarterHour,
-                SolarGlobalRadiation = quarterlyInfo.SolarGlobalRadiation,
-
-                ChargeLeftPercentage = chargeLeftPct,
-                DisplayState = displayState,
-                Price = quarterlyInfo.Price,
-
-                ChargeNeededPercentage = totalCapacityWh > 0 ? (chargeNeededWh / totalCapacityWh) * 100.0 : 0.0,
-                SmoothedSolarPower = quarterlyInfo.SmoothedSolarPower,
-
-                AverageBuyingPrice = averageBuyingPrice,
-                AverageSellingPrice = averageSellingPrice,
-
-                DeltaLowestPrice = quarterlyInfo.DeltaLowestPrice,
-
-                ChargePowerW = chargePowerW,
-                DischargePowerW = dischargePowerW,
-
-                // For plan quarters the plan equals the displayed values.
-                PlannedChargePowerW = quarterlyInfo.PlannedChargePowerW,
-                PlannedDischargePowerW = quarterlyInfo.PlannedDischargePowerW,
-                PlannedChargeLeftWh = quarterlyInfo.ChargeLeftWh,
-                PlannedDisplayState = quarterlyInfo.GetDisplayMode() ?? string.Empty,
-
-                IsCurtailed = quarterlyInfo.SellingPriceIsNegative,
-                ThrottlePct = quarterlyInfo.SellingPriceIsNegative ? currentThrottlePercentage : 100.0
-            });
         }
 
         /// <summary>
@@ -600,48 +522,6 @@ namespace SessyWeb.Pages
         /// Applies a centered moving average to EstimatedConsumptionPerQuarterHour
         /// and stores the result in SmoothedConsumptionPerQuarterHour for display.
         /// </summary>
-        private static void ApplyConsumptionSmoothing(List<QuarterlyInfoView> views, int windowSize = 4)
-        {
-            int half = windowSize / 2;
-
-            for (int i = 0; i < views.Count; i++)
-            {
-                // Measured quarters have real data — keep as-is.
-                if (views[i].IsMeasured) continue;
-
-                var range = views
-                    .Skip(Math.Max(0, i - half))
-                    .Take(windowSize)
-                    .Select(v => v.EstimatedConsumptionPerQuarterHour)
-                    .ToList();
-
-                views[i].SmoothedConsumptionPerQuarterHour = range.Any() ? range.Average() : 0.0;
-            }
-        }
-
-        /// <summary>
-        /// Applies a centered moving average to SolarPowerPerQuarterHour,
-        /// skipping zero values so nearby real measurements fill the gaps.
-        /// </summary>
-        private static void ApplySolarSmoothing(List<QuarterlyInfoView> views, int windowSize = 4)
-        {
-            int half = windowSize / 2;
-
-            for (int i = 0; i < views.Count; i++)
-            {
-                // Measured quarters already have real or plan-fallback solar — keep as-is.
-                if (views[i].IsMeasured) continue;
-
-                var range = views
-                    .Skip(Math.Max(0, i - half))
-                    .Take(windowSize)
-                    .Select(v => v.SolarPowerPerQuarterHour)
-                    .Where(v => v > 0.0)
-                    .ToList();
-
-                views[i].SmoothedSolarPower = range.Any() ? range.Average() : views[i].SmoothedSolarPower;
-            }
-        }
 
         private async Task<Dictionary<DateTime, PlannedQuarter>> GetPlannedByQuarterAsync(DateTime from, DateTime to)
         {
@@ -655,133 +535,6 @@ namespace SessyWeb.Pages
             return planned
                 .GroupBy(p => p.Time)
                 .ToDictionary(g => g.Key, g => g.First());
-        }
-
-        /// <summary>
-        /// Copies planned mode, power and SOC onto the view for plan-vs-actual display.
-        /// </summary>
-        private static void ApplyPlannedValues(QuarterlyInfoView view, Dictionary<DateTime, PlannedQuarter> plannedByQuarter)
-        {
-            if (!plannedByQuarter.TryGetValue(view.Time, out var plan))
-                return;
-
-            view.PlannedDisplayState = plan.PlannedMode;
-            view.PlannedChargeLeftWh = plan.PlannedChargeLeftWh;
-
-            // PlannedMode determines whether the power is charge or discharge.
-            // PlannedPowerW is stored signed (discharge negative); the visual props
-            // expect magnitudes, so take the absolute value here.
-            if (string.Equals(plan.PlannedMode, "Charging", StringComparison.OrdinalIgnoreCase))
-                view.PlannedChargePowerW = Math.Abs(plan.PlannedPowerW);
-            else if (string.Equals(plan.PlannedMode, "Discharging", StringComparison.OrdinalIgnoreCase))
-                view.PlannedDischargePowerW = Math.Abs(plan.PlannedPowerW);
-
-            view.PlanDeviationReason = DeterminePlanDeviationReason(view, plan);
-        }
-
-        /// <summary>
-        /// Explains why the executed action differs from the plan, based on actual
-        /// display state, planned mode and runtime context (solar/SOC/price).
-        /// Returns empty string when actual matches the plan.
-        /// </summary>
-        private static string DeterminePlanDeviationReason(QuarterlyInfoView view, PlannedQuarter plan)
-        {
-            bool actualCharging = view.ChargePowerW > 10;
-            bool actualDischarging = view.DischargePowerW > 10;
-            string actualMode = actualCharging ? "Charging"
-                : actualDischarging ? "Discharging"
-                : "ZeroNetHome";
-
-            string plannedMode = string.IsNullOrEmpty(plan.PlannedMode) ? "ZeroNetHome" : plan.PlannedMode;
-
-            if (string.Equals(actualMode, plannedMode, StringComparison.OrdinalIgnoreCase))
-                return string.Empty;
-
-            // Planned discharge but did not discharge.
-            // The planner maximises profit over the whole horizon, so the most common
-            // reason is that other quarters offer a better selling price — the battery
-            // holds its energy for those. Price context first, physical limits last.
-            if (string.Equals(plannedMode, "Discharging", StringComparison.OrdinalIgnoreCase) && !actualDischarging)
-            {
-                if (view.IsCurtailed || view.SellingPrice < 0.0)
-                    return "Negative export price — discharge skipped.";
-                return "Better selling price expected in other quarters — energy held back.";
-            }
-
-            // Planned charge but did not charge.
-            if (string.Equals(plannedMode, "Charging", StringComparison.OrdinalIgnoreCase) && !actualCharging)
-            {
-                if (view.SolarPowerPerQuarterHour > 0.0)
-                    return "Solar charged the battery instead of the grid.";
-                return "Cheaper buying price expected in other quarters — charge deferred.";
-            }
-
-            // Plan idle but battery acted — realtime price/SOC made action profitable.
-            if (string.Equals(plannedMode, "ZeroNetHome", StringComparison.OrdinalIgnoreCase)
-                && (actualCharging || actualDischarging))
-                return $"Realtime price/SOC made {actualMode.ToLowerInvariant()} profitable.";
-
-            return $"Plan {plannedMode.ToLowerInvariant()}, actual {actualMode.ToLowerInvariant()}.";
-        }
-
-        public QuarterlyInfoView FillQuarterlyInfoView(QuarterlyMeasurement measurement, Dictionary<DateTime, double>? solarByQuarter = null, Dictionary<DateTime, double>? planSolarByQuarter = null)
-        {
-            double totalCapacityWh = _batteryContainer!.GetTotalCapacity();
-            double chargeLeftPct = totalCapacityWh > 0
-                ? measurement.BatteryStateOfChargeWh / totalCapacityWh * 100.0
-                : 0.0;
-
-            // Display state is derived from BatteryMode via ChargingModes.GetDisplayMode().
-            string displayState = ChargingModes.GetDisplayMode(ChargingModes.GetMode(measurement.BatteryMode));
-
-            var solarKWh = solarByQuarter != null && solarByQuarter.TryGetValue(measurement.Time, out var s) ? s : 0.0;
-
-            return new QuarterlyInfoView
-            {
-                Time = measurement.Time,
-                SessionId = null,
-
-                IsPriceExpected = false,
-                IsMeasured = true,
-                BuyingPrice = measurement.BuyingPriceEur,
-                SellingPrice = measurement.SellingPriceEur,
-                MarketPrice = 0.0,
-
-                Profit = 0.0,
-
-                SmoothedBuyingPrice = measurement.BuyingPriceEur,
-                SmoothedSellingPrice = measurement.SellingPriceEur,
-
-                VisualizeInChart = 1.0,
-
-                ChargeLeft = measurement.BatteryStateOfChargeWh,
-                ChargeNeeded = 0.0,
-
-                EstimatedConsumptionPerQuarterHour = 0.0,
-                SolarPowerPerQuarterHour = solarKWh,
-                SolarGlobalRadiation = 0.0, // Radiation comes from SolarData
-
-                ChargeLeftPercentage = chargeLeftPct,
-                DisplayState = displayState,
-                Price = measurement.BatteryMode == SessyData.Model.BatteryMode.Charging
-                    ? measurement.BuyingPriceEur
-                    : measurement.SellingPriceEur,
-
-                ChargeNeededPercentage = 0.0,
-                // Use plan solar as fallback when InverterMeasurement not yet written.
-                SmoothedSolarPower = solarKWh > 0.0 ? solarKWh
-                    : planSolarByQuarter != null && planSolarByQuarter.TryGetValue(measurement.Time, out var planSolar) ? planSolar
-                    : 0.0,
-
-                DeltaLowestPrice = 0.0,
-
-                // Actual battery power from measurement.
-                // BatteryPowerWatts: negative = charging, positive = discharging.
-                ChargePowerW = measurement.BatteryPowerWatts < 0 ? Math.Abs(measurement.BatteryPowerWatts) : 0.0,
-                DischargePowerW = measurement.BatteryPowerWatts > 0 ? measurement.BatteryPowerWatts : 0.0,
-                IsCurtailed = measurement.SellingPriceEur < 0.0,
-                ThrottlePct = 100.0  // Historical: already measured after throttling.
-            };
         }
 
         public async Task SelectionChanged(DateArgs dateArgs)

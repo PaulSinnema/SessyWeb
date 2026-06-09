@@ -1,96 +1,209 @@
-﻿namespace SessyWeb.Pages
+﻿using SessyController.Services.Items;
+using SessyData.Model;
+using static SessyController.Services.Items.ChargingModes;
+
+namespace SessyWeb.Pages
 {
+    /// <summary>
+    /// Immutable view model for chart/UI rendering.
+    /// Constructed once from QuarterlyInfo + optional PlannedQuarter and hardware overrides.
+    /// All properties are read-only after construction — no external mutation.
+    /// </summary>
     public class QuarterlyInfoView
     {
-        public DateTime Time { get; set; }
-        public int? SessionId { get; set; }
-        public string DisplayState { get; set; } = string.Empty;
-        public bool IsPriceExpected { get; set; }
+        public QuarterlyInfoView(
+            QuarterlyInfo qi,
+            double totalCapacityWh,
+            PlannedQuarter? plannedQuarter = null,
+            double averageBuyingPrice = 0.0,
+            double averageSellingPrice = 0.0,
+            string? actualDisplayState = null,
+            double? actualPowerW = null,
+            double currentThrottlePct = 100.0)
+        {
+            // ── Identity ─────────────────────────────────────────────────────
+            Time = qi.Time;
+            IsMeasured = qi.IsMeasured;
+            IsPriceExpected = qi.IsPriceExpected;
 
-        /// <summary>True when this quarter has real measured data (QuarterlyMeasurement).</summary>
-        public bool IsMeasured { get; set; }
-        public double Price { get; set; }
-        public double BuyingPrice { get; set; }
-        public double SellingPrice { get; set; }
-        public double MarketPrice { get; set; }
-        public double Profit { get; set; }
-        public double SmoothedBuyingPrice { get; set; }
-        public double VisualizeInChart { get; set; }
-        public double SmoothedSellingPrice { get; set; }
-        public double ChargeNeeded { get; set; }
-        public double ChargeNeededPercentage { get; set; }
-        public double ChargeLeft { get; set; }
-        public double EstimatedConsumptionPerQuarterHour { get; set; }
-        public double SolarPowerPerQuarterHour { get; set; }
-        public double SmoothedSolarPower { get; set; }
-        public double SolarGlobalRadiation { get; set; }
-        public double ChargeLeftPercentage { get; set; }
-        public double DeltaLowestPrice { get; set; }
+            // ── Prices ───────────────────────────────────────────────────────
+            BuyingPrice = qi.BuyingPrice;
+            SellingPrice = qi.SellingPrice;
+            MarketPrice = qi.MarketPrice;
+            Price = qi.Price;
+            SmoothedBuyingPrice = qi.SmoothedBuyingPrice;
+            SmoothedSellingPrice = qi.SmoothedSellingPrice;
+            AverageBuyingPrice = averageBuyingPrice;
+            AverageSellingPrice = averageSellingPrice;
+            DeltaLowestPrice = qi.DeltaLowestPrice;
+            IsCurtailed = qi.SellingPriceIsNegative;
+            ThrottlePct = qi.SellingPriceIsNegative ? currentThrottlePct : 100.0;
 
-        // Battery power in Watts — positive = charging, negative = discharging.
-        // Planned values from MilpService, actual values from QuarterlyMeasurement.
-        public double ChargePowerW { get; set; }
-        public double DischargePowerW { get; set; }
+            // ── Profit ───────────────────────────────────────────────────────
+            Profit = qi.Profit;
 
-        // Planned values from PlannedQuarter — shown alongside actuals for comparison.
-        public double PlannedChargePowerW { get; set; }
-        public double PlannedDischargePowerW { get; set; }
-        public double PlannedChargeLeftWh { get; set; }
-        public string PlannedDisplayState { get; set; } = string.Empty;
+            // ── SOC ──────────────────────────────────────────────────────────
+            ChargeLeft = qi.ChargeLeftWh;
+            ChargeNeeded = qi.ChargeNeededWh;
+            ChargeLeftPercentage = totalCapacityWh > 0 ? qi.ChargeLeftWh / totalCapacityWh * 100.0 : 0.0;
+            ChargeNeededPercentage = totalCapacityWh > 0 ? qi.ChargeNeededWh / totalCapacityWh * 100.0 : 0.0;
 
-        // Explains why actual execution deviated from the plan (empty when matching).
-        public string PlanDeviationReason { get; set; } = string.Empty;
+            // ── Solar / consumption ───────────────────────────────────────────
+            EstimatedConsumptionPerQuarterHour = qi.EstimatedConsumptionPerQuarterInWatts;
+            SolarPowerPerQuarterHour = qi.SolarPowerPerQuarterHour;
+            SmoothedSolarPower = qi.SmoothedSolarPower;
+            SolarGlobalRadiation = qi.SolarGlobalRadiation;
+            SmoothedConsumptionPerQuarterHour = qi.SmoothedConsumptionPerQuarterHour;
 
-        // Visual scaling matching ChargePowerVisual / DischargePowerVisual.
+            // ── Actual battery power ─────────────────────────────────────────
+            // Use hardware reading for current executing quarter; else plan values.
+            if (actualPowerW.HasValue)
+            {
+                ChargePowerW = actualPowerW.Value < 0 ? Math.Abs(actualPowerW.Value) : 0.0;
+                DischargePowerW = actualPowerW.Value > 0 ? actualPowerW.Value : 0.0;
+            }
+            else
+            {
+                ChargePowerW = qi.PlannedChargePowerW;
+                DischargePowerW = qi.PlannedDischargePowerW;
+            }
+
+            DisplayState = actualDisplayState ?? qi.GetDisplayMode() ?? string.Empty;
+
+            // ── Planned values (from PlannedQuarter DB record) ───────────────
+            PlannedDisplayState = plannedQuarter?.PlannedMode ?? qi.GetDisplayMode() ?? string.Empty;
+            PlannedChargeLeftWh = plannedQuarter?.PlannedChargeLeftWh ?? qi.ChargeLeftWh;
+
+            if (plannedQuarter != null)
+            {
+                if (string.Equals(plannedQuarter.PlannedMode, "Charging", StringComparison.OrdinalIgnoreCase))
+                    PlannedChargePowerW = Math.Abs(plannedQuarter.PlannedPowerW);
+                else if (string.Equals(plannedQuarter.PlannedMode, "Discharging", StringComparison.OrdinalIgnoreCase))
+                    PlannedDischargePowerW = Math.Abs(plannedQuarter.PlannedPowerW);
+            }
+            else
+            {
+                PlannedChargePowerW = qi.PlannedChargePowerW;
+                PlannedDischargePowerW = qi.PlannedDischargePowerW;
+            }
+
+            PlanDeviationReason = DeterminePlanDeviationReason(
+                DisplayState, ChargePowerW, DischargePowerW,
+                PlannedDisplayState, IsCurtailed, SellingPrice);
+        }
+
+        /// <summary>Parameterless constructor for backwards compatibility.</summary>
+        public QuarterlyInfoView()
+        {
+            DisplayState = string.Empty;
+            PlannedDisplayState = string.Empty;
+            PlanDeviationReason = string.Empty;
+        }
+
+        // ── Identity ─────────────────────────────────────────────────────────
+        public DateTime Time { get; }
+        public bool IsMeasured { get; }
+        public bool IsPriceExpected { get; }
+        public int? SessionId => null;
+
+        // ── Prices ───────────────────────────────────────────────────────────
+        public double BuyingPrice { get; }
+        public double SellingPrice { get; }
+        public double MarketPrice { get; }
+        public double Price { get; }
+        public double SmoothedBuyingPrice { get; }
+        public double SmoothedSellingPrice { get; }
+        public double AverageBuyingPrice { get; }
+        public double AverageSellingPrice { get; }
+        public double DeltaLowestPrice { get; }
+        public bool IsCurtailed { get; }
+        public double ThrottlePct { get; }
+
+        // ── Profit ───────────────────────────────────────────────────────────
+        public double Profit { get; }
+
+        // ── SOC ──────────────────────────────────────────────────────────────
+        public double ChargeLeft { get; }
+        public double ChargeNeeded { get; }
+        public double ChargeLeftPercentage { get; }
+        public double ChargeNeededPercentage { get; }
+
+        // ── Solar / consumption ───────────────────────────────────────────────
+        public double EstimatedConsumptionPerQuarterHour { get; }
+        public double SolarPowerPerQuarterHour { get; }
+        public double SmoothedSolarPower { get; }
+        public double SolarGlobalRadiation { get; }
+        public double SmoothedConsumptionPerQuarterHour { get; }
+
+        // ── Display state & battery power ────────────────────────────────────
+        public string DisplayState { get; }
+        public double ChargePowerW { get; }
+        public double DischargePowerW { get; }
+
+        // ── Planned values ────────────────────────────────────────────────────
+        public string PlannedDisplayState { get; }
+        public double PlannedChargeLeftWh { get; }
+        public double PlannedChargePowerW { get; }
+        public double PlannedDischargePowerW { get; }
+        public string PlanDeviationReason { get; }
+
+        // ── Now line (mutable — set by chart component) ───────────────────────
+        public double NowLineHeight { get; set; } = 0.0;
+
+        // ── Visuals ───────────────────────────────────────────────────────────
+        public double VisualizeInChart =>
+            DisplayState == "Charging" ? -0.1 :
+            DisplayState == "Discharging" ? 0.1 :
+            DisplayState == "Zero net home" ? 0.03 : 0.0;
+
+        public double ChargePowerVisual => -(ChargePowerW / 18000.0);
+        public double DischargePowerVisual => DischargePowerW / 18000.0;
+
         public double PlannedChargePowerVisual => -(PlannedChargePowerW / 18000.0);
         public double PlannedDischargePowerVisual => PlannedDischargePowerW / 18000.0;
         public double PlannedChargeLeftVisual => PlannedChargeLeftWh / 100000.0;
 
-        public double EstimatedConsumptionPerQuarterHourVisual => EstimatedConsumptionPerQuarterHour / 5000;
-        public double ChargeNeededVisual => ChargeNeeded / 100000;
-        public double ChargeLeftVisual => ChargeLeft / 100000;
+        public double ChargeNeededVisual => ChargeNeeded / 100000.0;
+        public double ChargeLeftVisual => ChargeLeft / 100000.0;
 
-        // Scale battery power to price axis: max 5400W = max 0.30 EUR on axis.
-        // Discharging is positive (battery delivers energy = revenue = above axis).
-        // Charging is negative (battery consumes energy = cost = below axis).
-        public double ChargePowerVisual => -(ChargePowerW / 18000.0);
-        public double DischargePowerVisual => DischargePowerW / 18000.0;
-
-        // Small fixed band to indicate Zero net home quarters (neither charging nor discharging).
-        public double ZeroNetHomeVisual
-        {
-            get
-            {
-                if (DisplayState == "Zero net home") return 0.03;
-                return 0.0;
-            }
-        }
-        public double AverageBuyingPrice { get; set; }
-        public double AverageSellingPrice { get; set; }
-
-        /// <summary>Inverter throttle percentage (0-100). 100 = full output, 0 = shutdown.</summary>
-        public double ThrottlePct { get; set; } = 100.0;
-
-        /// <summary>True when the selling price is negative (curtailment may be active).</summary>
-        public bool IsCurtailed { get; set; }
+        public double EstimatedConsumptionPerQuarterHourVisual => EstimatedConsumptionPerQuarterHour / 5000.0;
+        public double SmoothedConsumptionVisual => SmoothedConsumptionPerQuarterHour / 5000.0;
 
         public double SolarPowerVisual => SolarPowerPerQuarterHour / 2.5;
         public double SmoothedSolarPowerVisual => SmoothedSolarPower / 2.5;
 
-        public double SmoothedConsumptionPerQuarterHour { get; set; }
-        public double SmoothedConsumptionVisual => SmoothedConsumptionPerQuarterHour / 5000;
+        public double ZeroNetHomeVisual =>
+            DisplayState == "Zero net home" ? 0.03 : 0.0;
 
-        // Used by the "now" vertical line series — set to ChartMax by ChargingHoursChartComponent.
-        public double NowLineHeight { get; set; } = 0.0;
-
-        public override string ToString()
+        // ── Plan deviation ────────────────────────────────────────────────────
+        private static string DeterminePlanDeviationReason(
+            string displayState, double chargePowerW, double dischargePowerW,
+            string plannedDisplayState, bool isCurtailed, double sellingPrice)
         {
-            return $"Time: {Time}, IsPriceExpected: {IsPriceExpected}, VisualizeInChart: {VisualizeInChart}, Buying Price: {BuyingPrice}, Selling Price: {SellingPrice}, " +
-                   $"Market Price: {MarketPrice}, Profit: {Profit}, Charge Left: {ChargeLeft}, " +
-                   $"Estimated Consumption Per Quarter Hour: {EstimatedConsumptionPerQuarterHour}, " +
-                   $"Solar Power Per Quarter Hour: {SolarPowerPerQuarterHour}, " +
-                   $"Charge Left Percentage: {ChargeLeftPercentage}";
+            bool actualCharging = chargePowerW > 10;
+            bool actualDischarging = dischargePowerW > 10;
+            string actualMode = actualCharging ? "Charging" : actualDischarging ? "Discharging" : "ZeroNetHome";
+            string plannedMode = string.IsNullOrEmpty(plannedDisplayState) ? "ZeroNetHome" : plannedDisplayState;
+
+            if (string.Equals(actualMode, plannedMode, StringComparison.OrdinalIgnoreCase))
+                return string.Empty;
+
+            if (string.Equals(plannedMode, "Discharging", StringComparison.OrdinalIgnoreCase) && !actualDischarging)
+            {
+                if (isCurtailed || sellingPrice < 0.0)
+                    return "Negative export price — discharge skipped.";
+                return "Better selling price expected in other quarters — energy held back.";
+            }
+
+            if (string.Equals(plannedMode, "Charging", StringComparison.OrdinalIgnoreCase) && !actualCharging)
+                return "Solar surplus covers consumption — grid charge skipped.";
+
+            return $"Plan {plannedMode.ToLowerInvariant()}, actual {actualMode.ToLowerInvariant()}.";
         }
 
+        public override string ToString() =>
+            $"Time: {Time}, IsPriceExpected: {IsPriceExpected}, BuyingPrice: {BuyingPrice}, " +
+            $"SellingPrice: {SellingPrice}, Profit: {Profit}, ChargeLeft: {ChargeLeft}, " +
+            $"ChargeLeftPct: {ChargeLeftPercentage:F1}%";
     }
 }

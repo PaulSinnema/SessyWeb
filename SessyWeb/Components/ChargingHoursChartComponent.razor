@@ -1,4 +1,4 @@
-﻿@using SessyWeb.Helpers
+﻿﻿@using SessyWeb.Helpers
 @using SessyWeb.Pages
 @using System.Globalization
 
@@ -18,7 +18,7 @@
 
         <RadzenColumnSeries Data="@QuarterlyInfos"
                             CategoryProperty="Time"
-                            Title="Buying price"
+                            Title="Buying price (€/kWh)"
                             Fill="#324ab2"
                             Stroke="#324ab2"
                             ValueProperty="BuyingPrice">
@@ -49,7 +49,7 @@
 
         <RadzenColumnSeries Data="@QuarterlyInfos"
                             CategoryProperty="Time"
-                            Title="Selling price"
+                            Title="Selling price (€/kWh)"
                             Fill="#00aae4"
                             Stroke="#00aae4"
                             LineType="LineType.Dashed"
@@ -67,7 +67,7 @@
                             Data="@QuarterlyInfos"
                             Stroke="green"
                             Fill="orange"
-                            Title="Revenue (per quarter)"
+                            Title="Revenue (€/quarter)"
                             CategoryProperty="Time"
                             ValueProperty="Profit">
             <TooltipTemplate Context="data">
@@ -99,7 +99,7 @@
                           Smooth="true"
                           CategoryProperty="Time"
                           Stroke="#324ab2"
-                          Title="Smoothed buying price"
+                          Title="Smoothed buying price (€/kWh)"
                           LineType="LineType.Solid"
                           ValueProperty="SmoothedBuyingPrice">
             <TooltipTemplate Context="data">
@@ -115,7 +115,7 @@
                           Smooth="true"
                           CategoryProperty="Time"
                           Stroke="#00aae4"
-                          Title="Smoothed selling price"
+                          Title="Smoothed selling price (€/kWh)"
                           LineType="LineType.Solid"
                           ValueProperty="SmoothedSellingPrice">
             <TooltipTemplate Context="data">
@@ -131,7 +131,7 @@
                           Smooth="true"
                           CategoryProperty="Time"
                           Stroke="red"
-                          Title="Charge remaining"
+                          Title="Charge remaining (kWh)"
                           ValueProperty="ChargeLeftVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
@@ -146,7 +146,7 @@
                           Smooth="true"
                           CategoryProperty="Time"
                           Stroke="gold"
-                          Title="Solar power"
+                          Title="Solar power (kWh/quarter)"
                           LineType="LineType.Solid"
                           ValueProperty="SmoothedSolarPowerVisual">
             <TooltipTemplate Context="data">
@@ -163,7 +163,7 @@
                           Smooth="true"
                           CategoryProperty="Time"
                           Stroke="#b06500"
-                          Title="Charge needed"
+                          Title="Charge needed (kWh)"
                           LineType="LineType.Solid"
                           ValueProperty="ChargeNeededVisual">
             <TooltipTemplate Context="data">
@@ -178,7 +178,7 @@
         <RadzenLineSeries Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Title="Estimate consumption"
+                          Title="Est. consumption (W)"
                           LineType="LineType.Solid"
                           ValueProperty="SmoothedConsumptionVisual">
             <TooltipTemplate Context="data">
@@ -193,7 +193,7 @@
         <RadzenLineSeries Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Title="Delta lowest price"
+                          Title="Delta lowest price (€/kWh)"
                           LineType="LineType.Solid"
                           ValueProperty="DeltaLowestPrice">
             <TooltipTemplate Context="data">
@@ -227,7 +227,7 @@
                           CategoryProperty="Time"
                           Fill="rgba(255, 102, 0, 0.5)"
                           Stroke="#ff6600"
-                          Title="Charge power"
+                          Title="Charge power (kW)"
                           ValueProperty="ChargePowerVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
@@ -243,7 +243,7 @@
                           CategoryProperty="Time"
                           Fill="rgba(0, 204, 68, 0.5)"
                           Stroke="#00cc44"
-                          Title="Discharge power"
+                          Title="Discharge power (kW)"
                           ValueProperty="DischargePowerVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
@@ -260,7 +260,7 @@
                           Stroke="#ffaa33"
                           StrokeWidth="2.5"
                           LineType="LineType.Dashed"
-                          Title="Planned charge"
+                          Title="Planned charge (kW)"
                           ValueProperty="PlannedChargePowerVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
@@ -277,7 +277,7 @@
                           Stroke="#66ff99"
                           StrokeWidth="2.5"
                           LineType="LineType.Dashed"
-                          Title="Planned discharge"
+                          Title="Planned discharge (kW)"
                           ValueProperty="PlannedDischargePowerVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />

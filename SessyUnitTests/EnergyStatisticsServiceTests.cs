@@ -442,6 +442,8 @@ namespace SessyTests.Services
 
             var calculationServiceMock2 = new Mock<ICalculationService>();
             calculationServiceMock2.Setup(s => s.CalculateGasPriceAsync(It.IsAny<double>())).ReturnsAsync((double?)null);
+            calculationServiceMock2.Setup(s => s.CalculateEnergyPricesBatchAsync(It.IsAny<IEnumerable<DateTime>>()))
+                                   .ReturnsAsync(new Dictionary<DateTime, EnergyPrice>());
 
             var batteryContainerMock2 = new Mock<IBatteryContainer>();
             batteryContainerMock2.Setup(b => b.GetTotalCapacity()).Returns(16200.0);

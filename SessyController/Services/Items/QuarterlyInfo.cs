@@ -2,6 +2,7 @@ using SessyCommon.Configurations;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
 using SessyController.Managers;
+using SessyData.Model;
 using static SessyController.Services.Items.ChargingModes;
 
 namespace SessyController.Services.Items
@@ -37,6 +38,48 @@ namespace SessyController.Services.Items
             Mode = Modes.ZeroNetHome;
         }
 
+        /// <summary>
+        /// Constructor for realized (measured) quarters.
+        /// Fills from a QuarterlyMeasurement — IsMeasured is always true.
+        /// </summary>
+        public QuarterlyInfo(
+            QuarterlyMeasurement measurement,
+            double solarKWh,
+            double planSolarKWh,
+            SettingsService settingsService,
+            SolarInverterManager solarInverterManager,
+            TimeZoneService timeZoneService)
+        {
+            _settingsService = settingsService;
+            _solarInverterManager = solarInverterManager;
+            _timeZoneService = timeZoneService;
+
+            Time = measurement.Time;
+            BuyingPrice = measurement.BuyingPriceEur;
+            SellingPrice = measurement.SellingPriceEur;
+            MarketPrice = 0.0;
+            SmoothedBuyingPrice = measurement.BuyingPriceEur;
+            SmoothedSellingPrice = measurement.SellingPriceEur;
+            IsMeasured = true;
+            IsPriceExpected = false;
+
+            Mode = ChargingModes.GetMode(measurement.BatteryMode);
+
+            ChargeLeftWh = measurement.BatteryStateOfChargeWh;
+            ChargeNeededWh = 0.0;
+
+            // Actual battery power: negative = charging, positive = discharging.
+            PlannedChargePowerW = measurement.BatteryPowerWatts < 0 ? Math.Abs(measurement.BatteryPowerWatts) : 0.0;
+            PlannedDischargePowerW = measurement.BatteryPowerWatts > 0 ? measurement.BatteryPowerWatts : 0.0;
+
+            // Solar: use inverter measurement if available, fall back to plan solar.
+            SolarPowerPerQuarterHour = solarKWh > 0.0 ? solarKWh : planSolarKWh;
+            SmoothedSolarPower = SolarPowerPerQuarterHour;
+            SolarGlobalRadiation = 0.0;
+
+            EstimatedConsumptionPerQuarterInWatts = 0.0;
+            DeltaLowestPrice = 0.0;
+        }
         // Factory that does the awaiting (kept, but simplified).
         public static async Task<QuarterlyInfo> CreateAsync(
             DateTime time,
@@ -93,6 +136,7 @@ namespace SessyController.Services.Items
         public double SolarPowerPerQuarterHour { get; set; } // kWh per quarter-hour
         public double SolarGlobalRadiation { get; set; }
         public double SmoothedSolarPower { get; set; }
+        public double SmoothedConsumptionPerQuarterHour { get; set; }
 
         /// <summary>
         /// Solver plan outputs (optional, but useful for debugging/visualization).
@@ -112,6 +156,12 @@ namespace SessyController.Services.Items
 
         public double ChargeNeededPercentage(double totalCapacityWh)
             => totalCapacityWh > 0 ? (ChargeNeededWh / totalCapacityWh) * 100.0 : 0.0;
+
+        /// <summary>
+        /// True when this quarter has real measured data (QuarterlyMeasurement).
+        /// False for planned/forecast quarters.
+        /// </summary>
+        public bool IsMeasured { get; private set; }
 
         /// <summary>
         /// True when the price is based on historical averages because the real
@@ -204,6 +254,51 @@ namespace SessyController.Services.Items
                 double dischargeKWh = (PlannedDischargePowerW * 0.25) / 1000.0;
 
                 return (dischargeKWh * SellingPrice) - (chargeKWh * BuyingPrice);
+            }
+        }
+
+        /// <summary>
+        /// Applies a centered moving average to SmoothedConsumptionPerQuarterHour.
+        /// Only applied to non-measured (planned) quarters.
+        /// </summary>
+        public static void ApplyConsumptionSmoothing(List<QuarterlyInfo> infos, int windowSize = 4)
+        {
+            int half = windowSize / 2;
+            for (int i = 0; i < infos.Count; i++)
+            {
+                if (infos[i].IsMeasured) continue;
+
+                var range = infos
+                    .Skip(Math.Max(0, i - half))
+                    .Take(windowSize)
+                    .Select(v => v.EstimatedConsumptionPerQuarterInWatts)
+                    .ToList();
+
+                infos[i].SmoothedConsumptionPerQuarterHour = range.Any() ? range.Average() : 0.0;
+            }
+        }
+
+        /// <summary>
+        /// Applies a centered moving average to SmoothedSolarPower,
+        /// skipping zero values so nearby real measurements fill the gaps.
+        /// Only applied to non-measured (planned) quarters.
+        /// </summary>
+        public static void ApplySolarSmoothing(List<QuarterlyInfo> infos, int windowSize = 4)
+        {
+            int half = windowSize / 2;
+            for (int i = 0; i < infos.Count; i++)
+            {
+                if (infos[i].IsMeasured) continue;
+
+                var range = infos
+                    .Skip(Math.Max(0, i - half))
+                    .Take(windowSize)
+                    .Select(v => v.SolarPowerPerQuarterHour)
+                    .Where(v => v > 0.0)
+                    .ToList();
+
+                if (range.Any())
+                    infos[i].SmoothedSolarPower = range.Average();
             }
         }
 

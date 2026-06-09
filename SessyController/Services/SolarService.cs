@@ -43,6 +43,7 @@ namespace SessyController.Services
         // momentary cloud cover. Alpha = 0.3: new observations have 30% weight.
         private double _smoothedPerformanceFactor = 1.0;
         private double _lastLoggedPerformanceFactor = 1.0;
+        private DateTime _lastEmaUpdateQuarter = DateTime.MinValue;
         private DateTime _lastLoggedPerformanceDate = DateTime.MinValue;
         private DateTime _historicalFactorDate = DateTime.MinValue;
         private const double PerformanceFactorAlpha = 0.1;  // Slow EMA — historical factor is the primary correction
@@ -409,16 +410,18 @@ namespace SessyController.Services
                 return;
             }
 
-            // At the start of each new day, reset the EMA to the historical average
-            // factor calculated from the last 30 days of realized vs forecast data.
-            // This avoids the EMA starting from 1.0 each day and taking many cycles
-            // to converge to the correct value.
-            if (now.Date != _historicalFactorDate)
+            // On first run (after restart) or at the start of each new day, reset the EMA
+            // to the historical average factor calculated from the last 30 days.
+            // This gives a realistic starting point immediately after a restart,
+            // rather than waiting for the EMA to converge from 1.0.
+            bool firstRun = _historicalFactorDate == DateTime.MinValue;
+            if (firstRun || now.Date != _historicalFactorDate)
             {
                 var historicalFactor = await CalculateHistoricalPerformanceFactorAsync(now).ConfigureAwait(false);
                 _smoothedPerformanceFactor = historicalFactor;
                 _historicalFactorDate = now.Date;
-                _logger.LogInformation($"Solar: Historical performance factor reset to {historicalFactor:F2} based on last {HistoricalFactorLookbackDays} days.");
+                _logger.LogInformation($"Solar: Performance factor initialised to {historicalFactor:F2} " +
+                    $"({(firstRun ? "first run after restart" : "new day")}, last {HistoricalFactorLookbackDays} days).");
             }
 
             // Only quarter hours of today
@@ -455,7 +458,7 @@ namespace SessyController.Services
 
             if (realizedToNow <= 0.0)
             {
-                _logger.LogWarning("Solar: No realized solar data available — skipping performance factor.");
+                _logger.LogInformation("Solar: No realized solar data available — skipping performance factor.");
                 return;
             }
 
@@ -473,25 +476,42 @@ namespace SessyController.Services
             // Clamp to a reasonable range to avoid extreme corrections.
             rawFactor = Math.Max(0.2, Math.Min(3.0, rawFactor));
 
-            // Apply exponential moving average to smooth out momentary fluctuations
-            // (e.g. passing clouds). Alpha=0.3: new observation has 30% weight.
-            _smoothedPerformanceFactor = PerformanceFactorAlpha * rawFactor
-                + (1.0 - PerformanceFactorAlpha) * _smoothedPerformanceFactor;
+            // Apply exponential moving average at most once per quarter to avoid
+            // fast convergence when the cycle runs more frequently (e.g. DEBUG mode).
+            var nowQuarter = now.DateFloorQuarter();
+#if DEBUG
+            if (true)  // Update every cycle in DEBUG for faster feedback.
+#else
+            if (nowQuarter > _lastEmaUpdateQuarter)
+#endif
+            {
+                _smoothedPerformanceFactor = UpdateEma(
+                    _smoothedPerformanceFactor, rawFactor, PerformanceFactorAlpha);
+                _lastEmaUpdateQuarter = nowQuarter;
+            }
 
             var factor = _smoothedPerformanceFactor;
 
             // Log once per day or when factor changes significantly.
+            // In DEBUG mode log every update for easier testing.
             bool newDay = now.Date != _lastLoggedPerformanceDate;
+#if DEBUG
+            bool significantChange = true;
+#else
             bool significantChange = Math.Abs(factor - _lastLoggedPerformanceFactor) >= PerformanceFactorLogThreshold;
+#endif
             if (newDay || significantChange)
             {
-                _logger.LogWarning($"Solar: Performance factor applied: {factor:F2} (raw={rawFactor:F2}, Realized={realizedToNow:F2} kWh, Forecast={forecastToNow:F2} kWh)");
+                _logger.LogInformation($"Solar: Performance factor applied: {factor:F2} (raw={rawFactor:F2}, Realized={realizedToNow:F2} kWh, Forecast={forecastToNow:F2} kWh)");
                 _lastLoggedPerformanceFactor = factor;
                 _lastLoggedPerformanceDate = now.Date;
             }
 
-            // Adjust quarterInfos for today only.
-            foreach (var q in todayInfos)
+            // Adjust all quarters from now onwards with the performance factor.
+            // This corrects not just today's remaining forecast but also extrapolated
+            // future days, which are based on historical averages and may be too
+            // optimistic on cloudy days.
+            foreach (var q in hourlyInfos.Where(q => q.Time >= now))
             {
                 q.SolarPowerPerQuarterHour *= factor;
             }
@@ -521,6 +541,13 @@ namespace SessyController.Services
         /// <summary>
         /// Returns true if the inverter does not shut down due to negative prices.
         /// </summary>
+        /// <summary>
+        /// Applies one EMA step. Internal for unit testing.
+        /// newEma = alpha * rawFactor + (1 - alpha) * currentEma
+        /// </summary>
+        internal static double UpdateEma(double currentEma, double rawFactor, double alpha)
+            => alpha * rawFactor + (1.0 - alpha) * currentEma;
+
         private bool SolarSystemRunning(QuarterlyInfo currentHourlyInfo)
         {
             if (!_settingsConfig.SolarSystemShutsDownDuringNegativePrices)
