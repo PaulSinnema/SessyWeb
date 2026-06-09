@@ -118,8 +118,11 @@ builder.Services.AddSingleton<TimeZoneService>();
 builder.Services.AddSingleton<WeatherService>();
 builder.Services.AddSingleton<EPEXPricesService>();
 builder.Services.AddSingleton<IEPEXPricesService>(sp => sp.GetRequiredService<EPEXPricesService>());
-builder.Services.AddSingleton<MilpService>();
-builder.Services.AddSingleton<IMilpService>(sp => sp.GetRequiredService<MilpService>());
+builder.Services.AddSingleton<ProfitMaximizationMilpService>();
+builder.Services.AddSingleton<SelfConsumptionMilpService>();
+builder.Services.AddSingleton<BalancedMilpService>();
+builder.Services.AddSingleton<BatterySavingMilpService>();
+builder.Services.AddSingleton<IMilpService, MilpServiceProxy>();
 builder.Services.AddSingleton<ConfigurationCheckService>();
 // ── State machine ─────────────────────────────────────────────────────────
 builder.Services.AddSingleton<HardwareStatusService>();

@@ -12,6 +12,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Services\MilpService.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Remove="docker-compose-original.yml" />
   </ItemGroup>
 

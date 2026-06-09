@@ -2,6 +2,7 @@ using Microsoft.Extensions.Options;
 using SessyCommon.Configurations;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
+using SessyController.Interfaces;
 using SessyController.Services.Items;
 using SessyController.Services.Optimization;
 using SessyController.Services.StateMachine;
@@ -46,7 +47,7 @@ namespace SessyController.Services
         private QuarterlyMeasurementDataService? _measurementService;
         private InverterMeasurementDataService? _inverterMeasurementService;
         private TaxesDataService _taxesDataService;
-        private MilpService _milpService;
+        private IMilpService _milpService;
         private EnergySystemStateMachine _stateMachine;
         private EnergySystemInput _systemInput;
         private HardwareStatusService _hardwareStatus;
@@ -99,7 +100,7 @@ namespace SessyController.Services
             _inverterMeasurementService = _scope.ServiceProvider.GetService<InverterMeasurementDataService>();
             _taxesDataService = _scope.ServiceProvider.GetRequiredService<TaxesDataService>();
             _inverterCurtailmentService = _scope.ServiceProvider.GetRequiredService<InverterCurtailmentService>();
-            _milpService = _scope.ServiceProvider.GetRequiredService<MilpService>();
+            _milpService = _scope.ServiceProvider.GetRequiredService<IMilpService>();
             _hardwareStatus = _scope.ServiceProvider.GetRequiredService<HardwareStatusService>();
             _stateMachine = _scope.ServiceProvider.GetRequiredService<EnergySystemStateMachine>();
             _actualQuarterDataService = _scope.ServiceProvider.GetRequiredService<ActualQuarterDataService>();

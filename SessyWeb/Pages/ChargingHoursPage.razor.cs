@@ -65,6 +65,14 @@ namespace SessyWeb.Pages
 
         public string? BatteryMode { get; set; }
 
+        public string OptimizationStrategyName => _settingsService?.Current.Strategy switch
+        {
+            SessyData.Model.OptimizationStrategy.SelfConsumption => "Self consumption",
+            SessyData.Model.OptimizationStrategy.Balanced => "Balanced",
+            SessyData.Model.OptimizationStrategy.BatterySaving => "Battery saving",
+            _ => "Profit maximization"
+        };
+
         private CancellationTokenSource _cts = new();
 
         private string GraphStyle { get; set; } = "min-width: 250px; visibility: hidden;";

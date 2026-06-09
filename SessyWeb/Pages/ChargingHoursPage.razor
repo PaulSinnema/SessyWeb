@@ -77,6 +77,7 @@
                             <RadzenText TextStyle="TextStyle.Overline" class="rz-display-flex rz-mt-4 rz-mb-0">Battery (plan)</RadzenText>
                             <RadzenText TextStyle="TextStyle.Body1"><b>@BatteryPercentageVisual</b></RadzenText>
                             <RadzenText TextStyle="TextStyle.Body1"><b>@BatteryMode</b></RadzenText>
+                            <RadzenText TextStyle="TextStyle.Caption" Style="opacity: 0.6; margin-top: 2px;">@OptimizationStrategyName</RadzenText>
                             <RadzenText TextStyle="TextStyle.Caption" Style="@($"opacity: 0.6; margin-top: 2px; color: {(SocDeviationPct > 10 ? "var(--rz-warning)" : "inherit")}")">
                                 SOC dev: @($"{SocDeviationPct:F1}%")
                             </RadzenText>
