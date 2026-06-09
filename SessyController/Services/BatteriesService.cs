@@ -127,6 +127,9 @@ namespace SessyController.Services
             _settingsConfig = _settingsService.Current;
 
             var delaySeconds = 60;
+#if DEBUG
+            delaySeconds = 10;
+#endif
 
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -136,7 +139,12 @@ namespace SessyController.Services
 
                     await Process(cancellationToken).ConfigureAwait(false);
 
-                    delaySeconds = DataChanged == null ? 1 : 60;
+                    delaySeconds = DataChanged == null ? 1 :
+#if DEBUG
+                        10;
+#else
+                        60;
+#endif
 
                     if (DataChanged != null)
                         await DataChanged.Invoke().ConfigureAwait(false);
@@ -188,6 +196,10 @@ namespace SessyController.Services
                     _tombstoneRestoreAttempted = true;
 #if !DEBUG
                     await _milpService.TryRestorePlanAsync().ConfigureAwait(false);
+#else
+                    // In DEBUG: clear any persisted plan so a fresh plan is built immediately,
+                    // giving fast feedback without waiting for the speculative solve trigger.
+                    await _milpService.ClearPlanAsync().ConfigureAwait(false);
 #endif
                 }
 

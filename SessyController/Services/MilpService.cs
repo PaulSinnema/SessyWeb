@@ -48,7 +48,11 @@ namespace SessyController.Services
 
         // ── Constants ────────────────────────────────────────────────────────
 
+#if DEBUG
+        private const int MilpTimeLimitMs = 5000;
+#else
         private const int MilpTimeLimitMs = 10000;
+#endif
         private const double SocDeviationThresholdPct = 20.0;
 
         internal sealed record PlanAction { public Modes Mode; public double PowerW; }
@@ -665,6 +669,8 @@ namespace SessyController.Services
                 {
                     var nzh = new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
                     _planByTime[nowQuarter] = nzh;
+                    qi.SetMode(Modes.ZeroNetHome);
+                    qi.SetPlanPower(0, 0);
                     return nzh;
                 }
 
@@ -672,6 +678,8 @@ namespace SessyController.Services
                 {
                     var nzh = new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
                     _planByTime[nowQuarter] = nzh;
+                    qi?.SetMode(Modes.ZeroNetHome);
+                    qi?.SetPlanPower(0, 0);
                     return nzh;
                 }
 
@@ -686,6 +694,8 @@ namespace SessyController.Services
                 {
                     var nzh = new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
                     _planByTime[nowQuarter] = nzh;
+                    qi?.SetMode(Modes.ZeroNetHome);
+                    qi?.SetPlanPower(0, 0);
                     return nzh;
                 }
 
