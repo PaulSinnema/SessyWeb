@@ -261,7 +261,10 @@ namespace SessyWeb.Pages
 
                     await GetQuarterlyInfos();
 
-                    TotalSolarPowerExpectedToday = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(today);
+                    // Today: realized solar so far + forecast for remaining quarters.
+                    var realizedToday = await GetRealizedSolarForDate(today).ConfigureAwait(false);
+                    var forecastRemainingToday = _solarService == null ? 0.0 : _solarService.GetRemainingForecastToday(today, _timeZoneService!.Now);
+                    TotalSolarPowerExpectedToday = realizedToday + forecastRemainingToday;
                     TotalSolarPowerExpectedTomorrow = _solarService == null ? 0.0 : _solarService.GetTotalSolarPowerExpected(tomorrow);
 
                     // Yesterday's realized solar from QuarterlyMeasurements.

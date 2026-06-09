@@ -44,6 +44,7 @@ namespace SessyController.Services
         private double _smoothedPerformanceFactor = 1.0;
         private double _lastLoggedPerformanceFactor = 1.0;
         private DateTime _lastEmaUpdateQuarter = DateTime.MinValue;
+        private Dictionary<DateTime, double>? _inverterMeasurementCache;
         private DateTime _lastLoggedPerformanceDate = DateTime.MinValue;
         private DateTime _historicalFactorDate = DateTime.MinValue;
         private const double PerformanceFactorAlpha = 0.1;  // Slow EMA — historical factor is the primary correction
@@ -86,34 +87,58 @@ namespace SessyController.Services
         /// <summary>
         /// Gets the expected solar power from Now for today
         /// </summary>
+        /// <summary>
+        /// Returns the forecast solar production for the remaining quarters of today,
+        /// starting from the current quarter onwards.
+        /// Used together with realized production to give an accurate day total in the header.
+        /// </summary>
+        public double GetRemainingForecastToday(DateTime forDate, DateTime now)
+        {
+            using var scope = _serviceScopeFactory.CreateScope();
+            var batteryService = scope.ServiceProvider.GetRequiredService<BatteriesService>();
+            var quarterlyInfos = batteryService.GetQuarterlyInfos();
+            if (quarterlyInfos == null) return 0.0;
+
+            var nowQuarter = now.DateFloorQuarter();
+
+            return quarterlyInfos
+                .Where(qi => qi.Time.Date == forDate.Date && qi.Time >= nowQuarter)
+                .Sum(qi => qi.SolarPowerPerQuarterHour);
+        }
+
         public double GetTotalSolarPowerExpected(DateTime forDate)
         {
             using var scope = _serviceScopeFactory.CreateScope();
 
             var batteryService = scope.ServiceProvider.GetRequiredService<BatteriesService>();
-
             var quarterlyInfos = batteryService.GetQuarterlyInfos();
 
-            if (quarterlyInfos != null)
+            if (quarterlyInfos == null) return 0.0;
+
+            var start = forDate.Date;
+            var end = forDate.Date.AddHours(23).AddMinutes(45);
+            var now = _timeZoneService.Now;
+
+            var list = quarterlyInfos
+                .Where(hi => hi.Time >= start && hi.Time <= end)
+                .OrderBy(hi => hi.Time)
+                .ToList();
+
+            // For past quarters use the realized solar from InverterMeasurements
+            // so the total is not affected by EMA factor changes after the fact.
+            // For future quarters use the forecast with performance factor.
+            var realizedByQuarter = _inverterMeasurementCache ?? new Dictionary<DateTime, double>();
+
+            double solarPower = 0.0;
+            foreach (var qi in list)
             {
-                var solarPower = 0.0;
-                var start = forDate.Date;
-                var end = forDate.Date.AddHours(23).AddMinutes(45);
-
-                var list = quarterlyInfos
-                    .Where(hi => hi.Time >= start && hi.Time <= end)
-                    .OrderBy(hi => hi.Time)
-                    .ToList();
-
-                foreach (var quarterlyInfo in list)
-                {
-                    solarPower += quarterlyInfo.SolarPowerPerQuarterHour;
-                }
-
-                return solarPower;
+                if (qi.Time < now.DateFloorQuarter() && realizedByQuarter.TryGetValue(qi.Time, out var realized))
+                    solarPower += realized;
+                else
+                    solarPower += qi.SolarPowerPerQuarterHour;
             }
 
-            return 0.0;
+            return solarPower;
         }
 
         /// <summary>
@@ -447,6 +472,20 @@ namespace SessyController.Services
                 // Normal at night or before sunrise — return silently.
                 return;
             }
+
+            // Build cache of realized solar per quarter for use in GetTotalSolarPowerExpected.
+            // This prevents EMA factor changes from retroactively altering past quarter values.
+            var todayMeasurements = await _inverterMeasurementService.GetList(async set =>
+            {
+                var result = set
+                    .Where(m => m.Time >= now.Date && m.Time < now.DateFloorQuarter())
+                    .ToList();
+                return await Task.FromResult(result);
+            }).ConfigureAwait(false);
+
+            _inverterMeasurementCache = todayMeasurements
+                .GroupBy(m => m.Time)
+                .ToDictionary(g => g.Key, g => g.First().SolarProductionKWh * 4.0); // kWh → kW per quarter
 
             // Sum of measured solar power from database for past quarters today.
             // This is the total realized energy from midnight until now,
