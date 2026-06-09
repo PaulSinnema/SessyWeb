@@ -48,10 +48,13 @@
                                             Data="@Themes.Free"
                                             TextProperty=@nameof(Theme.Text)
                                             ValueProperty=@nameof(Theme.Value) />
+
                             @if (HostEnvironment.IsDevelopment())
                             {
                                 <RadzenBadge Text="TEST" BadgeStyle="BadgeStyle.Warning" Style="margin-left: 10px; font-weight: bold; color: black;" />
                             }
+
+                            <RadzenText TextStyle="TextStyle.Caption" Style="margin-left: 10px; color:var(--rz-text-secondary-color)">v1.0.0</RadzenText>
                         </RadzenStack>
                     </RadzenPanel>
 

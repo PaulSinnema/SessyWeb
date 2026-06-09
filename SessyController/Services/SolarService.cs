@@ -405,7 +405,7 @@ namespace SessyController.Services
             // Without live solar data the forecast cannot be corrected reliably.
             if (!_solarInverterManager.IsAvailable && !_solarInverterManager.ActiveInverterServices.Any(s => s.SupportsFallback))
             {
-                _logger.LogWarning("Solar: All inverters offline with no fallback — skipping performance factor, using forecast as-is.");
+                _logger.LogInformation("Solar: All inverters offline with no fallback — skipping performance factor, using forecast as-is.");
                 return;
             }
 
