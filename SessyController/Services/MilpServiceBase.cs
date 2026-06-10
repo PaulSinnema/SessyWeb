@@ -492,6 +492,10 @@ namespace SessyController.Services
                         mode = Modes.Discharging;
                         powerW = Math.Round(p.DischargeKW * 1000.0, 0);
                         break;
+                    case ActionMode.ZeroNetHome:
+                        mode = Modes.ZeroNetHome;
+                        powerW = Math.Round(p.DischargeKW * 1000.0, 0);
+                        break;
                     default:
                         mode = Modes.ZeroNetHome;
                         powerW = 0.0;
