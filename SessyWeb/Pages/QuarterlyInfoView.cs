@@ -36,6 +36,7 @@ namespace SessyWeb.Pages
             AverageBuyingPrice = averageBuyingPrice;
             AverageSellingPrice = averageSellingPrice;
             DeltaLowestPrice = qi.DeltaLowestPrice;
+            ProjectedCostBasisEur = qi.ProjectedCostBasisEur;
             IsCurtailed = qi.SellingPriceIsNegative;
             ThrottlePct = qi.SellingPriceIsNegative ? currentThrottlePct : 100.0;
 
@@ -116,6 +117,7 @@ namespace SessyWeb.Pages
         public double AverageBuyingPrice { get; }
         public double AverageSellingPrice { get; }
         public double DeltaLowestPrice { get; }
+        public double ProjectedCostBasisEur { get; }
         public bool IsCurtailed { get; }
         public double ThrottlePct { get; }
 

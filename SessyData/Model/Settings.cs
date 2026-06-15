@@ -150,6 +150,22 @@ namespace SessyData.Model
         /// </summary>
         public double SolarHeadroomSafetyFactor { get; set; } = 1.05;
 
+        /// <summary>
+        /// Discount applied to discharge revenue per quarter into the future, expressed
+        /// as a fraction (0.005 = 0.5% per quarter). Discharge value at quarter t is
+        /// multiplied by 1 / (1 + factor * t). This creates a time preference: profitable
+        /// discharge now is preferred over marginally higher discharge later, preventing
+        /// the solver from hoarding charge for a distant peak. 0 disables the discount.
+        /// </summary>
+        public double DischargeTimePreferenceFactor { get; set; } = 0.005;
+
+        /// <summary>
+        /// Maximum planning horizon in hours. The solver ignores quarters beyond this
+        /// window so it cannot defer discharge to a far-future peak. 0 = no limit
+        /// (use all quarters with known prices). Typical values: 24 or 36.
+        /// </summary>
+        public int PlanningHorizonHours { get; set; } = 0;
+
         public void Update(Settings updateInfo)
         {
             this.Copy(updateInfo);

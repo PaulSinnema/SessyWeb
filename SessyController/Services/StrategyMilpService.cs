@@ -33,9 +33,11 @@ namespace SessyController.Services
             TimeZoneService timeZoneService,
             TaxesDataService taxesDataService,
             PlannedActionDataService plannedActionDataService,
-            PlannedQuarterDataService plannedQuarterDataService)
+            PlannedQuarterDataService plannedQuarterDataService,
+            ChargeCostBasisService chargeCostBasisService)
             : base(logger, settingsService, sessyBatteryConfigMonitor, batteryContainer,
-                   timeZoneService, taxesDataService, plannedActionDataService, plannedQuarterDataService)
+                   timeZoneService, taxesDataService, plannedActionDataService, plannedQuarterDataService,
+                   chargeCostBasisService)
         {
             _strategy = strategy;
         }
@@ -58,9 +60,19 @@ namespace SessyController.Services
 
                 var nowQuarter = _timeZoneService.Now.DateFloorQuarter();
 
-                var quarters = _quarterlyInfos
+                var quartersQuery = _quarterlyInfos
                     .Where(q => q.Time >= nowQuarter.AddMinutes(15))
-                    .Where(q => !q.IsPriceExpected)
+                    .Where(q => !q.IsPriceExpected);
+
+                // Optional planning horizon limit: ignore quarters beyond N hours so the
+                // solver cannot defer discharge to a far-future peak.
+                if (_settingsConfig.PlanningHorizonHours > 0)
+                {
+                    var horizonEnd = nowQuarter.AddHours(_settingsConfig.PlanningHorizonHours);
+                    quartersQuery = quartersQuery.Where(q => q.Time < horizonEnd);
+                }
+
+                var quarters = quartersQuery
                     .OrderBy(q => q.Time)
                     .ToList();
 
@@ -82,10 +94,15 @@ namespace SessyController.Services
                     ChargeEfficiency: 0.95,
                     DischargeEfficiency: 0.95);
 
+                double beginSocCost = await _chargeCostBasisService
+                    .GetAverageCostBasisEur().ConfigureAwait(false);
+
                 var opt = new SessyOptions(
                     QuarterMinutes: 15,
                     CycleCostEurPerKWh: _settingsConfig.CycleCost,
-                    TimeLimitMs: MilpTimeLimitMs);
+                    TimeLimitMs: MilpTimeLimitMs,
+                    BeginSocCostEurPerKWh: beginSocCost,
+                    DischargeTimePreferenceFactor: _settingsConfig.DischargeTimePreferenceFactor);
 
                 var context = new SolveContext(pricePoints, spec, opt, socBounds);
 

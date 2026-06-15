@@ -154,6 +154,18 @@
                                         <RadzenNumeric @bind-Value="_settings.SolarHeadroomSafetyFactor" Format="F2" Style="width:100%" />
                                     </RadzenColumn>
                                 </RadzenRow>
+                                <RadzenRow Gap="1rem">
+                                    <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Discharge time preference" />
+                                        <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">Discount on discharge value per quarter into the future. 0.005 = 0.5% per quarter, prefers discharging sooner. 0 = off. Default: 0.005.</RadzenText>
+                                        <RadzenNumeric @bind-Value="_settings.DischargeTimePreferenceFactor" Format="F4" Step="0.001" Style="width:100%" />
+                                    </RadzenColumn>
+                                    <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Planning horizon (hours)" />
+                                        <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">Ignore quarters beyond this many hours so discharge is not deferred to a distant peak. 0 = no limit. Typical: 24 or 36. Default: 0.</RadzenText>
+                                        <RadzenNumeric @bind-Value="_settings.PlanningHorizonHours" Style="width:100%" />
+                                    </RadzenColumn>
+                                </RadzenRow>
                             </RadzenFieldset>
 
                             @* ── Energy needs per month ───────────────────────── *@

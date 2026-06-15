@@ -17,10 +17,11 @@ namespace SessyController.Services
             TimeZoneService timeZoneService,
             TaxesDataService taxesDataService,
             PlannedActionDataService plannedActionDataService,
-            PlannedQuarterDataService plannedQuarterDataService)
+            PlannedQuarterDataService plannedQuarterDataService,
+            ChargeCostBasisService chargeCostBasisService)
             : base(new ProfitMaximizationStrategy(), logger, settingsService, sessyBatteryConfigMonitor,
                    batteryContainer, timeZoneService, taxesDataService,
-                   plannedActionDataService, plannedQuarterDataService)
+                   plannedActionDataService, plannedQuarterDataService, chargeCostBasisService)
         {
         }
     }

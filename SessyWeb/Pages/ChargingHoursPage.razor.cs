@@ -568,12 +568,12 @@ namespace SessyWeb.Pages
             // Prevent invalid/negative heights during first render
             if (height < 250) height = 250;
 
-            // 13 pixels per data row (3)
-            var width = (QuarterlyInfos?.Count ?? 0) * 3 * 13;
+            // ~13 px per bar; 4 column bars per quarter (buy, sell, cost basis, revenue).
+            var width = (QuarterlyInfos?.Count ?? 0) * 4 * 13;
 
             // Clamp the width so Radzen doesn't explode on very large datasets
             if (width < 600) width = 600;
-            if (width > 8000) width = 8000;
+            if (width > 10000) width = 10000;
 
             GraphStyle = $"min-height: {height}px; width: {width}px; visibility: initial;";
         }

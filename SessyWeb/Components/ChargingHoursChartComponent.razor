@@ -63,6 +63,20 @@
             </ChildContent>
         </RadzenColumnSeries>
 
+        <RadzenColumnSeries Data="@QuarterlyInfos"
+                            CategoryProperty="Time"
+                            Title="Cost basis (€/kWh)"
+                            Fill="#9b59b6"
+                            Stroke="#9b59b6"
+                            ValueProperty="ProjectedCostBasisEur">
+            <TooltipTemplate Context="data">
+                <ChargingHoursTooltip QuarterlyInfo=@data />
+            </TooltipTemplate>
+            <ChildContent>
+                <RadzenMarkers Visible="false" />
+            </ChildContent>
+        </RadzenColumnSeries>
+
         <RadzenColumnSeries Visible="@WeAreInControl"
                             Data="@QuarterlyInfos"
                             Stroke="green"

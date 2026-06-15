@@ -24,6 +24,7 @@ namespace SessyController.Services
         private readonly TaxesDataService _taxesDataService;
         private readonly PlannedActionDataService _plannedActionDataService;
         private readonly PlannedQuarterDataService _plannedQuarterDataService;
+        protected readonly ChargeCostBasisService _chargeCostBasisService;
 
         protected SettingsService _settingsService;
         protected Settings _settingsConfig;
@@ -68,7 +69,8 @@ namespace SessyController.Services
             TimeZoneService timeZoneService,
             TaxesDataService taxesDataService,
             PlannedActionDataService plannedActionDataService,
-            PlannedQuarterDataService plannedQuarterDataService)
+            PlannedQuarterDataService plannedQuarterDataService,
+            ChargeCostBasisService chargeCostBasisService)
         {
             _logger = logger;
             _sessyBatteryConfigMonitor = sessyBatteryConfigMonitor;
@@ -77,6 +79,7 @@ namespace SessyController.Services
             _taxesDataService = taxesDataService;
             _plannedActionDataService = plannedActionDataService;
             _plannedQuarterDataService = plannedQuarterDataService;
+            _chargeCostBasisService = chargeCostBasisService;
             _settingsService = settingsService;
             _settingsConfig = settingsService.Current;
             _sessyBatteryConfig = sessyBatteryConfigMonitor.CurrentValue
@@ -115,6 +118,7 @@ namespace SessyController.Services
 
             WritePlanIntoQuarterlyInfos();
             await WriteBackSocSimulationAsync(currentSocWh).ConfigureAwait(false);
+            await ProjectCostBasisAsync(currentSocWh).ConfigureAwait(false);
 
             if (rebuilt)
             {
@@ -544,6 +548,88 @@ namespace SessyController.Services
             }
         }
 
+        /// <summary>
+        /// Projects the FIFO cost basis forward through the plan and stores the average
+        /// cost basis per quarter on each QuarterlyInfo. Starts from the current measured
+        /// cost-basis layers, then tracks the per-quarter SOC change from the simulation
+        /// (ChargeLeftWh): a rising SOC adds a layer (solar free / grid at buy price), a
+        /// falling SOC removes the oldest energy first. Using the SOC delta captures
+        /// ZeroNetHome discharge too, so the cost-basis line stays consistent with the
+        /// displayed SOC line.
+        /// </summary>
+        private async Task ProjectCostBasisAsync(double currentSocWh)
+        {
+            try
+            {
+                var snapshot = await _chargeCostBasisService.GetSnapshotAsync().ConfigureAwait(false);
+
+                // Local FIFO copy seeded with the current real layers.
+                var layers = new LinkedList<(double Wh, double Cost)>();
+                foreach (var l in snapshot.Layers)
+                    layers.AddLast((l.Wh, l.CostEurPerKWh));
+
+                var nowQuarter = _timeZoneService.Now.DateFloorQuarter();
+                var ordered = _quarterlyInfos
+                    .Where(q => q.Time >= nowQuarter)
+                    .OrderBy(q => q.Time)
+                    .ToList();
+
+                double prevSoc = currentSocWh;
+
+                foreach (var qi in ordered)
+                {
+                    double soc = qi.ChargeLeftWh;
+                    double delta = soc - prevSoc;
+                    prevSoc = soc;
+
+                    if (delta > 1.0)
+                    {
+                        // SOC rose: energy added. Solar covers it first (free), rest is grid.
+                        double solarWh = qi.SolarPowerPerQuarterHour > 0
+                            ? qi.SolarPowerPerQuarterHour * 1000.0 * 0.25
+                            : 0.0;
+                        double solarPart = Math.Min(delta, Math.Max(solarWh, 0.0));
+                        double gridPart = Math.Max(delta - solarPart, 0.0);
+
+                        if (solarPart > 1.0) layers.AddLast((solarPart, 0.0));
+                        if (gridPart > 1.0) layers.AddLast((gridPart, qi.BuyingPrice));
+                    }
+                    else if (delta < -1.0)
+                    {
+                        // SOC fell: energy removed (discharge or ZeroNetHome). Pop oldest.
+                        double remaining = -delta;
+                        while (remaining > 1.0 && layers.First != null)
+                        {
+                            var f = layers.First.Value;
+                            if (f.Wh <= remaining)
+                            {
+                                remaining -= f.Wh;
+                                layers.RemoveFirst();
+                            }
+                            else
+                            {
+                                layers.First.Value = (f.Wh - remaining, f.Cost);
+                                remaining = 0.0;
+                            }
+                        }
+                    }
+
+                    // Average cost basis of the projected battery contents this quarter.
+                    double totalWh = 0.0, totalCost = 0.0;
+                    foreach (var l in layers)
+                    {
+                        totalWh += l.Wh;
+                        totalCost += l.Wh / 1000.0 * l.Cost;
+                    }
+                    qi.SetProjectedCostBasis(totalWh > 1.0 ? totalCost / (totalWh / 1000.0) : 0.0);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"Cost basis projection failed: {ex.Message}");
+            }
+        }
+
         private async Task WriteBackSocSimulationAsync(double soc)
         {
             if (_quarterlyInfos.Count == 0) return;
@@ -655,6 +741,24 @@ namespace SessyController.Services
                     qi?.SetMode(Modes.ZeroNetHome);
                     qi?.SetPlanPower(0, 0);
                     return nzh;
+                }
+
+                // Cost-basis guard: only discharge to grid when the sell price beats the
+                // acquisition cost of the oldest stored energy (FIFO) plus cycle cost.
+                // Otherwise discharging realizes a loss on that energy.
+                if (qi != null)
+                {
+                    double oldestCost = await _chargeCostBasisService
+                        .GetOldestLayerPriceEur().ConfigureAwait(false);
+
+                    if (qi.SellingPrice <= oldestCost + _settingsConfig.CycleCost)
+                    {
+                        var nzh = new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
+                        _planByTime[nowQuarter] = nzh;
+                        qi.SetMode(Modes.ZeroNetHome);
+                        qi.SetPlanPower(0, 0);
+                        return nzh;
+                    }
                 }
 
                 return planned;

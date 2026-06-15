@@ -16,7 +16,9 @@ namespace SessyController.Services.Optimization
     public sealed record SessyOptions(
         int QuarterMinutes,
         double CycleCostEurPerKWh,
-        int TimeLimitMs
+        int TimeLimitMs,
+        double BeginSocCostEurPerKWh = 0.0,
+        double DischargeTimePreferenceFactor = 0.0
     );
 
     public sealed record SocBound(DateTime Time, double MinSocKWh, double MaxSocKWh);
@@ -150,15 +152,27 @@ namespace SessyController.Services.Optimization
                 double sell = pricePoints[t].SellEurPerKWh;
                 double cc = opt.CycleCostEurPerKWh;
 
+                // Time preference: discount discharge revenue further into the future so
+                // profitable discharge now is preferred over marginally higher later.
+                double discount = 1.0 / (1.0 + opt.DischargeTimePreferenceFactor * t);
+
                 // ZeroNetHome: avoids import at buy price.
-                objective.SetCoefficient(ownUse[t], (buy - cc) * dtHours);
+                objective.SetCoefficient(ownUse[t], (buy - cc) * dtHours * discount);
 
                 // Discharging: exports at sell price — only profitable when sell > cc.
-                objective.SetCoefficient(export[t], (sell - cc) * dtHours);
+                objective.SetCoefficient(export[t], (sell - cc) * dtHours * discount);
 
-                // Grid charging costs buy + cc.
+                // Grid charging costs buy + cc — not discounted.
                 objective.SetCoefficient(gridCharge[t], -(buy + cc) * dtHours);
             }
+
+            // End-SOC water value: energy left in the battery at the end of the horizon
+            // is valued at its acquisition cost (BeginSocCostEurPerKWh). Without this the
+            // solver treats stored charge as free and hoards it for the single most
+            // expensive quarter far ahead. With it, holding charge only pays off when a
+            // genuinely higher-value discharge opportunity exists — otherwise discharging
+            // sooner (recovering the cost basis plus margin) wins.
+            objective.SetCoefficient(soc[n], opt.BeginSocCostEurPerKWh);
 
             objective.SetMaximization();
 

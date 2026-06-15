@@ -109,6 +109,7 @@ builder.Services.AddSingleton<QuarterlyMeasurementDataService>();
 builder.Services.AddSingleton<InverterMeasurementDataService>();
 builder.Services.AddSingleton<ICalculationService, CalculationService>();
 builder.Services.AddSingleton<CalculationService>(sp => (CalculationService)sp.GetRequiredService<ICalculationService>());
+builder.Services.AddSingleton<ChargeCostBasisService>();
 builder.Services.AddSingleton<EnergyHistoryDataService>();
 builder.Services.AddSingleton<SolarEdgeInverterService>();
 builder.Services.AddSingleton<P1MeterService>();

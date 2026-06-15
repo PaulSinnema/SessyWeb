@@ -251,10 +251,9 @@ namespace SessyController.Services
                 .OrderBy(g => g.Key)
                 .Select(g =>
                 {
-                    // Realized: discharge revenue - charge cost
-                    double realized = g.Sum(m =>
-                        m.BatteryDischargedKWh * m.SellingPriceEur
-                        - m.BatteryChargedKWh * m.BuyingPriceEur);
+                    // Realized arbitrage: self-consumed discharge valued at avoided buy
+                    // price, exported discharge at sell price, minus charge cost.
+                    double realized = g.Sum(m => m.ArbitrageValueEur);
 
                     double planned = g.Sum(m => m.PlannedRevenueEur);
 
@@ -761,7 +760,7 @@ namespace SessyController.Services
 
                     double exportRevenue = measurements
                         .Where(m => m.BatteryPowerWatts > 0)
-                        .Sum(m => m.SellingPriceEur * m.BatteryDischargedKWh);
+                        .Sum(m => m.DischargeValueEur);
 
                     double solarKWh = await GetSolarProductionKWhAsync(current, monthEnd);
                     double avgBuyPrice = measurements.Any()
@@ -843,11 +842,11 @@ namespace SessyController.Services
                 // ZeroNetHome mode the battery also discharges (positive watts) but
                 // the mode is ZeroNetHome, not Discharging.
                 // Planned Discharging mode only for revenue — excludes ZeroNetHome low-power
-                // self-consumption discharge which is not arbitrage.
-                // With netting ON, discharged energy is worth max(sell, buy).
+                // Arbitrage value across all discharge (Discharging + ZeroNetHome):
+                // self-use valued at avoided buy price, export at sell price.
                 double revenue = measurements
-                    .Where(m => m.BatteryMode == BatteryMode.Discharging && m.BatteryPowerWatts > 0)
-                    .Sum(m => Math.Max(m.SellingPriceEur, m.BuyingPriceEur) * m.BatteryDischargedKWh);
+                    .Where(m => m.BatteryPowerWatts > 0)
+                    .Sum(m => m.DischargeValueEur);
 
                 // Planned Charging mode only for cost.
                 double cost = measurements
@@ -1187,13 +1186,21 @@ namespace SessyController.Services
             double importCostEur = measurements
                 .Sum(m => m.BuyingPriceEur * m.GridImportKWh) - chargingCostEur;
 
-            // Export revenue: energy sold to grid.
+            // Export revenue: only energy actually sold to grid (at sell price).
+            // NZH self-use is already reflected in lower GridImportWh, so it must NOT
+            // be added here or the avoided import would be counted twice.
             stats.GridExportRevenueEur = measurements
                 .Where(m => m.BatteryPowerWatts > 0)
-                .Sum(m => m.SellingPriceEur * m.BatteryDischargedKWh);
+                .Sum(m => Math.Min(m.GridExportKWh, m.BatteryDischargedKWh) * m.SellingPriceEur);
 
             stats.ActualEnergyCostEur = importCostEur + chargingCostEur - stats.GridExportRevenueEur;
-            stats.ArbitrageProfitEur = stats.GridExportRevenueEur - chargingCostEur;
+
+            // Arbitrage profit: the battery's full economic value — self-use valued at
+            // avoided buy price, export at sell price — minus the cost of charging it.
+            double dischargeValueEur = measurements
+                .Where(m => m.BatteryPowerWatts > 0)
+                .Sum(m => m.DischargeValueEur);
+            stats.ArbitrageProfitEur = dischargeValueEur - chargingCostEur;
 
             // Planned arbitrage profit from MILP — sum of PlannedRevenueEur per quarter.
             stats.PlannedArbitrageProfitEur = measurements

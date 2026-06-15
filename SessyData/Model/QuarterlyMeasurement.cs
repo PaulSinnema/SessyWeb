@@ -110,6 +110,38 @@ namespace SessyData.Model
             ? BatteryPowerWatts * 0.25 / 1000.0
             : 0.0;
 
+        /// <summary>
+        /// Economic value (EUR) of this quarter's battery discharge.
+        /// Self-consumed energy (ZeroNetHome) avoids importing at the buying price, which
+        /// is worth more than exporting at the selling price under net-metering. Only the
+        /// part actually exported to the grid is valued at the selling price.
+        ///   exportedKWh   = GridExportKWh (capped at discharge)
+        ///   selfUsedKWh   = discharge - exportedKWh
+        ///   value = selfUsedKWh * buy + exportedKWh * sell
+        /// </summary>
+        [NotMapped]
+        public double DischargeValueEur
+        {
+            get
+            {
+                double discharged = BatteryDischargedKWh;
+                if (discharged <= 0.0) return 0.0;
+
+                double exported = Math.Min(GridExportKWh, discharged);
+                double selfUsed = Math.Max(discharged - exported, 0.0);
+                return selfUsed * BuyingPriceEur + exported * SellingPriceEur;
+            }
+        }
+
+        /// <summary>
+        /// Net arbitrage value (EUR) for this quarter: discharge value minus charge cost.
+        /// Charging from the grid costs the buying price; solar charging is free, but that
+        /// distinction is handled by the cost-basis service — here we use the measured
+        /// grid-charge cost as an approximation consistent with historical reporting.
+        /// </summary>
+        [NotMapped]
+        public double ArbitrageValueEur => DischargeValueEur - BatteryChargedKWh * BuyingPriceEur;
+
         public override string ToString() =>
             $"{Time:yyyy-MM-dd HH:mm} | Mode={BatteryMode} | " +
             $"Battery={BatteryPowerWatts:F0}W SOC={BatteryStateOfChargeWh:F0}Wh | " +

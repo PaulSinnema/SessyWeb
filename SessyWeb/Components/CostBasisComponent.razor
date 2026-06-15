@@ -1,0 +1,91 @@
+﻿@using Radzen
+@using Radzen.Blazor
+@using SessyController.Services
+@inject ChargeCostBasisService ChargeCostBasisService
+
+<RadzenCard>
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
+        <RadzenText TextStyle="TextStyle.H6">🔋 Charge cost basis (FIFO)</RadzenText>
+        <RadzenButton Icon="refresh" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                      Click="@RefreshAsync" title="Recompute from latest measurements" />
+    </RadzenStack>
+
+    <RadzenRow Gap="8px" class="rz-mt-2">
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Stored energy"
+                               Value="@($"{_snapshot?.TrackedWh / 1000.0:F2} kWh")" />
+        </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Oldest layer (next out)"
+                               Value="@($"€ {_snapshot?.OldestLayerPriceEur:F4}")"
+                               Highlight="true" />
+        </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Average cost basis"
+                               Value="@($"€ {_snapshot?.AverageCostBasisEur:F4}")" />
+        </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Layers"
+                               Value="@($"{_snapshot?.Layers.Count ?? 0}")" />
+        </RadzenColumn>
+    </RadzenRow>
+
+    <RadzenText TextStyle="TextStyle.Caption" Style="margin-top: 0.75rem; opacity: 0.7;">
+        FIFO layers, oldest first. Solar-charged energy has cost € 0.0000; grid-charged
+        energy carries its real buying price. Discharging to grid is profitable when the
+        selling price exceeds the oldest-layer price plus the cycle cost.
+    </RadzenText>
+
+    @if (_snapshot != null && _snapshot.Layers.Any())
+    {
+        <RadzenDataGrid Data="@_snapshot.Layers" TItem="ChargeCostBasisService.CostBasisLayerInfo"
+                        AllowSorting="false" Density="Density.Compact" class="rz-mt-2">
+            <Columns>
+                <RadzenDataGridColumn TItem="ChargeCostBasisService.CostBasisLayerInfo" Title="#" Width="50px">
+                    <Template Context="layer">
+                        @(_snapshot.Layers.ToList().IndexOf(layer) + 1)
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="ChargeCostBasisService.CostBasisLayerInfo" Title="Energy">
+                    <Template Context="layer">@($"{layer.Wh / 1000.0:F3} kWh")</Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="ChargeCostBasisService.CostBasisLayerInfo" Title="Cost / kWh">
+                    <Template Context="layer">@($"€ {layer.CostEurPerKWh:F4}")</Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="ChargeCostBasisService.CostBasisLayerInfo" Title="Source">
+                    <Template Context="layer">
+                        @if (layer.IsSolar)
+                        {
+                            <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="Solar" />
+                        }
+                        else
+                        {
+                            <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="Grid" />
+                        }
+                    </Template>
+                </RadzenDataGridColumn>
+            </Columns>
+        </RadzenDataGrid>
+    }
+    else
+    {
+        <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-2" Style="opacity:0.6;">
+            Battery is empty — no cost-basis layers.
+        </RadzenText>
+    }
+</RadzenCard>
+
+@code {
+    private ChargeCostBasisService.CostBasisSnapshot? _snapshot;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAsync();
+    }
+
+    private async Task RefreshAsync()
+    {
+        _snapshot = await ChargeCostBasisService.GetSnapshotAsync();
+        StateHasChanged();
+    }
+}
