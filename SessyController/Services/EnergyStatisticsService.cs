@@ -1423,8 +1423,6 @@ namespace SessyController.Services
                 TotalBatteryChargedKWh = periodStats.TotalBatteryChargedKWh,
                 TotalBatteryDischargedKWh = periodStats.TotalBatteryDischargedKWh,
                 BatteryRoundTripEfficiencyPct = periodStats.BatteryRoundTripEfficiencyPct,
-                PlannedRoundTripEfficiencyPct = periodStats.PlannedRoundTripEfficiencyPct,
-                AverageRoundTripEfficiencyPct = periodStats.AverageRoundTripEfficiencyPct,
                 BatteryCycles = periodStats.BatteryCycles,
                 BatteryCyclesPerDay = periodStats.BatteryCyclesPerDay,
                 AverageSocPct = periodStats.AverageSocPct,

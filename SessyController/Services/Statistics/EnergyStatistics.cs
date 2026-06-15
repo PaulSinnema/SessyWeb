@@ -90,23 +90,9 @@
         public double BatteryCyclesPerDay { get; set; }
 
         /// <summary>
-        /// Round-trip efficiency for planned charge/discharge cycles only (BatteryMode 1+2).
-        /// Only meaningful when the measurement period is long enough for the SOC imbalance
-        /// to be negligible (at least 30 days). Returns 0 otherwise.
-        /// </summary>
-        public double PlannedRoundTripEfficiencyPct =>
-            PlannedBatteryChargedKWh >= 1.0
-            && PlannedBatteryDischargedKWh > 0
-            && PeriodDays >= 30
-                ? Math.Max(0.0, Math.Min(100.0,
-                    (PlannedBatteryDischargedKWh - (EndSocKWh - StartSocKWh) * PlannedBatteryChargedKWh /
-                     Math.Max(ReliableBatteryChargedKWh, 1.0)) /
-                    PlannedBatteryChargedKWh * 100.0))
-                : 0.0;
-
-        /// <summary>
         /// Round-trip efficiency over all modes including ZeroNetHome.
         /// SOC-corrected to account for net charge/discharge imbalance over the period.
+        /// This is the real measured hardware efficiency.
         /// </summary>
         public double BatteryRoundTripEfficiencyPct =>
             ReliableBatteryChargedKWh >= 1.0 && ReliableBatteryDischargedKWh > 0
@@ -114,17 +100,6 @@
                     (ReliableBatteryDischargedKWh - (EndSocKWh - StartSocKWh)) /
                     ReliableBatteryChargedKWh * 100.0))
                 : 0.0;
-
-        /// <summary>
-        /// Weighted average of planned and total round-trip efficiency.
-        /// Falls back to total-only when planned data is insufficient.
-        /// </summary>
-        public double AverageRoundTripEfficiencyPct =>
-            PlannedRoundTripEfficiencyPct > 0 && BatteryRoundTripEfficiencyPct > 0
-                ? (PlannedBatteryChargedKWh * PlannedRoundTripEfficiencyPct +
-                   ReliableBatteryChargedKWh * BatteryRoundTripEfficiencyPct) /
-                  (PlannedBatteryChargedKWh + ReliableBatteryChargedKWh)
-                : BatteryRoundTripEfficiencyPct;
 
         /// <summary>Average state of charge percentage.</summary>
         public double AverageSocPct { get; set; }
