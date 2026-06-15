@@ -488,7 +488,7 @@ namespace SessyTests.Services
         public async Task GetEnergyStatistics_CalculatesArbitrageProfitCorrectly()
         {
             // Charge 1 kWh at 0.10 EUR: cost = 0.10 EUR.
-            // Discharge 1 kWh at 0.30 EUR: revenue = 0.30 EUR.
+            // Discharge 1 kWh, all exported at sell 0.30: value = 0.30 EUR.
             // Arbitrage = 0.30 - 0.10 = 0.20 EUR.
             var measurements = new List<QuarterlyMeasurement>();
 
@@ -502,12 +502,14 @@ namespace SessyTests.Services
                 SellingPriceEur = 0.30
             }));
 
-            // 4 quarters discharging at 1000W = 1.0 kWh
+            // 4 quarters discharging at 1000W = 1.0 kWh, fully exported to grid.
+            // GridExportWh = 250 Wh per quarter so all discharge counts as export.
             measurements.AddRange(Enumerable.Range(4, 4).Select(i => new QuarterlyMeasurement
             {
                 Time = PeriodStart.AddMinutes(i * 15),
                 BatteryPowerWatts = 1000,
                 BatteryMode = BatteryMode.Discharging,
+                GridExportWh = 250,
                 BuyingPriceEur = 0.10,
                 SellingPriceEur = 0.30
             }));
