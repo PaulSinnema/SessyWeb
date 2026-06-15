@@ -36,7 +36,7 @@ namespace SessyController.Services.Optimization
 
     /// <summary>
     /// Input per quarter for the MILP solver.
-    /// NetLoadWh: household load minus solar (Wh). Positive = needs power; negative = solar surplus.
+    /// NetLoadWh: household load minus solar (Wh). Positive = needs grid power; negative = solar surplus.
     /// </summary>
     public sealed record PricePoint(
         DateTime Start,
@@ -46,24 +46,33 @@ namespace SessyController.Services.Optimization
         double SolarSurplusWh
     );
 
+    /// <summary>
+    /// Grid-balance MILP.
+    ///
+    /// The only decision per quarter is the battery power: charge (≥0) or discharge (≥0),
+    /// mutually exclusive. Everything else follows from the grid balance:
+    ///
+    ///   net = netLoad + charge − discharge          (kWh over the quarter)
+    ///   net = gridImport − gridExport               (import ≥ 0, export ≥ 0)
+    ///
+    /// where netLoad = household consumption − solar production.
+    ///
+    /// Cost of a quarter:
+    ///   gridImport * buyPrice − gridExport * sellPrice + cycleCost * discharge
+    ///
+    /// Key points that match the physical reality of the Sessy:
+    ///   • Charging also covers the house: extra grid import = charge + netLoad.
+    ///   • Discharging also feeds the house first; only the surplus is exported.
+    ///   • Self-consumed discharge is implicitly valued at the buy price (it reduces
+    ///     gridImport), exported discharge at the sell price (it raises gridExport).
+    ///   • Cycle cost is charged once per kWh of throughput — on discharge only — so a
+    ///     full charge+discharge cycle is not double-counted.
+    ///
+    /// SOC transition (battery-side energy):
+    ///   soc[t+1] = soc[t] + charge*η − discharge/η
+    /// </summary>
     public static class BatteryArbitrageMilp
     {
-        /// <summary>
-        /// Profit maximization MILP with explicit ZeroNetHome and Discharging modes.
-        ///
-        /// Three mutually exclusive battery actions per quarter:
-        ///   Charge     — grid charging (cost = buy + cc)
-        ///   ZeroNetHome — discharge for own use (value = buy - cc, bounded by netLoad)
-        ///   Discharging — export to grid      (value = sell - cc, only when sell > cc)
-        ///
-        /// This correctly separates the two discharge modes:
-        ///   ZeroNetHome avoids import at buy price → profitable whenever buy > cc
-        ///   Discharging exports at sell price → profitable only when sell > cc
-        ///
-        /// SOC transition:
-        ///   soc[t+1] = soc[t] + gridCharge*dt*η - discharge*dt/η - netLoad/1000
-        ///   (netLoad < 0 = solar surplus raises SOC automatically)
-        /// </summary>
         public static PlanResult? Solve(
             IReadOnlyList<PricePoint> pricePoints,
             BatterySpec spec,
@@ -80,17 +89,20 @@ namespace SessyController.Services.Optimization
 
             int n = pricePoints.Count;
             double dtHours = opt.QuarterMinutes / 60.0;
-
             var boundByTime = socBounds.ToDictionary(b => b.Time);
 
-            // ── Variables ────────────────────────────────────────────────────
+            // Big-M for import/export and charge/discharge exclusivity (kW).
+            double bigM = Math.Max(spec.MaxChargeKW, spec.MaxDischargeKW)
+                          + pricePoints.Max(p => Math.Abs(p.NetLoadWh)) / 1000.0 / dtHours
+                          + 1.0;
 
-            var gridCharge = new Variable[n]; // active grid charging (kW)
-            var ownUse = new Variable[n]; // ZeroNetHome: discharge for own consumption (kW)
-            var export = new Variable[n]; // Discharging: export to grid (kW)
-            var isCharge = new Variable[n];
-            var isOwnUse = new Variable[n];
-            var isExport = new Variable[n];
+            // ── Variables ────────────────────────────────────────────────────
+            var charge = new Variable[n]; // battery charge power (kW)
+            var discharge = new Variable[n]; // battery discharge power (kW)
+            var isCharge = new Variable[n]; // 1 = charging this quarter
+            var gridImport = new Variable[n]; // grid import (kW), ≥ 0
+            var gridExport = new Variable[n]; // grid export (kW), ≥ 0
+            var isImport = new Variable[n]; // 1 = importing this quarter
             var soc = new Variable[n + 1];
 
             soc[0] = solver.MakeNumVar(0.0, spec.CapacityKWh, "soc_0");
@@ -103,47 +115,46 @@ namespace SessyController.Services.Optimization
                     mn = Math.Max(0.0, Math.Min(b.MinSocKWh, spec.CapacityKWh));
                     mx = Math.Max(mn, Math.Min(b.MaxSocKWh, spec.CapacityKWh));
                 }
-
                 soc[t + 1] = solver.MakeNumVar(mn, mx, $"soc_{t + 1}");
 
-                gridCharge[t] = solver.MakeNumVar(0.0, spec.MaxChargeKW, $"gc_{t}");
+                charge[t] = solver.MakeNumVar(0.0, spec.MaxChargeKW, $"chg_{t}");
+                discharge[t] = solver.MakeNumVar(0.0, spec.MaxDischargeKW, $"dis_{t}");
                 isCharge[t] = solver.MakeIntVar(0.0, 1.0, $"ic_{t}");
-                solver.Add(gridCharge[t] <= spec.MaxChargeKW * isCharge[t]);
 
-                // ZeroNetHome: bounded by positive net load (can't cover more than house needs).
-                double maxOwnUseKw = Math.Max(pricePoints[t].NetLoadWh, 0.0) / 1000.0 / dtHours;
-                ownUse[t] = solver.MakeNumVar(0.0, maxOwnUseKw, $"own_{t}");
-                isOwnUse[t] = solver.MakeIntVar(0.0, 1.0, $"io_{t}");
-                solver.Add(ownUse[t] <= maxOwnUseKw * isOwnUse[t]);
+                // Charge and discharge are mutually exclusive.
+                solver.Add(charge[t] <= spec.MaxChargeKW * isCharge[t]);
+                solver.Add(discharge[t] <= spec.MaxDischargeKW * (1.0 - isCharge[t]));
 
-                // Export: full discharge capacity available.
-                export[t] = solver.MakeNumVar(0.0, spec.MaxDischargeKW, $"exp_{t}");
-                isExport[t] = solver.MakeIntVar(0.0, 1.0, $"ie_{t}");
-                solver.Add(export[t] <= spec.MaxDischargeKW * isExport[t]);
+                gridImport[t] = solver.MakeNumVar(0.0, bigM, $"imp_{t}");
+                gridExport[t] = solver.MakeNumVar(0.0, bigM, $"exp_{t}");
+                isImport[t] = solver.MakeIntVar(0.0, 1.0, $"ii_{t}");
 
-                // Mutually exclusive: charge, ownUse, export.
-                solver.Add(isCharge[t] + isOwnUse[t] + isExport[t] <= 1.0);
+                // Import and export are mutually exclusive (never pay and earn at once).
+                solver.Add(gridImport[t] <= bigM * isImport[t]);
+                solver.Add(gridExport[t] <= bigM * (1.0 - isImport[t]));
+
+                // Grid balance: netLoad + charge − discharge = import − export.
+                double netLoadKw = pricePoints[t].NetLoadWh / 1000.0 / dtHours;
+                solver.Add(gridImport[t] - gridExport[t]
+                           == netLoadKw + charge[t] - discharge[t]);
             }
 
             solver.Add(soc[0] == Clamp(spec.InitialSocKWh, 0.0, spec.CapacityKWh));
 
-            // ── SOC transition ───────────────────────────────────────────────
-
+            // ── SOC transition (battery-side, with efficiency) ───────────────
             for (int t = 0; t < n; t++)
             {
-                double netLoadKWh = pricePoints[t].NetLoadWh / 1000.0;
-
                 solver.Add(
                     soc[t + 1] ==
                     soc[t]
-                    + gridCharge[t] * dtHours * spec.ChargeEfficiency
-                    - (ownUse[t] + export[t]) * dtHours / spec.DischargeEfficiency
-                    - netLoadKWh
+                    + charge[t] * dtHours * spec.ChargeEfficiency
+                    - discharge[t] * dtHours / spec.DischargeEfficiency
                 );
             }
 
-            // ── Objective ────────────────────────────────────────────────────
-
+            // ── Objective: minimise total grid cost ──────────────────────────
+            // Cost = import*buy − export*sell + cycleCost*discharge.
+            // We maximise the negative (so the solver's maximise call works uniformly).
             var objective = solver.Objective();
 
             for (int t = 0; t < n; t++)
@@ -152,32 +163,22 @@ namespace SessyController.Services.Optimization
                 double sell = pricePoints[t].SellEurPerKWh;
                 double cc = opt.CycleCostEurPerKWh;
 
-                // Time preference: discount discharge revenue further into the future so
-                // profitable discharge now is preferred over marginally higher later.
+                // Mild time preference: a discount on export revenue and discharge so the
+                // solver prefers acting sooner when outcomes are otherwise equal.
                 double discount = 1.0 / (1.0 + opt.DischargeTimePreferenceFactor * t);
 
-                // ZeroNetHome: avoids import at buy price.
-                objective.SetCoefficient(ownUse[t], (buy - cc) * dtHours * discount);
-
-                // Discharging: exports at sell price — only profitable when sell > cc.
-                objective.SetCoefficient(export[t], (sell - cc) * dtHours * discount);
-
-                // Grid charging costs buy + cc — not discounted.
-                objective.SetCoefficient(gridCharge[t], -(buy + cc) * dtHours);
+                objective.SetCoefficient(gridImport[t], -buy * dtHours);
+                objective.SetCoefficient(gridExport[t], sell * dtHours * discount);
+                objective.SetCoefficient(discharge[t], -cc * dtHours);
             }
 
-            // End-SOC water value: energy left in the battery at the end of the horizon
-            // is valued at its acquisition cost (BeginSocCostEurPerKWh). Without this the
-            // solver treats stored charge as free and hoards it for the single most
-            // expensive quarter far ahead. With it, holding charge only pays off when a
-            // genuinely higher-value discharge opportunity exists — otherwise discharging
-            // sooner (recovering the cost basis plus margin) wins.
+            // End-SOC water value: leftover energy is worth its acquisition cost, so the
+            // solver neither hoards nor dumps it artificially at the horizon edge.
             objective.SetCoefficient(soc[n], opt.BeginSocCostEurPerKWh);
 
             objective.SetMaximization();
 
             // ── Solve ────────────────────────────────────────────────────────
-
             var status = solver.Solve();
             bool ok = status == Solver.ResultStatus.OPTIMAL || status == Solver.ResultStatus.FEASIBLE;
             if (!ok) return null;
@@ -185,37 +186,29 @@ namespace SessyController.Services.Optimization
             var plan = new List<PlanStep>(n);
             for (int t = 0; t < n; t++)
             {
-                double cKw = gridCharge[t].SolutionValue();
-                double ownKw = ownUse[t].SolutionValue();
-                double expKw = export[t].SolutionValue();
+                double cKw = charge[t].SolutionValue();
+                double dKw = discharge[t].SolutionValue();
+                double expKw = gridExport[t].SolutionValue();
                 double s0 = soc[t].SolutionValue();
                 double s1 = soc[t + 1].SolutionValue();
 
                 ActionMode mode;
-                double dischargeKw;
-
                 if (cKw > 0.01)
                 {
                     mode = ActionMode.Charge;
-                    dischargeKw = 0.0;
                 }
-                else if (expKw > 0.01)
+                else if (dKw > 0.01)
                 {
-                    mode = ActionMode.Discharge;
-                    dischargeKw = expKw;
-                }
-                else if (ownKw > 0.01)
-                {
-                    mode = ActionMode.ZeroNetHome;
-                    dischargeKw = ownKw;
+                    // Discharging that exports to grid = Discharge; discharge that only
+                    // covers the house (no export) = ZeroNetHome.
+                    mode = expKw > 0.01 ? ActionMode.Discharge : ActionMode.ZeroNetHome;
                 }
                 else
                 {
                     mode = ActionMode.Idle;
-                    dischargeKw = 0.0;
                 }
 
-                plan.Add(new PlanStep(pricePoints[t].Start, mode, cKw, dischargeKw, s0, s1));
+                plan.Add(new PlanStep(pricePoints[t].Start, mode, cKw, dKw, s0, s1));
             }
 
             return new PlanResult(status == Solver.ResultStatus.OPTIMAL, objective.Value(), plan);

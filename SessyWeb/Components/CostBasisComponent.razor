@@ -43,7 +43,7 @@
             <Columns>
                 <RadzenDataGridColumn TItem="ChargeCostBasisService.CostBasisLayerInfo" Title="#" Width="50px">
                     <Template Context="layer">
-                        @(_snapshot.Layers.ToList().IndexOf(layer) + 1)
+                        @(layer.Index + 1)
                     </Template>
                 </RadzenDataGridColumn>
                 <RadzenDataGridColumn TItem="ChargeCostBasisService.CostBasisLayerInfo" Title="Energy">

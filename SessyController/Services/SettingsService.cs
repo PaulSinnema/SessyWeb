@@ -110,12 +110,6 @@ namespace SessyController.Services
                 dirty = true;
             }
 
-            if (record.SolarHeadroomSafetyFactor == 0.0)
-            {
-                record.SolarHeadroomSafetyFactor = 1.05;
-                dirty = true;
-            }
-
             if (record.NetZeroHomeMinProfit == 0.0)
             {
                 record.NetZeroHomeMinProfit = 0.005;

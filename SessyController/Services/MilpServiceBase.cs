@@ -36,6 +36,9 @@ namespace SessyController.Services
 
         protected List<QuarterlyInfo> _quarterlyInfos = new();
         private Dictionary<DateTime, PlanAction> _planByTime = new();
+        // Battery SOC (Wh) at the end of each quarter, taken directly from the solver so
+        // the displayed SOC matches the plan exactly (single source of truth).
+        private Dictionary<DateTime, double> _planSocWhByTime = new();
         private Dictionary<DateTime, double> _plannedSocByQuarter = new();
         private Dictionary<DateTime, bool> _nettingByTime = new();
         private Dictionary<DateTime, double> _minSocWhByTime = new();
@@ -275,19 +278,12 @@ namespace SessyController.Services
             double reserveSafetyFactor = _settingsConfig.ReserveSafetyFactor > 0
                 ? _settingsConfig.ReserveSafetyFactor
                 : 1.10;
-            double solarHeadroomFactor = _settingsConfig.SolarHeadroomSafetyFactor > 0
-                ? _settingsConfig.SolarHeadroomSafetyFactor
-                : 1.05;
 
             for (int i = 0; i < ordered.Count; i++)
             {
                 var qi = ordered[i];
 
                 // ── minSoc: reserve for the next no-solar window ─────────────
-                // Skip current solar surplus, then sum positive net load until
-                // the next solar period starts (= tomorrow morning).
-                // This ensures the battery holds enough for tonight even when
-                // the current quarter is in the middle of the day.
                 double nightReserveWh = 0.0;
                 bool solarSeen = false;
                 for (int j = i + 1; j < ordered.Count; j++)
@@ -304,17 +300,10 @@ namespace SessyController.Services
                 }
                 double minSocWh = Math.Min(nightReserveWh * reserveSafetyFactor, capWh * nightCapRatio);
 
-                // ── maxSoc: leave headroom for upcoming solar charging ────────
-                // Find the largest single-quarter solar surplus in the next few hours.
-                double maxSolarChargeWh = 0.0;
-                for (int j = i + 1; j < ordered.Count && j < i + 16; j++)
-                {
-                    double surplus = -ordered[j].NetLoadWh;
-                    if (surplus > maxSolarChargeWh) maxSolarChargeWh = surplus;
-                }
-                double maxSocWh = capWh - maxSolarChargeWh * solarHeadroomFactor;
-                maxSocWh = Math.Max(maxSocWh, minSocWh);
-                maxSocWh = Math.Min(maxSocWh, capWh);
+                // maxSoc = full capacity. The grid-balance solver decides for itself
+                // whether to store solar surplus or export it, so no artificial headroom
+                // is needed — that previously forced pointless early dumping.
+                double maxSocWh = capWh;
 
                 _minSocWhByTime[qi.Time] = minSocWh;
                 _maxSocWhByTime[qi.Time] = maxSocWh;
@@ -480,6 +469,7 @@ namespace SessyController.Services
                 $", elapsed={elapsedMs}ms, quarters={quarterCount}");
 
             var newPlan = new Dictionary<DateTime, PlanAction>();
+            var newSoc = new Dictionary<DateTime, double>();
 
             foreach (var p in result.Plan)
             {
@@ -507,6 +497,7 @@ namespace SessyController.Services
                 }
 
                 newPlan[p.Start] = new PlanAction { Mode = mode, PowerW = powerW };
+                newSoc[p.Start] = p.SocEndKWh * 1000.0;
             }
 
             foreach (var qi in _quarterlyInfos)
@@ -520,6 +511,7 @@ namespace SessyController.Services
             }
 
             _planByTime = newPlan;
+            _planSocWhByTime = newSoc;
             _lastPlanObjectiveEur = result.ObjectiveEur;
             return true;
         }
@@ -657,7 +649,15 @@ namespace SessyController.Services
 
                 double netLoadWh = qi.NetLoadWh;
 
-                if (act.Mode == Modes.Charging)
+                // Prefer the SOC computed by the solver itself (single source of truth);
+                // only simulate for quarters the solver did not cover (e.g. predicted-price
+                // window beyond the horizon).
+                if (_planSocWhByTime.TryGetValue(qi.Time, out var solverSoc))
+                {
+                    soc = Clamp(solverSoc, 0.0, capWh);
+                    qi.SetChargeNeeded(act.Mode == Modes.Charging ? maxSocWh : minSocWh);
+                }
+                else if (act.Mode == Modes.Charging)
                 {
                     double chargeWh = act.PowerW > 10 ? act.PowerW * 0.25 : chargeStepWh;
                     soc = Clamp(soc + chargeWh, 0.0, capWh);

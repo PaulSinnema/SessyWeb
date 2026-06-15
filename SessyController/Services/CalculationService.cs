@@ -123,6 +123,11 @@ namespace SessyController.Services
                     if (includeOverheadCosts)
                         overheadCost = GetOverheadCost(time, taxes) ?? 0.0;
 
+                    // Selling without netting (from 2027): market price minus return-delivery
+                    // compensation only — no energy tax, no overhead, no VAT.
+                    if (!buying && !taxes.Netting)
+                        return epexPrice.Price + compensation;
+
                     var energyTax = 0.0;
 
                     if (taxes.Netting)
@@ -183,9 +188,16 @@ namespace SessyController.Services
                     // Buying: always includes energy tax.
                     var buying = (epexPrice.Price.Value + taxes.EnergyTax + taxes.PurchaseCompensation) * vatFactor;
 
-                    // Selling: energy tax only when netting is active.
                     var sellingEnergyTax = taxes.Netting ? taxes.EnergyTax : 0.0;
-                    var selling = (epexPrice.Price.Value + sellingEnergyTax + taxes.ReturnDeliveryCompensation) * vatFactor;
+
+                    // Without netting (from 2027) the feed-in tariff is market price minus
+                    // the return-delivery compensation only — no energy tax and no VAT.
+                    // With netting, VAT applies just like on the buying side.
+                    double selling;
+                    if (taxes.Netting)
+                        selling = (epexPrice.Price.Value + sellingEnergyTax + taxes.ReturnDeliveryCompensation) * vatFactor;
+                    else
+                        selling = epexPrice.Price.Value + taxes.ReturnDeliveryCompensation;
 
                     result[time] = new EnergyPrice(buying, selling);
                 }

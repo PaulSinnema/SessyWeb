@@ -144,13 +144,6 @@ namespace SessyData.Model
         public double ReserveSafetyFactor { get; set; } = 1.10;
 
         /// <summary>
-        /// Safety margin applied to the expected solar surplus when reserving battery
-        /// headroom. 1.05 = reserve 5% more than the raw forecast surplus.
-        /// Increase if the battery is often full when the sun peaks.
-        /// </summary>
-        public double SolarHeadroomSafetyFactor { get; set; } = 1.05;
-
-        /// <summary>
         /// Discount applied to discharge revenue per quarter into the future, expressed
         /// as a fraction (0.005 = 0.5% per quarter). Discharge value at quarter t is
         /// multiplied by 1 / (1 + factor * t). This creates a time preference: profitable

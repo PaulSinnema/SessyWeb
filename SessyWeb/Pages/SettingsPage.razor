@@ -148,11 +148,6 @@
                                         <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">Safety margin on top of the calculated night/bridge reserve. 1.10 = keep 10% extra. Default: 1.10.</RadzenText>
                                         <RadzenNumeric @bind-Value="_settings.ReserveSafetyFactor" Format="F2" Style="width:100%" />
                                     </RadzenColumn>
-                                    <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Solar headroom safety factor" />
-                                        <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">Extra margin when reserving battery space for solar surplus. 1.05 = reserve 5% more than forecast. Default: 1.05.</RadzenText>
-                                        <RadzenNumeric @bind-Value="_settings.SolarHeadroomSafetyFactor" Format="F2" Style="width:100%" />
-                                    </RadzenColumn>
                                 </RadzenRow>
                                 <RadzenRow Gap="1rem">
                                     <RadzenColumn Size="12" SizeMD="4">

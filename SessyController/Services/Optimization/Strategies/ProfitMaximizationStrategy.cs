@@ -2,8 +2,9 @@
 {
     /// <summary>
     /// Profit maximization strategy.
-    /// Charges at low prices, discharges at high prices.
-    /// Uses the pure arbitrage objective: discharge * max(buy, sell) - gridCharge * buy - cycleCost.
+    /// Uses the grid-balance objective: minimise total grid cost over the horizon
+    /// (import*buy − export*sell + cycleCost*discharge), charging when cheap and
+    /// discharging / self-consuming when expensive.
     /// </summary>
     public sealed class ProfitMaximizationStrategy : IBatteryOptimizationStrategy
     {

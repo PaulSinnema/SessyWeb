@@ -73,8 +73,8 @@ namespace SessyController.Services
             double AverageCostBasisEur,
             IReadOnlyList<CostBasisLayerInfo> Layers);
 
-        /// <summary>One FIFO layer for display (oldest first).</summary>
-        public sealed record CostBasisLayerInfo(double Wh, double CostEurPerKWh, bool IsSolar);
+        /// <summary>One FIFO layer for display (oldest first). Index gives a unique key.</summary>
+        public sealed record CostBasisLayerInfo(int Index, double Wh, double CostEurPerKWh, bool IsSolar);
 
         /// <summary>
         /// Returns a snapshot of the current FIFO queue for display: total tracked energy,
@@ -91,6 +91,7 @@ namespace SessyController.Services
                 bool oldestSet = false;
                 var layers = new List<CostBasisLayerInfo>(_layers.Count);
 
+                int idx = 0;
                 foreach (var l in _layers)
                 {
                     totalWh += l.Wh;
@@ -100,7 +101,7 @@ namespace SessyController.Services
                         oldest = l.CostEurPerKWh;
                         oldestSet = true;
                     }
-                    layers.Add(new CostBasisLayerInfo(l.Wh, l.CostEurPerKWh, l.CostEurPerKWh < 0.0001));
+                    layers.Add(new CostBasisLayerInfo(idx++, l.Wh, l.CostEurPerKWh, l.CostEurPerKWh < 0.0001));
                 }
 
                 double avg = totalWh > 1.0 ? totalCost / (totalWh / 1000.0) : 0.0;
