@@ -407,6 +407,33 @@ namespace SessyWeb.Pages
 
         private Settings? _settings;
 
+        // UI-only percentage wrappers. Storage keeps factors (0.95, 1.10, 0.005);
+        // these present and edit them as whole percentages.
+        private double ChargingEfficiencyPctUi
+        {
+            get => _settings == null ? 0.0 : _settings.ChargingEfficiencyFactor * 100.0;
+            set { if (_settings != null) _settings.ChargingEfficiencyFactor = value / 100.0; }
+        }
+
+        private double DischargingEfficiencyPctUi
+        {
+            get => _settings == null ? 0.0 : _settings.DischargingEfficiencyFactor * 100.0;
+            set { if (_settings != null) _settings.DischargingEfficiencyFactor = value / 100.0; }
+        }
+
+        // Reserve safety: factor 1.10 <-> 10 % surcharge ((factor - 1) * 100).
+        private double ReserveSafetySurchargePctUi
+        {
+            get => _settings == null ? 0.0 : (_settings.ReserveSafetyFactor - 1.0) * 100.0;
+            set { if (_settings != null) _settings.ReserveSafetyFactor = (value / 100.0) + 1.0; }
+        }
+
+        private double DischargeTimePreferencePctUi
+        {
+            get => _settings == null ? 0.0 : _settings.DischargeTimePreferenceFactor * 100.0;
+            set { if (_settings != null) _settings.DischargeTimePreferenceFactor = value / 100.0; }
+        }
+
         private record StrategyItem(string Text, OptimizationStrategy Value);
 
         private readonly List<StrategyItem> _strategies =

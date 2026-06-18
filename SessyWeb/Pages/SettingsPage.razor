@@ -83,14 +83,14 @@
                                         <RadzenText TextStyle="TextStyle.Caption">0 = default (33%)</RadzenText>
                                     </RadzenColumn>
                                     <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Discharge efficiency factor (0.0–1.0)" />
-                                        <RadzenNumeric TValue="double" @bind-Value="_settings.DischargingEfficiencyFactor" Format="F2" Min="0" Max="1" Style="width:100%" />
-                                        <RadzenText TextStyle="TextStyle.Caption">0 = use appsettings factor per battery</RadzenText>
+                                        <RadzenLabel Text="Discharge efficiency (%)" />
+                                        <RadzenNumeric TValue="double" @bind-Value="DischargingEfficiencyPctUi" Format="F0" Min="0" Max="100" Style="width:100%" />
+                                        <RadzenText TextStyle="TextStyle.Caption">0 = use appsettings value per battery</RadzenText>
                                     </RadzenColumn>
                                     <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Charge efficiency factor (0.0–1.0)" />
-                                        <RadzenNumeric TValue="double" @bind-Value="_settings.ChargingEfficiencyFactor" Format="F2" Min="0" Max="1" Style="width:100%" />
-                                        <RadzenText TextStyle="TextStyle.Caption">0 = use appsettings factor per battery</RadzenText>
+                                        <RadzenLabel Text="Charge efficiency (%)" />
+                                        <RadzenNumeric TValue="double" @bind-Value="ChargingEfficiencyPctUi" Format="F0" Min="0" Max="100" Style="width:100%" />
+                                        <RadzenText TextStyle="TextStyle.Caption">0 = use appsettings value per battery</RadzenText>
                                     </RadzenColumn>
                                     <RadzenColumn Size="12" SizeMD="4" Style="display:flex; flex-direction:column; gap:8px; justify-content:flex-end;">
                                         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
@@ -144,16 +144,16 @@
                                 </RadzenRow>
                                 <RadzenRow Gap="1rem">
                                     <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Reserve safety factor" />
-                                        <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">Safety margin on top of the calculated night/bridge reserve. 1.10 = keep 10% extra. Default: 1.10.</RadzenText>
-                                        <RadzenNumeric @bind-Value="_settings.ReserveSafetyFactor" Format="F2" Style="width:100%" />
+                                        <RadzenLabel Text="Reserve safety surcharge (%)" />
+                                        <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">Extra margin on top of the calculated night/bridge reserve. 10 = keep 10% extra. Default: 10.</RadzenText>
+                                        <RadzenNumeric @bind-Value="ReserveSafetySurchargePctUi" Format="F0" Min="0" Max="100" Style="width:100%" />
                                     </RadzenColumn>
                                 </RadzenRow>
                                 <RadzenRow Gap="1rem">
                                     <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Discharge time preference" />
-                                        <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">Discount on discharge value per quarter into the future. 0.005 = 0.5% per quarter, prefers discharging sooner. 0 = off. Default: 0.005.</RadzenText>
-                                        <RadzenNumeric @bind-Value="_settings.DischargeTimePreferenceFactor" Format="F4" Step="0.001" Style="width:100%" />
+                                        <RadzenLabel Text="Discharge time preference (%)" />
+                                        <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">Discount on discharge value per quarter into the future. 0.5 = 0.5% per quarter, prefers discharging sooner. 0 = off. Default: 0.5.</RadzenText>
+                                        <RadzenNumeric @bind-Value="DischargeTimePreferencePctUi" Format="F1" Step="0.1" Min="0" Max="100" Style="width:100%" />
                                     </RadzenColumn>
                                     <RadzenColumn Size="12" SizeMD="4">
                                         <RadzenLabel Text="Planning horizon (hours)" />
