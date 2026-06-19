@@ -21,6 +21,7 @@ namespace SessyController.Services
         private readonly TimeZoneService _timeZoneService;
         private readonly HeatPumpConfig _heatPumpConfig;
         private readonly IMilpService _milpService;
+        private readonly SettingsService _settingsService;
 
         public ConfigurationCheckService(
             IConfiguration configuration,
@@ -29,7 +30,8 @@ namespace SessyController.Services
             IEPEXPricesService epexPricesService,
             TimeZoneService timeZoneService,
             IOptions<HeatPumpConfig> heatPumpConfig,
-            IMilpService milpService)
+            IMilpService milpService,
+            SettingsService settingsService)
         {
             _configuration = configuration;
             _taxesDataService = taxesDataService;
@@ -38,6 +40,7 @@ namespace SessyController.Services
             _timeZoneService = timeZoneService;
             _heatPumpConfig = heatPumpConfig.Value;
             _milpService = milpService;
+            _settingsService = settingsService;
         }
 
         public async Task<List<ConfigurationCheck>> RunAllChecksAsync()
@@ -48,6 +51,7 @@ namespace SessyController.Services
             await CheckTaxesConfiguration(checks);
             await CheckGasPricesHistory(checks);
             CheckHeatPumpConfiguration(checks);
+            CheckSettingsExtremes(checks);
             await CheckPlanStatus(checks).ConfigureAwait(false);
 
             return checks.OrderBy(c => c.Severity).ToList();
@@ -219,6 +223,131 @@ namespace SessyController.Services
                 Description = $"Annual gas consumption: {_heatPumpConfig.AnnualGasConsumptionM3:F0} m³/year, " +
                               $"installed: {_heatPumpConfig.InstallationDate:dd-MM-yyyy}."
             });
+        }
+
+        /// <summary>
+        /// Warns when battery planning settings hold extreme values that usually indicate
+        /// a mistake. Values are shown as the user sees them in Settings (whole percentages).
+        /// </summary>
+        private void CheckSettingsExtremes(List<ConfigurationCheck> checks)
+        {
+            var s = _settingsService.Current;
+            if (s == null) return;
+
+            // Cycle cost: a high value suppresses all arbitrage; a zero value lets the
+            // battery cycle for negligible gain and wear out faster.
+            if (s.CycleCost <= 0.0)
+            {
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Warning,
+                    Title = "Cycle cost is 0",
+                    Description = "Cycle cost is € 0.00/kWh. The planner ignores battery wear and may " +
+                                  "cycle for tiny gains. Set a realistic value (typically € 0.05–0.10/kWh).",
+                    ActionUrl = "/settings",
+                    ActionLabel = "Open settings"
+                });
+            }
+            else if (s.CycleCost > 0.20)
+            {
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Warning,
+                    Title = "Cycle cost very high",
+                    Description = $"Cycle cost is € {s.CycleCost:F2}/kWh. This is high and may block almost all " +
+                                  "charging and discharging. Typical values are € 0.05–0.10/kWh.",
+                    ActionUrl = "/settings",
+                    ActionLabel = "Open settings"
+                });
+            }
+
+            // Charge efficiency (factor 0–1, shown as %). 0 = use appsettings, so only flag > 0.
+            double chargePct = s.ChargingEfficiencyFactor * 100.0;
+            if (s.ChargingEfficiencyFactor > 0.0 && (chargePct < 50.0 || chargePct > 100.0))
+            {
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Warning,
+                    Title = "Charge efficiency out of range",
+                    Description = $"Charge efficiency is {chargePct:F0}%. Expected 80–100%. " +
+                                  "A very low value cripples charging; above 100% is impossible.",
+                    ActionUrl = "/settings",
+                    ActionLabel = "Open settings"
+                });
+            }
+
+            double dischargePct = s.DischargingEfficiencyFactor * 100.0;
+            if (s.DischargingEfficiencyFactor > 0.0 && (dischargePct < 50.0 || dischargePct > 100.0))
+            {
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Warning,
+                    Title = "Discharge efficiency out of range",
+                    Description = $"Discharge efficiency is {dischargePct:F0}%. Expected 80–100%. " +
+                                  "A very low value cripples discharging; above 100% is impossible.",
+                    ActionUrl = "/settings",
+                    ActionLabel = "Open settings"
+                });
+            }
+
+            // Reserve safety surcharge (factor 1.x, shown as % above 100).
+            double reservePct = (s.ReserveSafetyFactor - 1.0) * 100.0;
+            if (reservePct > 50.0)
+            {
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Warning,
+                    Title = "Reserve safety surcharge very high",
+                    Description = $"Reserve safety surcharge is {reservePct:F0}%. The battery will hold a large " +
+                                  "reserve and rarely discharge. Typical value is around 10%.",
+                    ActionUrl = "/settings",
+                    ActionLabel = "Open settings"
+                });
+            }
+
+            // Night reserve cap (already a whole percentage of capacity).
+            if (s.NightReserveCapPct > 80.0)
+            {
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Warning,
+                    Title = "Night reserve cap very high",
+                    Description = $"Night reserve cap is {s.NightReserveCapPct:F0}%. The battery keeps most of its " +
+                                  "capacity in reserve and barely discharges overnight. Typical value is around 33%.",
+                    ActionUrl = "/settings",
+                    ActionLabel = "Open settings"
+                });
+            }
+
+            // Discharge time preference (factor, shown as % per quarter). Large values
+            // distort the plan by discounting the future too aggressively.
+            double timePrefPct = s.DischargeTimePreferenceFactor * 100.0;
+            if (timePrefPct > 5.0)
+            {
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Warning,
+                    Title = "Discharge time preference very high",
+                    Description = $"Discharge time preference is {timePrefPct:F1}% per quarter. This heavily " +
+                                  "discounts later discharge and may dump the battery early. Typical value is 0.5%.",
+                    ActionUrl = "/settings",
+                    ActionLabel = "Open settings"
+                });
+            }
+
+            // Planning horizon: too short loses the evening peak; 0 = no limit (fine).
+            if (s.PlanningHorizonHours > 0 && s.PlanningHorizonHours < 12)
+            {
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Warning,
+                    Title = "Planning horizon very short",
+                    Description = $"Planning horizon is {s.PlanningHorizonHours} h. Below ~12 h the planner cannot " +
+                                  "see the next price peak and may not save charge for it. Use 0 (no limit), 24 or 36.",
+                    ActionUrl = "/settings",
+                    ActionLabel = "Open settings"
+                });
+            }
         }
 
         private async Task CheckPlanStatus(List<ConfigurationCheck> checks)

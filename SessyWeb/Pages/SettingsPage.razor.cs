@@ -43,6 +43,36 @@ namespace SessyWeb.Pages
             StateHasChanged();
         }
 
+        private System.Threading.Timer? _checksTimer;
+
+        // Refresh Tips & Checks in the background every 5 seconds.
+        private void StartChecksRefresh()
+        {
+            _checksTimer ??= new System.Threading.Timer(async _ =>
+            {
+                try
+                {
+                    var fresh = await _checkService!.RunAllChecksAsync();
+                    await InvokeAsync(() =>
+                    {
+                        _checks = fresh;
+                        StateHasChanged();
+                    });
+                }
+                catch
+                {
+                    // Background refresh is best-effort; ignore transient failures.
+                }
+            }, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
+        }
+
+        public override void Dispose()
+        {
+            _checksTimer?.Dispose();
+            _checksTimer = null;
+            base.Dispose();
+        }
+
         // ── Investment Groups ─────────────────────────────────────────────────
 
         private List<InvestmentGroup>? GroupList { get; set; } = new();
@@ -177,6 +207,7 @@ namespace SessyWeb.Pages
             {
                 _checksInitialised = true;
                 await LoadChecks();
+                StartChecksRefresh();
             }
 
             await base.OnAfterRenderAsync(firstRender);
