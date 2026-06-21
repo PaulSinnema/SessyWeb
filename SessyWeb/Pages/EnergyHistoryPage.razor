@@ -1,34 +1,68 @@
 ﻿@page "/energyhistory"
 @inherits PageBase
 @using SessyData.Model
+@using Radzen
 
-<a>Energy measurements</a>
+<RadzenTabs RenderMode="TabRenderMode.Client">
+    <Tabs>
+        <RadzenTabsItem Text="Measurements" Icon="insights">
+            <RadzenDataGrid @ref="energyGrid"
+                            Data="@MeasurementList"
+                            Context="data"
+                            Count="@count"
+                            LoadData="@LoadData"
+                            Responsive="true"
+                            AllowSorting="true"
+                            AllowFiltering="true"
+                            AllowPaging="true"
+                            PageSize="20"
+                            Density="Density.Compact"
+                            PagerHorizontalAlign="HorizontalAlign.Center">
+                <Columns>
+                    @if (!HideId)
+                    {
+                        <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.Id)" Title="Id" />
+                    }
+                    <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.Time)" Title="Time" SortOrder="SortOrder.Descending" />
+                    <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.GridImportWh)" Title="Import (Wh)" />
+                    <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.GridExportWh)" Title="Export (Wh)" />
+                    <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.BatteryPowerWatts)" Title="Battery (W)" />
+                    <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.BatteryStateOfChargeWh)" Title="SOC (Wh)" />
+                    <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.BatteryMode)" Title="Mode" />
+                    <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.BuyingPriceEur)" Title="Buy (€/kWh)" />
+                    <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.SellingPriceEur)" Title="Sell (€/kWh)" />
+                    <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.IsReliable)" Title="Reliable" />
+                </Columns>
+            </RadzenDataGrid>
+        </RadzenTabsItem>
 
-<RadzenDataGrid @ref="energyGrid"
-                Data="@MeasurementList"
-                Context="data"
-                Count="@count"
-                LoadData="@LoadData"
-                Responsive="true"
-                AllowSorting="true"
-                AllowFiltering="true"
-                AllowPaging="true"
-                PageSize="20"
-                Density="Density.Compact"
-                PagerHorizontalAlign="HorizontalAlign.Center">
-    <Columns>
-        @if (!HideId)
-        {
-            <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.Id)" Title="Id" />
-        }
-        <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.Time)" Title="Time" SortOrder="SortOrder.Descending" />
-        <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.GridImportWh)" Title="Import (Wh)" />
-        <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.GridExportWh)" Title="Export (Wh)" />
-        <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.BatteryPowerWatts)" Title="Battery (W)" />
-        <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.BatteryStateOfChargeWh)" Title="SOC (Wh)" />
-        <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.BatteryMode)" Title="Mode" />
-        <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.BuyingPriceEur)" Title="Buy (€/kWh)" />
-        <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.SellingPriceEur)" Title="Sell (€/kWh)" />
-        <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.IsReliable)" Title="Reliable" />
-    </Columns>
-</RadzenDataGrid>
+        <RadzenTabsItem Text="Meter readings" Icon="speed">
+            <RadzenDataGrid @ref="meterGrid"
+                            Data="@MeterReadingsList"
+                            Context="reading"
+                            Count="@meterCount"
+                            LoadData="@LoadMeterReadings"
+                            Responsive="true"
+                            AllowSorting="true"
+                            AllowFiltering="true"
+                            AllowPaging="true"
+                            PageSize="20"
+                            Density="Density.Compact"
+                            PagerHorizontalAlign="HorizontalAlign.Center">
+                <Columns>
+                    @if (!HideId)
+                    {
+                        <RadzenDataGridColumn Property="@nameof(EnergyHistory.Id)" Title="Id" />
+                    }
+                    <RadzenDataGridColumn Property="@nameof(EnergyHistory.Time)" Title="Time" SortOrder="SortOrder.Descending" />
+                    <RadzenDataGridColumn Property="@nameof(EnergyHistory.ConsumedTariff1)" Title="Consumed T1 (Wh)" />
+                    <RadzenDataGridColumn Property="@nameof(EnergyHistory.ConsumedTariff2)" Title="Consumed T2 (Wh)" />
+                    <RadzenDataGridColumn Property="@nameof(EnergyHistory.ProducedTariff1)" Title="Produced T1 (Wh)" />
+                    <RadzenDataGridColumn Property="@nameof(EnergyHistory.ProducedTariff2)" Title="Produced T2 (Wh)" />
+                    <RadzenDataGridColumn Property="@nameof(EnergyHistory.TarrifIndicator)" Title="Tariff indicator" />
+                    <RadzenDataGridColumn Property="@nameof(EnergyHistory.Temperature)" Title="Temperature" />
+                </Columns>
+            </RadzenDataGrid>
+        </RadzenTabsItem>
+    </Tabs>
+</RadzenTabs>

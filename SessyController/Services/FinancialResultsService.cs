@@ -1,4 +1,5 @@
 ﻿using SessyController.Services.Items;
+using SessyCommon.Extensions;
 using SessyData.Model;
 using SessyData.Services;
 
@@ -61,18 +62,36 @@ namespace SessyController.Services
                 if (previous != null)
                 {
                     var gridPower = new GridPower(history, previous);
-                    var isConsumer = gridPower.IsConsumer;
-                    var price = await _calculationService.CalculateEnergyPrice(history.Time, isConsumer);
-                    var cost = (decimal)(gridPower.TotalInversed * (price ?? 0.0) / 1000.0);
 
+                    // Consumption and feed-in are priced separately and then netted.
+                    // This is correct both with netting (buy ≈ sell, so it equals the net)
+                    // and without netting (sell << buy), where they must not be salded.
+                    var buyPrice = await _calculationService.CalculateEnergyPrice(history.Time, true);
+                    var sellPrice = await _calculationService.CalculateEnergyPrice(history.Time, false);
+
+                    double consumedKWh = gridPower.TotalConsumed / 1000.0;
+                    double producedKWh = gridPower.TotalProduced / 1000.0;
+
+                    // Sign convention (matches GridPower.TotalInversed): positive = you pay,
+                    // negative = you receive. Consumption costs money, feed-in returns it.
+                    var cost = (decimal)(consumedKWh * (buyPrice ?? 0.0)
+                                       - producedKWh * (sellPrice ?? 0.0));
+
+                    // Report the buy price as the headline price for the quarter.
                     AddResult(monthResults, previous.Time, gridPower.TotalConsumed,
-                        gridPower.TotalProduced, (decimal)(price ?? 0.0), cost);
+                        gridPower.TotalProduced, (decimal)(buyPrice ?? 0.0), cost);
                 }
 
                 previous = history;
             }
 
             // ── Source 2: QuarterlyMeasurements ──────────────────────────────
+            // Only for quarters NOT covered by EnergyHistory. Now that meter readings are
+            // stored again, the same quarter could appear in both sources; this guard
+            // prevents counting the grid flow twice.
+            var historyTimes = new HashSet<DateTime>(
+                histories.Select(h => h.Time.DateFloorQuarter()));
+
             var measurements = await _measurementService.GetList(async set =>
             {
                 var result = set
@@ -85,13 +104,22 @@ namespace SessyController.Services
 
             foreach (var m in measurements)
             {
-                double netWh = m.GridImportWh - m.GridExportWh;
-                bool isConsumer = netWh >= 0;
-                var price = await _calculationService.CalculateEnergyPrice(m.Time, isConsumer);
-                var cost = (decimal)(netWh * (price ?? 0.0) / 1000.0);
+                if (historyTimes.Contains(m.Time.DateFloorQuarter()))
+                    continue;
+
+                // Import and export are priced separately and netted, same as Source 1.
+                var buyPrice = await _calculationService.CalculateEnergyPrice(m.Time, true);
+                var sellPrice = await _calculationService.CalculateEnergyPrice(m.Time, false);
+
+                double importKWh = m.GridImportWh / 1000.0;
+                double exportKWh = m.GridExportWh / 1000.0;
+
+                // Sign convention: positive = you pay, negative = you receive.
+                var cost = (decimal)(importKWh * (buyPrice ?? 0.0)
+                                   - exportKWh * (sellPrice ?? 0.0));
 
                 AddResult(monthResults, m.Time, m.GridImportWh, m.GridExportWh,
-                    (decimal)(price ?? 0.0), cost);
+                    (decimal)(buyPrice ?? 0.0), cost);
             }
 
             // Sort each month's results by time.

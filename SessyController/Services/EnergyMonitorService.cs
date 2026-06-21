@@ -23,6 +23,7 @@ namespace SessyController.Services
         private BatteryContainer _batteryContainer { get; set; }
 
         private QuarterlyMeasurementDataService _measurementService { get; set; }
+        private EnergyHistoryDataService _energyHistoryService { get; set; }
 
         private IServiceScopeFactory _serviceScopeFactory { get; set; }
 
@@ -54,6 +55,7 @@ namespace SessyController.Services
             _scope = _serviceScopeFactory.CreateScope();
 
             _measurementService = _scope.ServiceProvider.GetRequiredService<QuarterlyMeasurementDataService>();
+            _energyHistoryService = _scope.ServiceProvider.GetRequiredService<EnergyHistoryDataService>();
             _p1MeterService = _scope.ServiceProvider.GetRequiredService<P1MeterService>();
             _epexPricesService = _scope.ServiceProvider.GetRequiredService<EPEXPricesService>();
 
@@ -128,7 +130,7 @@ namespace SessyController.Services
                 var quarterlyInfo = prices
                     .FirstOrDefault(hi => hi.Time.DateFloorQuarter() == selectTime);
 
-                await StoreMeasurement(p1Details!, quarterlyInfo, selectTime, weatherHourData);
+                await StoreMeasurement(p1Details!, quarterlyInfo, selectTime, weatherHourData, p1Meter.Id);
 
                 DataChanged?.Invoke();
 
@@ -160,7 +162,8 @@ namespace SessyController.Services
             P1Details p1Details,
             QuarterlyInfo? quarterlyInfo,
             DateTime time,
-            UurVerwachting? hourExpectancy)
+            UurVerwachting? hourExpectancy,
+            string? meterId)
         {
             // Calculate grid import/export deltas from cumulative P1 meter tands.
             // Previous reading is cached; first reading of the session has no delta.
@@ -211,6 +214,23 @@ namespace SessyController.Services
             };
 
             await _measurementService.Add(new List<QuarterlyMeasurement> { measurement });
+
+            // Store the cumulative P1 meter readings (meterstanden) so the raw meter history
+            // is preserved, as in earlier versions. Values stay in Wh to match how
+            // EnergyStatisticsService and FinancialResultsService read the tariff deltas.
+            var history = new EnergyHistory
+            {
+                Time = time,
+                MeterId = meterId,
+                ConsumedTariff1 = p1Details.PowerConsumedTariff1,
+                ConsumedTariff2 = p1Details.PowerConsumedTariff2,
+                ProducedTariff1 = p1Details.PowerProducedTariff1,
+                ProducedTariff2 = p1Details.PowerProducedTariff2,
+                TarrifIndicator = p1Details.TariffIndicator,
+                Temperature = hourExpectancy?.Temp ?? 0.0
+            };
+
+            await _energyHistoryService.Add(new List<EnergyHistory> { history });
         }
     }
 }
