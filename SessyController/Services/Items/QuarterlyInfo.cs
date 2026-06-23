@@ -1,4 +1,5 @@
 using SessyCommon.Configurations;
+using SessyCommon.Enums;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
 using SessyController.Managers;
@@ -63,7 +64,7 @@ namespace SessyController.Services.Items
             IsMeasured = true;
             IsPriceExpected = false;
 
-            Mode = ChargingModes.GetMode(measurement.BatteryMode);
+            Mode = measurement.BatteryMode;
 
             ChargeLeftWh = measurement.BatteryStateOfChargeWh;
             ChargeNeededWh = 0.0;

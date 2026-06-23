@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using SessyCommon.Enums;
 using SessyCommon.Configurations;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
@@ -459,15 +460,7 @@ namespace SessyController.Services
             // Use the actually executed mode, not the planned mode from QuarterlyInfo.
             // The runtime may have overridden the plan (e.g. SOC guard → NZH, curtailment → Disabled).
             var nowQuarter = _timeZoneService.Now.DateFloorQuarter();
-            var (executedMode, _) = await _milpService.GetExecutableActionForNowAsync(nowQuarter).ConfigureAwait(false);
-
-            var mode = executedMode switch
-            {
-                Modes.Charging => BatteryMode.Charging,
-                Modes.Discharging => BatteryMode.Discharging,
-                Modes.ZeroNetHome => BatteryMode.ZeroNetHome,
-                _ => BatteryMode.Disabled
-            };
+            var (mode, _) = await _milpService.GetExecutableActionForNowAsync(nowQuarter).ConfigureAwait(false);
 
             // Update the existing QuarterlyMeasurement record created by EnergyMonitorService,
             // or create a new one if it does not exist yet (e.g. on first startup).

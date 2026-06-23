@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using SessyCommon.Configurations;
+using SessyCommon.Enums;
 using SessyCommon.Services;
 using SessyController.Interfaces;
 using SessyController.Services.Items;
@@ -8,6 +9,7 @@ using SessyController.Services.Statistics;
 using SessyData.Model;
 using SessyData.Services;
 using System.Text.RegularExpressions;
+using static SessyController.Services.Items.ChargingModes;
 
 namespace SessyController.Services
 {
@@ -850,7 +852,7 @@ namespace SessyController.Services
 
                 // Planned Charging mode only for cost.
                 double cost = measurements
-                    .Where(m => m.BatteryMode == BatteryMode.Charging && m.BatteryPowerWatts < 0)
+                    .Where(m => m.BatteryMode == Modes.Charging && m.BatteryPowerWatts < 0)
                     .Sum(m => m.BuyingPriceEur * m.BatteryChargedKWh);
 
                 int month = current.Month;
@@ -995,14 +997,14 @@ namespace SessyController.Services
         /// Grid flows = sum of per-quarter deltas stored in GridImportWh / GridExportWh.
         /// </summary>
         private static void CalculateGridFlows(
-            List<QuarterlyMeasurement> measurements, EnergyStatistics stats)
+            List<MeasurementView> measurements, EnergyStatistics stats)
         {
             stats.TotalGridImportKWh = measurements.Sum(m => m.GridImportKWh);
             stats.TotalGridExportKWh = measurements.Sum(m => m.GridExportKWh);
         }
 
         private async Task CalculateSolarStatsAsync(
-            List<QuarterlyMeasurement> measurements, EnergyStatistics stats)
+            List<MeasurementView> measurements, EnergyStatistics stats)
         {
             if (!measurements.Any())
                 return;
@@ -1045,7 +1047,7 @@ namespace SessyController.Services
         /// where consumption = grid_import + solar + battery_discharge - battery_charge - grid_export
         /// </summary>
         private async Task CalculateSelfConsumedSolarAsync(
-            List<QuarterlyMeasurement> measurements, EnergyStatistics stats)
+            List<MeasurementView> measurements, EnergyStatistics stats)
         {
             if (stats.TotalSolarProductionKWh <= 0)
             {
@@ -1074,7 +1076,7 @@ namespace SessyController.Services
         }
 
         private async Task CalculateConsumptionStatsAsync(
-            List<QuarterlyMeasurement> measurements, EnergyStatistics stats)
+            List<MeasurementView> measurements, EnergyStatistics stats)
         {
             // Total consumption via energy balance.
             stats.TotalConsumptionKWh = Math.Max(0,
@@ -1110,7 +1112,7 @@ namespace SessyController.Services
         }
 
         private void CalculateBatteryStats(
-            List<QuarterlyMeasurement> measurements, EnergyStatistics stats)
+            List<MeasurementView> measurements, EnergyStatistics stats)
         {
             if (!measurements.Any())
                 return;
@@ -1131,10 +1133,10 @@ namespace SessyController.Services
             // Planned-only efficiency: charge from Charging mode, discharge from Discharging mode.
             // Cross-mode: a planned cycle charges in mode 1 and discharges in mode 2.
             stats.PlannedBatteryChargedKWh = reliable
-                .Where(m => m.BatteryMode == BatteryMode.Charging)
+                .Where(m => m.BatteryMode == Modes.Charging)
                 .Sum(m => m.BatteryChargedKWh);
             stats.PlannedBatteryDischargedKWh = reliable
-                .Where(m => m.BatteryMode == BatteryMode.Discharging)
+                .Where(m => m.BatteryMode == Modes.Discharging)
                 .Sum(m => m.BatteryDischargedKWh);
 
             // SOC at start and end of period for round-trip efficiency correction.
@@ -1168,7 +1170,7 @@ namespace SessyController.Services
         }
 
         private static void CalculateFinancialStats(
-            List<QuarterlyMeasurement> measurements, EnergyStatistics stats)
+            List<MeasurementView> measurements, EnergyStatistics stats)
         {
             if (!measurements.Any())
                 return;
@@ -1319,7 +1321,7 @@ namespace SessyController.Services
             // All measurements for cycle calculation.
             var allMeasurements = await GetMeasurementsAsync(dataStart, now);
             double totalChargedKWh = allMeasurements
-                .Where(m => m.BatteryMode == SessyData.Model.BatteryMode.Charging && m.IsReliable)
+                .Where(m => m.BatteryMode == Modes.Charging && m.IsReliable)
                 .Sum(m => Math.Abs(m.BatteryPowerWatts) * 0.25 / 1000.0);
             double measuredDays = allMeasurements.Any()
                 ? (allMeasurements.Max(m => m.Time) - allMeasurements.Min(m => m.Time)).TotalDays
@@ -1487,34 +1489,64 @@ namespace SessyController.Services
 
         // ── Data access ──────────────────────────────────────────────────────
 
-        private async Task<List<QuarterlyMeasurement>> GetMeasurementsAsync(
+        private async Task<List<MeasurementView>> GetMeasurementsAsync(
             DateTime start, DateTime end)
         {
+            // Battery telemetry for the window.
             var measurements = await _measurementDataService.GetList(async set =>
-            {
-                var result = set
+                await Task.FromResult(set
                     .Where(m => m.Time >= start && m.Time <= end)
                     .OrderBy(m => m.Time)
-                    .ToList();
+                    .ToList()));
 
-                return await Task.FromResult(result);
-            });
+            // Meter readings: load one quarter before the window too, so the first quarter
+            // inside the window has a previous reading to compute its delta against.
+            var histories = await _energyHistoryDataService.GetList(async set =>
+                await Task.FromResult(set
+                    .Where(h => h.Time >= start.AddMinutes(-15) && h.Time <= end)
+                    .OrderBy(h => h.Time)
+                    .ToList()));
 
-            // Recalculate BuyingPriceEur and SellingPriceEur from EPEXPrices + current Taxes
-            // so that statistics always reflect the current tax structure.
+            // Grid import/export per quarter as the delta between consecutive meter readings,
+            // keyed by the END time of the interval (matching the measurement quarter).
+            var gridByTime = new Dictionary<DateTime, (double importWh, double exportWh)>();
+            for (int i = 1; i < histories.Count; i++)
+            {
+                var prev = histories[i - 1];
+                var cur = histories[i];
+
+                double importWh = (cur.ConsumedTariff1 - prev.ConsumedTariff1)
+                                + (cur.ConsumedTariff2 - prev.ConsumedTariff2);
+                double exportWh = (cur.ProducedTariff1 - prev.ProducedTariff1)
+                                + (cur.ProducedTariff2 - prev.ProducedTariff2);
+
+                // Guard against meter resets / gaps producing negative deltas.
+                gridByTime[cur.Time] = (Math.Max(0.0, importWh), Math.Max(0.0, exportWh));
+            }
+
+            // Prices from EPEXPrices + current Taxes for every quarter.
             var prices = await _calculationService.CalculateEnergyPricesBatchAsync(
                 measurements.Select(m => m.Time));
 
-            foreach (var m in measurements)
+            return measurements.Select(m =>
             {
-                if (prices.TryGetValue(m.Time, out var p))
-                {
-                    m.BuyingPriceEur = p.Buying;
-                    m.SellingPriceEur = p.Selling;
-                }
-            }
+                gridByTime.TryGetValue(m.Time, out var grid);
+                prices.TryGetValue(m.Time, out var price);
 
-            return measurements;
+                return new MeasurementView
+                {
+                    Time = m.Time,
+                    BatteryPowerWatts = m.BatteryPowerWatts,
+                    BatteryStateOfChargeWh = m.BatteryStateOfChargeWh,
+                    BatteryMode = m.BatteryMode,
+                    IsReliable = m.IsReliable,
+                    PlannedRevenueEur = m.PlannedRevenueEur,
+                    GridImportWh = grid.importWh,
+                    GridExportWh = grid.exportWh,
+                    BuyingPriceEur = price?.Buying ?? 0.0,
+                    SellingPriceEur = price?.Selling ?? 0.0
+                };
+            }).ToList();
         }
 
         /// <summary>

@@ -1,4 +1,5 @@
-﻿using static SessyController.Services.Items.ChargingModes;
+﻿using SessyCommon.Enums;
+using static SessyController.Services.Items.ChargingModes;
 
 namespace SessyController.Services.StateMachine
 {

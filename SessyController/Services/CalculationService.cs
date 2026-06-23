@@ -3,6 +3,7 @@ using SessyController.Services.Items;
 using SessyData.Model;
 using SessyData.Services;
 using System.Collections.Concurrent;
+using SessyCommon.Enums;
 using static SessyController.Services.Items.ChargingModes;
 
 namespace SessyController.Services
@@ -327,25 +328,28 @@ namespace SessyController.Services
             {
                 switch (m.BatteryMode)
                 {
-                    case SessyData.Model.BatteryMode.Charging:
+                    case Modes.Charging:
                         // Energy charged = measured kWh capped at charging capacity.
                         var charged = Math.Min(m.BatteryChargedKWh, chargingCapacity / 1000.0 * 0.25);
                         totalChargedKWh += charged;
                         totalCostEur += charged * m.BuyingPriceEur;
                         break;
 
-                    case SessyData.Model.BatteryMode.Discharging:
+                    case Modes.Discharging:
                         var discharged = Math.Min(m.BatteryDischargedKWh, dischargingCapacity / 1000.0 * 0.25);
                         totalChargedKWh -= discharged;
                         totalCostEur -= discharged * m.SellingPriceEur;
                         break;
 
-                    case SessyData.Model.BatteryMode.ZeroNetHome:
-                        // In ZeroNetHome the battery absorbs surplus solar or covers household load.
-                        // Use net grid export as a proxy for energy delivered.
-                        var netKWh = m.GridExportKWh - m.GridImportKWh;
-                        totalChargedKWh -= netKWh;
-                        totalCostEur -= netKWh * m.SellingPriceEur;
+                    case Modes.ZeroNetHome:
+                        // In ZeroNetHome the battery covers household load directly. Value the
+                        // battery throughput itself: charging absorbs energy, discharging
+                        // releases it. Grid flow is no longer stored on the measurement.
+                        var znhCharged = m.BatteryChargedKWh;
+                        var znhDischarged = m.BatteryDischargedKWh;
+                        totalChargedKWh += znhCharged - znhDischarged;
+                        totalCostEur += znhCharged * m.BuyingPriceEur
+                                      - znhDischarged * m.SellingPriceEur;
                         break;
                 }
             }
@@ -367,26 +371,26 @@ namespace SessyController.Services
 
             switch (measurement.BatteryMode)
             {
-                case SessyData.Model.BatteryMode.Charging:
+                case Modes.Charging:
                     // Room = capacity left to fill (Wh → W per quarter).
                     roomInWatt = (totalCapacityWh - measurement.BatteryStateOfChargeWh) * 4.0;
                     roomInWatt = Math.Min(roomInWatt, chargingCapacityW);
                     break;
 
-                case SessyData.Model.BatteryMode.Discharging:
+                case Modes.Discharging:
                     // Room = energy available to discharge.
                     roomInWatt = measurement.BatteryStateOfChargeWh * 4.0;
                     roomInWatt = Math.Min(roomInWatt, dischargingCapacityW);
                     break;
 
-                case SessyData.Model.BatteryMode.ZeroNetHome:
+                case Modes.ZeroNetHome:
                     // Room = SOC available for self-consumption balancing.
                     // Solar is not stored on QuarterlyMeasurement — use SOC only.
                     roomInWatt = measurement.BatteryStateOfChargeWh * 4.0;
                     roomInWatt = Math.Min(roomInWatt, dischargingCapacityW);
                     break;
 
-                case SessyData.Model.BatteryMode.Disabled:
+                case Modes.Disabled:
                 default:
                     roomInWatt = 0.0;
                     break;

@@ -1,4 +1,5 @@
-﻿using SessyController.Interfaces;
+﻿using SessyCommon.Enums;
+using SessyController.Interfaces;
 using SessyController.Services.Items;
 using SessyController.Services.Statistics;
 using SessyData.Model;

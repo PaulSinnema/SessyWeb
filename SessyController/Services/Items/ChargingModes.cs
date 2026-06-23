@@ -1,18 +1,9 @@
-﻿using SessyData.Model;
+﻿using SessyCommon.Enums;
 
 namespace SessyController.Services.Items
 {
     public static class ChargingModes
     {
-        public enum Modes
-        {
-            Unknown,
-            Charging,
-            Discharging,
-            ZeroNetHome,
-            Disabled
-        };
-
         public static string GetDisplayMode(Modes mode)
         {
             switch (mode)
@@ -30,27 +21,6 @@ namespace SessyController.Services.Items
                 default:
                     return "?";
             }
-        }
-
-        public static Modes GetMode(QuarterlyInfo quarterlyInfo)
-        {
-            if (quarterlyInfo.Charging) return Modes.Charging;
-            if (quarterlyInfo.Discharging) return Modes.Discharging;
-            if (quarterlyInfo.ZeroNetHome) return Modes.ZeroNetHome;
-            if (quarterlyInfo.Disabled) return Modes.Disabled;
-            return Modes.Unknown;
-        }
-
-        public static Modes GetMode(SessyData.Model.BatteryMode batteryMode)
-        {
-            return batteryMode switch
-            {
-                SessyData.Model.BatteryMode.Charging => Modes.Charging,
-                SessyData.Model.BatteryMode.Discharging => Modes.Discharging,
-                SessyData.Model.BatteryMode.ZeroNetHome => Modes.ZeroNetHome,
-                SessyData.Model.BatteryMode.Disabled => Modes.Disabled,
-                _ => Modes.Unknown
-            };
         }
     }
 }

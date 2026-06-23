@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Options;
 using SessyCommon.Configurations;
+using SessyCommon.Enums;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
 using SessyController.Interfaces;

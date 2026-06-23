@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Logging.Abstractions;
+using SessyCommon.Enums;
 using SessyController.Services;
 using SessyController.Services.StateMachine;
 using static SessyController.Services.Items.ChargingModes;

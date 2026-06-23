@@ -1,5 +1,4 @@
 ﻿using SessyController.Services.Items;
-using SessyCommon.Extensions;
 using SessyData.Model;
 using SessyData.Services;
 
@@ -20,16 +19,13 @@ namespace SessyController.Services
     public class FinancialResultsService
     {
         private readonly EnergyHistoryDataService _energyHistoryService;
-        private readonly QuarterlyMeasurementDataService _measurementService;
         private readonly CalculationService _calculationService;
 
         public FinancialResultsService(
             EnergyHistoryDataService energyHistoryService,
-            QuarterlyMeasurementDataService measurementService,
             CalculationService calculationService)
         {
             _energyHistoryService = energyHistoryService;
-            _measurementService = measurementService;
             _calculationService = calculationService;
         }
 
@@ -83,43 +79,6 @@ namespace SessyController.Services
                 }
 
                 previous = history;
-            }
-
-            // ── Source 2: QuarterlyMeasurements ──────────────────────────────
-            // Only for quarters NOT covered by EnergyHistory. Now that meter readings are
-            // stored again, the same quarter could appear in both sources; this guard
-            // prevents counting the grid flow twice.
-            var historyTimes = new HashSet<DateTime>(
-                histories.Select(h => h.Time.DateFloorQuarter()));
-
-            var measurements = await _measurementService.GetList(async set =>
-            {
-                var result = set
-                    .Where(m => m.Time >= start && m.Time < end)
-                    .OrderBy(m => m.Time)
-                    .ToList();
-
-                return await Task.FromResult(result);
-            });
-
-            foreach (var m in measurements)
-            {
-                if (historyTimes.Contains(m.Time.DateFloorQuarter()))
-                    continue;
-
-                // Import and export are priced separately and netted, same as Source 1.
-                var buyPrice = await _calculationService.CalculateEnergyPrice(m.Time, true);
-                var sellPrice = await _calculationService.CalculateEnergyPrice(m.Time, false);
-
-                double importKWh = m.GridImportWh / 1000.0;
-                double exportKWh = m.GridExportWh / 1000.0;
-
-                // Sign convention: positive = you pay, negative = you receive.
-                var cost = (decimal)(importKWh * (buyPrice ?? 0.0)
-                                   - exportKWh * (sellPrice ?? 0.0));
-
-                AddResult(monthResults, m.Time, m.GridImportWh, m.GridExportWh,
-                    (decimal)(buyPrice ?? 0.0), cost);
             }
 
             // Sort each month's results by time.

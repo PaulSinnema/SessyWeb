@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Moq;
 using SessyCommon.Configurations;
+using SessyCommon.Enums;
 using SessyCommon.Services;
 using SessyController.Interfaces;
 using SessyController.Services;
@@ -24,6 +25,7 @@ namespace SessyTests.Services
         private readonly Mock<EPEXPricesDataService> _epexMock;
         private readonly Mock<InvestmentGroupDataService> _groupMock;
         private readonly Mock<TimeZoneService> _timeZoneMock;
+        private readonly Mock<ICalculationService> _calculationServiceMock;
         private readonly EnergyStatisticsService _sut;
 
         private static readonly DateTime PeriodStart = new DateTime(2026, 5, 1);
@@ -79,6 +81,7 @@ namespace SessyTests.Services
                          .ReturnsAsync(new List<SessyData.Model.GasPrice>());
 
             var calculationServiceMock = new Mock<ICalculationService>();
+            _calculationServiceMock = calculationServiceMock;
             calculationServiceMock.Setup(s => s.CalculateGasPriceAsync(It.IsAny<double>()))
                                   .ReturnsAsync((double?)null);
             calculationServiceMock.Setup(s => s.CalculateEnergyPricesBatchAsync(It.IsAny<IEnumerable<DateTime>>()))
@@ -131,12 +134,14 @@ namespace SessyTests.Services
         {
             // 4 quarters: 100 Wh import and 50 Wh export each.
             // Total import = 0.4 kWh, total export = 0.2 kWh.
+            // Grid now comes from EnergyHistory meter-reading deltas, not the measurement.
             SetupMeasurements(Enumerable.Range(0, 4).Select(i => new QuarterlyMeasurement
             {
-                Time = PeriodStart.AddMinutes(i * 15),
-                GridImportWh = 100,
-                GridExportWh = 50
+                Time = PeriodStart.AddMinutes(i * 15)
             }).ToList());
+
+            SetupMeterReadings(Enumerable.Range(0, 4).Select(i =>
+                (PeriodStart.AddMinutes(i * 15), 100.0, 50.0)));
 
             var result = await _sut.GetEnergyStatisticsAsync(PeriodStart, PeriodEnd);
 
@@ -185,8 +190,9 @@ namespace SessyTests.Services
             // Self consumed = 1.0 - 0.2 = 0.8 kWh = 80%.
             SetupMeasurements(new List<QuarterlyMeasurement>
             {
-                new() { Time = PeriodStart, GridImportWh = 0, GridExportWh = 200 }
+                new() { Time = PeriodStart }
             });
+            SetupMeterReadings(new[] { (PeriodStart, 0.0, 200.0) });
             SetupInverterMeasurements(new List<InverterMeasurement>
             {
                 new() { Time = PeriodStart, InverterId = "1", ProviderName = "Test", SolarProductionKWh = 1.0 }
@@ -210,13 +216,12 @@ namespace SessyTests.Services
                 new()
                 {
                     Time = PeriodStart,
-                    GridImportWh = 0,
-                    GridExportWh = 600,
                     BatteryPowerWatts = 1600, // discharging: 1600W * 0.25h / 1000 = 0.4 kWh
-                    BatteryMode = BatteryMode.Discharging,
+                    BatteryMode = Modes.Discharging,
                     IsReliable = true
                 }
             });
+            SetupMeterReadings(new[] { (PeriodStart, 0.0, 600.0) });
             SetupInverterMeasurements(new List<InverterMeasurement>
             {
                 new() { Time = PeriodStart, InverterId = "1", ProviderName = "Test", SolarProductionKWh = 0.5 }
@@ -237,7 +242,7 @@ namespace SessyTests.Services
             {
                 Time = PeriodStart.AddMinutes(i * 15),
                 BatteryPowerWatts = -1800,
-                BatteryMode = BatteryMode.Charging,
+                BatteryMode = Modes.Charging,
                 IsReliable = true
             }).ToList());
 
@@ -254,7 +259,7 @@ namespace SessyTests.Services
             {
                 Time = PeriodStart.AddMinutes(i * 15),
                 BatteryPowerWatts = 1500,
-                BatteryMode = BatteryMode.Discharging,
+                BatteryMode = Modes.Discharging,
                 IsReliable = true
             }).ToList());
 
@@ -271,7 +276,7 @@ namespace SessyTests.Services
             {
                 Time = PeriodStart.AddMinutes(i * 15),
                 BatteryPowerWatts = -1800,
-                BatteryMode = BatteryMode.Charging,
+                BatteryMode = Modes.Charging,
                 IsReliable = true
             }).ToList());
 
@@ -291,7 +296,7 @@ namespace SessyTests.Services
             {
                 Time = PeriodStart.AddMinutes(i * 15),
                 BatteryPowerWatts = -1000,
-                BatteryMode = BatteryMode.Charging,
+                BatteryMode = Modes.Charging,
                 IsReliable = true
             }));
 
@@ -299,7 +304,7 @@ namespace SessyTests.Services
             {
                 Time = PeriodStart.AddMinutes(i * 15),
                 BatteryPowerWatts = 1000,
-                BatteryMode = BatteryMode.Discharging,
+                BatteryMode = Modes.Discharging,
                 IsReliable = true
             }));
 
@@ -323,7 +328,7 @@ namespace SessyTests.Services
             {
                 Time = PeriodStart.AddMinutes(i * 15),
                 BatteryPowerWatts = -1000,
-                BatteryMode = BatteryMode.Charging,
+                BatteryMode = Modes.Charging,
                 IsReliable = true
             }));
 
@@ -331,7 +336,7 @@ namespace SessyTests.Services
             {
                 Time = PeriodStart.AddMinutes(i * 15),
                 BatteryPowerWatts = -1000,
-                BatteryMode = BatteryMode.Charging,
+                BatteryMode = Modes.Charging,
                 IsReliable = false
             }));
 
@@ -339,7 +344,7 @@ namespace SessyTests.Services
             {
                 Time = PeriodStart.AddMinutes(i * 15),
                 BatteryPowerWatts = 1000,
-                BatteryMode = BatteryMode.Discharging,
+                BatteryMode = Modes.Discharging,
                 IsReliable = true
             }));
 
@@ -361,8 +366,9 @@ namespace SessyTests.Services
             // Consumption = import + solar - export = 500 + 200 - 100 = 600 Wh = 0.6 kWh.
             SetupMeasurements(new List<QuarterlyMeasurement>
             {
-                new() { Time = PeriodStart, GridImportWh = 500, GridExportWh = 100.2 }
+                new() { Time = PeriodStart }
             });
+            SetupMeterReadings(new[] { (PeriodStart, 500.0, 100.2) });
 
             // Solar production = 0.2 kWh for this quarter.
             SetupInverterMeasurements(new List<InverterMeasurement>
@@ -383,12 +389,19 @@ namespace SessyTests.Services
             // does not remove either day (lastTime.TimeOfDay = 23:45 is not < 23:45).
             var measurements = new List<QuarterlyMeasurement>
             {
-                new() { Time = new DateTime(2026, 5, 1,  0,  0, 0), GridImportWh = 500, GridExportWh = 0 },
-                new() { Time = new DateTime(2026, 5, 1, 23, 45, 0), GridImportWh = 500, GridExportWh = 0 },
-                new() { Time = new DateTime(2026, 5, 2,  0,  0, 0), GridImportWh = 250, GridExportWh = 0 },
-                new() { Time = new DateTime(2026, 5, 2, 23, 45, 0), GridImportWh = 250, GridExportWh = 0 }
+                new() { Time = new DateTime(2026, 5, 1,  0,  0, 0) },
+                new() { Time = new DateTime(2026, 5, 1, 23, 45, 0) },
+                new() { Time = new DateTime(2026, 5, 2,  0,  0, 0) },
+                new() { Time = new DateTime(2026, 5, 2, 23, 45, 0) }
             };
             SetupMeasurements(measurements);
+            SetupMeterReadings(new[]
+            {
+                (new DateTime(2026, 5, 1,  0,  0, 0), 500.0, 0.0),
+                (new DateTime(2026, 5, 1, 23, 45, 0), 500.0, 0.0),
+                (new DateTime(2026, 5, 2,  0,  0, 0), 250.0, 0.0),
+                (new DateTime(2026, 5, 2, 23, 45, 0), 250.0, 0.0)
+            });
 
             var result = await _sut.GetEnergyStatisticsAsync(PeriodStart, PeriodEnd);
 
@@ -415,10 +428,10 @@ namespace SessyTests.Services
                 .Setup(s => s.GetList(It.IsAny<Func<IQueryable<QuarterlyMeasurement>, Task<List<QuarterlyMeasurement>>>>()))
                 .ReturnsAsync(new List<QuarterlyMeasurement>
                 {
-                    new() { Time = fromDate,                                          GridImportWh = 150, GridExportWh = 0 },
-                    new() { Time = fromDate.AddHours(23).AddMinutes(45),             GridImportWh = 150, GridExportWh = 0 },
-                    new() { Time = fromDate.AddDays(10),                             GridImportWh = 100, GridExportWh = 0 },
-                    new() { Time = fromDate.AddDays(10).AddHours(23).AddMinutes(45), GridImportWh = 100, GridExportWh = 0 }
+                    new() { Time = fromDate },
+                    new() { Time = fromDate.AddHours(23).AddMinutes(45) },
+                    new() { Time = fromDate.AddDays(10) },
+                    new() { Time = fromDate.AddDays(10).AddHours(23).AddMinutes(45) }
                 });
 
             investmentMock
@@ -429,6 +442,18 @@ namespace SessyTests.Services
             settingsServiceMock2.SetupGet(s => s.Current).Returns(new Settings { StatisticsFromDate = fromDate });
             var heatPumpConfig = Options.Create(new HeatPumpConfig());
             var energyHistoryMock = new Mock<EnergyHistoryDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
+            // Cumulative meter readings whose deltas give 150/150/100/100 Wh import per quarter.
+            // A seed reading 15 min before the first flow makes the first delta correct.
+            energyHistoryMock
+                .Setup(s => s.GetList(It.IsAny<Func<IQueryable<EnergyHistory>, Task<List<EnergyHistory>>>>()))
+                .ReturnsAsync(new List<EnergyHistory>
+                {
+                    new() { Time = fromDate.AddMinutes(-15),                          ConsumedTariff1 = 0 },
+                    new() { Time = fromDate,                                          ConsumedTariff1 = 150 },
+                    new() { Time = fromDate.AddHours(23).AddMinutes(45),             ConsumedTariff1 = 300 },
+                    new() { Time = fromDate.AddDays(10),                             ConsumedTariff1 = 400 },
+                    new() { Time = fromDate.AddDays(10).AddHours(23).AddMinutes(45), ConsumedTariff1 = 500 }
+                });
             var epexMock = new Mock<EPEXPricesDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
             var groupMock2 = new Mock<InvestmentGroupDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
             var powerSystemsConfig = Options.Create(new PowerSystemsConfig());
@@ -497,24 +522,23 @@ namespace SessyTests.Services
             {
                 Time = PeriodStart.AddMinutes(i * 15),
                 BatteryPowerWatts = -1000,
-                BatteryMode = BatteryMode.Charging,
-                BuyingPriceEur = 0.10,
-                SellingPriceEur = 0.30
+                BatteryMode = Modes.Charging
             }));
 
             // 4 quarters discharging at 1000W = 1.0 kWh, fully exported to grid.
-            // GridExportWh = 250 Wh per quarter so all discharge counts as export.
             measurements.AddRange(Enumerable.Range(4, 4).Select(i => new QuarterlyMeasurement
             {
                 Time = PeriodStart.AddMinutes(i * 15),
                 BatteryPowerWatts = 1000,
-                BatteryMode = BatteryMode.Discharging,
-                GridExportWh = 250,
-                BuyingPriceEur = 0.10,
-                SellingPriceEur = 0.30
+                BatteryMode = Modes.Discharging
             }));
 
             SetupMeasurements(measurements);
+            SetupPrices(0.10, 0.30);
+
+            // 250 Wh export per discharging quarter so all discharge counts as export.
+            SetupMeterReadings(Enumerable.Range(4, 4).Select(i =>
+                (PeriodStart.AddMinutes(i * 15), 0.0, 250.0)));
 
             var result = await _sut.GetEnergyStatisticsAsync(PeriodStart, PeriodEnd);
 
@@ -530,12 +554,11 @@ namespace SessyTests.Services
                 new()
                 {
                     Time = PeriodStart,
-                    GridImportWh = 2000,
-                    GridExportWh = 0,
                     BatteryPowerWatts = -1800, // charging from grid
-                    BatteryMode = BatteryMode.Charging
+                    BatteryMode = Modes.Charging
                 }
             });
+            SetupMeterReadings(new[] { (PeriodStart, 2000.0, 0.0) });
 
             var result = await _sut.GetEnergyStatisticsAsync(PeriodStart, PeriodEnd);
 
@@ -752,6 +775,61 @@ namespace SessyTests.Services
             _measurementMock
                 .Setup(s => s.GetList(It.IsAny<Func<IQueryable<QuarterlyMeasurement>, Task<List<QuarterlyMeasurement>>>>()))
                 .ReturnsAsync(data);
+        }
+
+        /// <summary>
+        /// Builds cumulative EnergyHistory meter readings from the desired per-quarter grid
+        /// flows and feeds them to the mock. GetMeasurementsAsync derives grid import/export
+        /// as the delta between consecutive readings, so a reading is emitted one quarter
+        /// before the first flow to seed that first delta. Each tuple is (time, importWh,
+        /// exportWh) describing the flow during the quarter that ENDS at the given time.
+        /// </summary>
+        /// <summary>
+        /// Makes the calculation service return the same buy/sell price for every quarter,
+        /// so tests that assert on priced values are independent of EPEX data.
+        /// </summary>
+        private void SetupPrices(double buy, double sell)
+        {
+            _calculationServiceMock
+                .Setup(s => s.CalculateEnergyPricesBatchAsync(It.IsAny<IEnumerable<DateTime>>()))
+                .ReturnsAsync((IEnumerable<DateTime> times) =>
+                    times.Distinct().ToDictionary(t => t, _ => new EnergyPrice(buy, sell)));
+        }
+
+        private void SetupMeterReadings(IEnumerable<(DateTime time, double importWh, double exportWh)> flows)
+        {
+            var list = flows.OrderBy(f => f.time).ToList();
+            var readings = new List<EnergyHistory>();
+
+            double cumImport = 0.0;
+            double cumExport = 0.0;
+
+            if (list.Count > 0)
+            {
+                // Seed reading one quarter before the first flow so the first delta is correct.
+                readings.Add(new EnergyHistory
+                {
+                    Time = list[0].time.AddMinutes(-15),
+                    ConsumedTariff1 = cumImport,
+                    ProducedTariff1 = cumExport
+                });
+            }
+
+            foreach (var (time, importWh, exportWh) in list)
+            {
+                cumImport += importWh;
+                cumExport += exportWh;
+                readings.Add(new EnergyHistory
+                {
+                    Time = time,
+                    ConsumedTariff1 = cumImport,
+                    ProducedTariff1 = cumExport
+                });
+            }
+
+            _energyHistoryMock
+                .Setup(s => s.GetList(It.IsAny<Func<IQueryable<EnergyHistory>, Task<List<EnergyHistory>>>>()))
+                .ReturnsAsync(readings);
         }
 
         private void SetupInverterMeasurements(List<InverterMeasurement> data)

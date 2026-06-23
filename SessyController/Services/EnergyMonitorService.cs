@@ -32,8 +32,6 @@ namespace SessyController.Services
         private LoggingService<EnergyMonitorService> _logger { get; set; }
 
         // Cache the previous P1 reading to calculate deltas.
-        private P1Details? _previousP1Details { get; set; }
-        private DateTime? _previousP1Time { get; set; }
 
         public delegate Task DataChangedDelegate();
 
@@ -165,31 +163,6 @@ namespace SessyController.Services
             UurVerwachting? hourExpectancy,
             string? meterId)
         {
-            // Calculate grid import/export deltas from cumulative P1 meter tands.
-            // Previous reading is cached; first reading of the session has no delta.
-            double gridImportWh = 0.0;
-            double gridExportWh = 0.0;
-
-            if (_previousP1Details != null && _previousP1Time != null)
-            {
-                var gapMinutes = (time - _previousP1Time.Value).TotalMinutes;
-
-                // Only use delta when readings are exactly one quarter apart (≤ 16 min).
-                if (gapMinutes <= 16)
-                {
-                    gridImportWh = Math.Max(0,
-                        (p1Details.PowerConsumedTariff1 - _previousP1Details.PowerConsumedTariff1) +
-                        (p1Details.PowerConsumedTariff2 - _previousP1Details.PowerConsumedTariff2));
-
-                    gridExportWh = Math.Max(0,
-                        (p1Details.PowerProducedTariff1 - _previousP1Details.PowerProducedTariff1) +
-                        (p1Details.PowerProducedTariff2 - _previousP1Details.PowerProducedTariff2));
-                }
-            }
-
-            _previousP1Details = p1Details;
-            _previousP1Time = time;
-
             // Read current SOC directly from the battery API so the record is
             // complete from the moment it is created, without waiting for
             // BatteriesService to update it.
@@ -207,10 +180,9 @@ namespace SessyController.Services
             var measurement = new QuarterlyMeasurement
             {
                 Time = time,
-                GridImportWh = gridImportWh,
-                GridExportWh = gridExportWh,
                 BatteryStateOfChargeWh = socWh,
-                // Battery mode is filled in by BatteriesService. Solar comes from InverterMeasurements.
+                // Battery mode is filled in by BatteriesService. Grid flows are derived from
+                // EnergyHistory meter readings, no longer stored on the measurement.
             };
 
             await _measurementService.Add(new List<QuarterlyMeasurement> { measurement });
