@@ -2,6 +2,13 @@
 
 html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+/* Media never forces the page wider than the viewport */
+img, svg, canvas {
+    max-width: 100%;
 }
 
 h1:focus {
@@ -107,3 +114,26 @@ a, .btn-link {
         width: 100%;
     }
 }
+
+/* ---- Mobiele responsiveness (telefoon) ---- */
+@media (max-width: 767.98px) {
+    /* Win horizontale ruimte terug: de grote body-padding (rz-p-4) is te fors op telefoon */
+    .rz-body .rz-p-4 {
+        padding: 0.75rem !important;
+    }
+
+    /* Voorkom dat kaarten/panelen met een vaste min-width breder worden dan het scherm */
+    .rz-card,
+    .rz-panel {
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    /* Brede inhoud (charts, tabellen) mag binnen de eigen container scrollen
+       i.p.v. de hele pagina horizontaal te laten scrollen */
+    .rz-card,
+    .rz-panel {
+        overflow-x: auto;
+    }
+}
+

@@ -25,36 +25,45 @@
             </div>
         }
 
+        @{
+            var isMobile = ScreenInfo.IsMobile;
+        }
+
         <RadzenLayout Style="height: 100vh;">
-            <RadzenHeader Style="height: 100%;">
+            <RadzenHeader>
                 <RadzenStack Orientation="Orientation.Horizontal"
-                             AlignItems="AlignItems.Normal"
-                             Gap="0">
+                             AlignItems="AlignItems.Center"
+                             Gap="0"
+                             class="header-stack">
 
                     <RadzenSidebarToggle Click="@ToggleDisplayStyle" />
 
-                    <a href="https://sessy.nl" target="_blank" Style="background-color: beige; max-width: 120px;">
+                    <a href="https://sessy.nl" target="_blank" Style="background-color: beige; max-width: 120px; flex-shrink: 0;">
                         <RadzenImage Path="/Images/sessy.svg" Style="padding: 5px;" />
                     </a>
 
-                    <RadzenPanel>
-                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center">
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" class="header-theme">
+                        @if (!isMobile)
+                        {
                             <RadzenLabel Text="Theme:" Style="margin-right: 10px;" />
-                            <RadzenDropDown Style="width: 200px;"
-                                            Name="ThemeDropDown"
-                                            TValue="string"
-                                            Value="@ThemeService.Theme"
-                                            ValueChanged="@ChangeTheme"
-                                            Data="@Themes.Free"
-                                            TextProperty=@nameof(Theme.Text)
-                                            ValueProperty=@nameof(Theme.Value) />
-                            @if (HostEnvironment.IsDevelopment())
-                            {
-                                <RadzenBadge Text="TEST" BadgeStyle="BadgeStyle.Warning" Style="margin-left: 10px; font-weight: bold;" />
-                            }
+                        }
+                        <RadzenDropDown Style="@(isMobile ? "width: 110px;" : "width: 200px;")"
+                                        Name="ThemeDropDown"
+                                        TValue="string"
+                                        Value="@ThemeService.Theme"
+                                        ValueChanged="@ChangeTheme"
+                                        Data="@Themes.Free"
+                                        TextProperty=@nameof(Theme.Text)
+                                        ValueProperty=@nameof(Theme.Value) />
+                        @if (HostEnvironment.IsDevelopment())
+                        {
+                            <RadzenBadge Text="TEST" BadgeStyle="BadgeStyle.Warning" Style="margin-left: 10px; font-weight: bold;" />
+                        }
+                        @if (!isMobile)
+                        {
                             <RadzenText TextStyle="TextStyle.Caption" Style="margin-left: 10px; color:var(--rz-text-secondary-color)">v1.0.2</RadzenText>
-                        </RadzenStack>
-                    </RadzenPanel>
+                        }
+                    </RadzenStack>
 
                     @if (show)
                     {

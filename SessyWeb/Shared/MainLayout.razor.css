@@ -1,3 +1,16 @@
+.header-stack {
+    width: 100%;
+    gap: 8px;
+    padding: 0 8px;
+    flex-wrap: nowrap;
+}
+
+/* Theme picker area: allowed to shrink so it never pushes the header wider than the screen */
+.header-theme {
+    min-width: 0;
+    flex-shrink: 1;
+}
+
 .page {
     position: relative;
     display: flex;

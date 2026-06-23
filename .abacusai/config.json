@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir /s /b SessyWeb\\Shared SessyWeb\\Components SessyWeb\\Pages SessyWeb\\wwwroot SessyWeb\\Layout 2>nul)",
+      "Bash(dotnet build SessyWeb/SessyWeb.csproj -c Debug --nologo -v q 2>&1 | tail -n 40 || true)",
+      "Bash(dotnet build SessyWeb/SessyWeb.csproj -c Debug --nologo -v q 2>&1)"
+    ]
+  }
+}
