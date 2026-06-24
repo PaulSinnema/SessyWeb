@@ -27,8 +27,15 @@ namespace SessyData.Model
         /// <summary>Planned battery mode: Charging / Discharging / ZeroNetHome / Disabled.</summary>
         public string PlannedMode { get; set; } = string.Empty;
 
-        /// <summary>Planned power setpoint (W).</summary>
+        /// <summary>Planned power setpoint (W), as limited by the temperature throttle.</summary>
         public double PlannedPowerW { get; set; }
+
+        /// <summary>
+        /// Planned power setpoint (W) the solver would have used without the temperature
+        /// throttle. This is the throttle-free target and is the denominator for the throttle
+        /// ratio, so throttling already baked into the plan does not hide future throttling.
+        /// </summary>
+        public double PlannedUnthrottledPowerW { get; set; }
 
         /// <summary>
         /// MILP-predicted SOC at the end of this quarter (Wh).

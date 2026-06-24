@@ -34,10 +34,12 @@ namespace SessyController.Services
             TaxesDataService taxesDataService,
             PlannedActionDataService plannedActionDataService,
             PlannedQuarterDataService plannedQuarterDataService,
-            ChargeCostBasisService chargeCostBasisService)
+            ChargeCostBasisService chargeCostBasisService,
+            ThrottleAnalysisService throttleAnalysisService,
+            WeatherService weatherService)
             : base(logger, settingsService, sessyBatteryConfigMonitor, batteryContainer,
                    timeZoneService, taxesDataService, plannedActionDataService, plannedQuarterDataService,
-                   chargeCostBasisService)
+                   chargeCostBasisService, throttleAnalysisService, weatherService)
         {
             _strategy = strategy;
         }
@@ -78,10 +80,40 @@ namespace SessyController.Services
 
                 if (quarters.Count == 0) return false;
 
+                // Load throttle ratios once; they are keyed on temperature, not date, so the
+                // same bucket applies to any quarter at that temperature.
+                var throttleBuckets = await _throttleAnalysisService.GetThrottleBucketsAsync()
+                    .ConfigureAwait(false);
+
+                _throttleRatioByTime.Clear();
+                _chargeThrottleRatioByTime.Clear();
+
                 var pricePoints = quarters.Select(q =>
                 {
                     double solarSurplusWh = q.NetLoadWh < 0.0 ? -q.NetLoadWh : 0.0;
-                    return new PricePoint(q.Time, q.BuyingPrice, q.SellingPrice, q.NetLoadWh, solarSurplusWh);
+
+                    // Reduce the per-quarter power caps by the throttle expected at the
+                    // forecast outside temperature. No temperature or no data → full power.
+                    double? qMaxChargeKW = null;
+                    double? qMaxDischargeKW = null;
+
+                    var temp = _weatherService.GetTemperature(q.Time);
+                    if (temp.HasValue)
+                    {
+                        double chargeRatio = _throttleAnalysisService.GetChargeRatio(throttleBuckets, temp.Value);
+                        double dischargeRatio = _throttleAnalysisService.GetDischargeRatio(throttleBuckets, temp.Value);
+                        qMaxChargeKW = maxChargeKW * chargeRatio;
+                        qMaxDischargeKW = maxDischargeKW * dischargeRatio;
+
+                        // Store the direction-appropriate ratio so the throttle-free target
+                        // power can be recovered later. Discharge ratio is used by default;
+                        // the writeback picks the right one based on the executed mode.
+                        _throttleRatioByTime[q.Time] = dischargeRatio;
+                        _chargeThrottleRatioByTime[q.Time] = chargeRatio;
+                    }
+
+                    return new PricePoint(q.Time, q.BuyingPrice, q.SellingPrice, q.NetLoadWh,
+                        solarSurplusWh, qMaxChargeKW, qMaxDischargeKW);
                 }).ToList();
 
                 var socBounds = BuildSocBounds(quarters, socKWh, capKWh);

@@ -146,6 +146,9 @@ namespace SessyController.Services.Items
         public double PlannedChargePowerW { get; private set; }
         public double PlannedDischargePowerW { get; private set; }
 
+        /// <summary>Throttle-free target power (W) the solver would use without throttling.</summary>
+        public double PlannedUnthrottledPowerW { get; private set; }
+
         /// <summary>
         /// Projected FIFO cost basis (EUR/kWh) of the energy stored in the battery at
         /// this quarter, simulated forward through the current plan. Solar-charged energy
@@ -196,10 +199,11 @@ namespace SessyController.Services.Items
             Mode = mode;
         }
 
-        public void SetPlanPower(double chargePowerW, double dischargePowerW)
+        public void SetPlanPower(double chargePowerW, double dischargePowerW, double unthrottledPowerW = 0.0)
         {
             PlannedChargePowerW = Math.Max(0, chargePowerW);
             PlannedDischargePowerW = Math.Max(0, dischargePowerW);
+            PlannedUnthrottledPowerW = unthrottledPowerW;
         }
 
         public void SetChargeLeft(double chargeLeftWh) => ChargeLeftWh = chargeLeftWh;
@@ -381,6 +385,7 @@ namespace SessyController.Services.Items
 
             PlannedChargePowerW = 0.0;
             PlannedDischargePowerW = 0.0;
+            PlannedUnthrottledPowerW = 0.0;
 
             ChargeLeftWh = 0.0;
             ChargeNeededWh = 0.0;

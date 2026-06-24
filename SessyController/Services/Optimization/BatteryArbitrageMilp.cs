@@ -43,7 +43,9 @@ namespace SessyController.Services.Optimization
         double BuyEurPerKWh,
         double SellEurPerKWh,
         double NetLoadWh,
-        double SolarSurplusWh
+        double SolarSurplusWh,
+        double? MaxChargeKW = null,
+        double? MaxDischargeKW = null
     );
 
     /// <summary>
@@ -117,13 +119,17 @@ namespace SessyController.Services.Optimization
                 }
                 soc[t + 1] = solver.MakeNumVar(mn, mx, $"soc_{t + 1}");
 
-                charge[t] = solver.MakeNumVar(0.0, spec.MaxChargeKW, $"chg_{t}");
-                discharge[t] = solver.MakeNumVar(0.0, spec.MaxDischargeKW, $"dis_{t}");
+                // Per-quarter power caps (e.g. temperature throttling); fall back to spec.
+                double maxChargeKW = pricePoints[t].MaxChargeKW ?? spec.MaxChargeKW;
+                double maxDischargeKW = pricePoints[t].MaxDischargeKW ?? spec.MaxDischargeKW;
+
+                charge[t] = solver.MakeNumVar(0.0, maxChargeKW, $"chg_{t}");
+                discharge[t] = solver.MakeNumVar(0.0, maxDischargeKW, $"dis_{t}");
                 isCharge[t] = solver.MakeIntVar(0.0, 1.0, $"ic_{t}");
 
                 // Charge and discharge are mutually exclusive.
-                solver.Add(charge[t] <= spec.MaxChargeKW * isCharge[t]);
-                solver.Add(discharge[t] <= spec.MaxDischargeKW * (1.0 - isCharge[t]));
+                solver.Add(charge[t] <= maxChargeKW * isCharge[t]);
+                solver.Add(discharge[t] <= maxDischargeKW * (1.0 - isCharge[t]));
 
                 gridImport[t] = solver.MakeNumVar(0.0, bigM, $"imp_{t}");
                 gridExport[t] = solver.MakeNumVar(0.0, bigM, $"exp_{t}");

@@ -100,10 +100,11 @@ builder.Services.AddScoped<SessyStatusHistoryService>();
 builder.Services.AddScoped<DbHelper>();
 builder.Services.AddScoped<PowerEstimatesService>();
 builder.Services.AddScoped<FinancialResultsService>();
-builder.Services.AddScoped<ConsumptionDataService>();
+builder.Services.AddSingleton<ConsumptionDataService>();
 builder.Services.AddScoped<InvestmentDataService>();
 builder.Services.AddScoped<InvestmentGroupDataService>();
 builder.Services.AddScoped<EnergyStatisticsService>();
+builder.Services.AddSingleton<ThrottleAnalysisService>();
 
 builder.Services.AddSingleton<QuarterlyMeasurementDataService>();
 builder.Services.AddSingleton<InverterMeasurementDataService>();

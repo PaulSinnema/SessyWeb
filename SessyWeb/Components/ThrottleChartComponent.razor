@@ -1,0 +1,63 @@
+﻿@using Radzen
+@using Radzen.Blazor
+@using SessyController.Services
+@using SessyController.Services.Items
+@inherits BaseComponent
+
+<RadzenCard>
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
+        <RadzenText TextStyle="TextStyle.H6">🌡️ Battery throttle vs outside temperature</RadzenText>
+        <RadzenButton Icon="refresh" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                      Click="@RefreshAsync" title="Recompute from the last month of data" />
+    </RadzenStack>
+
+    <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-1">
+        Ratio of realized to planned power (1.0 = no throttle). Lower at higher temperatures
+        means the battery cannot deliver the planned power when it is warm.
+    </RadzenText>
+
+    @if (_loading)
+    {
+        <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" class="rz-mt-2" />
+    }
+    else if (_points.Count == 0)
+    {
+        <RadzenText TextStyle="TextStyle.Body1" class="rz-mt-2">
+            Not enough data yet. Buckets fill as more high-power quarters are executed.
+        </RadzenText>
+    }
+    else
+    {
+        <div style="width: 100%; overflow-x: auto;">
+            <RadzenChart Style="@($"height: 320px; width: {Math.Max(600, _points.Count * 60)}px")"
+                         MarginTop="20" MarginLeft="70" MarginRight="40" MarginBottom="60">
+                <RadzenLineSeries Data="@_dischargePoints"
+                                  CategoryProperty="@nameof(ThrottlePoint.Temperature)"
+                                  ValueProperty="@nameof(ThrottlePoint.DischargeRatio)"
+                                  Title="Discharge"
+                                  Stroke="#22c55e"
+                                  StrokeWidth="2"
+                                  Smooth="true">
+                    <RadzenMarkers MarkerType="MarkerType.Circle" Size="6" />
+                </RadzenLineSeries>
+                <RadzenLineSeries Data="@_chargePoints"
+                                  CategoryProperty="@nameof(ThrottlePoint.Temperature)"
+                                  ValueProperty="@nameof(ThrottlePoint.ChargeRatio)"
+                                  Title="Charge"
+                                  Stroke="#f59e0b"
+                                  StrokeWidth="2"
+                                  Smooth="true">
+                    <RadzenMarkers MarkerType="MarkerType.Circle" Size="6" />
+                </RadzenLineSeries>
+                <RadzenCategoryAxis Padding="20" FormatString="{0}°C">
+                    <RadzenAxisTitle Text="Outside temperature" />
+                </RadzenCategoryAxis>
+                <RadzenValueAxis Min="0" Max="1" Step="0.2" FormatString="{0:0.0}">
+                    <RadzenGridLines Visible="true" />
+                    <RadzenAxisTitle Text="Power ratio" />
+                </RadzenValueAxis>
+                <RadzenLegend Position="LegendPosition.Bottom" />
+            </RadzenChart>
+        </div>
+    }
+</RadzenCard>

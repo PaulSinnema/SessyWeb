@@ -26,6 +26,8 @@ namespace SessyController.Services
         private readonly PlannedActionDataService _plannedActionDataService;
         private readonly PlannedQuarterDataService _plannedQuarterDataService;
         protected readonly ChargeCostBasisService _chargeCostBasisService;
+        protected readonly ThrottleAnalysisService _throttleAnalysisService;
+        protected readonly WeatherService _weatherService;
 
         protected SettingsService _settingsService;
         protected Settings _settingsConfig;
@@ -37,6 +39,16 @@ namespace SessyController.Services
 
         protected List<QuarterlyInfo> _quarterlyInfos = new();
         private Dictionary<DateTime, PlanAction> _planByTime = new();
+
+        /// <summary>
+        /// Throttle ratio applied per quarter (realized/target). Used to recover the
+        /// throttle-free target power from the throttled solver output for reporting and for
+        /// the throttle-ratio denominator. Defaults to 1.0 (no throttle) when absent.
+        /// </summary>
+        protected Dictionary<DateTime, double> _throttleRatioByTime = new();
+
+        /// <summary>Charge throttle ratio per quarter (see _throttleRatioByTime).</summary>
+        protected Dictionary<DateTime, double> _chargeThrottleRatioByTime = new();
         // Battery SOC (Wh) at the end of each quarter, taken directly from the solver so
         // the displayed SOC matches the plan exactly (single source of truth).
         private Dictionary<DateTime, double> _planSocWhByTime = new();
@@ -74,7 +86,9 @@ namespace SessyController.Services
             TaxesDataService taxesDataService,
             PlannedActionDataService plannedActionDataService,
             PlannedQuarterDataService plannedQuarterDataService,
-            ChargeCostBasisService chargeCostBasisService)
+            ChargeCostBasisService chargeCostBasisService,
+            ThrottleAnalysisService throttleAnalysisService,
+            WeatherService weatherService)
         {
             _logger = logger;
             _sessyBatteryConfigMonitor = sessyBatteryConfigMonitor;
@@ -84,6 +98,8 @@ namespace SessyController.Services
             _plannedActionDataService = plannedActionDataService;
             _plannedQuarterDataService = plannedQuarterDataService;
             _chargeCostBasisService = chargeCostBasisService;
+            _throttleAnalysisService = throttleAnalysisService;
+            _weatherService = weatherService;
             _settingsService = settingsService;
             _settingsConfig = settingsService.Current;
             _sessyBatteryConfig = sessyBatteryConfigMonitor.CurrentValue
@@ -140,6 +156,9 @@ namespace SessyController.Services
                         Time = qi.Time,
                         PlannedMode = qi.Mode.ToString(),
                         PlannedPowerW = qi.PlannedChargePowerW > 0 ? qi.PlannedChargePowerW : -qi.PlannedDischargePowerW,
+                        PlannedUnthrottledPowerW = qi.PlannedChargePowerW > 0
+                            ? qi.PlannedUnthrottledPowerW
+                            : -qi.PlannedUnthrottledPowerW,
                         PlannedChargeLeftWh = qi.ChargeLeftWh,
                         SellingPriceEurKWh = qi.SellingPrice,
                         BuyingPriceEurKWh = qi.BuyingPrice,
@@ -533,12 +552,31 @@ namespace SessyController.Services
                 qi.SetMode(act.Mode);
 
                 if (act.Mode == Modes.Charging)
-                    qi.SetPlanPower(act.PowerW, 0);
+                {
+                    double unthrottled = Unthrottle(qi.Time, act.PowerW, charging: true);
+                    qi.SetPlanPower(act.PowerW, 0, unthrottled);
+                }
                 else if (act.Mode == Modes.Discharging)
-                    qi.SetPlanPower(0, act.PowerW);
+                {
+                    double unthrottled = Unthrottle(qi.Time, act.PowerW, charging: false);
+                    qi.SetPlanPower(0, act.PowerW, unthrottled);
+                }
                 else
                     qi.SetPlanPower(0, 0);
             }
+        }
+
+        /// <summary>
+        /// Recovers the throttle-free target power from the throttled solver output:
+        /// target = throttled / ratio. Returns the throttled value unchanged when no ratio
+        /// is known or the ratio is non-positive.
+        /// </summary>
+        private double Unthrottle(DateTime time, double throttledPowerW, bool charging)
+        {
+            var map = charging ? _chargeThrottleRatioByTime : _throttleRatioByTime;
+            if (map.TryGetValue(time, out var ratio) && ratio > 0.0)
+                return throttledPowerW / ratio;
+            return throttledPowerW;
         }
 
         /// <summary>

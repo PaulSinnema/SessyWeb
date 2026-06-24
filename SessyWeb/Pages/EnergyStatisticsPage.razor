@@ -5,6 +5,19 @@
 @using Radzen
 @using Radzen.Blazor
 
+<style>
+    /* Make every card stretch to the full height of its column so cards in the
+           same row line up evenly instead of leaving ragged gaps. */
+    .rz-display-flex {
+        display: flex;
+    }
+
+        .rz-display-flex > .rz-card {
+            width: 100%;
+            height: 100%;
+        }
+</style>
+
 <RadzenLayout Style="height: 80vh;">
     <RadzenHeader Style="height: 100%; margin: 0px; padding: 0px;">
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Style="height:100%; margin: 0px; padding: 0px;">
@@ -19,47 +32,51 @@
         }
         else if (Dashboard != null)
         {
-            <RadzenRow Gap="8px">
+            <RadzenRow Gap="12px" RowGap="12px" AlignItems="AlignItems.Stretch">
 
-                <RadzenColumn Size="12">
+                <RadzenColumn Size="12" class="rz-display-flex">
                     <ReturnOnInvestmentComponent Dashboard="@Dashboard" />
                 </RadzenColumn>
 
                 @if (Dashboard.HeatPumpIsConfigured)
                 {
-                    <RadzenColumn Size="12">
+                    <RadzenColumn Size="12" class="rz-display-flex">
                         <HeatPumpSavingsComponent Dashboard="@Dashboard" />
                     </RadzenColumn>
                 }
 
-                <RadzenColumn Size="12">
+                <RadzenColumn Size="12" class="rz-display-flex">
                     <EnergySystemSavingsComponent Dashboard="@Dashboard" />
                 </RadzenColumn>
 
                 @if (Dashboard.Plan != null)
                 {
-                    <RadzenColumn Size="12">
+                    <RadzenColumn Size="12" class="rz-display-flex">
                         <CurrentPlanComponent Dashboard="@Dashboard" OnClearPlanAsync="@ClearPlanAsync" />
                     </RadzenColumn>
                 }
 
-                <RadzenColumn Size="12">
+                <RadzenColumn Size="12" class="rz-display-flex">
                     <CostBasisComponent />
                 </RadzenColumn>
 
-                <RadzenColumn Size="12" SizeMD="6">
+                <RadzenColumn Size="12" SizeMD="6" class="rz-display-flex">
                     <EnergyFlowsComponent Dashboard="@Dashboard" />
                 </RadzenColumn>
 
                 @if (Dashboard.DailyArbitrageTrends.Any())
                 {
-                    <RadzenColumn Size="12" SizeMD="6">
+                    <RadzenColumn Size="12" SizeMD="6" class="rz-display-flex">
                         <DailyArbitrageChartComponent Dashboard="@Dashboard" />
                     </RadzenColumn>
                 }
 
-                <RadzenColumn Size="12" SizeMD="6">
+                <RadzenColumn Size="12" SizeMD="6" class="rz-display-flex">
                     <PlanVsActualComponent Dashboard="@Dashboard" />
+                </RadzenColumn>
+
+                <RadzenColumn Size="12" SizeMD="6" class="rz-display-flex">
+                    <ThrottleChartComponent />
                 </RadzenColumn>
 
             </RadzenRow>
