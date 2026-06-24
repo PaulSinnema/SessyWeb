@@ -88,6 +88,9 @@ namespace SessyWeb.Pages
                 PlannedDischargePowerW = qi.PlannedDischargePowerW;
             }
 
+            // Unthrottled planned power — absolute value, direction derived from planned mode.
+            PlannedUnthrottledPowerW = qi.PlannedUnthrottledPowerW;
+
             PlanDeviationReason = DeterminePlanDeviationReason(
                 DisplayState, ChargePowerW, DischargePowerW,
                 PlannedDisplayState, IsCurtailed, SellingPrice);
@@ -147,6 +150,7 @@ namespace SessyWeb.Pages
         public double PlannedChargeLeftWh { get; }
         public double PlannedChargePowerW { get; }
         public double PlannedDischargePowerW { get; }
+        public double PlannedUnthrottledPowerW { get; }
         public string PlanDeviationReason { get; }
 
         // ── Now line (mutable — set by chart component) ───────────────────────
@@ -163,6 +167,18 @@ namespace SessyWeb.Pages
 
         public double PlannedChargePowerVisual => -(PlannedChargePowerW / 18000.0);
         public double PlannedDischargePowerVisual => PlannedDischargePowerW / 18000.0;
+
+        // Unthrottled planned ceiling — only non-zero when throttle actually reduces power.
+        // Used as the outer boundary of the throttle-loss band.
+        public double UnthrottledChargePowerVisual =>
+            PlannedChargePowerW > 0 && PlannedUnthrottledPowerW > PlannedChargePowerW
+                ? -(PlannedUnthrottledPowerW / 18000.0)
+                : PlannedChargePowerVisual;
+
+        public double UnthrottledDischargePowerVisual =>
+            PlannedDischargePowerW > 0 && PlannedUnthrottledPowerW > PlannedDischargePowerW
+                ? PlannedUnthrottledPowerW / 18000.0
+                : PlannedDischargePowerVisual;
         public double PlannedChargeLeftVisual => PlannedChargeLeftWh / 100000.0;
 
         public double ChargeNeededVisual => ChargeNeeded / 100000.0;

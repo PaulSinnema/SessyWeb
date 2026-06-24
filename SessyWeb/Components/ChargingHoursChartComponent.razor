@@ -109,6 +109,121 @@
             </ChildContent>
         </RadzenColumnSeries>
 
+        <RadzenAreaSeries Visible="@WeAreInControl"
+                          Data="@QuarterlyInfos"
+                          Smooth="true"
+                          CategoryProperty="Time"
+                          Fill="rgba(255, 215, 0, 0.5)"
+                          Stroke="#ffd700"
+                          Title="Zero net home"
+                          ValueProperty="ZeroNetHomeVisual">
+            <TooltipTemplate Context="data">
+                <ChargingHoursTooltip QuarterlyInfo=@data />
+            </TooltipTemplate>
+            <ChildContent>
+                <RadzenMarkers Visible="false" />
+                <RadzenSeriesDataLabels Visible="false" />
+            </ChildContent>
+        </RadzenAreaSeries>
+
+        <RadzenAreaSeries Data="@QuarterlyInfos"
+                          Smooth="true"
+                          CategoryProperty="Time"
+                          Fill="rgba(255, 0, 0, 0.45)"
+                          Stroke="red"
+                          StrokeWidth="1.5"
+                          Title="Throttle loss charge (kW)"
+                          ValueProperty="UnthrottledChargePowerVisual">
+            <TooltipTemplate Context="data">
+                <ChargingHoursTooltip QuarterlyInfo=@data />
+            </TooltipTemplate>
+            <ChildContent>
+                <RadzenMarkers Visible="false" />
+                <RadzenSeriesDataLabels Visible="false" />
+            </ChildContent>
+        </RadzenAreaSeries>
+
+        <RadzenAreaSeries Data="@QuarterlyInfos"
+                          Smooth="true"
+                          CategoryProperty="Time"
+                          Fill="rgba(255, 0, 0, 0.45)"
+                          Stroke="red"
+                          StrokeWidth="1.5"
+                          Title="Throttle loss discharge (kW)"
+                          ValueProperty="UnthrottledDischargePowerVisual">
+            <TooltipTemplate Context="data">
+                <ChargingHoursTooltip QuarterlyInfo=@data />
+            </TooltipTemplate>
+            <ChildContent>
+                <RadzenMarkers Visible="false" />
+                <RadzenSeriesDataLabels Visible="false" />
+            </ChildContent>
+        </RadzenAreaSeries>
+
+        <RadzenAreaSeries Data="@QuarterlyInfos"
+                          Smooth="true"
+                          CategoryProperty="Time"
+                          Fill="rgba(255, 102, 0, 0.5)"
+                          Stroke="#ff6600"
+                          Title="Planned charge (kW)"
+                          ValueProperty="PlannedChargePowerVisual">
+            <TooltipTemplate Context="data">
+                <ChargingHoursTooltip QuarterlyInfo=@data />
+            </TooltipTemplate>
+            <ChildContent>
+                <RadzenMarkers Visible="false" />
+                <RadzenSeriesDataLabels Visible="false" />
+            </ChildContent>
+        </RadzenAreaSeries>
+
+        <RadzenAreaSeries Data="@QuarterlyInfos"
+                          Smooth="true"
+                          CategoryProperty="Time"
+                          Fill="rgba(0, 204, 68, 0.5)"
+                          Stroke="#00cc44"
+                          Title="Planned discharge (kW)"
+                          ValueProperty="PlannedDischargePowerVisual">
+            <TooltipTemplate Context="data">
+                <ChargingHoursTooltip QuarterlyInfo=@data />
+            </TooltipTemplate>
+            <ChildContent>
+                <RadzenMarkers Visible="false" />
+                <RadzenSeriesDataLabels Visible="false" />
+            </ChildContent>
+        </RadzenAreaSeries>
+
+        <RadzenAreaSeries Data="@QuarterlyInfos"
+                          Smooth="true"
+                          CategoryProperty="Time"
+                          Fill="rgba(255, 102, 0, 0.5)"
+                          Stroke="#ff6600"
+                          Title="Charge power (kW)"
+                          ValueProperty="ChargePowerVisual">
+            <TooltipTemplate Context="data">
+                <ChargingHoursTooltip QuarterlyInfo=@data />
+            </TooltipTemplate>
+            <ChildContent>
+                <RadzenMarkers Visible="false" />
+                <RadzenSeriesDataLabels Visible="false" />
+            </ChildContent>
+        </RadzenAreaSeries>
+
+        <RadzenAreaSeries Data="@QuarterlyInfos"
+                          Smooth="true"
+                          CategoryProperty="Time"
+                          Fill="rgba(0, 204, 68, 0.5)"
+                          Stroke="#00cc44"
+                          Title="Discharge power (kW)"
+                          ValueProperty="DischargePowerVisual">
+            <TooltipTemplate Context="data">
+                <ChargingHoursTooltip QuarterlyInfo=@data />
+            </TooltipTemplate>
+            <ChildContent>
+                <RadzenMarkers Visible="false" />
+                <RadzenSeriesDataLabels Visible="false" />
+            </ChildContent>
+        </RadzenAreaSeries>
+
         <RadzenLineSeries Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
@@ -210,89 +325,6 @@
                           Title="Delta lowest price (€/kWh)"
                           LineType="LineType.Solid"
                           ValueProperty="DeltaLowestPrice">
-            <TooltipTemplate Context="data">
-                <ChargingHoursTooltip QuarterlyInfo=@data />
-            </TooltipTemplate>
-            <ChildContent>
-                <RadzenMarkers Visible="false" />
-                <RadzenSeriesDataLabels Visible="false" />
-            </ChildContent>
-        </RadzenLineSeries>
-
-        <RadzenAreaSeries Visible="@WeAreInControl"
-                          Data="@QuarterlyInfos"
-                          Smooth="true"
-                          CategoryProperty="Time"
-                          Fill="rgba(255, 215, 0, 0.5)"
-                          Stroke="#ffd700"
-                          Title="Zero net home"
-                          ValueProperty="ZeroNetHomeVisual">
-            <TooltipTemplate Context="data">
-                <ChargingHoursTooltip QuarterlyInfo=@data />
-            </TooltipTemplate>
-            <ChildContent>
-                <RadzenMarkers Visible="false" />
-                <RadzenSeriesDataLabels Visible="false" />
-            </ChildContent>
-        </RadzenAreaSeries>
-
-        <RadzenAreaSeries Data="@QuarterlyInfos"
-                          Smooth="true"
-                          CategoryProperty="Time"
-                          Fill="rgba(255, 102, 0, 0.5)"
-                          Stroke="#ff6600"
-                          Title="Charge power (kW)"
-                          ValueProperty="ChargePowerVisual">
-            <TooltipTemplate Context="data">
-                <ChargingHoursTooltip QuarterlyInfo=@data />
-            </TooltipTemplate>
-            <ChildContent>
-                <RadzenMarkers Visible="false" />
-                <RadzenSeriesDataLabels Visible="false" />
-            </ChildContent>
-        </RadzenAreaSeries>
-
-        <RadzenAreaSeries Data="@QuarterlyInfos"
-                          Smooth="true"
-                          CategoryProperty="Time"
-                          Fill="rgba(0, 204, 68, 0.5)"
-                          Stroke="#00cc44"
-                          Title="Discharge power (kW)"
-                          ValueProperty="DischargePowerVisual">
-            <TooltipTemplate Context="data">
-                <ChargingHoursTooltip QuarterlyInfo=@data />
-            </TooltipTemplate>
-            <ChildContent>
-                <RadzenMarkers Visible="false" />
-                <RadzenSeriesDataLabels Visible="false" />
-            </ChildContent>
-        </RadzenAreaSeries>
-
-        <RadzenLineSeries Data="@QuarterlyInfos"
-                          Smooth="true"
-                          CategoryProperty="Time"
-                          Stroke="#ffaa33"
-                          StrokeWidth="2.5"
-                          LineType="LineType.Dashed"
-                          Title="Planned charge (kW)"
-                          ValueProperty="PlannedChargePowerVisual">
-            <TooltipTemplate Context="data">
-                <ChargingHoursTooltip QuarterlyInfo=@data />
-            </TooltipTemplate>
-            <ChildContent>
-                <RadzenMarkers Visible="false" />
-                <RadzenSeriesDataLabels Visible="false" />
-            </ChildContent>
-        </RadzenLineSeries>
-
-        <RadzenLineSeries Data="@QuarterlyInfos"
-                          Smooth="true"
-                          CategoryProperty="Time"
-                          Stroke="#66ff99"
-                          StrokeWidth="2.5"
-                          LineType="LineType.Dashed"
-                          Title="Planned discharge (kW)"
-                          ValueProperty="PlannedDischargePowerVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
             </TooltipTemplate>
