@@ -101,8 +101,8 @@ builder.Services.AddScoped<DbHelper>();
 builder.Services.AddScoped<PowerEstimatesService>();
 builder.Services.AddScoped<FinancialResultsService>();
 builder.Services.AddSingleton<ConsumptionDataService>();
-builder.Services.AddScoped<InvestmentDataService>();
-builder.Services.AddScoped<InvestmentGroupDataService>();
+builder.Services.AddSingleton<InvestmentDataService>();
+builder.Services.AddSingleton<InvestmentGroupDataService>();
 builder.Services.AddScoped<EnergyStatisticsService>();
 builder.Services.AddSingleton<ThrottleAnalysisService>();
 

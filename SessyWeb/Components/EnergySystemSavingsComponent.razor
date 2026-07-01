@@ -70,6 +70,11 @@
             <StatCardComponent Title="Cycles per day / avg SOC"
                                Value="@($"{Dashboard!.BatteryCyclesPerDay:F2}/day — {Dashboard.AverageSocPct:F1} %")" />
         </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Cycle cost (derived)"
+                               Value="@($"€ {Dashboard!.CycleCostEurPerKWh:F4}/kWh")"
+                               InfoTooltip="Derived from battery investments: net purchase price divided by expected energy throughput (capacity × expected total cycles). Used by the planner as the arbitrage threshold." />
+        </RadzenColumn>
     </RadzenRow>
     <RadzenText TextStyle="TextStyle.Caption" Style="margin-top: 0.75rem; opacity: 0.7;">
         Annual savings = seasonal monthly averages (all historical data). Period savings = actual measured savings in the selected period (@($"{Dashboard!.PeriodDays:F0}") days).

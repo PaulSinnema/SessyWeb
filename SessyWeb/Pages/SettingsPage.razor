@@ -70,8 +70,8 @@
                                                         Style="width:100%" />
                                     </RadzenColumn>
                                     <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Cycle cost (€)" />
-                                        <RadzenNumeric @bind-Value="_settings.CycleCost" Format="F4" Style="width:100%" />
+                                        <RadzenLabel Text="Cycle cost (€) — derived from battery investments" />
+                                        <RadzenNumeric @bind-Value="_settings.CycleCost" Format="F4" ReadOnly="true" Style="width:100%" />
                                     </RadzenColumn>
                                     <RadzenColumn Size="12" SizeMD="4">
                                         <RadzenLabel Text="Zero Net Home min. profit (€/kWh)" />
@@ -346,6 +346,16 @@
                             <RadzenDataGridColumn Property="@nameof(Investment.ExpectedLifetimeYears)" Title="Lifetime (yr)">
                                 <EditTemplate Context="inv">
                                     <RadzenNumeric @bind-Value="inv.ExpectedLifetimeYears" Style="width:100%" />
+                                </EditTemplate>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn Property="@nameof(Investment.CapacityWh)" Title="Capacity (Wh)" FormatString="{0:F0}">
+                                <EditTemplate Context="inv">
+                                    <RadzenNumeric @bind-Value="inv.CapacityWh" Format="F0" Style="width:100%" />
+                                </EditTemplate>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn Property="@nameof(Investment.ExpectedTotalCycles)" Title="Cycles">
+                                <EditTemplate Context="inv">
+                                    <RadzenNumeric @bind-Value="inv.ExpectedTotalCycles" Style="width:100%" />
                                 </EditTemplate>
                             </RadzenDataGridColumn>
                             <RadzenDataGridColumn Property="@nameof(Investment.EstimatedAnnualSavingsEur)" Title="Est. savings (€/yr)" FormatString="{0:F2}">

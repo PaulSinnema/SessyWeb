@@ -47,9 +47,9 @@ namespace SessyController.Services
         private Dictionary<DateTime, double>? _inverterMeasurementCache;
         private DateTime _lastLoggedPerformanceDate = DateTime.MinValue;
         private DateTime _historicalFactorDate = DateTime.MinValue;
-        private const double PerformanceFactorAlpha = 0.1;  // Slow EMA — historical factor is the primary correction
+        private const double PerformanceFactorAlpha = 0.2;  // EMA — responds faster to intraday conditions
         private const double PerformanceFactorLogThreshold = 0.05;
-        private const int HistoricalFactorLookbackDays = 30;
+        private const int HistoricalFactorLookbackDays = 14;
 
         // Number of past days to use for global radiation extrapolation.
         private const int ExtrapolationLookbackDays = 14;
@@ -373,9 +373,11 @@ namespace SessyController.Services
                     .Where(m => m.Time >= from && m.Time < to)
                     .ToList()));
 
-            var realizedByTime = realizedList
-                .GroupBy(m => m.Time)
-                .ToDictionary(g => g.Key, g => g.First().SolarProductionKWh);
+            // Group realized measurements by hour (floor to whole hour) and sum all quarters.
+            // SolarData has hourly resolution; InverterMeasurements has 15-minute resolution.
+            var realizedByHour = realizedList
+                .GroupBy(m => m.Time.AddMinutes(-(m.Time.Minute % 60)).AddSeconds(-m.Time.Second))
+                .ToDictionary(g => g.Key, g => g.Sum(m => m.SolarProductionKWh));
 
             var endpointConfigs = _powerSystemsConfig?.Endpoints;
             if (endpointConfigs == null || !endpointConfigs.Any())
@@ -389,7 +391,7 @@ namespace SessyController.Services
             foreach (var solarData in solarDataList)
             {
                 if (!solarData.Time.HasValue) continue;
-                if (!realizedByTime.TryGetValue(solarData.Time.Value, out var realized)) continue;
+                if (!realizedByHour.TryGetValue(solarData.Time.Value, out var realized)) continue;
 
                 CalculateSolarPosition(solarData.Time.Value.AddMinutes(30), latitude, longitude,
                     out double solarAltitude, out double solarAzimuth);
@@ -405,8 +407,9 @@ namespace SessyController.Services
                         foreach (PhotoVoltaic panel in endpoint.SolarPanels.Values)
                         {
                             double? sf = GetSolarFactor(solarAzimuth, solarAltitude, panel.Orientation, panel.Tilt);
+                            // CalculateSolarPowerPerQuarterHour returns kWh per quarter; multiply by 4 for hourly total.
                             forecast += CalculateSolarPowerPerQuarterHour(
-                                solarData.GlobalRadiation, sf, panel, solarAltitude);
+                                solarData.GlobalRadiation, sf, panel, solarAltitude) * 4.0;
                         }
                     }
                 }

@@ -270,9 +270,12 @@ namespace SessyWeb.Pages
             await investmentsGrid!.EditRow(investment);
         }
 
-        async Task OnUpdateInvestment(Investment investment) =>
+        async Task OnUpdateInvestment(Investment investment)
+        {
             await _investmentService!.Update(new List<Investment> { investment },
                 (item, set) => set.FirstOrDefault(i => i.Id == investment.Id));
+            await RefreshSettingsAfterInvestmentChange();
+        }
 
         async Task SaveInvestment(Investment investment) => await investmentsGrid!.UpdateRow(investment);
 
@@ -288,11 +291,26 @@ namespace SessyWeb.Pages
                 await _investmentService!.Remove(new List<Investment> { investment },
                     (item, set) => set.FirstOrDefault(i => i.Id == item.Id));
             await investmentsGrid!.Reload();
+            await RefreshSettingsAfterInvestmentChange();
         }
 
-        async Task OnCreateInvestment(Investment investment) =>
+        async Task OnCreateInvestment(Investment investment)
+        {
             await _investmentService!.Add(new List<Investment> { investment },
                 (item, set) => set.Contains(investment));
+            await RefreshSettingsAfterInvestmentChange();
+        }
+
+        /// <summary>
+        /// Investments feed the derived CycleCost. After any investment change,
+        /// refresh the settings so CycleCost is recomputed; this also fires
+        /// SettingsChanged, causing the planner to replan on its next cycle.
+        /// </summary>
+        private async Task RefreshSettingsAfterInvestmentChange()
+        {
+            if (_settingsService != null)
+                await _settingsService.RefreshAsync();
+        }
 
         // ── Taxes ─────────────────────────────────────────────────────────────
 

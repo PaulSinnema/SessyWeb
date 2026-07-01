@@ -146,6 +146,12 @@ namespace SessyController.Services.Statistics
         /// <summary>Average per-battery cycle count (total cycles / number of batteries).</summary>
         public double AvgCyclesPerBattery { get; set; }
 
+        /// <summary>
+        /// Cycle cost in EUR/kWh, derived from battery investments
+        /// (net purchase price / expected energy throughput).
+        /// </summary>
+        public double CycleCostEurPerKWh { get; set; }
+
         /// <summary>Total household consumption in the selected period (kWh).</summary>
         public double TotalConsumptionKWh { get; set; }
 

@@ -1429,6 +1429,7 @@ namespace SessyController.Services
                 BatteryCyclesPerDay = periodStats.BatteryCyclesPerDay,
                 AverageSocPct = periodStats.AverageSocPct,
                 AvgCyclesPerBattery = avgCyclesPerBattery,
+                CycleCostEurPerKWh = _settingsConfig.CycleCost,
                 TotalConsumptionKWh = periodStats.TotalConsumptionKWh,
                 TotalGridImportKWh = periodStats.TotalGridImportKWh,
                 AvgDailyConsumptionKWh = periodStats.AvgDailyConsumptionKWh,

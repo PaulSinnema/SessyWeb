@@ -22,6 +22,8 @@ namespace SessyController.Services
     public class SettingsService : IHostedService
     {
         private readonly SettingsDataService _settingsDataService;
+        private readonly InvestmentDataService _investmentDataService;
+        private readonly InvestmentGroupDataService _investmentGroupDataService;
         private readonly LoggingService<SettingsService> _logger;
         private readonly SettingsConfig _appsettings;
         private readonly TaskCompletionSource _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -40,10 +42,14 @@ namespace SessyController.Services
 
         public SettingsService(
             SettingsDataService settingsDataService,
+            InvestmentDataService investmentDataService,
+            InvestmentGroupDataService investmentGroupDataService,
             LoggingService<SettingsService> logger,
             IOptions<SettingsConfig> appsettings)
         {
             _settingsDataService = settingsDataService;
+            _investmentDataService = investmentDataService;
+            _investmentGroupDataService = investmentGroupDataService;
             _logger = logger;
             _appsettings = appsettings.Value;
         }
@@ -209,11 +215,70 @@ namespace SessyController.Services
                 }
 
                 _current = record;
+
+                await ApplyDerivedCycleCostAsync(record).ConfigureAwait(false);
+
                 _logger.LogInformation("SettingsService: settings loaded from database.");
             }
             catch (Exception ex)
             {
                 _logger.LogError($"SettingsService: failed to load settings — using previous values. {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Derives CycleCost from the battery investments instead of the manually
+        /// configured value. The cost reflects the real purchase price spread over
+        /// the expected energy throughput of all storage investments:
+        ///
+        ///   CycleCost = Σ(NetAmountEur) / Σ(CapacityKWh × ExpectedTotalCycles)
+        ///
+        /// Only investments in a group with Category == Storage are considered.
+        /// When no storage investment carries the required data (capacity and cycles),
+        /// the manually configured CycleCost in the record is kept as fallback.
+        /// </summary>
+        private async Task ApplyDerivedCycleCostAsync(Settings record)
+        {
+            try
+            {
+                var groups = await _investmentGroupDataService.GetList(set =>
+                    Task.FromResult(set.ToList())).ConfigureAwait(false);
+
+                var storageGroupIds = groups
+                    .Where(g => g.Category == InvestmentCategory.Storage)
+                    .Select(g => g.Id)
+                    .ToHashSet();
+
+                if (storageGroupIds.Count == 0) return;
+
+                var investments = await _investmentDataService.GetList(set =>
+                    Task.FromResult(set.ToList())).ConfigureAwait(false);
+
+                var batteryInvestments = investments
+                    .Where(i => i.InvestmentGroupId.HasValue
+                                && storageGroupIds.Contains(i.InvestmentGroupId.Value)
+                                && i.CapacityWh > 0.0
+                                && i.ExpectedTotalCycles > 0)
+                    .ToList();
+
+                if (batteryInvestments.Count == 0) return;
+
+                double totalNetCost = batteryInvestments.Sum(i => i.NetAmountEur);
+                double totalThroughputKWh = batteryInvestments
+                    .Sum(i => (i.CapacityWh / 1000.0) * i.ExpectedTotalCycles);
+
+                if (totalThroughputKWh <= 0.0) return;
+
+                double derived = totalNetCost / totalThroughputKWh;
+                record.CycleCost = derived;
+
+                _logger.LogInformation(
+                    $"SettingsService: CycleCost derived from investments = € {derived:F4}/kWh " +
+                    $"(NetCost=€ {totalNetCost:F0}, Throughput={totalThroughputKWh:F0} kWh).");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"SettingsService: failed to derive CycleCost — keeping configured value. {ex.Message}");
             }
         }
     }

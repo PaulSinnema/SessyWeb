@@ -72,6 +72,19 @@ namespace SessyData.Model
         /// </summary>
         public string? Notes { get; set; }
 
+        /// <summary>
+        /// Battery capacity of this investment in Wh. Only relevant for investments
+        /// in a group with Category == Storage. Used to derive the cycle cost.
+        /// </summary>
+        public double CapacityWh { get; set; } = 0.0;
+
+        /// <summary>
+        /// Expected total number of full charge/discharge cycles over the battery's
+        /// lifetime. Only relevant for Storage investments. Used to derive cycle cost:
+        /// cost = NetAmountEur / (CapacityWh/1000 * ExpectedTotalCycles).
+        /// </summary>
+        public int ExpectedTotalCycles { get; set; } = 0;
+
         public void Update(Investment updateInfo)
         {
             this.Copy(updateInfo);
