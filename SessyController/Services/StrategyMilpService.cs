@@ -151,15 +151,16 @@ namespace SessyController.Services
 
                 // End-of-horizon value of stored energy. The FIFO cost basis reflects what
                 // the energy *cost* (near 0 for solar), not what it is *worth*. Because the
-                // solve horizon ends at the last known-price quarter (today 23:45), valuing
-                // leftover energy at ~0 makes the solver see no reason to charge cheap now
-                // for the expensive night/next day just beyond the horizon — so it barely
-                // charges and never arbitrages. Floor the value at the median buy price over
-                // the horizon: energy carried past the horizon is worth at least what it
-                // would otherwise cost to import.
-                double horizonMedianBuy = MedianBuyPrice(pricePoints);
-                if (beginSocCost < horizonMedianBuy)
-                    beginSocCost = horizonMedianBuy;
+                // solve horizon ends at the last known-price quarter, valuing leftover energy
+                // at ~0 makes the solver see no reason to charge cheap now for the expensive
+                // night/next day just beyond the horizon. Floor the value at the 25th
+                // percentile (off-peak) buy price: high enough to stop the battery draining
+                // to empty, but low enough that discharging into the expensive evening on the
+                // last horizon day still beats hoarding. Using the median instead over-valued
+                // held energy and suppressed evening discharge.
+                double horizonFloorPrice = OffPeakBuyPrice(pricePoints);
+                if (beginSocCost < horizonFloorPrice)
+                    beginSocCost = horizonFloorPrice;
 
                 var opt = new SessyOptions(
                     QuarterMinutes: 15,
@@ -184,20 +185,19 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Median buy price over the planning horizon. Used as a floor for the
-        /// end-of-horizon value of stored energy, so solar-charged energy (FIFO cost
-        /// ~0) is not undervalued at the horizon edge, which would suppress charging.
+        /// 25th-percentile (off-peak) buy price over the planning horizon. Used as a floor
+        /// for the end-of-horizon value of stored energy: it reflects what holding energy is
+        /// really worth (avoiding a cheap off-peak import), not the median — which is inflated
+        /// by expensive evening peaks and would suppress evening discharge.
         /// </summary>
-        private static double MedianBuyPrice(IReadOnlyList<PricePoint> pricePoints)
+        private static double OffPeakBuyPrice(IReadOnlyList<PricePoint> pricePoints)
         {
             if (pricePoints == null || pricePoints.Count == 0)
                 return 0.0;
 
             var sorted = pricePoints.Select(p => p.BuyEurPerKWh).OrderBy(v => v).ToList();
-            int mid = sorted.Count / 2;
-            return sorted.Count % 2 == 1
-                ? sorted[mid]
-                : (sorted[mid - 1] + sorted[mid]) / 2.0;
+            int idx = sorted.Count / 4;
+            return sorted[idx];
         }
     }
 }
