@@ -172,7 +172,39 @@ namespace SessyController.Services
 
             await ApplyPerformanceFactor(hourlyInfos, _timeZoneService.Now);
 
+            // Overwrite past quarters with actual measured solar so the chart
+            // reflects real production instead of the uncorrected forecast.
+            await BackfillActualSolarAsync(hourlyInfos, _timeZoneService.Now);
+
             AddSmoothedSolarPower(hourlyInfos, 8);
+        }
+
+        /// <summary>
+        /// Replaces SolarPowerPerQuarterHour for completed past quarters with the
+        /// actual measured value from InverterMeasurements, so the chart shows
+        /// real production rather than the uncorrected radiation-based forecast.
+        /// </summary>
+        private async Task BackfillActualSolarAsync(List<QuarterlyInfo> hourlyInfos, DateTime now)
+        {
+            var from = hourlyInfos.Min(q => q.Time);
+            var to = now.DateFloorQuarter();
+
+            if (to <= from) return;
+
+            var measurements = await _inverterMeasurementService.GetList(async set =>
+                await Task.FromResult(set
+                    .Where(m => m.Time >= from && m.Time < to)
+                    .ToList()));
+
+            var measuredByQuarter = measurements
+                .GroupBy(m => m.Time)
+                .ToDictionary(g => g.Key, g => g.Sum(m => m.SolarProductionKWh));
+
+            foreach (var qi in hourlyInfos.Where(q => q.Time < to))
+            {
+                if (measuredByQuarter.TryGetValue(qi.Time, out var kWh))
+                    qi.SolarPowerPerQuarterHour = kWh;
+            }
         }
 
         private void AddSmoothedSolarPower(List<QuarterlyInfo> hourlyInfos, int windowSize = 6)
@@ -467,17 +499,8 @@ namespace SessyController.Services
                 return;
             }
 
-            // Sum forecast
-            var forecastToNow = pastInfos.Sum(q => q.SolarPowerPerQuarterHour);
-
-            if (forecastToNow <= 0.0)
-            {
-                // Normal at night or before sunrise — return silently.
-                return;
-            }
-
             // Build cache of realized solar per quarter for use in GetTotalSolarPowerExpected.
-            // This prevents EMA factor changes from retroactively altering past quarter values.
+            // This prevents factor changes from retroactively altering past quarter values.
             var todayMeasurements = await _inverterMeasurementService.GetList(async set =>
             {
                 var result = set
@@ -490,52 +513,13 @@ namespace SessyController.Services
                 .GroupBy(m => m.Time)
                 .ToDictionary(g => g.Key, g => g.First().SolarProductionKWh * 4.0); // kWh → kW per quarter
 
-            // Sum of measured solar power from database for past quarters today.
-            // This is the total realized energy from midnight until now,
-            // used to calculate the performance factor against the forecast.
-            var realizedToNow = await GetRealizedSolarPower(
-                pastInfos.Min(q => q.Time),
-                pastInfos.Max(q => q.Time.AddMinutes(15))
-            ).ConfigureAwait(false);
-
-            if (realizedToNow <= 0.0)
-            {
-                _logger.LogInformation("Solar: No realized solar data available — skipping performance factor.");
-                return;
-            }
-
-            // Calculate performance factor.
-            // Only apply when forecast is significant enough to avoid noise from
-            // low early-morning values producing extreme correction factors.
-            if (forecastToNow < 2.0)  // Require meaningful forecast before adjusting EMA
-            {
-                _logger.LogInformation($"Solar: Forecast too low ({forecastToNow:F2} kWh) — performance factor not applied.");
-                return;
-            }
-
-            var rawFactor = realizedToNow / forecastToNow;
-
-            // Clamp to a reasonable range to avoid extreme corrections.
-            rawFactor = Math.Max(0.2, Math.Min(3.0, rawFactor));
-
-            // Apply exponential moving average at most once per quarter to avoid
-            // fast convergence when the cycle runs more frequently (e.g. DEBUG mode).
-            var nowQuarter = now.DateFloorQuarter();
-#if DEBUG
-            if (true)  // Update every cycle in DEBUG for faster feedback.
-#else
-            if (nowQuarter > _lastEmaUpdateQuarter)
-#endif
-            {
-                _smoothedPerformanceFactor = UpdateEma(
-                    _smoothedPerformanceFactor, rawFactor, PerformanceFactorAlpha);
-                _lastEmaUpdateQuarter = nowQuarter;
-            }
-
+            // Only the stable historical factor (last N days) is used. The intraday
+            // realized/forecast ratio was removed: it reacted to weather forecast errors
+            // (e.g. radiation predicted too low on a sunny day), producing extreme raw
+            // factors that inflated the whole forward forecast. The historical factor
+            // already captures systematic panel performance without that day-noise.
             var factor = _smoothedPerformanceFactor;
 
-            // Log once per day or when factor changes significantly.
-            // In DEBUG mode log every update for easier testing.
             bool newDay = now.Date != _lastLoggedPerformanceDate;
 #if DEBUG
             bool significantChange = true;
@@ -544,7 +528,7 @@ namespace SessyController.Services
 #endif
             if (newDay || significantChange)
             {
-                _logger.LogInformation($"Solar: Performance factor applied: {factor:F2} (raw={rawFactor:F2}, Realized={realizedToNow:F2} kWh, Forecast={forecastToNow:F2} kWh)");
+                _logger.LogInformation($"Solar: Performance factor applied: {factor:F2} (historical, last {HistoricalFactorLookbackDays} days)");
                 _lastLoggedPerformanceFactor = factor;
                 _lastLoggedPerformanceDate = now.Date;
             }

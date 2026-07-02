@@ -5,6 +5,7 @@ using SessyCommon.Services;
 using SessyController.Services.Items;
 using SessyController.Services.Optimization;
 using SessyController.Services.Optimization.Strategies;
+using SessyData.Model;
 using SessyData.Services;
 
 namespace SessyController.Services
@@ -62,9 +63,14 @@ namespace SessyController.Services
 
                 var nowQuarter = _timeZoneService.Now.DateFloorQuarter();
 
+                // Known-price quarters always enter the solver. Predicted quarters are
+                // included only when PredictedPriceMode is not Off; their prices are handled
+                // below (risk margin in SoftMargin mode, as-is in Full mode).
                 var quartersQuery = _quarterlyInfos
-                    .Where(q => q.Time >= nowQuarter.AddMinutes(15))
-                    .Where(q => !q.IsPriceExpected);
+                    .Where(q => q.Time >= nowQuarter.AddMinutes(15));
+
+                if (_settingsConfig.PredictedPriceMode == PredictedPriceMode.Off)
+                    quartersQuery = quartersQuery.Where(q => !q.IsPriceExpected);
 
                 // Optional planning horizon limit: ignore quarters beyond N hours so the
                 // solver cannot defer discharge to a far-future peak.
@@ -112,7 +118,21 @@ namespace SessyController.Services
                         _chargeThrottleRatioByTime[q.Time] = chargeRatio;
                     }
 
-                    return new PricePoint(q.Time, q.BuyingPrice, q.SellingPrice, q.NetLoadWh,
+                    // Predicted quarters carry price uncertainty. In SoftMargin mode we make
+                    // the solver conservative by widening their spread against arbitrage:
+                    // raise the buy price and lower the sell price by the risk margin. Known
+                    // quarters and Full mode use the prices unchanged.
+                    double buyPrice = q.BuyingPrice;
+                    double sellPrice = q.SellingPrice;
+                    if (q.IsPriceExpected &&
+                        _settingsConfig.PredictedPriceMode == PredictedPriceMode.SoftMargin)
+                    {
+                        double margin = _settingsConfig.PredictedPriceRiskMarginEur;
+                        buyPrice += margin;
+                        sellPrice = Math.Max(0.0, sellPrice - margin);
+                    }
+
+                    return new PricePoint(q.Time, buyPrice, sellPrice, q.NetLoadWh,
                         solarSurplusWh, qMaxChargeKW, qMaxDischargeKW);
                 }).ToList();
 
@@ -128,6 +148,18 @@ namespace SessyController.Services
 
                 double beginSocCost = await _chargeCostBasisService
                     .GetAverageCostBasisEur().ConfigureAwait(false);
+
+                // End-of-horizon value of stored energy. The FIFO cost basis reflects what
+                // the energy *cost* (near 0 for solar), not what it is *worth*. Because the
+                // solve horizon ends at the last known-price quarter (today 23:45), valuing
+                // leftover energy at ~0 makes the solver see no reason to charge cheap now
+                // for the expensive night/next day just beyond the horizon — so it barely
+                // charges and never arbitrages. Floor the value at the median buy price over
+                // the horizon: energy carried past the horizon is worth at least what it
+                // would otherwise cost to import.
+                double horizonMedianBuy = MedianBuyPrice(pricePoints);
+                if (beginSocCost < horizonMedianBuy)
+                    beginSocCost = horizonMedianBuy;
 
                 var opt = new SessyOptions(
                     QuarterMinutes: 15,
@@ -149,6 +181,23 @@ namespace SessyController.Services
                 _logger.LogError($"{GetType().Name}.BuildMilpPlanAsync failed: {ex.ToDetailedString()}");
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Median buy price over the planning horizon. Used as a floor for the
+        /// end-of-horizon value of stored energy, so solar-charged energy (FIFO cost
+        /// ~0) is not undervalued at the horizon edge, which would suppress charging.
+        /// </summary>
+        private static double MedianBuyPrice(IReadOnlyList<PricePoint> pricePoints)
+        {
+            if (pricePoints == null || pricePoints.Count == 0)
+                return 0.0;
+
+            var sorted = pricePoints.Select(p => p.BuyEurPerKWh).OrderBy(v => v).ToList();
+            int mid = sorted.Count / 2;
+            return sorted.Count % 2 == 1
+                ? sorted[mid]
+                : (sorted[mid - 1] + sorted[mid]) / 2.0;
         }
     }
 }

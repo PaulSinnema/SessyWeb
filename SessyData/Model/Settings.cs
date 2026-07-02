@@ -23,6 +23,24 @@ namespace SessyData.Model
         BatterySaving = 3,
     }
 
+    /// <summary>
+    /// Controls whether predicted (not-yet-published) EPEX prices are used by the MILP solver.
+    /// </summary>
+    public enum PredictedPriceMode
+    {
+        /// <summary>Off: only known/published prices enter the solver (safest, short horizon).</summary>
+        Off = 0,
+
+        /// <summary>
+        /// Soft: predicted quarters extend the horizon, but their prices carry a risk margin
+        /// (predicted buy raised, predicted sell lowered) so arbitrage only happens on ample spread.
+        /// </summary>
+        SoftMargin = 1,
+
+        /// <summary>Full: predicted prices are trusted as-is, exactly like known prices.</summary>
+        Full = 2,
+    }
+
     public class Settings : IUpdatable<Settings>
     {
         [Key]
@@ -158,6 +176,19 @@ namespace SessyData.Model
         /// (use all quarters with known prices). Typical values: 24 or 36.
         /// </summary>
         public int PlanningHorizonHours { get; set; } = 0;
+
+        /// <summary>
+        /// Whether the solver uses predicted (not-yet-published) EPEX prices. See
+        /// <see cref="PredictedPriceMode"/>. Off = known prices only.
+        /// </summary>
+        public PredictedPriceMode PredictedPriceMode { get; set; } = PredictedPriceMode.Off;
+
+        /// <summary>
+        /// Risk margin (EUR/kWh) applied to predicted prices in SoftMargin mode: predicted
+        /// buy prices are raised and predicted sell prices lowered by this amount, so the
+        /// solver only arbitrages predicted quarters when the spread is comfortably large.
+        /// </summary>
+        public double PredictedPriceRiskMarginEur { get; set; } = 0.05;
 
         public void Update(Settings updateInfo)
         {

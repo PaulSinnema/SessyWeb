@@ -493,6 +493,15 @@ namespace SessyWeb.Pages
             new("Battery saving", OptimizationStrategy.BatterySaving),
         ];
 
+        private record PredictedPriceItem(string Text, PredictedPriceMode Value);
+
+        private readonly List<PredictedPriceItem> _predictedPriceModes =
+        [
+            new("Off — known prices only", PredictedPriceMode.Off),
+            new("Soft — predicted with risk margin", PredictedPriceMode.SoftMargin),
+            new("Full — trust predicted prices", PredictedPriceMode.Full),
+        ];
+
         private void ResetMilpDefaults()
         {
             if (_settings == null) return;

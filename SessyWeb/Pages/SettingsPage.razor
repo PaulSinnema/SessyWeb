@@ -160,6 +160,24 @@
                                         <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">Ignore quarters beyond this many hours so discharge is not deferred to a distant peak. 0 = no limit. Typical: 24 or 36. Default: 0.</RadzenText>
                                         <RadzenNumeric @bind-Value="_settings.PlanningHorizonHours" Style="width:100%" />
                                     </RadzenColumn>
+                                    <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Use predicted prices in the solver" />
+                                        <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">Off = known prices only (short horizon). Soft = predicted prices with a risk margin so only wide spreads are traded. Full = trust predicted prices as-is. Default: Off.</RadzenText>
+                                        <RadzenDropDown @bind-Value="_settings.PredictedPriceMode"
+                                                        Data="@_predictedPriceModes"
+                                                        TextProperty="Text"
+                                                        ValueProperty="Value"
+                                                        Change="@(_ => StateHasChanged())"
+                                                        Style="width:100%" />
+                                    </RadzenColumn>
+                                    @if (_settings.PredictedPriceMode == PredictedPriceMode.SoftMargin)
+                                    {
+                                        <RadzenColumn Size="12" SizeMD="4">
+                                            <RadzenLabel Text="Predicted price risk margin (€/kWh)" />
+                                            <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">Raises predicted buy prices and lowers predicted sell prices by this amount, so only wide spreads are traded. Default: 0.05.</RadzenText>
+                                            <RadzenNumeric @bind-Value="_settings.PredictedPriceRiskMarginEur" Format="F4" Step="0.01" Min="0" Style="width:100%" />
+                                        </RadzenColumn>
+                                    }
                                 </RadzenRow>
                             </RadzenFieldset>
 
