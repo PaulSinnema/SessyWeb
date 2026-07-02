@@ -485,7 +485,7 @@ namespace SessyController.Services
                 return false;
             }
 
-            _logger.LogWarning($"MILP solved: optimal={result.Optimal}, obj={result.ObjectiveEur:F4} EUR" +
+            _logger.LogInformation($"MILP solved: optimal={result.Optimal}, obj={result.ObjectiveEur:F4} EUR" +
                 $", elapsed={elapsedMs}ms, quarters={quarterCount}");
 
             var newPlan = new Dictionary<DateTime, PlanAction>();

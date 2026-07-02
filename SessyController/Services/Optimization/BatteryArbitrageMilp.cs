@@ -194,6 +194,7 @@ namespace SessyController.Services.Optimization
             {
                 double cKw = charge[t].SolutionValue();
                 double dKw = discharge[t].SolutionValue();
+                double impKw = gridImport[t].SolutionValue();
                 double expKw = gridExport[t].SolutionValue();
                 double s0 = soc[t].SolutionValue();
                 double s1 = soc[t + 1].SolutionValue();
@@ -201,7 +202,11 @@ namespace SessyController.Services.Optimization
                 ActionMode mode;
                 if (cKw > 0.01)
                 {
-                    mode = ActionMode.Charge;
+                    // Charging from grid import = Charge; charging that is fully covered
+                    // by solar surplus (no meaningful grid import) = ZeroNetHome, which
+                    // achieves true net-zero via real-time regulation instead of an
+                    // open-loop charge setpoint.
+                    mode = impKw > 0.01 ? ActionMode.Charge : ActionMode.ZeroNetHome;
                 }
                 else if (dKw > 0.01)
                 {
