@@ -485,7 +485,7 @@ namespace SessyController.Services
                 return false;
             }
 
-            _logger.LogInformation($"MILP solved: optimal={result.Optimal}, obj={result.ObjectiveEur:F4} EUR" +
+            _logger.LogWarning($"MILP solved: optimal={result.Optimal}, obj={result.ObjectiveEur:F4} EUR" +
                 $", elapsed={elapsedMs}ms, quarters={quarterCount}");
 
             var newPlan = new Dictionary<DateTime, PlanAction>();
@@ -803,10 +803,45 @@ namespace SessyController.Services
                 return planned;
             }
 
-            // ZeroNetHome — switch to Disabled if selling price is too low.
-            if (qi != null && qi.NetLoadWh >= 0.0 &&
-                qi.SellingPrice < _settingsConfig.CycleCost + _settingsConfig.NetZeroHomeMinProfit)
-                return new PlanAction { Mode = Modes.Disabled, PowerW = 0 };
+            // ZeroNetHome — decide between ZNH (store surplus) and Disabled (battery off).
+            //
+            // The forecast for the current quarter can be badly wrong (e.g. solar forecast
+            // far too low on a sunny day), which would wrongly flag a deficit and Disable the
+            // battery — exporting solar surplus to the grid for almost nothing. Base this
+            // decision on the measured NetLoad of the last completed quarter instead, which
+            // reflects the real situation right now.
+            if (qi != null)
+            {
+                var prevQuarter = _quarterlyInfos
+                    .Where(q => q.Time < nowQuarter)
+                    .OrderByDescending(q => q.Time)
+                    .FirstOrDefault();
+
+                // NetLoad < 0 means solar surplus. Prefer ZeroNetHome so the surplus charges
+                // the battery instead of being exported cheaply. Only fall through to Disabled
+                // when there is a genuine deficit and the sell price is too low to make
+                // discharging worthwhile.
+                double effectiveNetLoadWh = prevQuarter?.NetLoadWh ?? qi.NetLoadWh;
+
+                if (effectiveNetLoadWh < 0.0 && socWh < maxSocWh)
+                {
+                    var nzh = new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
+                    _planByTime[nowQuarter] = nzh;
+                    qi.SetMode(Modes.ZeroNetHome);
+                    qi.SetPlanPower(0, 0);
+                    return nzh;
+                }
+
+                if (effectiveNetLoadWh >= 0.0 &&
+                    qi.SellingPrice < _settingsConfig.CycleCost + _settingsConfig.NetZeroHomeMinProfit)
+                {
+                    var disabled = new PlanAction { Mode = Modes.Disabled, PowerW = 0 };
+                    _planByTime[nowQuarter] = disabled;
+                    qi.SetMode(Modes.Disabled);
+                    qi.SetPlanPower(0, 0);
+                    return disabled;
+                }
+            }
 
             return planned;
         }
