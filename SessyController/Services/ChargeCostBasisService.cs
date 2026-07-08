@@ -114,60 +114,6 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Cost (EUR/kWh) of the oldest stored energy — the energy that would be
-        /// discharged next under FIFO. Used for the runtime "discharge now?" decision:
-        /// discharging is profitable when sellPrice &gt; this + cycleCost.
-        /// Returns 0 when the battery is effectively empty.
-        /// </summary>
-        public async Task<double> GetOldestLayerPriceEur()
-        {
-            await EnsureUpToDateAsync().ConfigureAwait(false);
-
-            await _semaphore.WaitAsync().ConfigureAwait(false);
-            try
-            {
-                var node = _layers.First;
-                while (node != null)
-                {
-                    if (node.Value.Wh > 1.0)
-                        return node.Value.CostEurPerKWh;
-                    node = node.Next;
-                }
-                return 0.0;
-            }
-            finally
-            {
-                _semaphore.Release();
-            }
-        }
-
-        /// <summary>
-        /// Weighted-average cost basis (EUR/kWh) of all energy currently stored.
-        /// Used to seed the solver's begin-SOC so it does not treat stored charge as free.
-        /// Returns 0 when the battery is effectively empty.
-        /// </summary>
-        public async Task<double> GetAverageCostBasisEur()
-        {
-            await EnsureUpToDateAsync().ConfigureAwait(false);
-
-            await _semaphore.WaitAsync().ConfigureAwait(false);
-            try
-            {
-                double totalWh = 0.0, totalCost = 0.0;
-                foreach (var layer in _layers)
-                {
-                    totalWh += layer.Wh;
-                    totalCost += layer.Wh / 1000.0 * layer.CostEurPerKWh;
-                }
-                return totalWh > 1.0 ? totalCost / (totalWh / 1000.0) : 0.0;
-            }
-            finally
-            {
-                _semaphore.Release();
-            }
-        }
-
-        /// <summary>
         /// Total energy currently tracked in the FIFO queue (Wh). For diagnostics.
         /// </summary>
         public async Task<double> GetTrackedWh()

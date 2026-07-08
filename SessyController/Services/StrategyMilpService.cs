@@ -19,12 +19,6 @@ namespace SessyController.Services
     {
         private readonly IBatteryOptimizationStrategy _strategy;
 
-#if DEBUG
-        private const int MilpTimeLimitMs = 5000;
-#else
-        private const int MilpTimeLimitMs = 10000;
-#endif
-
         protected StrategyMilpService(
             IBatteryOptimizationStrategy strategy,
             LoggingService<MilpServiceBase> logger,
@@ -160,21 +154,9 @@ namespace SessyController.Services
                     ChargeEfficiency: 0.95,
                     DischargeEfficiency: 0.95);
 
-                // End-of-horizon value of stored energy = its real FIFO acquisition cost.
-                // No artificial floor is applied: the horizon is extended with reserve-only
-                // predicted quarters (see the quarter selection above), so the coming night's
-                // consumption is inside the model and forces the battery to keep enough charge
-                // by itself. A floor here previously over-valued held energy on flat, expensive
-                // days and blocked profitable evening discharge.
-                double beginSocCost = await _chargeCostBasisService
-                    .GetAverageCostBasisEur().ConfigureAwait(false);
-
                 var opt = new SessyOptions(
                     QuarterMinutes: 15,
-                    CycleCostEurPerKWh: _settingsService.CycleCost,
-                    TimeLimitMs: MilpTimeLimitMs,
-                    BeginSocCostEurPerKWh: beginSocCost,
-                    DischargeTimePreferenceFactor: _settingsConfig.DischargeTimePreferenceFactor);
+                    CycleCostEurPerKWh: _settingsService.CycleCost);
 
                 var context = new SolveContext(pricePoints, spec, opt, socBounds);
 

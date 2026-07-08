@@ -11,20 +11,15 @@
     </RadzenStack>
 
     <RadzenRow Gap="8px" class="rz-mt-2">
-        <RadzenColumn Size="6" SizeMD="3">
+        <RadzenColumn Size="6" SizeMD="4">
             <StatCardComponent Title="Stored energy"
                                Value="@($"{_snapshot?.TrackedWh / 1000.0:F2} kWh")" />
         </RadzenColumn>
-        <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Oldest layer (next out)"
-                               Value="@($"€ {_snapshot?.OldestLayerPriceEur:F4}")"
-                               Highlight="true" />
-        </RadzenColumn>
-        <RadzenColumn Size="6" SizeMD="3">
+        <RadzenColumn Size="6" SizeMD="4">
             <StatCardComponent Title="Average cost basis"
                                Value="@($"€ {_snapshot?.AverageCostBasisEur:F4}")" />
         </RadzenColumn>
-        <RadzenColumn Size="6" SizeMD="3">
+        <RadzenColumn Size="6" SizeMD="4">
             <StatCardComponent Title="Layers"
                                Value="@($"{_snapshot?.Layers.Count ?? 0}")" />
         </RadzenColumn>
@@ -32,8 +27,8 @@
 
     <RadzenText TextStyle="TextStyle.Caption" Style="margin-top: 0.75rem; opacity: 0.7;">
         FIFO layers, oldest first. Solar-charged energy has cost € 0.0000; grid-charged
-        energy carries its real buying price. Discharging to grid is profitable when the
-        selling price exceeds the oldest-layer price plus the cycle cost.
+        energy carries its real buying price. This is bookkeeping only: it shows what the
+        stored energy cost, and does not drive the planner.
     </RadzenText>
 
     @if (_snapshot != null && _snapshot.Layers.Any())

@@ -321,22 +321,6 @@ namespace SessyController.Services
                 });
             }
 
-            // Discharge time preference (factor, shown as % per quarter). Large values
-            // distort the plan by discounting the future too aggressively.
-            double timePrefPct = s.DischargeTimePreferenceFactor * 100.0;
-            if (timePrefPct > 5.0)
-            {
-                checks.Add(new ConfigurationCheck
-                {
-                    Severity = CheckSeverity.Warning,
-                    Title = "Discharge time preference very high",
-                    Description = $"Discharge time preference is {timePrefPct:F1}% per quarter. This heavily " +
-                                  "discounts later discharge and may dump the battery early. Typical value is 0.5%.",
-                    ActionUrl = "/settings",
-                    ActionLabel = "Open settings"
-                });
-            }
-
             // Planning horizon: too short loses the evening peak; 0 = no limit (fine).
             if (s.PlanningHorizonHours > 0 && s.PlanningHorizonHours < 12)
             {

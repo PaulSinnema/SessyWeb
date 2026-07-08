@@ -689,10 +689,10 @@ namespace SessyTests.Services
             Assert.Equal(14000.0, stats.RemainingInvestmentEur, 1);
         }
 
-        // ── BatteryArbitrageMilp tests ────────────────────────────────────────
+        // ── BatteryGreedyPlanner tests ────────────────────────────────────────
 
         [Fact]
-        public void BatteryArbitrageMilp_NettingOn_PlansBothChargeAndDischarge()
+        public void BatteryGreedyPlanner_NettingOn_PlansBothChargeAndDischarge()
         {
             var baseTime = new DateTime(2027, 1, 1);
             var pricePoints =
@@ -705,14 +705,14 @@ namespace SessyTests.Services
                 .ToList();
 
             var bounds = MakeBounds(pricePoints.Select(p => p.Start));
-            var result = BatteryArbitrageMilp.Solve(pricePoints, MakeSpec(4.0), MakeOpt(0.02), bounds);
+            var result = BatteryGreedyPlanner.Solve(pricePoints, MakeSpec(4.0), MakeOpt(0.02), bounds);
 
             Assert.True(result!.Plan.Any(p => p.Mode == ActionMode.Charge), "Expected charging");
             Assert.True(result!.Plan.Any(p => p.Mode == ActionMode.Discharge), "Expected discharging");
         }
 
         [Fact]
-        public void BatteryArbitrageMilp_NettingOff_SelfUseValueDrivesDischarge()
+        public void BatteryGreedyPlanner_NettingOff_SelfUseValueDrivesDischarge()
         {
             var baseTime = new DateTime(2027, 1, 1);
             // High buy price + positive net load: own-use discharge should be profitable.
@@ -725,14 +725,14 @@ namespace SessyTests.Services
             };
 
             var bounds = MakeBounds(pricePoints.Select(p => p.Start));
-            var result = BatteryArbitrageMilp.Solve(pricePoints, MakeSpec(8.0), MakeOpt(0.02), bounds);
+            var result = BatteryGreedyPlanner.Solve(pricePoints, MakeSpec(8.0), MakeOpt(0.02), bounds);
 
             Assert.True(result!.Plan.Any(p => p.Mode == ActionMode.Discharge),
                 "Expected discharge during high-consumption quarters");
         }
 
         [Fact]
-        public void BatteryArbitrageMilp_NettingOff_DoesNotChargeWhenCyclingNotProfitable()
+        public void BatteryGreedyPlanner_NettingOff_DoesNotChargeWhenCyclingNotProfitable()
         {
             var baseTime = new DateTime(2027, 1, 1);
             var pricePoints = Enumerable.Range(0, 4).Select(i => new PricePoint(
@@ -746,14 +746,14 @@ namespace SessyTests.Services
                 ChargeEfficiency: 0.95, DischargeEfficiency: 0.95);
 
             var bounds = MakeBounds(pricePoints.Select(p => p.Start));
-            var result = BatteryArbitrageMilp.Solve(pricePoints, spec, MakeOpt(0.20), bounds);
+            var result = BatteryGreedyPlanner.Solve(pricePoints, spec, MakeOpt(0.20), bounds);
 
             Assert.False(result!.Plan.Any(p => p.Mode == ActionMode.Charge), "Expected no charging");
             Assert.False(result!.Plan.Any(p => p.Mode == ActionMode.Discharge), "Expected no discharging");
         }
 
         [Fact]
-        public void BatteryArbitrageMilp_SolvesWithoutThrowingWhenSolarSurplusIsZero()
+        public void BatteryGreedyPlanner_SolvesWithoutThrowingWhenSolarSurplusIsZero()
         {
             var baseTime = new DateTime(2027, 1, 1);
             var pricePoints = new List<PricePoint>
@@ -763,7 +763,7 @@ namespace SessyTests.Services
             };
 
             var bounds = MakeBounds(pricePoints.Select(p => p.Start));
-            var result = BatteryArbitrageMilp.Solve(pricePoints, MakeSpec(8.0), MakeOpt(0.02), bounds);
+            var result = BatteryGreedyPlanner.Solve(pricePoints, MakeSpec(8.0), MakeOpt(0.02), bounds);
 
             Assert.NotNull(result);
         }
@@ -878,8 +878,7 @@ namespace SessyTests.Services
 
         private static SessyOptions MakeOpt(double cycleCost) => new SessyOptions(
             QuarterMinutes: 15,
-            CycleCostEurPerKWh: cycleCost,
-            TimeLimitMs: 5000);
+            CycleCostEurPerKWh: cycleCost);
 
         private static IReadOnlyList<SocBound> MakeBounds(IEnumerable<DateTime> times, double minKWh = 0.0, double maxKWh = 16.2)
             => times.Select(t => new SocBound(t, minKWh, maxKWh)).ToList();

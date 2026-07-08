@@ -2,19 +2,25 @@
 {
     /// <summary>
     /// Balanced strategy.
-    /// With the grid-balance solver the model already decides optimally whether to store
-    /// solar surplus or export it, so no artificial headroom reservation is applied here.
-    /// This strategy is currently identical to profit maximization; it exists as a
-    /// placeholder for future balance-oriented tuning (e.g. extra cycle-cost weighting).
+    /// Same planner as profit maximization, but with a modest surcharge on the cycle cost so the
+    /// battery trades a little less eagerly. Sits between profit maximization and battery saving.
     /// </summary>
     public sealed class BalancedStrategy : IBatteryOptimizationStrategy
     {
+        /// <summary>Multiplier on top of the derived cycle cost. 1.5 = require a 50% wider spread.</summary>
+        private const double CycleCostMultiplier = 1.5;
+
         public Task<PlanResult?> SolveAsync(SolveContext context)
         {
-            var result = BatteryArbitrageMilp.Solve(
+            var options = context.Options with
+            {
+                CycleCostEurPerKWh = context.Options.CycleCostEurPerKWh * CycleCostMultiplier
+            };
+
+            var result = BatteryGreedyPlanner.Solve(
                 context.PricePoints,
                 context.Spec,
-                context.Options,
+                options,
                 context.SocBounds);
 
             return Task.FromResult(result);

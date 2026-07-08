@@ -477,12 +477,6 @@ namespace SessyWeb.Pages
             set { if (_settings != null) _settings.ReserveSafetyFactor = (value / 100.0) + 1.0; }
         }
 
-        private double DischargeTimePreferencePctUi
-        {
-            get => _settings == null ? 0.0 : _settings.DischargeTimePreferenceFactor * 100.0;
-            set { if (_settings != null) _settings.DischargeTimePreferenceFactor = value / 100.0; }
-        }
-
         private record StrategyItem(string Text, OptimizationStrategy Value);
 
         private readonly List<StrategyItem> _strategies =
@@ -506,7 +500,6 @@ namespace SessyWeb.Pages
         {
             if (_settings == null) return;
             _settings.ReserveSafetyFactor = 1.10;
-            _settings.DischargeTimePreferenceFactor = 0.0005;
             _settings.PlanningHorizonHours = 0;
         }
         private bool _settingsSaving;

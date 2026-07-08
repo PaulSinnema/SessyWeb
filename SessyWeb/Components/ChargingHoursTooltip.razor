@@ -48,23 +48,6 @@
 
         <span class="sw-tt-k">Cost basis</span>
         <span class="sw-tt-v">@fmt(q?.ProjectedCostBasisEur, "0.0000")</span>
-
-        <span class="sw-tt-k">Discharge profitable?</span>
-        <span class="sw-tt-v">
-            @{
-                double costBasis = q?.ProjectedCostBasisEur ?? 0.0;
-                double sell = q?.SellingPrice ?? 0.0;
-                bool profitable = sell > costBasis + CycleCost;
-            }
-            @if (profitable)
-            {
-                <span style="color:#66ff99;">yes (€@fmt(sell - costBasis - CycleCost, "0.0000") margin)</span>
-            }
-            else
-            {
-                <span style="opacity:.7;">no</span>
-            }
-        </span>
     </div>
 
     <div class="sw-tt-sep"></div>
