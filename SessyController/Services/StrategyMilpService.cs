@@ -64,13 +64,15 @@ namespace SessyController.Services
                 var nowQuarter = _timeZoneService.Now.DateFloorQuarter();
 
                 // Known-price quarters always enter the solver. Predicted quarters are
-                // included only when PredictedPriceMode is not Off; their prices are handled
-                // below (risk margin in SoftMargin mode, as-is in Full mode).
+                // always included too, so the horizon reaches into the coming night and the
+                // solver keeps enough charge for it instead of guessing an end-of-horizon
+                // value. How predicted prices are treated depends on the mode:
+                //   Off        → reserve-only: extend the horizon for night coverage, but no
+                //                trading on the uncertain prices (no charge, no export).
+                //   SoftMargin → traded with a risk margin (applied below).
+                //   Full       → traded as-is.
                 var quartersQuery = _quarterlyInfos
                     .Where(q => q.Time >= nowQuarter.AddMinutes(15));
-
-                if (_settingsConfig.PredictedPriceMode == PredictedPriceMode.Off)
-                    quartersQuery = quartersQuery.Where(q => !q.IsPriceExpected);
 
                 // Optional planning horizon limit: ignore quarters beyond N hours so the
                 // solver cannot defer discharge to a far-future peak.
@@ -118,22 +120,34 @@ namespace SessyController.Services
                         _chargeThrottleRatioByTime[q.Time] = chargeRatio;
                     }
 
-                    // Predicted quarters carry price uncertainty. In SoftMargin mode we make
-                    // the solver conservative by widening their spread against arbitrage:
-                    // raise the buy price and lower the sell price by the risk margin. Known
-                    // quarters and Full mode use the prices unchanged.
+                    // Predicted quarters carry price uncertainty.
+                    //   Off        → reserve-only (no trading; horizon extension only).
+                    //   SoftMargin → widen the spread by the risk margin so only ample
+                    //                spreads are traded.
+                    //   Full       → prices as-is.
                     double buyPrice = q.BuyingPrice;
                     double sellPrice = q.SellingPrice;
-                    if (q.IsPriceExpected &&
-                        _settingsConfig.PredictedPriceMode == PredictedPriceMode.SoftMargin)
+                    bool reserveOnly = false;
+
+                    if (q.IsPriceExpected)
                     {
-                        double margin = _settingsConfig.PredictedPriceRiskMarginEur;
-                        buyPrice += margin;
-                        sellPrice = Math.Max(0.0, sellPrice - margin);
+                        switch (_settingsConfig.PredictedPriceMode)
+                        {
+                            case PredictedPriceMode.Off:
+                                reserveOnly = true;
+                                break;
+                            case PredictedPriceMode.SoftMargin:
+                                double margin = _settingsConfig.PredictedPriceRiskMarginEur;
+                                buyPrice += margin;
+                                sellPrice = Math.Max(0.0, sellPrice - margin);
+                                break;
+                            case PredictedPriceMode.Full:
+                                break;
+                        }
                     }
 
                     return new PricePoint(q.Time, buyPrice, sellPrice, q.NetLoadWh,
-                        solarSurplusWh, qMaxChargeKW, qMaxDischargeKW);
+                        solarSurplusWh, qMaxChargeKW, qMaxDischargeKW, reserveOnly);
                 }).ToList();
 
                 var socBounds = BuildSocBounds(quarters, socKWh, capKWh);
@@ -146,22 +160,14 @@ namespace SessyController.Services
                     ChargeEfficiency: 0.95,
                     DischargeEfficiency: 0.95);
 
+                // End-of-horizon value of stored energy = its real FIFO acquisition cost.
+                // No artificial floor is applied: the horizon is extended with reserve-only
+                // predicted quarters (see the quarter selection above), so the coming night's
+                // consumption is inside the model and forces the battery to keep enough charge
+                // by itself. A floor here previously over-valued held energy on flat, expensive
+                // days and blocked profitable evening discharge.
                 double beginSocCost = await _chargeCostBasisService
                     .GetAverageCostBasisEur().ConfigureAwait(false);
-
-                // End-of-horizon value of stored energy. The FIFO cost basis reflects what
-                // the energy *cost* (near 0 for solar), not what it is *worth*. Because the
-                // solve horizon ends at the last known-price quarter, valuing leftover energy
-                // at ~0 makes the solver see no reason to charge cheap now for the expensive
-                // night/next day just beyond the horizon. Floor the value at the 25th
-                // percentile (off-peak) buy price: high enough to stop the battery draining
-                // to empty, but low enough that discharging into the expensive evening on the
-                // last horizon day still beats hoarding. Using the median instead over-valued
-                // held energy and suppressed evening discharge.
-                double horizonFloorPrice = OffPeakBuyPrice(pricePoints);
-
-                if (beginSocCost < horizonFloorPrice)
-                    beginSocCost = horizonFloorPrice;
 
                 var opt = new SessyOptions(
                     QuarterMinutes: 15,
@@ -183,22 +189,6 @@ namespace SessyController.Services
                 _logger.LogError($"{GetType().Name}.BuildMilpPlanAsync failed: {ex.ToDetailedString()}");
                 return false;
             }
-        }
-
-        /// <summary>
-        /// 25th-percentile (off-peak) buy price over the planning horizon. Used as a floor
-        /// for the end-of-horizon value of stored energy: it reflects what holding energy is
-        /// really worth (avoiding a cheap off-peak import), not the median — which is inflated
-        /// by expensive evening peaks and would suppress evening discharge.
-        /// </summary>
-        private static double OffPeakBuyPrice(IReadOnlyList<PricePoint> pricePoints)
-        {
-            if (pricePoints == null || pricePoints.Count == 0)
-                return 0.0;
-
-            var sorted = pricePoints.Select(p => p.BuyEurPerKWh).OrderBy(v => v).ToList();
-            int idx = sorted.Count / 4;
-            return sorted[idx];
         }
     }
 }

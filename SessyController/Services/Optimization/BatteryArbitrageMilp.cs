@@ -45,7 +45,8 @@ namespace SessyController.Services.Optimization
         double NetLoadWh,
         double SolarSurplusWh,
         double? MaxChargeKW = null,
-        double? MaxDischargeKW = null
+        double? MaxDischargeKW = null,
+        bool ReserveOnly = false
     );
 
     /// <summary>
@@ -139,6 +140,16 @@ namespace SessyController.Services.Optimization
                 solver.Add(gridImport[t] <= bigM * isImport[t]);
                 solver.Add(gridExport[t] <= bigM * (1.0 - isImport[t]));
 
+                // Reserve-only quarters (predicted prices beyond the known window) extend the
+                // horizon so the battery keeps enough for the coming night, but the solver may
+                // not trade on their uncertain prices: no charging and no export there. The
+                // battery may still discharge to cover the house load (self-consumption).
+                if (pricePoints[t].ReserveOnly)
+                {
+                    solver.Add(charge[t] == 0.0);
+                    solver.Add(gridExport[t] == 0.0);
+                }
+
                 // Grid balance: netLoad + charge − discharge = import − export.
                 double netLoadKw = pricePoints[t].NetLoadWh / 1000.0 / dtHours;
                 solver.Add(gridImport[t] - gridExport[t]
@@ -194,7 +205,6 @@ namespace SessyController.Services.Optimization
             {
                 double cKw = charge[t].SolutionValue();
                 double dKw = discharge[t].SolutionValue();
-                double impKw = gridImport[t].SolutionValue();
                 double expKw = gridExport[t].SolutionValue();
                 double s0 = soc[t].SolutionValue();
                 double s1 = soc[t + 1].SolutionValue();
@@ -202,11 +212,19 @@ namespace SessyController.Services.Optimization
                 ActionMode mode;
                 if (cKw > 0.01)
                 {
-                    // Charging from grid import = Charge; charging that is fully covered
-                    // by solar surplus (no meaningful grid import) = ZeroNetHome, which
-                    // achieves true net-zero via real-time regulation instead of an
-                    // open-loop charge setpoint.
-                    mode = impKw > 0.01 ? ActionMode.Charge : ActionMode.ZeroNetHome;
+                    // Distinguish active (grid) charging from merely storing solar surplus.
+                    // The solar surplus available this quarter (kW) is netLoad < 0. If the
+                    // charge power exceeds that surplus, the extra energy comes from the grid
+                    // → Charge. If the charge is fully covered by concurrent solar surplus,
+                    // it is self-consumption storage → ZeroNetHome. Using grid-import as the
+                    // proxy mislabeled dal-charging as ZNH whenever a little solar coincided.
+                    double solarSurplusKw = pricePoints[t].NetLoadWh < 0.0
+                        ? -pricePoints[t].NetLoadWh / 1000.0 / dtHours
+                        : 0.0;
+
+                    mode = cKw > solarSurplusKw + 0.01
+                        ? ActionMode.Charge
+                        : ActionMode.ZeroNetHome;
                 }
                 else if (dKw > 0.01)
                 {

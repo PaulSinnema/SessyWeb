@@ -782,23 +782,11 @@ namespace SessyController.Services
                     return nzh;
                 }
 
-                // Cost-basis guard: only discharge to grid when the sell price beats the
-                // acquisition cost of the oldest stored energy (FIFO) plus cycle cost.
-                // Otherwise discharging realizes a loss on that energy.
-                if (qi != null)
-                {
-                    double oldestCost = await _chargeCostBasisService
-                        .GetOldestLayerPriceEur().ConfigureAwait(false);
-
-                    if (qi.SellingPrice <= oldestCost + _settingsService.CycleCost)
-                    {
-                        var nzh = new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
-                        _planByTime[nowQuarter] = nzh;
-                        qi.SetMode(Modes.ZeroNetHome);
-                        qi.SetPlanPower(0, 0);
-                        return nzh;
-                    }
-                }
+                // NOTE: the previous runtime FIFO cost-basis guard was removed here. It
+                // re-checked the current quarter against only the *oldest* layer price and
+                // could override a discharge the solver had already planned as profitable —
+                // the solver accounts for acquisition cost (BeginSocCost) and cycle cost in
+                // its objective, so a second, cruder gate here only suppressed valid discharge.
 
                 return planned;
             }
