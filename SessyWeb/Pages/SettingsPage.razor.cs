@@ -506,7 +506,7 @@ namespace SessyWeb.Pages
         {
             if (_settings == null) return;
             _settings.ReserveSafetyFactor = 1.10;
-            _settings.DischargeTimePreferenceFactor = 0.005;
+            _settings.DischargeTimePreferenceFactor = 0.0005;
             _settings.PlanningHorizonHours = 0;
         }
         private bool _settingsSaving;

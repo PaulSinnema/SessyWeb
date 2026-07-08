@@ -30,8 +30,22 @@ namespace SessyController.Services
 
         private volatile Settings _current = new Settings();
 
+        // Cached derived cycle cost (EUR/kWh). Written on load/refresh, read elsewhere.
+        // double cannot be volatile; reads/writes of double are not guaranteed atomic on
+        // all platforms, but this is a single scalar updated infrequently and a briefly
+        // stale read is harmless for a cost threshold.
+        private double _cycleCost = 0.05;
+
         /// <summary>The current settings loaded from the database.</summary>
         public virtual Settings Current => _current;
+
+        /// <summary>
+        /// Cost of one full charge+discharge cycle in EUR/kWh, derived from the battery
+        /// investments (net purchase price / expected energy throughput). Recomputed on
+        /// load and on RefreshAsync(). Falls back to 0.05 when no storage investment
+        /// carries the required capacity and cycle data.
+        /// </summary>
+        public virtual double CycleCost => _cycleCost;
 
         /// <summary>
         /// Fires after RefreshAsync() completes.
@@ -104,21 +118,9 @@ namespace SessyController.Services
                 dirty = true;
             }
 
-            if (record.CycleCost == 0.0)
-            {
-                record.CycleCost = 0.05;
-                dirty = true;
-            }
-
             if (record.ReserveSafetyFactor == 0.0)
             {
                 record.ReserveSafetyFactor = 1.10;
-                dirty = true;
-            }
-
-            if (record.NetZeroHomeMinProfit == 0.0)
-            {
-                record.NetZeroHomeMinProfit = 0.005;
                 dirty = true;
             }
 
@@ -176,8 +178,6 @@ namespace SessyController.Services
                 Longitude = 5.1,
                 ChargedInControl = false,
                 ManualOverride = false,
-                CycleCost = 0.05,
-                NetZeroHomeMinProfit = 0.005,
                 SolarAnnualProductionKWh = 0.0,
                 SolarSystemShutsDownDuringNegativePrices = false,
                 StatisticsFromDate = null,
@@ -197,7 +197,7 @@ namespace SessyController.Services
                 [defaults],
                 (item, set) => set.Any()).ConfigureAwait(false);
 
-            _logger.LogInformation("SettingsService: defaults seeded.");
+            _logger.LogWarning("SettingsService: defaults seeded.");
         }
 
         private async Task LoadAsync()
@@ -216,7 +216,7 @@ namespace SessyController.Services
 
                 _current = record;
 
-                await ApplyDerivedCycleCostAsync(record).ConfigureAwait(false);
+                await ApplyDerivedCycleCostAsync().ConfigureAwait(false);
 
                 _logger.LogInformation("SettingsService: settings loaded from database.");
             }
@@ -228,17 +228,19 @@ namespace SessyController.Services
 
         /// <summary>
         /// Derives CycleCost from the battery investments instead of the manually
-        /// configured value. The cost reflects the real purchase price spread over
-        /// the expected energy throughput of all storage investments:
+        /// The cost reflects the real purchase price spread over the expected energy
+        /// throughput of all storage investments:
         ///
         ///   CycleCost = Σ(NetAmountEur) / Σ(CapacityKWh × ExpectedTotalCycles)
         ///
-        /// Only investments in a group with Category == Storage are considered.
-        /// When no storage investment carries the required data (capacity and cycles),
-        /// the manually configured CycleCost in the record is kept as fallback.
+        /// Only investments in a group with Category == Storage are considered. When no
+        /// storage investment carries the required data (capacity and cycles), a neutral
+        /// fallback of 0.05 EUR/kWh is used. The result is cached in _cycleCost and exposed
+        /// via the CycleCost property; it is never stored in the database.
         /// </summary>
-        private async Task ApplyDerivedCycleCostAsync(Settings record)
+        private async Task ApplyDerivedCycleCostAsync()
         {
+            const double fallback = 0.05;
             try
             {
                 var groups = await _investmentGroupDataService.GetList(set =>
@@ -249,10 +251,10 @@ namespace SessyController.Services
                     .Select(g => g.Id)
                     .ToHashSet();
 
-                if (storageGroupIds.Count == 0) return;
-
-                var investments = await _investmentDataService.GetList(set =>
-                    Task.FromResult(set.ToList())).ConfigureAwait(false);
+                var investments = storageGroupIds.Count == 0
+                    ? new List<Investment>()
+                    : await _investmentDataService.GetList(set =>
+                        Task.FromResult(set.ToList())).ConfigureAwait(false);
 
                 var batteryInvestments = investments
                     .Where(i => i.InvestmentGroupId.HasValue
@@ -261,24 +263,28 @@ namespace SessyController.Services
                                 && i.ExpectedTotalCycles > 0)
                     .ToList();
 
-                if (batteryInvestments.Count == 0) return;
-
-                double totalNetCost = batteryInvestments.Sum(i => i.NetAmountEur);
                 double totalThroughputKWh = batteryInvestments
                     .Sum(i => (i.CapacityWh / 1000.0) * i.ExpectedTotalCycles);
 
-                if (totalThroughputKWh <= 0.0) return;
+                if (batteryInvestments.Count == 0 || totalThroughputKWh <= 0.0)
+                {
+                    _cycleCost = fallback;
+                    _logger.LogInformation(
+                        $"SettingsService: no battery investment data — CycleCost falls back to € {fallback:F4}/kWh.");
+                    return;
+                }
 
-                double derived = totalNetCost / totalThroughputKWh;
-                record.CycleCost = derived;
+                double totalNetCost = batteryInvestments.Sum(i => i.NetAmountEur);
+                _cycleCost = totalNetCost / totalThroughputKWh;
 
                 _logger.LogInformation(
-                    $"SettingsService: CycleCost derived from investments = € {derived:F4}/kWh " +
+                    $"SettingsService: CycleCost derived from investments = € {_cycleCost:F4}/kWh " +
                     $"(NetCost=€ {totalNetCost:F0}, Throughput={totalThroughputKWh:F0} kWh).");
             }
             catch (Exception ex)
             {
-                _logger.LogError($"SettingsService: failed to derive CycleCost — keeping configured value. {ex.Message}");
+                _cycleCost = fallback;
+                _logger.LogError($"SettingsService: failed to derive CycleCost — using fallback € {fallback:F4}/kWh. {ex.Message}");
             }
         }
     }

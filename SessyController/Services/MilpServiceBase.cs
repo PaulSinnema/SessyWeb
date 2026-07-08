@@ -790,7 +790,7 @@ namespace SessyController.Services
                     double oldestCost = await _chargeCostBasisService
                         .GetOldestLayerPriceEur().ConfigureAwait(false);
 
-                    if (qi.SellingPrice <= oldestCost + _settingsConfig.CycleCost)
+                    if (qi.SellingPrice <= oldestCost + _settingsService.CycleCost)
                     {
                         var nzh = new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
                         _planByTime[nowQuarter] = nzh;
@@ -833,7 +833,7 @@ namespace SessyController.Services
                 }
 
                 if (effectiveNetLoadWh >= 0.0 &&
-                    qi.SellingPrice < _settingsConfig.CycleCost + _settingsConfig.NetZeroHomeMinProfit)
+                    qi.SellingPrice < _settingsService.CycleCost)
                 {
                     var disabled = new PlanAction { Mode = Modes.Disabled, PowerW = 0 };
                     _planByTime[nowQuarter] = disabled;

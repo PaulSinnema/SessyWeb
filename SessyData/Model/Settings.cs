@@ -54,6 +54,8 @@ namespace SessyData.Model
         public bool ChargedInControl { get; set; }
         public bool ManualOverride { get; set; }
 
+        public bool WeAreInControl => !(ChargedInControl || ManualOverride);
+
         [SkipCopy]
         public string? ManualChargingHours { get; set; }
 
@@ -69,8 +71,6 @@ namespace SessyData.Model
 
         // ── General ───────────────────────────────────────────────────────────
         public string? TimeZone { get; set; }
-        public double CycleCost { get; set; }
-        public double NetZeroHomeMinProfit { get; set; }
 
         // ── Solar ─────────────────────────────────────────────────────────────
         public double SolarAnnualProductionKWh { get; set; }
@@ -168,7 +168,7 @@ namespace SessyData.Model
         /// discharge now is preferred over marginally higher discharge later, preventing
         /// the solver from hoarding charge for a distant peak. 0 disables the discount.
         /// </summary>
-        public double DischargeTimePreferenceFactor { get; set; } = 0.005;
+        public double DischargeTimePreferenceFactor { get; set; } = 0.0005;
 
         /// <summary>
         /// Maximum planning horizon in hours. The solver ignores quarters beyond this

@@ -15,16 +15,19 @@ namespace SessyController.Services
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly SessyBatteryConfig _batteryConfig;
         private readonly TimeZoneService _timeZoneService;
+        private readonly SettingsService _settingsService;
         private readonly LoggingService<SessyService> _logger;
 
         public SessyService(LoggingService<SessyService> logger,
                             IHttpClientFactory httpClientFactory,
                             IOptions<SessyBatteryConfig> batteryConfig,
-                            TimeZoneService timeZoneService)
+                            TimeZoneService timeZoneService,
+                            SettingsService settingsService)
         {
             _httpClientFactory = httpClientFactory;
             _batteryConfig = batteryConfig.Value;
             _timeZoneService = timeZoneService;
+            _settingsService = settingsService;
 
             _logger = logger; ;
         }
@@ -75,14 +78,19 @@ namespace SessyController.Services
         /// </exception>
         public async Task<ActivePowerStrategy?> GetActivePowerStrategyAsync(string id)
         {
-            _logger.LogInformation($"GetActivePowerStrategyAsync({id})");
+            if (_settingsService.Current.WeAreInControl)
+            {
+                _logger.LogInformation($"GetActivePowerStrategyAsync({id})");
 
-            SessyBatteryEndpoint battery = GetBatteryConfiguration(id);
-            using var client = CreateHttpClient(battery);
-            var response = await client.GetAsync("/api/v1/power/active_strategy");
-            response.EnsureSuccessStatusCode();
-            var content = await response.Content.ReadAsStringAsync();
-            return JsonConvert.DeserializeObject<ActivePowerStrategy>(content);
+                SessyBatteryEndpoint battery = GetBatteryConfiguration(id);
+                using var client = CreateHttpClient(battery);
+                var response = await client.GetAsync("/api/v1/power/active_strategy");
+                response.EnsureSuccessStatusCode();
+                var content = await response.Content.ReadAsStringAsync();
+                return JsonConvert.DeserializeObject<ActivePowerStrategy>(content);
+            }
+
+            return new ActivePowerStrategy { Strategy = "Unknown" };
         }
 
         /// <summary>
@@ -93,14 +101,17 @@ namespace SessyController.Services
         /// <returns>An awaitable Task representing the asynchronous operation.</returns>
         public async Task SetActivePowerStrategyAsync(string id, ActivePowerStrategy strategy)
         {
-            _logger.LogInformation($"SetActivePowerStrategyAsync({id}, {strategy.Strategy})");
+            if (_settingsService.Current.WeAreInControl)
+            {
+                _logger.LogInformation($"SetActivePowerStrategyAsync({id}, {strategy.Strategy})");
 
-            SessyBatteryEndpoint battery = GetBatteryConfiguration(id);
-            using var client = CreateHttpClient(battery);
-            var json = JsonConvert.SerializeObject(strategy);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
-            var response = await client.PostAsync("/api/v1/power/active_strategy", content);
-            response.EnsureSuccessStatusCode();
+                SessyBatteryEndpoint battery = GetBatteryConfiguration(id);
+                using var client = CreateHttpClient(battery);
+                var json = JsonConvert.SerializeObject(strategy);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                var response = await client.PostAsync("/api/v1/power/active_strategy", content);
+                response.EnsureSuccessStatusCode();
+            }
         }
 
         /// <summary>
@@ -111,27 +122,35 @@ namespace SessyController.Services
         /// <returns>An awaitable Task representing the asynchronous operation.</returns>
         public async Task SetPowerSetpointAsync(string id, PowerSetpoint setpoint)
         {
-            _logger.LogInformation($"SetPowerSetpoint({id}, {setpoint.Setpoint})");
+            if (_settingsService.Current.WeAreInControl)
+            {
+                _logger.LogInformation($"SetPowerSetpoint({id}, {setpoint.Setpoint})");
 
-            SessyBatteryEndpoint battery = GetBatteryConfiguration(id);
-            using var client = CreateHttpClient(battery);
-            var json = JsonConvert.SerializeObject(setpoint);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
-            var response = await client.PostAsync("/api/v1/power/setpoint", content);
-            response.EnsureSuccessStatusCode();
+                SessyBatteryEndpoint battery = GetBatteryConfiguration(id);
+                using var client = CreateHttpClient(battery);
+                var json = JsonConvert.SerializeObject(setpoint);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                var response = await client.PostAsync("/api/v1/power/setpoint", content);
+                response.EnsureSuccessStatusCode();
+            }
         }
 
         public async Task<SessyScheduleResponse?> GetDynamicScheduleAsync(string id)
         {
-            _logger.LogInformation($"GetDynamicScheduleAsync({id})");
+            if (_settingsService.Current.WeAreInControl)
+            {
+                _logger.LogInformation($"GetDynamicScheduleAsync({id})");
 
-            SessyBatteryEndpoint battery = GetBatteryConfiguration(id);
-            using var client = CreateHttpClient(battery);
-            var response = await client.GetAsync("/api/v2/dynamic/schedule");
-            response.EnsureSuccessStatusCode();
-            var content = await response.Content.ReadAsStringAsync();
-            var result = JsonConvert.DeserializeObject<SessyScheduleResponse>(content);
-            return result;
+                SessyBatteryEndpoint battery = GetBatteryConfiguration(id);
+                using var client = CreateHttpClient(battery);
+                var response = await client.GetAsync("/api/v2/dynamic/schedule");
+                response.EnsureSuccessStatusCode();
+                var content = await response.Content.ReadAsStringAsync();
+                var result = JsonConvert.DeserializeObject<SessyScheduleResponse>(content);
+                return result;
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -539,7 +558,20 @@ namespace SessyController.Services
         [JsonProperty("strategy")]
         public string? Strategy { get; set; }
 
-        public PowerStrategies PowerStrategy => (PowerStrategies)Enum.Parse(typeof(PowerStrategies), Strategy!);
+        public PowerStrategies? PowerStrategy
+        {
+            get
+            {
+                object? strategy;
+
+                if(Enum.TryParse(typeof(PowerStrategies), Strategy!, out strategy))
+                {
+                    return (PowerStrategies) strategy;
+                }
+
+                return null;
+            }
+        }
 
         public string StrategyVisual
         {

@@ -12,6 +12,6 @@ namespace SessyWeb.Components
         [Inject] private SettingsService? _settingsService { get; set; }
 
         // Cycle cost used in the discharge-profitability check shown in the tooltip.
-        protected double CycleCost => _settingsService?.Current.CycleCost ?? 0.0;
+        protected double CycleCost => _settingsService?.CycleCost ?? 0.0;
     }
 }

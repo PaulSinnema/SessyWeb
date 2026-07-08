@@ -23,18 +23,26 @@ namespace SessyCommon.Extensions
             {
                 PropertyInfo? memberInfo = type.GetProperty(member.Name);
 
-                if(memberInfo != null) 
+                if (memberInfo != null)
                 {
                     Attribute? key = memberInfo.GetCustomAttribute<KeyAttribute>();
                     Attribute? notMapped = memberInfo.GetCustomAttribute<NotMappedAttribute>();
                     Attribute? skipCopy = memberInfo.GetCustomAttribute<SkipCopyAttribute>();
 
                     if (memberInfo.MemberType == MemberTypes.Property &&
+                        memberInfo.SetMethod != null &&
                         notMapped == null &&
                         skipCopy == null &&
                         key == null)
                     {
-                        memberInfo.SetValue(destination, memberInfo.GetValue(source), null);
+                        try
+                        {
+                            memberInfo.SetValue(destination, memberInfo.GetValue(source), null);
+                        }
+                        catch (Exception ex)
+                        {
+                            throw new Exception($"Error setting value for {destination.GetType().FullName} - {memberInfo.Name}");
+                        }
                     }
                 }
             }

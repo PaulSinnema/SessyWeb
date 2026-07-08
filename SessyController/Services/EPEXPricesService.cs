@@ -623,18 +623,21 @@ namespace SessyController.Services
 
             var list = new ConcurrentDictionary<DateTime, DynamichSchedule>();
 
-            foreach (var ep in dynamicSchedule.EnergyPrices)
+            if (dynamicSchedule != null)
             {
-                var ds = new DynamichSchedule { Price = ep.Price / 100000.0 };
-
-                ds.Power = dynamicSchedule!.DynamicSchedule!.SingleOrDefault(ds => ds.StartTime == ep.StartTime)?.Power ?? 0.0;
-
-                var priceWattHour = ep.Price / 100000.0;
-
-                if (!list.TryAdd(ep.StartTime, ds))
+                foreach (var ep in dynamicSchedule.EnergyPrices)
                 {
-                    list[ep.StartTime].Price = ds.Price;
-                    list[ep.StartTime].Power = ds.Power;
+                    var ds = new DynamichSchedule { Price = ep.Price / 100000.0 };
+
+                    ds.Power = dynamicSchedule!.DynamicSchedule!.SingleOrDefault(ds => ds.StartTime == ep.StartTime)?.Power ?? 0.0;
+
+                    var priceWattHour = ep.Price / 100000.0;
+
+                    if (!list.TryAdd(ep.StartTime, ds))
+                    {
+                        list[ep.StartTime].Price = ds.Price;
+                        list[ep.StartTime].Power = ds.Power;
+                    }
                 }
             }
 

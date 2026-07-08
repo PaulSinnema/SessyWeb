@@ -159,12 +159,13 @@ namespace SessyController.Services
                 // last horizon day still beats hoarding. Using the median instead over-valued
                 // held energy and suppressed evening discharge.
                 double horizonFloorPrice = OffPeakBuyPrice(pricePoints);
+
                 if (beginSocCost < horizonFloorPrice)
                     beginSocCost = horizonFloorPrice;
 
                 var opt = new SessyOptions(
                     QuarterMinutes: 15,
-                    CycleCostEurPerKWh: _settingsConfig.CycleCost,
+                    CycleCostEurPerKWh: _settingsService.CycleCost,
                     TimeLimitMs: MilpTimeLimitMs,
                     BeginSocCostEurPerKWh: beginSocCost,
                     DischargeTimePreferenceFactor: _settingsConfig.DischargeTimePreferenceFactor);

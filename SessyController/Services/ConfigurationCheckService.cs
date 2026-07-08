@@ -236,28 +236,30 @@ namespace SessyController.Services
 
             // Cycle cost: a high value suppresses all arbitrage; a zero value lets the
             // battery cycle for negligible gain and wear out faster.
-            if (s.CycleCost <= 0.0)
+            if (_settingsService.CycleCost <= 0.0)
             {
                 checks.Add(new ConfigurationCheck
                 {
                     Severity = CheckSeverity.Warning,
                     Title = "Cycle cost is 0",
-                    Description = "Cycle cost is € 0.00/kWh. The planner ignores battery wear and may " +
-                                  "cycle for tiny gains. Set a realistic value (typically € 0.05–0.10/kWh).",
+                    Description = "Cycle cost is € 0.00/kWh. It is derived from the battery investments; " +
+                                  "add capacity (Wh) and expected total cycles to each battery investment so " +
+                                  "the planner accounts for wear.",
                     ActionUrl = "/settings",
-                    ActionLabel = "Open settings"
+                    ActionLabel = "Open investments"
                 });
             }
-            else if (s.CycleCost > 0.20)
+            else if (_settingsService.CycleCost > 0.20)
             {
                 checks.Add(new ConfigurationCheck
                 {
                     Severity = CheckSeverity.Warning,
                     Title = "Cycle cost very high",
-                    Description = $"Cycle cost is € {s.CycleCost:F2}/kWh. This is high and may block almost all " +
-                                  "charging and discharging. Typical values are € 0.05–0.10/kWh.",
+                    Description = $"Cycle cost is € {_settingsService.CycleCost:F2}/kWh. This is high and may block almost all " +
+                                  "charging and discharging. It is derived from the battery investments — check the " +
+                                  "capacity and expected total cycles entered there.",
                     ActionUrl = "/settings",
-                    ActionLabel = "Open settings"
+                    ActionLabel = "Open investments"
                 });
             }
 

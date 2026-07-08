@@ -34,6 +34,7 @@ namespace SessyController.Services
         private readonly TimeZoneService _timeZoneService;
         private readonly HeatPumpConfig _heatPumpConfig;
         private Settings _settingsConfig;
+        private readonly SettingsService _settingsService;
         private readonly PowerSystemsConfig _powerSystemsConfig;
         private readonly IEPEXPricesService _epexPricesService;
         private readonly IGasPricesDataService _gasPricesDataService;
@@ -78,6 +79,7 @@ namespace SessyController.Services
             _timeZoneService = timeZoneService;
             _heatPumpConfig = heatPumpConfig.Value;
             _settingsConfig = settingsService.Current;
+            _settingsService = settingsService;
             settingsService.SettingsChanged += (s, _) => _settingsConfig = s;
             _powerSystemsConfig = powerSystemsConfig.Value;
             _epexPricesService = epexPricesService;
@@ -1429,7 +1431,7 @@ namespace SessyController.Services
                 BatteryCyclesPerDay = periodStats.BatteryCyclesPerDay,
                 AverageSocPct = periodStats.AverageSocPct,
                 AvgCyclesPerBattery = avgCyclesPerBattery,
-                CycleCostEurPerKWh = _settingsConfig.CycleCost,
+                CycleCostEurPerKWh = _settingsService.CycleCost,
                 TotalConsumptionKWh = periodStats.TotalConsumptionKWh,
                 TotalGridImportKWh = periodStats.TotalGridImportKWh,
                 AvgDailyConsumptionKWh = periodStats.AvgDailyConsumptionKWh,

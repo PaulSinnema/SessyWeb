@@ -225,7 +225,7 @@ namespace SessyController.Services.Items
         // NOTE: In the old model Disabled depended on DeltaLowestPrice and solar vs consumption.
         // Keep the same idea, but make it purely derived so your UI doesn't break.
         public bool Disabled =>
-            DeltaLowestPrice < _settingsService.Current.NetZeroHomeMinProfit &&
+            DeltaLowestPrice < _settingsService.CycleCost &&
             SolarPowerPerQuarterInWatts < EstimatedConsumptionPerQuarterInWatts;
 
         public bool ZeroNetHome => Mode == Modes.ZeroNetHome || (!(Charging || Discharging || Disabled));
