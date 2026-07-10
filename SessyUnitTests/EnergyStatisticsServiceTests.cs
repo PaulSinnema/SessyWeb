@@ -66,7 +66,7 @@ namespace SessyTests.Services
                 GasStandingChargeEurPerYear = 185.0,
                 InstallationDate = new DateTime(2024, 3, 1)
             });
-            var settingsServiceMock = new Mock<SettingsService>(MockBehavior.Loose, null!, null!, Options.Create(new SettingsConfig()));
+            var settingsServiceMock = new Mock<SettingsService>(MockBehavior.Loose, null!, null!, null!, null!, Options.Create(new SettingsConfig()));
             settingsServiceMock.SetupGet(s => s.Current).Returns(new Settings());
             var powerSystemsConfig = Options.Create(new PowerSystemsConfig());
 
@@ -438,7 +438,7 @@ namespace SessyTests.Services
                 .Setup(s => s.GetList(It.IsAny<Func<IQueryable<Investment>, Task<List<Investment>>>>()))
                 .ReturnsAsync(new List<Investment>());
 
-            var settingsServiceMock2 = new Mock<SettingsService>(MockBehavior.Loose, null!, null!, Options.Create(new SettingsConfig()));
+            var settingsServiceMock2 = new Mock<SettingsService>(MockBehavior.Loose, null!, null!, null!, null!, Options.Create(new SettingsConfig()));
             settingsServiceMock2.SetupGet(s => s.Current).Returns(new Settings { StatisticsFromDate = fromDate });
             var heatPumpConfig = Options.Create(new HeatPumpConfig());
             var energyHistoryMock = new Mock<EnergyHistoryDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
