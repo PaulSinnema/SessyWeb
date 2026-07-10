@@ -458,18 +458,6 @@ namespace SessyWeb.Pages
 
         // UI-only percentage wrappers. Storage keeps factors (0.95, 1.10, 0.005);
         // these present and edit them as whole percentages.
-        private double ChargingEfficiencyPctUi
-        {
-            get => _settings == null ? 0.0 : _settings.ChargingEfficiencyFactor * 100.0;
-            set { if (_settings != null) _settings.ChargingEfficiencyFactor = value / 100.0; }
-        }
-
-        private double DischargingEfficiencyPctUi
-        {
-            get => _settings == null ? 0.0 : _settings.DischargingEfficiencyFactor * 100.0;
-            set { if (_settings != null) _settings.DischargingEfficiencyFactor = value / 100.0; }
-        }
-
         // Reserve safety: factor 1.10 <-> 10 % surcharge ((factor - 1) * 100).
         private double ReserveSafetySurchargePctUi
         {

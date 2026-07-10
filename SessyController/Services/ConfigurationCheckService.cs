@@ -263,30 +263,30 @@ namespace SessyController.Services
                 });
             }
 
-            // Charge efficiency (factor 0–1, shown as %). 0 = use appsettings, so only flag > 0.
-            double chargePct = s.ChargingEfficiencyFactor * 100.0;
-            if (s.ChargingEfficiencyFactor > 0.0 && (chargePct < 50.0 || chargePct > 100.0))
+            // Throttle fallback (%). 0 = use the built-in 80% default, so only flag > 0.
+            if (s.ThrottleFallbackPct > 0.0 && (s.ThrottleFallbackPct < 50.0 || s.ThrottleFallbackPct > 100.0))
             {
                 checks.Add(new ConfigurationCheck
                 {
                     Severity = CheckSeverity.Warning,
-                    Title = "Charge efficiency out of range",
-                    Description = $"Charge efficiency is {chargePct:F0}%. Expected 80–100%. " +
-                                  "A very low value cripples charging; above 100% is impossible.",
+                    Title = "Throttle fallback out of range",
+                    Description = $"Throttle fallback is {s.ThrottleFallbackPct:F0}%. Expected 50–100%. " +
+                                  "It caps the power the planner may request until the throttle has been measured.",
                     ActionUrl = "/settings",
                     ActionLabel = "Open settings"
                 });
             }
 
-            double dischargePct = s.DischargingEfficiencyFactor * 100.0;
-            if (s.DischargingEfficiencyFactor > 0.0 && (dischargePct < 50.0 || dischargePct > 100.0))
+            // Round-trip efficiency fallback (%). 0 = use the built-in 90% default.
+            if (s.RoundTripEfficiencyFallbackPct > 0.0 &&
+                (s.RoundTripEfficiencyFallbackPct < 50.0 || s.RoundTripEfficiencyFallbackPct > 100.0))
             {
                 checks.Add(new ConfigurationCheck
                 {
                     Severity = CheckSeverity.Warning,
-                    Title = "Discharge efficiency out of range",
-                    Description = $"Discharge efficiency is {dischargePct:F0}%. Expected 80–100%. " +
-                                  "A very low value cripples discharging; above 100% is impossible.",
+                    Title = "Round-trip efficiency fallback out of range",
+                    Description = $"Round-trip efficiency fallback is {s.RoundTripEfficiencyFallbackPct:F0}%. " +
+                                  "Expected 50–100%. A value that is too high makes arbitrage look more profitable than it is.",
                     ActionUrl = "/settings",
                     ActionLabel = "Open settings"
                 });

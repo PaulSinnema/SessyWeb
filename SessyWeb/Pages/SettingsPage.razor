@@ -75,14 +75,14 @@
                                         <RadzenText TextStyle="TextStyle.Caption">0 = default (33%)</RadzenText>
                                     </RadzenColumn>
                                     <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Discharge efficiency (%)" />
-                                        <RadzenNumeric TValue="double" @bind-Value="DischargingEfficiencyPctUi" Format="F0" Min="0" Max="100" Style="width:100%" />
-                                        <RadzenText TextStyle="TextStyle.Caption">0 = use appsettings value per battery</RadzenText>
+                                        <RadzenLabel Text="Throttle fallback (%)" />
+                                        <RadzenNumeric TValue="double" @bind-Value="_settings.ThrottleFallbackPct" Format="F0" Min="0" Max="100" Style="width:100%" />
+                                        <RadzenText TextStyle="TextStyle.Caption">Power cap used until the throttle at this temperature has been measured. 0 = 80%.</RadzenText>
                                     </RadzenColumn>
                                     <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Charge efficiency (%)" />
-                                        <RadzenNumeric TValue="double" @bind-Value="ChargingEfficiencyPctUi" Format="F0" Min="0" Max="100" Style="width:100%" />
-                                        <RadzenText TextStyle="TextStyle.Caption">0 = use appsettings value per battery</RadzenText>
+                                        <RadzenLabel Text="Round-trip efficiency fallback (%)" />
+                                        <RadzenNumeric TValue="double" @bind-Value="_settings.RoundTripEfficiencyFallbackPct" Format="F0" Min="0" Max="100" Style="width:100%" />
+                                        <RadzenText TextStyle="TextStyle.Caption">Energy efficiency used until enough has been measured. 0 = 90%.</RadzenText>
                                     </RadzenColumn>
                                     <RadzenColumn Size="12" SizeMD="4" Style="display:flex; flex-direction:column; gap:8px; justify-content:flex-end;">
                                         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">

@@ -18,6 +18,7 @@ namespace SessyController.Services
     public abstract class StrategyMilpService : MilpServiceBase
     {
         private readonly IBatteryOptimizationStrategy _strategy;
+        private readonly BatteryEfficiencyService _batteryEfficiencyService;
 
         protected StrategyMilpService(
             IBatteryOptimizationStrategy strategy,
@@ -31,12 +32,14 @@ namespace SessyController.Services
             PlannedQuarterDataService plannedQuarterDataService,
             ChargeCostBasisService chargeCostBasisService,
             ThrottleAnalysisService throttleAnalysisService,
-            WeatherService weatherService)
+            WeatherService weatherService,
+            BatteryEfficiencyService batteryEfficiencyService)
             : base(logger, settingsService, sessyBatteryConfigMonitor, batteryContainer,
                    timeZoneService, taxesDataService, plannedActionDataService, plannedQuarterDataService,
                    chargeCostBasisService, throttleAnalysisService, weatherService)
         {
             _strategy = strategy;
+            _batteryEfficiencyService = batteryEfficiencyService;
         }
 
         protected override async Task<bool> BuildMilpPlanAsync(double socWh)
@@ -47,13 +50,17 @@ namespace SessyController.Services
                 double capKWh = capWh / 1000.0;
                 double socKWh = socWh / 1000.0;
 
-                double maxChargeKW = _settingsConfig.ChargingEfficiencyFactor > 0.0
-                    ? _sessyBatteryConfig.TotalRawChargingCapacity / 1000.0 * _settingsConfig.ChargingEfficiencyFactor
-                    : _sessyBatteryConfig.TotalChargingCapacity / 1000.0;
+                // Nameplate power. The only derate applied is the throttle ratio below, which is
+                // measured per temperature bucket. A second, manually configured derate on top of
+                // it would count the same effect twice.
+                double maxChargeKW = _sessyBatteryConfig.TotalRawChargingCapacity / 1000.0;
+                double maxDischargeKW = _sessyBatteryConfig.TotalRawDischargingCapacity / 1000.0;
 
-                double maxDischargeKW = _settingsConfig.DischargingEfficiencyFactor > 0.0
-                    ? _sessyBatteryConfig.TotalRawDischargingCapacity / 1000.0 * _settingsConfig.DischargingEfficiencyFactor
-                    : _sessyBatteryConfig.TotalDischargingCapacity / 1000.0;
+                // Energy efficiency is a different quantity from the power throttle: it decides
+                // how much of the stored energy comes back out, and therefore whether arbitrage
+                // pays. Derived from measurements, with a configured fallback.
+                var (chargeEfficiency, dischargeEfficiency) = await _batteryEfficiencyService
+                    .GetEfficienciesAsync().ConfigureAwait(false);
 
                 var nowQuarter = _timeZoneService.Now.DateFloorQuarter();
 
@@ -90,6 +97,10 @@ namespace SessyController.Services
                 _throttleRatioByTime.Clear();
                 _chargeThrottleRatioByTime.Clear();
 
+                double throttleFallback = _settingsConfig.ThrottleFallbackPct > 0.0
+                    ? _settingsConfig.ThrottleFallbackPct / 100.0
+                    : 0.80;
+
                 var pricePoints = quarters.Select(q =>
                 {
                     double solarSurplusWh = q.NetLoadWh < 0.0 ? -q.NetLoadWh : 0.0;
@@ -102,8 +113,15 @@ namespace SessyController.Services
                     var temp = _weatherService.GetTemperature(q.Time);
                     if (temp.HasValue)
                     {
-                        double chargeRatio = _throttleAnalysisService.GetChargeRatio(throttleBuckets, temp.Value);
-                        double dischargeRatio = _throttleAnalysisService.GetDischargeRatio(throttleBuckets, temp.Value);
+                        // Use the measured throttle ratio when this temperature has samples.
+                        // Otherwise fall back to the configured estimate — assuming no throttle
+                        // at all would make the planner request power the battery cannot deliver.
+                        if (!_throttleAnalysisService.TryGetChargeRatio(throttleBuckets, temp.Value, out double chargeRatio))
+                            chargeRatio = throttleFallback;
+
+                        if (!_throttleAnalysisService.TryGetDischargeRatio(throttleBuckets, temp.Value, out double dischargeRatio))
+                            dischargeRatio = throttleFallback;
+
                         qMaxChargeKW = maxChargeKW * chargeRatio;
                         qMaxDischargeKW = maxDischargeKW * dischargeRatio;
 
@@ -151,8 +169,8 @@ namespace SessyController.Services
                     InitialSocKWh: socKWh,
                     MaxChargeKW: maxChargeKW,
                     MaxDischargeKW: maxDischargeKW,
-                    ChargeEfficiency: 0.95,
-                    DischargeEfficiency: 0.95);
+                    ChargeEfficiency: chargeEfficiency,
+                    DischargeEfficiency: dischargeEfficiency);
 
                 var opt = new SessyOptions(
                     QuarterMinutes: 15,

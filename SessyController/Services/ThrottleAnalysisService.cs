@@ -158,6 +158,38 @@ namespace SessyController.Services
         public double GetChargeRatio(IReadOnlyList<ThrottleBucket> buckets, double temperature)
             => FindRatio(buckets, temperature, discharge: false);
 
+        /// <summary>
+        /// Measured charge throttle ratio for a temperature. Returns false when no bucket has
+        /// been observed yet, so the caller can fall back to a configured estimate instead of
+        /// silently assuming there is no throttling at all.
+        /// </summary>
+        public bool TryGetChargeRatio(IReadOnlyList<ThrottleBucket> buckets, double temperature, out double ratio)
+            => TryFindRatio(buckets, temperature, discharge: false, out ratio);
+
+        /// <summary>
+        /// Measured discharge throttle ratio for a temperature. Returns false when no bucket has
+        /// been observed yet.
+        /// </summary>
+        public bool TryGetDischargeRatio(IReadOnlyList<ThrottleBucket> buckets, double temperature, out double ratio)
+            => TryFindRatio(buckets, temperature, discharge: true, out ratio);
+
+        private static bool TryFindRatio(IReadOnlyList<ThrottleBucket> buckets, double temperature, bool discharge, out double ratio)
+        {
+            ratio = 1.0;
+
+            if (buckets == null) return false;
+
+            int low = (int)Math.Floor(temperature / BucketWidthC) * BucketWidthC;
+            var bucket = buckets.FirstOrDefault(b => b.TemperatureLow == low);
+            if (bucket == null) return false;
+
+            int samples = discharge ? bucket.DischargeSamples : bucket.ChargeSamples;
+            if (samples <= 0) return false;
+
+            ratio = discharge ? bucket.DischargeRatio : bucket.ChargeRatio;
+            return ratio > 0.0;
+        }
+
         private static double FindRatio(IReadOnlyList<ThrottleBucket> buckets, double temperature, bool discharge)
         {
             int low = (int)Math.Floor(temperature / BucketWidthC) * BucketWidthC;

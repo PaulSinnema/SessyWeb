@@ -124,6 +124,18 @@ namespace SessyController.Services
                 dirty = true;
             }
 
+            if (record.ThrottleFallbackPct == 0.0)
+            {
+                record.ThrottleFallbackPct = 80.0;
+                dirty = true;
+            }
+
+            if (record.RoundTripEfficiencyFallbackPct == 0.0)
+            {
+                record.RoundTripEfficiencyFallbackPct = 90.0;
+                dirty = true;
+            }
+
             if (string.IsNullOrWhiteSpace(record.TimeZone))
             {
                 record.TimeZone = _appsettings.Timezone ?? "Europe/Amsterdam";

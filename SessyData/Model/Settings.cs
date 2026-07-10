@@ -84,16 +84,19 @@ namespace SessyData.Model
         public double NightReserveCapPct { get; set; }
 
         /// <summary>
-        /// Override for the effective discharge efficiency factor (0.0–1.0).
-        /// When 0, the per-battery DischargingEfficiencyFactor from appsettings is used.
+        /// Fallback for the throttle ratio (%), used only while ThrottleAnalysisService has no
+        /// measured samples for the current temperature. The throttle ratio caps how much *power*
+        /// the planner may request; once samples exist the measured ratio takes over.
+        /// When 0, defaults to 80%.
         /// </summary>
-        public double DischargingEfficiencyFactor { get; set; }
+        public double ThrottleFallbackPct { get; set; }
 
         /// <summary>
-        /// Override for the effective charge efficiency factor (0.0–1.0).
-        /// When 0, the per-battery ChargingEfficiencyFactor from appsettings is used.
+        /// Fallback for the battery round-trip *energy* efficiency (%), used while there is not
+        /// enough measured data. The planner derives the one-way charge and discharge efficiency
+        /// from this as sqrt(roundTrip). When 0, defaults to 90%.
         /// </summary>
-        public double ChargingEfficiencyFactor { get; set; }
+        public double RoundTripEfficiencyFallbackPct { get; set; }
 
         // ── Statistics ────────────────────────────────────────────────────────
         public DateTime? StatisticsFromDate { get; set; }

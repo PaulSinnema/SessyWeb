@@ -20,11 +20,12 @@ namespace SessyController.Services
             PlannedQuarterDataService plannedQuarterDataService,
             ChargeCostBasisService chargeCostBasisService,
             ThrottleAnalysisService throttleAnalysisService,
-            WeatherService weatherService)
+            WeatherService weatherService,
+            BatteryEfficiencyService batteryEfficiencyService)
             : base(new SelfConsumptionStrategy(), logger, settingsService, sessyBatteryConfigMonitor,
                    batteryContainer, timeZoneService, taxesDataService,
                    plannedActionDataService, plannedQuarterDataService, chargeCostBasisService,
-                   throttleAnalysisService, weatherService)
+                   throttleAnalysisService, weatherService, batteryEfficiencyService)
         {
         }
     }
