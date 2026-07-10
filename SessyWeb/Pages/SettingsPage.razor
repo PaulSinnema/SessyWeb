@@ -126,12 +126,12 @@
                                 }
                             </RadzenFieldset>
 
-                            @* ── MILP tuning parameters ───────────────────────── *@
+                            @* ── Planner tuning parameters ────────────────────── *@
                             <RadzenFieldset Text="Advanced planning parameters">
                                 <RadzenRow Gap="1rem">
                                     <RadzenColumn Size="12">
                                         <RadzenButton Text="Reset to defaults" Icon="restart_alt" ButtonStyle="ButtonStyle.Secondary" Size="ButtonSize.Small"
-                                                      Click="@ResetMilpDefaults" Style="margin-bottom:0.75rem" />
+                                                      Click="@ResetPlannerDefaults" Style="margin-bottom:0.75rem" />
                                     </RadzenColumn>
                                 </RadzenRow>
                                 <RadzenRow Gap="1rem">
@@ -698,18 +698,6 @@
                                                      Style="width:50px; height:60px; object-fit:contain; background:transparent;" />
                                     </a>
                                     <RadzenText TextStyle="TextStyle.Body2" class="rz-color-on-primary"><b>Radzen (free)</b></RadzenText>
-                                </RadzenCard>
-                            </RadzenColumn>
-
-                            @* Google OR-Tools *@
-                            <RadzenColumn SizeSM="3">
-                                <RadzenCard class="rz-background-color-primary" Style="height:100%; text-align:center; padding: 1.25rem;">
-                                    <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary" Style="display:block; margin-bottom:0.75rem; opacity:0.7;">MILP battery planning</RadzenText>
-                                    <a href="https://developers.google.com/optimization" target="_blank" Style="display:block; margin-bottom:0.75rem;">
-                                        <RadzenImage Path="/Images/google-or-tools.svg"
-                                                     Style="width:120px; height:60px; object-fit:contain; background:transparent;" />
-                                    </a>
-                                    <RadzenText TextStyle="TextStyle.Body2" class="rz-color-on-primary"><b>Google OR-Tools</b></RadzenText>
                                 </RadzenCard>
                             </RadzenColumn>
 

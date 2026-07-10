@@ -105,7 +105,7 @@
             <table class="help-table">
                 @Row("#324ab2", "Buying price", "Tariff paid per kWh from grid (incl. taxes &amp; transport)")
                 @Row("#00aae4", "Selling price", "Tariff received per kWh exported to the grid")
-                @Row("#324ab2", "Smoothed buying", "Rolling average used by MILP planner to filter noise")
+                @Row("#324ab2", "Smoothed buying", "Rolling average of the price, shown to make the trend easier to read")
                 @Row("#00aae4", "Smoothed selling", "Rolling average of selling price")
                 @Row("orange", "Prices predicted →", "Day-Ahead forecast from this point onward")
             </table>
@@ -137,7 +137,7 @@
 
             <div class="help-section-title">🖥️ Header Indicators</div>
             <table class="help-table">
-                @IconRow("Battery (plan)", "Planned SOC%, active MILP mode and SOC deviation")
+                @IconRow("Battery (plan)", "Planned SOC%, active planned mode and SOC deviation")
                 @IconRow("Battery (actual)", "Live hardware strategy and actual power in watts")
                 @IconRow("Inverter", "Current throttle % and last inverter setpoint (W)")
                 @IconRow("Curtailment", "ZeroExport · Throttle · Shutdown · ForceCharge")

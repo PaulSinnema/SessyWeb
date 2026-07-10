@@ -496,7 +496,7 @@ namespace SessyWeb.Pages
             new("Full — trust predicted prices", PredictedPriceMode.Full),
         ];
 
-        private void ResetMilpDefaults()
+        private void ResetPlannerDefaults()
         {
             if (_settings == null) return;
             _settings.ReserveSafetyFactor = 1.10;

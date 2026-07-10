@@ -56,6 +56,12 @@
         /// <summary>Values below this are treated as zero (kW / kWh).</summary>
         private const double Eps = 1e-6;
 
+        /// <summary>Sentinel: no profitable pair found this iteration.</summary>
+        private const int NoSource = -1;
+
+        /// <summary>Sentinel: the discharge is fed from the initial stock, not from a charge quarter.</summary>
+        private const int StockSource = -2;
+
         public static PlanResult? Solve(
             IReadOnlyList<PricePoint> pricePoints,
             BatterySpec spec,
@@ -147,7 +153,7 @@
 
             for (int iter = 0; iter < MaxIterations; iter++)
             {
-                int bestI = -1, bestJ = -1;
+                int bestI = NoSource, bestJ = -1;
                 double bestProfitPerKWh = 0.0;
                 double bestBlock = 0.0;
 
@@ -173,6 +179,45 @@
                         valueLimit = double.MaxValue;
                     }
 
+                    // ── Candidate A: discharge energy that is ALREADY in the battery ──
+                    // The initial SOC was charged before this horizon (its cost is sunk), so
+                    // exporting or consuming it only costs the cycle wear. Without this
+                    // candidate the planner could never discharge energy stored before a
+                    // replan: every discharge would need a paired charge inside the horizon.
+                    // Feasibility: draining the store at j lowers the SOC path from j onward,
+                    // which must stay at or above the reserve on every later quarter.
+                    {
+                        double profitPerKWh = valueJ - cycleCost;
+                        if (profitPerKWh > bestProfitPerKWh + Eps)
+                        {
+                            double block = Math.Min(BlockKWh, Math.Min(dischargeHeadroom, valueLimit));
+                            double storeDelta = block / disEff;
+                            double allowed = storeDelta;
+                            for (int k = j; k < n; k++)
+                            {
+                                double slack = socEnd[k] - minSoc[k];
+                                if (slack < allowed) allowed = slack;
+                                if (allowed <= Eps) break;
+                            }
+                            if (allowed > Eps)
+                            {
+                                if (allowed < storeDelta)
+                                {
+                                    storeDelta = allowed;
+                                    block = storeDelta * disEff;
+                                }
+                                if (block > Eps)
+                                {
+                                    bestProfitPerKWh = profitPerKWh;
+                                    bestI = StockSource;
+                                    bestJ = j;
+                                    bestBlock = block;
+                                }
+                            }
+                        }
+                    }
+
+                    // ── Candidate B: charge at an earlier quarter i, discharge at j ──
                     for (int i = 0; i < j; i++)
                     {
                         if (pricePoints[i].ReserveOnly) continue;      // no grid charging on predicted quarters
@@ -230,11 +275,26 @@
                     }
                 }
 
-                if (bestI < 0 || bestBlock <= Eps) break;   // nothing profitable left
+                if (bestI == NoSource || bestBlock <= Eps) break;   // nothing profitable left
 
                 // Allocate the block.
                 double deliver = bestBlock;
-                double store = deliver / disEff;            // store drained at j, added at i
+                double store = deliver / disEff;            // store drained at j
+
+                if (bestI == StockSource)
+                {
+                    // Discharge from the initial stock: no charge quarter involved.
+                    // The SOC path from bestJ onward drops by the drained store.
+                    dischargeKWh[bestJ] += deliver;
+                    if (importKWh[bestJ] > Eps)
+                        importKWh[bestJ] = Math.Max(0.0, importKWh[bestJ] - deliver);
+
+                    for (int k = bestJ; k < n; k++)
+                        socEnd[k] -= store;
+
+                    continue;
+                }
+
                 double acCharge = store / chEff;            // AC energy needed at i
 
                 chargeKWh[bestI] += acCharge;
