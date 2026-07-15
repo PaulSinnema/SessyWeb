@@ -266,14 +266,11 @@ namespace SessyController.Services
 
                             currentHourlyInfo.SolarPowerPerQuarterHour = 0.0;
 
-                            if (SolarSystemRunning(currentHourlyInfo))
+                            foreach (var config in _powerSystemsConfig.Endpoints.Values)
                             {
-                                foreach (var config in _powerSystemsConfig.Endpoints.Values)
+                                foreach (var id in config.Keys)
                                 {
-                                    foreach (var id in config.Keys)
-                                    {
-                                        CalculateSolarPerArray(solarData, currentHourlyInfo, config, id);
-                                    }
+                                    CalculateSolarPerArray(solarData, currentHourlyInfo, config, id);
                                 }
                             }
 
@@ -352,14 +349,11 @@ namespace SessyController.Services
                 qi.SolarGlobalRadiation = estimatedRadiation;
                 qi.SolarPowerPerQuarterHour = 0.0;
 
-                if (SolarSystemRunning(qi))
+                foreach (var config in _powerSystemsConfig.Endpoints.Values)
                 {
-                    foreach (var config in _powerSystemsConfig.Endpoints.Values)
+                    foreach (var id in config.Keys)
                     {
-                        foreach (var id in config.Keys)
-                        {
-                            CalculateSolarPerArray(syntheticSolarData, qi, config, id);
-                        }
+                        CalculateSolarPerArray(syntheticSolarData, qi, config, id);
                     }
                 }
 
@@ -565,30 +559,12 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Returns true if the inverter does not shut down due to negative prices.
-        /// </summary>
-        /// <summary>
         /// Applies one EMA step. Internal for unit testing.
         /// newEma = alpha * rawFactor + (1 - alpha) * currentEma
         /// </summary>
         internal static double UpdateEma(double currentEma, double rawFactor, double alpha)
             => alpha * rawFactor + (1.0 - alpha) * currentEma;
 
-        private bool SolarSystemRunning(QuarterlyInfo currentHourlyInfo)
-        {
-            if (!_settingsConfig.SolarSystemShutsDownDuringNegativePrices)
-                return true;
-
-            var totalCapacity = _batteryContainer.GetTotalCapacity();
-
-            if (currentHourlyInfo.SellingPriceIsPositive)
-                return true;
-
-            if (currentHourlyInfo.SellingPriceIsNegative && currentHourlyInfo.ChargeLeftPercentage(totalCapacity) < 100.0)
-                return true;
-
-            return false;
-        }
 
         /// <summary>
         /// Currently ENTSO-E does not have the 15 minutes resolution active (from 1 October 2025). So we need

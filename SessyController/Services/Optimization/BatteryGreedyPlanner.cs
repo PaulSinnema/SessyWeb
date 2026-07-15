@@ -16,7 +16,17 @@
     ///     Solar surplus charges the battery, household deficit is served from the battery,
     ///     both within SOC bounds and power limits. Whatever remains is exported / imported.
     ///
-    ///  2. Arbitrage pass, in small energy blocks.
+    ///  2. Near-term hedge pass (optional, off by default).
+    ///     Pure winner-takes-all arbitrage always chases the single highest-value quarter in
+    ///     the whole horizon. If a much better peak appears far out (e.g. tomorrow evening
+    ///     outbidding tonight), it can claim the entire stock and leave a nearer, still
+    ///     profitable quarter untouched. When SessyOptions.NearTermHedgeHours &gt; 0, this pass
+    ///     earmarks NearTermHedgeFraction of the currently available stock for the nearest
+    ///     quarter within that window whose value clears the cycle cost, before arbitrage runs.
+    ///     It does not pick the best quarter in the window — only the nearest profitable one —
+    ///     so a genuinely better nearby opportunity is not required, just a good-enough one.
+    ///
+    ///  3. Arbitrage pass, in small energy blocks.
     ///     Repeatedly find the most profitable feasible (charge i → discharge j, i &lt; j) pair
     ///     and allocate one block to it, until no profitable pair remains.
     ///
@@ -37,7 +47,7 @@
     ///     fits in j's remaining discharge power, and raising the SOC across (i, j] keeps it at
     ///     or below the maximum SOC on every quarter in between.
     ///
-    ///  3. Classification.
+    ///  4. Classification.
     ///     Charging fed by the grid → Charge. Discharging that exports → Discharge.
     ///     Everything else (storing solar, covering the house) → ZeroNetHome.
     ///
@@ -148,7 +158,129 @@
                 socEnd[t] = soc;
             }
 
-            // ── 2. Arbitrage: pair cheap charging with expensive discharging ──
+            // ── 2. Near-term hedge: earmark stock for the nearest profitable quarter ──
+            // Runs once, before arbitrage, so the reserved energy is already committed and
+            // cannot be bid away to a farther, higher-value peak. Disabled when
+            // NearTermHedgeHours <= 0 (default) — behaviour is then unchanged.
+            if (opt.NearTermHedgeHours > 0.0)
+            {
+                int cutIdx = Math.Min(n, (int)Math.Ceiling(opt.NearTermHedgeHours * 60.0 / opt.QuarterMinutes));
+
+                // Best profit/kWh reachable anywhere in the horizon, and best reachable within
+                // the window alone. Both use the same value rule as the arbitrage loop below.
+                int bestGlobalJ = -1, bestWithinWindowJ = -1;
+                double bestGlobalProfit = 0.0, bestWithinWindowProfit = 0.0;
+
+                for (int j = 0; j < n; j++)
+                {
+                    double headroomJ = maxDischargeKWh[j] - dischargeKWh[j];
+                    if (headroomJ <= Eps) continue;
+
+                    double valueAtJ;
+                    if (importKWh[j] > Eps)
+                    {
+                        valueAtJ = pricePoints[j].BuyEurPerKWh;
+                    }
+                    else
+                    {
+                        if (!opt.AllowExport) continue;
+                        if (pricePoints[j].ReserveOnly) continue;
+                        valueAtJ = pricePoints[j].SellEurPerKWh;
+                    }
+
+                    double profitAtJ = valueAtJ - cycleCost;
+                    if (profitAtJ > bestGlobalProfit + Eps)
+                    {
+                        bestGlobalProfit = profitAtJ;
+                        bestGlobalJ = j;
+                    }
+                    if (j < cutIdx && profitAtJ > bestWithinWindowProfit + Eps)
+                    {
+                        bestWithinWindowProfit = profitAtJ;
+                        bestWithinWindowJ = j;
+                    }
+                }
+
+                int hedgeJ = -1;
+                double hedgeValueLimit = 0.0;
+
+                for (int j = 0; j < cutIdx; j++)
+                {
+                    double dischargeHeadroomJ = maxDischargeKWh[j] - dischargeKWh[j];
+                    if (dischargeHeadroomJ <= Eps) continue;
+
+                    double valueJ;
+                    double valueLimit;
+
+                    if (importKWh[j] > Eps)
+                    {
+                        valueJ = pricePoints[j].BuyEurPerKWh;       // avoided import
+                        valueLimit = importKWh[j];
+                    }
+                    else
+                    {
+                        if (!opt.AllowExport) continue;             // self-consumption: never export
+                        if (pricePoints[j].ReserveOnly) continue;   // no export on predicted quarters
+                        valueJ = pricePoints[j].SellEurPerKWh;      // exported
+                        valueLimit = double.MaxValue;
+                    }
+
+                    if (valueJ - cycleCost <= Eps) continue;        // not sufficiently profitable
+
+                    // Nearest profitable quarter wins the hedge slot — not the best one in the
+                    // window. "Good enough and soon" beats "better and far away" here on purpose.
+                    hedgeJ = j;
+                    hedgeValueLimit = Math.Min(dischargeHeadroomJ, valueLimit);
+                    break;
+                }
+
+                // Only actually commit the hedge when:
+                //  1. the true best opportunity lies beyond the window (otherwise ordinary
+                //     arbitrage will reach it on its own — nothing is at risk of indefinite
+                //     deferral, so hedging would just give up profit for no reason), AND
+                //  2. the nearest profitable quarter IS the best one reachable within the
+                //     window (otherwise a clearly better, still-reachable quarter exists later
+                //     in the same window — e.g. tonight's peak a few hours further out — and
+                //     grabbing the first mediocre quarter would only cost profit for nothing,
+                //     since that better nearby quarter isn't at risk either).
+                bool bestOpportunityIsBeyondWindow = bestGlobalJ >= cutIdx;
+                bool nearestIsAlsoBestWithinWindow = hedgeJ >= 0 && hedgeJ == bestWithinWindowJ;
+
+                if (bestOpportunityIsBeyondWindow && nearestIsAlsoBestWithinWindow)
+                {
+                    double storeAvailable = Math.Max(0.0, spec.InitialSocKWh - minSoc[0]) * opt.NearTermHedgeFraction;
+
+                    double block = Math.Min(hedgeValueLimit, storeAvailable * disEff);
+                    double storeDelta = block / disEff;
+
+                    // Draining the store at hedgeJ lowers the SOC path from there onward; must
+                    // not cross the reserve on any later quarter.
+                    double allowed = storeDelta;
+                    for (int k = hedgeJ; k < n; k++)
+                    {
+                        double slack = socEnd[k] - minSoc[k];
+                        if (slack < allowed) allowed = slack;
+                        if (allowed <= Eps) break;
+                    }
+                    if (allowed < storeDelta)
+                    {
+                        storeDelta = allowed;
+                        block = storeDelta * disEff;
+                    }
+
+                    if (block > Eps)
+                    {
+                        dischargeKWh[hedgeJ] += block;
+                        if (importKWh[hedgeJ] > Eps)
+                            importKWh[hedgeJ] = Math.Max(0.0, importKWh[hedgeJ] - block);
+
+                        for (int k = hedgeJ; k < n; k++)
+                            socEnd[k] -= storeDelta;
+                    }
+                }
+            }
+
+            // ── 3. Arbitrage: pair cheap charging with expensive discharging ──
             double roundTrip = chEff * disEff;
 
             for (int iter = 0; iter < MaxIterations; iter++)

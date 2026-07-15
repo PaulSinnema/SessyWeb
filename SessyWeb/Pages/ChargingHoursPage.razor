@@ -160,6 +160,17 @@
                                     <RadzenStack Orientation="Orientation.Horizontal" Gap="2" AlignItems="AlignItems.Start" Style="width: 100%;">
                                         <RadzenLabel Text="Show all" Component="ShowAll" Style="width: 100px;" />
                                         <RadzenCheckBox @bind-Value="ShowAll" Text="Show all data of today" Name="ShowAll" />
+                                        @if (ShowAll)
+                                        {
+                                            <RadzenDropDown TValue="Guid?"
+                                                            Data="@(_chartComponent?.AvailablePlans)"
+                                                            TextProperty="@nameof(PlanHistoryOption.Label)"
+                                                            ValueProperty="@nameof(PlanHistoryOption.PlanId)"
+                                                            Value="@_chartComponent?.SelectedPlanId"
+                                                            Change="@(async (object v) => await OnPlanSelected(v))"
+                                                            Placeholder="Select a plan"
+                                                            Style="width: 260px;" />
+                                        }
                                     </RadzenStack>
                                 </RadzenStack>
 
@@ -180,7 +191,7 @@
 
         @if (QuarterlyInfos != null && QuarterlyInfos.Count != 0)
         {
-            <ChargingHoursChartComponent QuarterlyInfos="@QuarterlyInfos" GraphStyle="@GraphStyle" ShowAll="@ShowAll" />
+            <ChargingHoursChartComponent @ref="_chartComponent" QuarterlyInfos="@QuarterlyInfos" GraphStyle="@GraphStyle" ShowAll="@ShowAll" />
         }
     }
     else

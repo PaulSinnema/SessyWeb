@@ -191,7 +191,6 @@ namespace SessyController.Services
                 ChargedInControl = false,
                 ManualOverride = false,
                 SolarAnnualProductionKWh = 0.0,
-                SolarSystemShutsDownDuringNegativePrices = false,
                 StatisticsFromDate = null,
                 ExportDirectory = "/data/exports",
             };

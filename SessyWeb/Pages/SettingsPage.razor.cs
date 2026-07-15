@@ -489,6 +489,8 @@ namespace SessyWeb.Pages
             if (_settings == null) return;
             _settings.ReserveSafetyFactor = 1.10;
             _settings.PlanningHorizonHours = 0;
+            _settings.NearTermHedgeHours = 0.0;
+            _settings.NearTermHedgeFraction = 0.5;
         }
         private bool _settingsSaving;
         private bool _settingsSaved;

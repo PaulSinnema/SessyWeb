@@ -12,7 +12,7 @@
 </style>
 
 <div class="now-chart" style="width: 100%; overflow: auto;">
-    <RadzenChart Style=@GraphStyle @ref=@QuarterlyHourChart>
+    <RadzenChart Style=@GraphStyle @ref=@QuarterlyHourChart AllowSeriesHover="false">
         <RadzenLegend Position="@((ScreenInfo?.IsMobile ?? false) ? LegendPosition.Right : LegendPosition.Top)" Visible="true" />
         <RadzenChartTooltipOptions Shared="false" Visible="true" />
 
@@ -27,7 +27,7 @@
             </TooltipTemplate>
             <ChildContent>
                 <RadzenMarkers Visible="false" />
-                <RadzenSeriesDataLabels Visible="true" />
+                <RadzenSeriesDataLabels Visible="true" Appearance="DataLabelAppearance.Plain" />
                 @if (IsExpected(QuarterlyInfos))
                 {
                     <RadzenSeriesAnnotation Data="@QuarterlyInfos.First(q => q.IsPriceExpected)"
@@ -59,7 +59,7 @@
             </TooltipTemplate>
             <ChildContent>
                 <RadzenMarkers Visible="false" />
-                <RadzenSeriesDataLabels Visible="@ShowSellingPriceLabels" />
+                <RadzenSeriesDataLabels Visible="@ShowSellingPriceLabels" Appearance="DataLabelAppearance.Plain" />
             </ChildContent>
         </RadzenColumnSeries>
 
@@ -328,6 +328,21 @@
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
             </TooltipTemplate>
+            <ChildContent>
+                <RadzenMarkers Visible="false" />
+                <RadzenSeriesDataLabels Visible="false" />
+            </ChildContent>
+        </RadzenLineSeries>
+
+        <RadzenLineSeries Visible="@ShowPlanHistory"
+                          Data="@PlanPoints"
+                          Smooth="true"
+                          CategoryProperty="Time"
+                          Stroke="#ff33cc"
+                          StrokeWidth="3.5"
+                          LineType="LineType.Solid"
+                          Title="Plan history (kW)"
+                          ValueProperty="PlanPowerVisual">
             <ChildContent>
                 <RadzenMarkers Visible="false" />
                 <RadzenSeriesDataLabels Visible="false" />

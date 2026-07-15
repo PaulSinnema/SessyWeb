@@ -2,15 +2,37 @@
 using Radzen.Blazor;
 using SessyCommon.Extensions;
 using SessyController.Services.Items;
+using SessyData.Model;
 using SessyData.Services;
 using SessyWeb.Pages;
 
 namespace SessyWeb.Components
 {
+    /// <summary>
+    /// Dropdown-friendly wrapper around PlanHistoryEntry — the dropdown needs a single
+    /// human-readable label, which we don't want to compute inside a Razor expression.
+    /// </summary>
+    public sealed class PlanHistoryOption
+    {
+        public Guid PlanId { get; init; }
+        public string Label { get; init; } = string.Empty;
+    }
+
+    /// <summary>One point of a historical plan's power line, in the same visual scale as the
+    /// live Planned charge/discharge series (Watts / 18000) so it overlays them directly.</summary>
+    public sealed class PlanVisualPoint
+    {
+        public DateTime Time { get; init; }
+        public double PlanPowerVisual { get; init; }
+    }
+
     public partial class ChargingHoursChartComponent : BaseComponent
     {
         [Inject]
         private TaxesDataService? _taxesDataService { get; set; }
+
+        [Inject]
+        private PlannedActionDataService? _plannedActionDataService { get; set; }
 
         [Parameter]
         public List<QuarterlyInfoView> QuarterlyInfos { get; set; } = new();
@@ -31,6 +53,97 @@ namespace SessyWeb.Components
 
         public double ChartMin => -ChartMinMax;
         public double ChartMax => ChartMinMax;
+
+        // ── Plan history overlay ──────────────────────────────────────────────
+        // Follows "Show all" — no separate toggle. Off by default (Show all is off by default).
+        public bool ShowPlanHistory { get; set; }
+        public List<PlanHistoryOption> AvailablePlans { get; private set; } = new();
+        public Guid? SelectedPlanId { get; private set; }
+        public List<PlanVisualPoint> PlanPoints { get; private set; } = new();
+
+        private DateTime _loadedPlanWindowFrom;
+        private DateTime _loadedPlanWindowTo;
+        private bool _havePlanWindow;
+
+        /// <summary>
+        /// Called whenever "Show all" or its date window changes. Plan history mirrors "Show all"
+        /// exactly: on when Show all is on, listing every plan created within the same [from, to)
+        /// window Show all currently displays.
+        /// </summary>
+        public async Task SetPlanHistoryWindowAsync(bool showAll, DateTime from, DateTime to)
+        {
+            ShowPlanHistory = showAll;
+
+            if (!showAll)
+                return; // Keep any cached AvailablePlans/PlanPoints — just hidden while off.
+
+            bool windowChanged = !_havePlanWindow || from != _loadedPlanWindowFrom || to != _loadedPlanWindowTo;
+            if (!windowChanged)
+                return;
+
+            _loadedPlanWindowFrom = from;
+            _loadedPlanWindowTo = to;
+            _havePlanWindow = true;
+
+            await LoadAvailablePlansAsync(from, to).ConfigureAwait(false);
+        }
+
+        private async Task LoadAvailablePlansAsync(DateTime from, DateTime to)
+        {
+            if (_plannedActionDataService == null) return;
+
+            var history = await _plannedActionDataService
+                .GetPlanHistoryAsync(maxEntries: 200, since: from, until: to)
+                .ConfigureAwait(false);
+
+            AvailablePlans = history
+                .Select(h => new PlanHistoryOption
+                {
+                    PlanId = h.PlanId,
+                    Label = $"{h.SavedAt:dd-MM HH:mm} — {h.Reason}"
+                })
+                .ToList();
+
+            // Keep the current selection if it's still in the refreshed list, else pick the newest.
+            if (SelectedPlanId == null || !AvailablePlans.Any(p => p.PlanId == SelectedPlanId))
+            {
+                if (AvailablePlans.Count > 0)
+                    await OnPlanSelected(AvailablePlans[0].PlanId).ConfigureAwait(false);
+                else
+                    await OnPlanSelected(null).ConfigureAwait(false);
+            }
+        }
+
+        public async Task OnPlanSelected(Guid? planId)
+        {
+            SelectedPlanId = planId;
+
+            if (planId == null || _plannedActionDataService == null)
+            {
+                PlanPoints = new List<PlanVisualPoint>();
+                return;
+            }
+
+            var actions = await _plannedActionDataService.GetPlanAsync(planId.Value).ConfigureAwait(false);
+
+            PlanPoints = actions
+                .Select(a => new PlanVisualPoint
+                {
+                    Time = a.Time,
+                    PlanPowerVisual = PlanPowerVisualFor(a.Mode, a.PowerW)
+                })
+                .ToList();
+        }
+
+        // Same scale and sign convention as QuarterlyInfoView.PlannedChargePowerVisual /
+        // PlannedDischargePowerVisual: charging renders below zero, discharging above.
+        private static double PlanPowerVisualFor(string mode, double powerW) =>
+            mode switch
+            {
+                "Charging" => -(powerW / 18000.0),
+                "Discharging" => powerW / 18000.0,
+                _ => 0.0
+            };
 
         private string GetBuyingPriceFill(object obj)
         {

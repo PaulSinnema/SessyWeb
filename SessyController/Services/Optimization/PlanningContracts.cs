@@ -29,10 +29,22 @@
     /// When false the battery may never push energy to the grid; it only stores solar and covers
     /// the house load. Used by the self-consumption strategy.
     /// </param>
+    /// <param name="NearTermHedgeHours">
+    /// Look-ahead window (hours) for the near-term hedge pass. 0 disables the hedge entirely
+    /// (unchanged winner-takes-all behaviour). &gt; 0 earmarks part of the currently available
+    /// stock for the nearest sufficiently profitable quarter within this window, before the
+    /// arbitrage loop can bid the rest away to a farther, higher-value peak.
+    /// </param>
+    /// <param name="NearTermHedgeFraction">
+    /// Fraction (0..1) of the currently available stock above the immediate reserve that the
+    /// hedge pass may claim. Only meaningful when NearTermHedgeHours &gt; 0.
+    /// </param>
     public sealed record SessyOptions(
         int QuarterMinutes,
         double CycleCostEurPerKWh,
-        bool AllowExport = true
+        bool AllowExport = true,
+        double NearTermHedgeHours = 0.0,
+        double NearTermHedgeFraction = 0.5
     );
 
     /// <summary>Allowed state-of-charge window at the end of a quarter.</summary>

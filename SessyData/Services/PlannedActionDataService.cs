@@ -66,10 +66,20 @@ namespace SessyData.Services
         /// <summary>
         /// Returns a summary of all stored plan solves for display on the dashboard.
         /// </summary>
-        public async Task<List<PlanHistoryEntry>> GetPlanHistoryAsync(int maxEntries = 50)
+        /// <param name="maxEntries">Maximum number of plans to return, most recent first.</param>
+        /// <param name="since">When set, only plans saved at or after this time are included.</param>
+        /// <param name="until">When set, only plans saved strictly before this time are included.</param>
+        public async Task<List<PlanHistoryEntry>> GetPlanHistoryAsync(
+            int maxEntries = 50, DateTime? since = null, DateTime? until = null)
         {
             var all = await GetList(async set =>
                 await Task.FromResult(set.OrderByDescending(p => p.SavedAt).ToList()));
+
+            if (since != null)
+                all = all.Where(p => p.SavedAt >= since.Value).ToList();
+
+            if (until != null)
+                all = all.Where(p => p.SavedAt < until.Value).ToList();
 
             return all
                 .GroupBy(p => p.PlanId)
@@ -85,6 +95,19 @@ namespace SessyData.Services
                 .OrderByDescending(e => e.SavedAt)
                 .Take(maxEntries)
                 .ToList();
+        }
+
+        /// <summary>
+        /// Loads every quarter of one specific historical plan, ordered by time.
+        /// Used to overlay a past plan on the chart for comparison against what actually happened.
+        /// </summary>
+        public async Task<List<PlannedAction>> GetPlanAsync(Guid planId)
+        {
+            return await GetList(async set =>
+                await Task.FromResult(
+                    set.Where(p => p.PlanId == planId)
+                       .OrderBy(p => p.Time)
+                       .ToList()));
         }
 
         /// <summary>Removes all saved plan entries.</summary>

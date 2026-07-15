@@ -11,6 +11,7 @@ using SessyData.Model;
 using SessyData.Services;
 using SessyWeb.Helpers;
 using static SessyWeb.Components.DateChooserComponent;
+using SessyWeb.Components;
 
 namespace SessyWeb.Pages
 {
@@ -34,6 +35,16 @@ namespace SessyWeb.Pages
         [Inject] SolarInverterManager? _solarInverterManager { get; set; }
 
         public List<QuarterlyInfoView>? QuarterlyInfos { get; set; } = new();
+
+        // Plan history overlay — bound via @ref, mirrors ShowAll automatically (see GetQuarterlyInfos).
+        private ChargingHoursChartComponent? _chartComponent;
+
+        private async Task OnPlanSelected(object value)
+        {
+            if (_chartComponent == null) return;
+            await _chartComponent.OnPlanSelected((Guid?)value).ConfigureAwait(false);
+            await InvokeAsync(StateHasChanged);
+        }
 
         // Measurement cache — avoids re-querying the DB every second on DataChanged.
         // Invalidated when the date window or ShowAll flag changes.
@@ -351,6 +362,9 @@ namespace SessyWeb.Pages
 
             var from = baseDate.Date.AddDays(-1);
             var to = baseDate.Date.AddDays(2); // yesterday..tomorrow (3-day window)
+
+            if (_chartComponent != null)
+                await _chartComponent.SetPlanHistoryWindowAsync(ShowAll, from, to).ConfigureAwait(false);
 
             var listFromBatteryService = _batteriesService?.GetQuarterlyInfos() ?? new List<QuarterlyInfo>();
 

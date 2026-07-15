@@ -74,7 +74,6 @@ namespace SessyData.Model
 
         // ── Solar ─────────────────────────────────────────────────────────────
         public double SolarAnnualProductionKWh { get; set; }
-        public bool SolarSystemShutsDownDuringNegativePrices { get; set; }
 
         // ── Battery planning ─────────────────────────────────────────────────
         /// <summary>
@@ -97,6 +96,21 @@ namespace SessyData.Model
         /// from this as sqrt(roundTrip). When 0, defaults to 90%.
         /// </summary>
         public double RoundTripEfficiencyFallbackPct { get; set; }
+
+        /// <summary>
+        /// Look-ahead window (hours) for the near-term hedge pass in the greedy planner. Earmarks
+        /// part of the currently available stock for the nearest sufficiently profitable quarter
+        /// within this window, so a farther but higher-value peak cannot claim the entire stock
+        /// and leave a nearer opportunity untouched. 0 disables the hedge (default, unchanged
+        /// winner-takes-all behaviour).
+        /// </summary>
+        public double NearTermHedgeHours { get; set; } = 0.0;
+
+        /// <summary>
+        /// Fraction (0..1) of the currently available stock above the immediate reserve that the
+        /// near-term hedge pass may claim. Only meaningful when NearTermHedgeHours &gt; 0.
+        /// </summary>
+        public double NearTermHedgeFraction { get; set; } = 0.5;
 
         // ── Statistics ────────────────────────────────────────────────────────
         public DateTime? StatisticsFromDate { get; set; }

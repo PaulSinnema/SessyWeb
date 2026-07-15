@@ -72,8 +72,13 @@ namespace SessyController.Services
                 //                trading on the uncertain prices (no charge, no export).
                 //   SoftMargin → traded with a risk margin (applied below).
                 //   Full       → traded as-is.
+                //
+                // Includes the current quarter (nowQuarter), not just future ones: it starts
+                // from the real, current SOC, so a decision already baked into the in-progress
+                // quarter by an earlier (possibly wrong) solve can still be corrected for
+                // whatever time remains in it, instead of being locked in until the next quarter.
                 var quartersQuery = _quarterlyInfos
-                    .Where(q => q.Time >= nowQuarter.AddMinutes(15));
+                    .Where(q => q.Time >= nowQuarter);
 
                 // Optional planning horizon limit: ignore quarters beyond N hours so the
                 // solver cannot defer discharge to a far-future peak.
@@ -174,7 +179,11 @@ namespace SessyController.Services
 
                 var opt = new SessyOptions(
                     QuarterMinutes: 15,
-                    CycleCostEurPerKWh: _settingsService.CycleCost);
+                    CycleCostEurPerKWh: _settingsService.CycleCost,
+                    NearTermHedgeHours: _settingsConfig.NearTermHedgeHours,
+                    NearTermHedgeFraction: _settingsConfig.NearTermHedgeFraction > 0.0
+                        ? _settingsConfig.NearTermHedgeFraction
+                        : 0.5);
 
                 var context = new SolveContext(pricePoints, spec, opt, socBounds);
 

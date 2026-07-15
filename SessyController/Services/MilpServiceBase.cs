@@ -60,6 +60,7 @@ namespace SessyController.Services
         private string? _lastRebuildReason;
         private DateTime? _lastBuildTime;
         private double _lastPlanObjectiveEur;
+        private int _lastPlanQuarterCount;
         private DateTime? _lastSpeculativeSolveQuarter;
         private HashSet<DateTime> _lastKnownPriceTimes = new();
         private long? _lastPriceSignature;
@@ -189,6 +190,7 @@ namespace SessyController.Services
             _lastPriceSignature = null;
             _lastBuildTime = null;
             _lastPlanObjectiveEur = 0.0;
+            _lastPlanQuarterCount = 0;
             _lastSpeculativeSolveQuarter = null;
             _lastKnownPriceTimes = new();
             await _plannedActionDataService.ClearPlanAsync().ConfigureAwait(false);
@@ -212,6 +214,7 @@ namespace SessyController.Services
                     .Where(a => a.ChargeLeftWh > 0.0)
                     .ToDictionary(a => a.Time, a => a.ChargeLeftWh);
                 _lastPlanObjectiveEur = actions.First().ObjectiveEur;
+                _lastPlanQuarterCount = restored.Count;
                 _lastPriceSignature = actions.First().PriceSignature;
                 _lastKnownPriceTimes = new();
 
@@ -397,6 +400,7 @@ namespace SessyController.Services
             if (reason == null) return false;
 
             double previousObjective = _lastPlanObjectiveEur;
+            int previousQuarterCount = _lastPlanQuarterCount;
             _logger.LogInformation($"Solving plan: {reason} (forced={forced})");
 
             bool built = await BuildMilpPlanAsync(currentSocWh).ConfigureAwait(false);
@@ -409,12 +413,25 @@ namespace SessyController.Services
                 return false;
             }
 
-            if (!forced && previousObjective > 0 && _lastPlanObjectiveEur <= previousObjective)
+            // Compare €/quarter, not the raw total: the remaining horizon shrinks every quarter
+            // (fixed calendar window, shorter "future" as the day progresses), so a later solve's
+            // total is naturally smaller than an earlier one even when it makes strictly better use
+            // of the current situation. Comparing rates keeps the guard meaningful across horizon
+            // lengths instead of freezing the plan at whichever solve happened to see the most hours.
+            if (!forced && previousQuarterCount > 0 && _lastPlanQuarterCount > 0)
             {
-                _logger.LogInformation(
-                    $"Speculative solve rejected: {_lastPlanObjectiveEur:F4} <= {previousObjective:F4} EUR.");
-                _lastPlanObjectiveEur = previousObjective;
-                return false;
+                double previousRate = previousObjective / previousQuarterCount;
+                double newRate = _lastPlanObjectiveEur / _lastPlanQuarterCount;
+
+                if (previousRate > 0 && newRate <= previousRate)
+                {
+                    _logger.LogInformation(
+                        $"Speculative solve rejected: {newRate:F4} <= {previousRate:F4} EUR/quarter " +
+                        $"({_lastPlanObjectiveEur:F4}/{_lastPlanQuarterCount} <= {previousObjective:F4}/{previousQuarterCount}).");
+                    _lastPlanObjectiveEur = previousObjective;
+                    _lastPlanQuarterCount = previousQuarterCount;
+                    return false;
+                }
             }
 
             if (!forced)
@@ -533,6 +550,7 @@ namespace SessyController.Services
             _planByTime = newPlan;
             _planSocWhByTime = newSoc;
             _lastPlanObjectiveEur = result.ObjectiveEur;
+            _lastPlanQuarterCount = quarterCount;
             return true;
         }
 

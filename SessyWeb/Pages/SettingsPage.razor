@@ -51,10 +51,6 @@
                                         <RadzenLabel Text="Annual production (kWh)" />
                                         <RadzenNumeric @bind-Value="_settings.SolarAnnualProductionKWh" Format="F0" Style="width:100%" />
                                     </RadzenColumn>
-                                    <RadzenColumn Size="12" SizeMD="4" Style="display:flex; align-items:flex-end; padding-bottom:4px;">
-                                        <RadzenCheckBox @bind-Value="_settings.SolarSystemShutsDownDuringNegativePrices" />
-                                        <RadzenLabel Text="Shut down at negative prices" Style="margin-left:8px" />
-                                    </RadzenColumn>
                                 </RadzenRow>
                             </RadzenFieldset>
 
@@ -163,6 +159,23 @@
                                             <RadzenLabel Text="Predicted price risk margin (€/kWh)" />
                                             <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">Raises predicted buy prices and lowers predicted sell prices by this amount, so only wide spreads are traded. Default: 0.05.</RadzenText>
                                             <RadzenNumeric @bind-Value="_settings.PredictedPriceRiskMarginEur" Format="F4" Step="0.01" Min="0" Style="width:100%" />
+                                        </RadzenColumn>
+                                    }
+                                </RadzenRow>
+                                <RadzenRow Gap="1rem">
+                                    <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Near-term hedge window (hours)" />
+                                        <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">Earmarks part of the currently available stock for the nearest sufficiently profitable quarter within this window, so a farther but higher-value peak cannot claim the entire stock. 0 = off (default, winner-takes-all).</RadzenText>
+                                        <RadzenNumeric @bind-Value="_settings.NearTermHedgeHours" Format="F1" Min="0" Style="width:100%" />
+                                    </RadzenColumn>
+                                    @if (_settings.NearTermHedgeHours > 0)
+                                    {
+                                        <RadzenColumn Size="12" SizeMD="4">
+                                            <RadzenLabel Text="Near-term hedge fraction (%)" />
+                                            <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">Fraction of the currently available stock (above reserve) the hedge may claim. Default: 50%.</RadzenText>
+                                            <RadzenNumeric TValue="double" Value="@(_settings.NearTermHedgeFraction * 100.0)"
+                                                           ValueChanged="@(v => _settings.NearTermHedgeFraction = v / 100.0)"
+                                                           Format="F0" Min="0" Max="100" Style="width:100%" />
                                         </RadzenColumn>
                                     }
                                 </RadzenRow>
