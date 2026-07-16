@@ -39,11 +39,25 @@
     /// undiscounted prices — this only shapes which comparable quarter the search reaches for.
     /// 0 (default) reproduces the original undiscounted behaviour exactly.
     /// </param>
+    /// <param name="StockCostEurPerKWh">
+    /// Weighted-average acquisition cost (EUR/kWh) of the energy already in the battery at the
+    /// start of the horizon, from the FIFO cost-basis ledger. Solar-charged energy is 0, so a
+    /// solar-filled battery leaves behaviour unchanged; only grid-charged energy raises this.
+    ///
+    /// Used as a RESERVATION PRICE (a floor), not as a cost to be recovered. The distinction
+    /// matters: what you already paid is sunk and must never decide *when* to sell. What this
+    /// value actually stands in for is the residual worth of a kWh that survives past the end of
+    /// the horizon — the objective assigns it zero, so without a floor the planner would rather
+    /// dump energy at any price above the cycle cost than carry it forward. Replacing that kWh
+    /// later costs roughly what it cost to acquire, so that price is the natural floor.
+    /// 0 (default) restores the original behaviour exactly.
+    /// </param>
     public sealed record SessyOptions(
         int QuarterMinutes,
         double CycleCostEurPerKWh,
         bool AllowExport = true,
-        double FutureValueDiscountPerHour = 0.0
+        double FutureValueDiscountPerHour = 0.0,
+        double StockCostEurPerKWh = 0.0
     );
 
     /// <summary>Allowed state-of-charge window at the end of a quarter.</summary>

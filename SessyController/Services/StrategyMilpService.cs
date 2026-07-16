@@ -177,10 +177,15 @@ namespace SessyController.Services
                     ChargeEfficiency: chargeEfficiency,
                     DischargeEfficiency: dischargeEfficiency);
 
+                // Reservation price for energy already in the battery, from the FIFO ledger.
+                // Solar layers cost 0, so a solar-filled battery yields ~0 and behaves as before.
+                var costBasis = await _chargeCostBasisService.GetSnapshotAsync().ConfigureAwait(false);
+
                 var opt = new SessyOptions(
                     QuarterMinutes: 15,
                     CycleCostEurPerKWh: _settingsService.CycleCost,
-                    FutureValueDiscountPerHour: _settingsConfig.FutureValueDiscountPerHour);
+                    FutureValueDiscountPerHour: _settingsConfig.FutureValueDiscountPerHour,
+                    StockCostEurPerKWh: Math.Max(0.0, costBasis.AverageCostBasisEur));
 
                 var context = new SolveContext(pricePoints, spec, opt, socBounds);
 

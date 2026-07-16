@@ -214,14 +214,21 @@
                     valueJ *= Discount(j);
 
                     // ── Candidate A: discharge energy that is ALREADY in the battery ──
-                    // The initial SOC was charged before this horizon (its cost is sunk), so
-                    // exporting or consuming it only costs the cycle wear. Without this
-                    // candidate the planner could never discharge energy stored before a
-                    // replan: every discharge would need a paired charge inside the horizon.
+                    // This energy was charged before the horizon began. Its purchase price is
+                    // sunk and deliberately plays no part in choosing *when* to discharge —
+                    // that would be a sunk-cost error and would reject genuinely good trades.
+                    //
+                    // StockCostEurPerKWh enters as a floor, for a different reason: a kWh still
+                    // in the battery at the end of the horizon is worth zero in the objective,
+                    // so without it the planner prefers dumping at any price above cycleCost
+                    // over carrying energy forward. Charging the replacement cost against each
+                    // stock discharge prices that carry-forward option back in. Solar energy has
+                    // a cost basis of 0, so a solar-filled battery behaves exactly as before.
+                    //
                     // Feasibility: draining the store at j lowers the SOC path from j onward,
                     // which must stay at or above the reserve on every later quarter.
                     {
-                        double profitPerKWh = valueJ - cycleCost;
+                        double profitPerKWh = valueJ - opt.StockCostEurPerKWh - cycleCost;
                         if (profitPerKWh > bestProfitPerKWh + Eps)
                         {
                             double block = Math.Min(BlockKWh, Math.Min(dischargeHeadroom, valueLimit));
