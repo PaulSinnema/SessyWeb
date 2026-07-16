@@ -29,22 +29,21 @@
     /// When false the battery may never push energy to the grid; it only stores solar and covers
     /// the house load. Used by the self-consumption strategy.
     /// </param>
-    /// <param name="NearTermHedgeHours">
-    /// Look-ahead window (hours) for the near-term hedge pass. 0 disables the hedge entirely
-    /// (unchanged winner-takes-all behaviour). &gt; 0 earmarks part of the currently available
-    /// stock for the nearest sufficiently profitable quarter within this window, before the
-    /// arbitrage loop can bid the rest away to a farther, higher-value peak.
-    /// </param>
-    /// <param name="NearTermHedgeFraction">
-    /// Fraction (0..1) of the currently available stock above the immediate reserve that the
-    /// hedge pass may claim. Only meaningful when NearTermHedgeHours &gt; 0.
+    /// <param name="FutureValueDiscountPerHour">
+    /// Continuous per-hour discount applied to value[j] and cost[i] inside the arbitrage
+    /// comparison — a quarter h hours from now is worth 1 / (1 + FutureValueDiscountPerHour * h)
+    /// of its real price when the planner decides where to send stock. Reflects genuine forecast
+    /// uncertainty growing with distance, so a farther peak needs to be proportionally better to
+    /// still win over a nearer one, instead of winner-takes-all always claiming the single best
+    /// quarter in the whole horizon. The reported objective and executed plan still use full,
+    /// undiscounted prices — this only shapes which comparable quarter the search reaches for.
+    /// 0 (default) reproduces the original undiscounted behaviour exactly.
     /// </param>
     public sealed record SessyOptions(
         int QuarterMinutes,
         double CycleCostEurPerKWh,
         bool AllowExport = true,
-        double NearTermHedgeHours = 0.0,
-        double NearTermHedgeFraction = 0.5
+        double FutureValueDiscountPerHour = 0.0
     );
 
     /// <summary>Allowed state-of-charge window at the end of a quarter.</summary>

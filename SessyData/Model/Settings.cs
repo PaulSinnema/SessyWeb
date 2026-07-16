@@ -98,19 +98,18 @@ namespace SessyData.Model
         public double RoundTripEfficiencyFallbackPct { get; set; }
 
         /// <summary>
-        /// Look-ahead window (hours) for the near-term hedge pass in the greedy planner. Earmarks
-        /// part of the currently available stock for the nearest sufficiently profitable quarter
-        /// within this window, so a farther but higher-value peak cannot claim the entire stock
-        /// and leave a nearer opportunity untouched. 0 disables the hedge (default, unchanged
-        /// winner-takes-all behaviour).
+        /// Continuous per-hour discount the greedy planner applies to future prices when deciding
+        /// where to send stored energy: a quarter h hours away is worth 1 / (1 + rate * h) of its
+        /// real price in that comparison only — the reported plan and objective still use full,
+        /// undiscounted prices. Replaces the old near-term-hedge pass (removed): rather than a
+        /// discrete rule that reserves stock for a hand-picked nearby quarter, every quarter is
+        /// compared on equal footing with a smooth time preference, so a distant peak must be
+        /// genuinely better by more than the accumulated forecast-uncertainty discount to still
+        /// win, instead of a single far-off peak always being able to claim the entire battery.
+        /// 0.01 (default) means a peak 24h out needs to be roughly 24% better to still win over
+        /// an equally-reachable one tonight. 0 disables this (original undiscounted behaviour).
         /// </summary>
-        public double NearTermHedgeHours { get; set; } = 0.0;
-
-        /// <summary>
-        /// Fraction (0..1) of the currently available stock above the immediate reserve that the
-        /// near-term hedge pass may claim. Only meaningful when NearTermHedgeHours &gt; 0.
-        /// </summary>
-        public double NearTermHedgeFraction { get; set; } = 0.5;
+        public double FutureValueDiscountPerHour { get; set; } = 0.01;
 
         // ── Statistics ────────────────────────────────────────────────────────
         public DateTime? StatisticsFromDate { get; set; }

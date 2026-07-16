@@ -766,10 +766,19 @@ namespace SessyController.Services
             if (planned.Mode == Modes.Charging)
             {
                 // Don't actively charge when solar surplus is already filling the battery.
+                // NOTE: intentionally NOT written into _planByTime — this is a live safety
+                // check, not a plan revision. Overwriting the stored plan here would make a
+                // single, possibly transient trip (a noisy SOC reading, a momentary reading lag)
+                // stick for the rest of the quarter, since every later tick in the same quarter
+                // would then check against the already-downgraded action instead of the original
+                // plan. Returning the downgrade without persisting it lets each tick re-evaluate
+                // the real, current state fresh.
                 if (qi != null && qi.NetLoadWh < -chargeStepWh)
                 {
+                    _logger.LogWarning(
+                        $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: GUARD_CHARGE_SOLAR_SURPLUS → ZeroNetHome " +
+                        $"(NetLoadWh={qi.NetLoadWh:F0}, -chargeStepWh={-chargeStepWh:F0})");
                     var nzh = new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
-                    _planByTime[nowQuarter] = nzh;
                     qi.SetMode(Modes.ZeroNetHome);
                     qi.SetPlanPower(0, 0);
                     return nzh;
@@ -777,8 +786,10 @@ namespace SessyController.Services
 
                 if (socWh + chargeStepWh > maxSocWh + 0.001)
                 {
+                    _logger.LogWarning(
+                        $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: GUARD_CHARGE_WOULD_EXCEED_MAX → ZeroNetHome " +
+                        $"(socWh={socWh:F0}, chargeStepWh={chargeStepWh:F0}, maxSocWh={maxSocWh:F0})");
                     var nzh = new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
-                    _planByTime[nowQuarter] = nzh;
                     qi?.SetMode(Modes.ZeroNetHome);
                     qi?.SetPlanPower(0, 0);
                     return nzh;
@@ -791,10 +802,15 @@ namespace SessyController.Services
             {
                 double requiredWh = planned.PowerW > 10 ? planned.PowerW * 0.25 : dischargeStepWh;
 
+                // Same reasoning as the charging branch above: not persisted, so a transient
+                // SOC dip doesn't permanently forfeit the rest of this quarter's discharge.
                 if (socWh - requiredWh < minSocWh + 50.0)
                 {
+                    _logger.LogWarning(
+                        $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: GUARD_DISCHARGE_INSUFFICIENT_SOC → ZeroNetHome " +
+                        $"(plannedPowerW={planned.PowerW:F0}, socWh={socWh:F0}, requiredWh={requiredWh:F0}, minSocWh={minSocWh:F0}, " +
+                        $"headroomWh={(socWh - requiredWh - minSocWh):F0})");
                     var nzh = new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
-                    _planByTime[nowQuarter] = nzh;
                     qi?.SetMode(Modes.ZeroNetHome);
                     qi?.SetPlanPower(0, 0);
                     return nzh;
@@ -831,8 +847,11 @@ namespace SessyController.Services
 
                 if (effectiveNetLoadWh < 0.0 && socWh < maxSocWh)
                 {
+                    if (planned.Mode != Modes.ZeroNetHome)
+                        _logger.LogWarning(
+                            $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: PLANNED_MODE_ALREADY_{planned.Mode} " +
+                            $"→ ZERO_NET_HOME_SOLAR_SURPLUS (effectiveNetLoadWh={effectiveNetLoadWh:F0}, socWh={socWh:F0}, maxSocWh={maxSocWh:F0})");
                     var nzh = new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
-                    _planByTime[nowQuarter] = nzh;
                     qi.SetMode(Modes.ZeroNetHome);
                     qi.SetPlanPower(0, 0);
                     return nzh;
@@ -841,8 +860,10 @@ namespace SessyController.Services
                 if (effectiveNetLoadWh >= 0.0 &&
                     qi.SellingPrice < _settingsService.CycleCost)
                 {
+                    _logger.LogWarning(
+                        $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: PLANNED_MODE_{planned.Mode}_BELOW_CYCLE_COST " +
+                        $"→ Disabled (sellingPrice={qi.SellingPrice:F4}, cycleCost={_settingsService.CycleCost:F4})");
                     var disabled = new PlanAction { Mode = Modes.Disabled, PowerW = 0 };
-                    _planByTime[nowQuarter] = disabled;
                     qi.SetMode(Modes.Disabled);
                     qi.SetPlanPower(0, 0);
                     return disabled;

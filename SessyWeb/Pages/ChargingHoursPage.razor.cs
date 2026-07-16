@@ -32,6 +32,8 @@ namespace SessyWeb.Pages
         [Inject] private SettingsService? _settingsService { get; set; }
 
         private double SocDeviationPct { get; set; } = 0.0;
+        private string LastPlanReason { get; set; } = string.Empty;
+        private DateTime? LastPlanSavedAt { get; set; }
         [Inject] SolarInverterManager? _solarInverterManager { get; set; }
 
         public List<QuarterlyInfoView>? QuarterlyInfos { get; set; } = new();
@@ -295,6 +297,9 @@ namespace SessyWeb.Pages
                     BatteryPercentage = batteryPct;
                     BatteryMode = batteryMode;
                     SocDeviationPct = planStats.SocDeviationPct;
+                    var latestPlan = planStats.RecentHistory.FirstOrDefault();
+                    LastPlanReason = latestPlan?.Reason ?? string.Empty;
+                    LastPlanSavedAt = latestPlan?.SavedAt;
                     HandleScreenHeight();
                     StateHasChanged();
                 });
@@ -430,17 +435,20 @@ namespace SessyWeb.Pages
                     .OrderBy(q => q.Time)
                     .ToList();
 
+                // Planned state from PlannedQuarter — used for both plan-only and measured quarters.
+                var plannedByQuarter = await GetPlannedByQuarterAsync(from, to).ConfigureAwait(false);
+
                 foreach (var qi in planItems)
-                    views.Add(new QuarterlyInfoView(qi, totalCapacityWh, null, averageBuyingPrice, averageSellingPrice));
+                {
+                    plannedByQuarter.TryGetValue(qi.Time, out var pq);
+                    views.Add(new QuarterlyInfoView(qi, totalCapacityWh, pq, averageBuyingPrice, averageSellingPrice));
+                }
 
                 // Plan solar by quarter — fallback when a measurement has no inverter data yet
                 // (InverterMeasurements are written slightly after QuarterlyMeasurements).
                 var planSolarByQuarter = listFromBatteryService
                     .GroupBy(q => q.Time)
                     .ToDictionary(g => g.Key, g => g.First().SolarPowerPerQuarterHour);
-
-                // Planned state from PlannedQuarter — shown alongside actuals for measured quarters.
-                var plannedByQuarter = await GetPlannedByQuarterAsync(from, to).ConfigureAwait(false);
 
                 // Batch-calculate buying/selling prices from EPEXPrices + Taxes.
                 var measurementPrices = _calculationService != null
@@ -497,8 +505,15 @@ namespace SessyWeb.Pages
                 var nowPlanSolarByQuarter = planItems
                     .ToDictionary(q => q.Time, q => q.SolarPowerPerQuarterHour);
 
+                // Planned state from PlannedQuarter — without this, the tooltip's "Planned" field
+                // falls back to qi.GetDisplayMode(), which shows "?" whenever qi.Mode was never
+                // set on the in-memory QuarterlyInfo, even though the real plan exists in the DB.
+                var nowPlannedByQuarter = await GetPlannedByQuarterAsync(nowQ, nowQ.Date.AddDays(2)).ConfigureAwait(false);
+
                 foreach (var qi in planItems)
                 {
+                    nowPlannedByQuarter.TryGetValue(qi.Time, out var pq);
+
                     if (qi.Time == nowQ && currentMeasurement != null)
                     {
                         if (_calculationService != null)
@@ -517,7 +532,7 @@ namespace SessyWeb.Pages
 
                         var realizedQi = new QuarterlyInfo(currentMeasurement, solarKWh, planSolarKWh,
                             _settingsService!, _solarInverterManager!, _timeZoneService!);
-                        views.Add(new QuarterlyInfoView(realizedQi, totalCapacityWh, null, averageBuyingPrice, averageSellingPrice));
+                        views.Add(new QuarterlyInfoView(realizedQi, totalCapacityWh, pq, averageBuyingPrice, averageSellingPrice));
                     }
                     else
                     {
@@ -526,7 +541,7 @@ namespace SessyWeb.Pages
                             qi.SolarPowerPerQuarterHour = measuredSolar;
                         string? actualDisplay = isNow ? _hardwareStatusService!.ActualBatteryStrategy : null;
                         double? actualPowerW = isNow ? _hardwareStatusService!.ActualBatteryPowerW : null;
-                        views.Add(new QuarterlyInfoView(qi, totalCapacityWh, null, averageBuyingPrice, averageSellingPrice,
+                        views.Add(new QuarterlyInfoView(qi, totalCapacityWh, pq, averageBuyingPrice, averageSellingPrice,
                             actualDisplay, actualPowerW, currentThrottlePercentage));
                     }
                 }

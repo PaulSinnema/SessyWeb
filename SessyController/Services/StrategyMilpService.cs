@@ -180,10 +180,7 @@ namespace SessyController.Services
                 var opt = new SessyOptions(
                     QuarterMinutes: 15,
                     CycleCostEurPerKWh: _settingsService.CycleCost,
-                    NearTermHedgeHours: _settingsConfig.NearTermHedgeHours,
-                    NearTermHedgeFraction: _settingsConfig.NearTermHedgeFraction > 0.0
-                        ? _settingsConfig.NearTermHedgeFraction
-                        : 0.5);
+                    FutureValueDiscountPerHour: _settingsConfig.FutureValueDiscountPerHour);
 
                 var context = new SolveContext(pricePoints, spec, opt, socBounds);
 
