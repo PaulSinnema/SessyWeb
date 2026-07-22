@@ -144,6 +144,20 @@ namespace SessyController.Services.Items
             await SetActivePowerStrategy(new ActivePowerStrategy { Strategy = PowerStrategies.POWER_STRATEGY_NOM.ToString() });
         }
 
+        public async Task SetActivePowerStrategyToRoi()
+        {
+            _logger.LogInformation("Setting strategy to ROI (Dynamic)");
+
+            await SetActivePowerStrategy(new ActivePowerStrategy { Strategy = PowerStrategies.POWER_STRATEGY_ROI.ToString() });
+        }
+
+        public async Task SetActivePowerStrategyToEco()
+        {
+            _logger.LogInformation("Setting strategy to ECO");
+
+            await SetActivePowerStrategy(new ActivePowerStrategy { Strategy = PowerStrategies.POWER_STRATEGY_ECO.ToString() });
+        }
+
         public async Task SetPowerSetpointAsync(PowerSetpoint powerSetpoint)
         {
             EnsureInitialized();

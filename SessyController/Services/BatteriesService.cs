@@ -237,7 +237,29 @@ namespace SessyController.Services
                 else
                 {
 #if !DEBUG
-                    await _batteryContainer.StopAll().ConfigureAwait(false);
+                    // When "Charged" is the controller we hand the batteries to Sessy's own
+                    // built-in strategy, mapped from our optimization strategy:
+                    //   ProfitMaximization → ROI (Dynamic)
+                    //   SelfConsumption    → ECO
+                    //   anything else      → ROI (Dynamic)
+                    // For provider (supplier) control we leave the batteries fully released.
+                    if (_settingsConfig.ChargedInControl)
+                    {
+                        switch (_settingsConfig.Strategy)
+                        {
+                            case OptimizationStrategy.SelfConsumption:
+                                await _batteryContainer.StartEco().ConfigureAwait(false);
+                                break;
+                            case OptimizationStrategy.ProfitMaximization:
+                            default:
+                                await _batteryContainer.StartRoi().ConfigureAwait(false);
+                                break;
+                        }
+                    }
+                    else
+                    {
+                        await _batteryContainer.StopAll().ConfigureAwait(false);
+                    }
 #endif
                 }
             }

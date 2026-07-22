@@ -41,7 +41,7 @@ namespace SessyCommon.Extensions
                         }
                         catch (Exception ex)
                         {
-                            throw new Exception($"Error setting value for {destination.GetType().FullName} - {memberInfo.Name}");
+                            throw new Exception($"Error setting value for {destination.GetType().FullName} - {memberInfo.Name}", ex);
                         }
                     }
                 }

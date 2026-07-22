@@ -142,6 +142,28 @@ namespace SessyController.Services.Items
         }
 
         /// <summary>
+        /// Hand control to Sessy's own ROI (Dynamic) strategy on every battery.
+        /// </summary>
+        public async Task StartRoi()
+        {
+            foreach (var bat in Batteries)
+            {
+                await bat.SetActivePowerStrategyToRoi();
+            }
+        }
+
+        /// <summary>
+        /// Hand control to Sessy's own ECO strategy on every battery.
+        /// </summary>
+        public async Task StartEco()
+        {
+            foreach (var bat in Batteries)
+            {
+                await bat.SetActivePowerStrategyToEco();
+            }
+        }
+
+        /// <summary>
         /// Start charging cycle.
         /// </summary>
         public async Task StartCharging(double chargingPower)
