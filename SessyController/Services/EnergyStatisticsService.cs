@@ -845,17 +845,20 @@ namespace SessyController.Services
                 // Use BatteryPowerWatts directly — not BatteryMode — because in
                 // ZeroNetHome mode the battery also discharges (positive watts) but
                 // the mode is ZeroNetHome, not Discharging.
-                // Planned Discharging mode only for revenue — excludes ZeroNetHome low-power
                 // Arbitrage value across all discharge (Discharging + ZeroNetHome):
                 // self-use valued at avoided buy price, export at sell price.
                 double revenue = measurements
                     .Where(m => m.BatteryPowerWatts > 0)
                     .Sum(m => m.DischargeValueEur);
 
-                // Planned Charging mode only for cost.
+                // Same convention on the cost side: every quarter the battery charged, not just
+                // the ones planned as Charging. Filtering on BatteryMode == Charging dropped all
+                // ZeroNetHome charging from the cost while the revenue above still counted
+                // ZeroNetHome discharge, which flattered the result. Only the grid-fed part is
+                // paid for — solar-fed charging is free.
                 double cost = measurements
-                    .Where(m => m.BatteryMode == Modes.Charging && m.BatteryPowerWatts < 0)
-                    .Sum(m => m.BuyingPriceEur * m.BatteryChargedKWh);
+                    .Where(m => m.BatteryPowerWatts < 0)
+                    .Sum(m => m.GridChargeCostEur);
 
                 int month = current.Month;
                 if (!allMonthly.ContainsKey(month))
@@ -1181,10 +1184,11 @@ namespace SessyController.Services
             // ZeroNetHome mode the battery also charges/discharges but the mode
             // is ZeroNetHome, not Charging/Discharging.
 
-            // Charging cost: energy bought from grid to charge batteries.
+            // Charging cost: only the part of the charge actually drawn from the grid.
+            // Charging fed by solar surplus costs nothing — see MeasurementView.GridChargeCostEur.
             double chargingCostEur = measurements
                 .Where(m => m.BatteryPowerWatts < 0)
-                .Sum(m => m.BuyingPriceEur * m.BatteryChargedKWh);
+                .Sum(m => m.GridChargeCostEur);
 
             // Import cost: energy bought for household consumption (excluding charging).
             double importCostEur = measurements

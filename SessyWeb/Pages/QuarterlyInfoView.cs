@@ -62,11 +62,16 @@ namespace SessyWeb.Pages
             {
                 ChargePowerW = actualPowerW.Value < 0 ? Math.Abs(actualPowerW.Value) : 0.0;
                 DischargePowerW = actualPowerW.Value > 0 ? actualPowerW.Value : 0.0;
+                HasActualPower = true;
             }
             else
             {
+                // For a measured quarter qi was built from the stored measurement, so these
+                // fields hold the measured power despite their "Planned" name. For a future
+                // quarter they hold the plan, which is not an actual reading.
                 ChargePowerW = qi.PlannedChargePowerW;
                 DischargePowerW = qi.PlannedDischargePowerW;
+                HasActualPower = qi.IsMeasured;
             }
 
             DisplayState = actualDisplayState ?? qi.GetDisplayMode() ?? string.Empty;
@@ -145,6 +150,13 @@ namespace SessyWeb.Pages
         public double ChargePowerW { get; }
         public double DischargePowerW { get; }
 
+        /// <summary>
+        /// True when ChargePowerW/DischargePowerW hold a real reading — a hardware value for the
+        /// executing quarter, or a stored measurement for a past one — rather than a copy of the
+        /// plan. False for future quarters.
+        /// </summary>
+        public bool HasActualPower { get; }
+
         // ── Planned values ────────────────────────────────────────────────────
         public string PlannedDisplayState { get; }
         public double PlannedChargeLeftWh { get; }
@@ -162,6 +174,10 @@ namespace SessyWeb.Pages
             DisplayState == "Discharging" ? 0.1 :
             DisplayState == "Zero net home" ? 0.03 : 0.0;
 
+        // Actual battery power. Only meaningful for quarters that have a real reading; the
+        // series binds to a filtered list (see ChargingHoursChartComponent.ActualPowerPoints)
+        // rather than returning null here — Radzen reads ValueProperty through a non-nullable
+        // getter in CartesianSeries.DataAt/TooltipY, so a null throws while the crosshair moves.
         public double ChargePowerVisual => -(ChargePowerW / 18000.0);
         public double DischargePowerVisual => DischargePowerW / 18000.0;
 

@@ -256,8 +256,18 @@ namespace SessyController.Services.Items
             => Mode == Modes.Charging ? SmoothedBuyingPrice : SmoothedSellingPrice;
 
         /// <summary>
-        /// Profit estimate for visualization (battery-only).
+        /// Cash-flow estimate for one quarter, for visualization only (battery-only).
         /// This is not used by the MILP; the MILP objective is computed directly.
+        ///
+        /// Both sides are split by where the energy actually goes, mirroring
+        /// MeasurementView.DischargeValueEur / GridChargeCostEur:
+        ///  - charging: only the grid-fed part costs money; solar surplus flowing into the
+        ///    battery never crosses the meter and is free.
+        ///  - discharging: the part covering the household deficit avoids an import at the
+        ///    buying price; only the remainder is exported at the selling price.
+        /// Valuing everything at a single price produced bogus figures in both directions —
+        /// large negative "revenue" for quarters storing their own solar, and understated
+        /// revenue for quarters merely covering the house.
         /// </summary>
         public double Profit
         {
@@ -268,7 +278,18 @@ namespace SessyController.Services.Items
                 double chargeKWh = (PlannedChargePowerW * 0.25) / 1000.0;
                 double dischargeKWh = (PlannedDischargePowerW * 0.25) / 1000.0;
 
-                return (dischargeKWh * SellingPrice) - (chargeKWh * BuyingPrice);
+                // NetLoadWh < 0 means solar surplus, > 0 means a household deficit.
+                double solarSurplusKWh = Math.Max(0.0, -NetLoadWh) / 1000.0;
+                double deficitKWh = Math.Max(0.0, NetLoadWh) / 1000.0;
+
+                double gridChargeKWh = Math.Max(0.0, chargeKWh - solarSurplusKWh);
+
+                double selfUsedKWh = Math.Min(dischargeKWh, deficitKWh);
+                double exportedKWh = dischargeKWh - selfUsedKWh;
+
+                return selfUsedKWh * BuyingPrice
+                     + exportedKWh * SellingPrice
+                     - gridChargeKWh * BuyingPrice;
             }
         }
 

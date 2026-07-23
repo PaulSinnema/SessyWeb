@@ -51,6 +51,18 @@ namespace SessyWeb.Components
 
         public bool ShowSellingPriceLabels { get; set; }
 
+        /// <summary>
+        /// The subset of QuarterlyInfos that carries a real power reading — a hardware value for
+        /// the executing quarter, a stored measurement for past ones. The actual-power series
+        /// binds to this so it simply ends at "now" instead of tracing the plan a second time.
+        ///
+        /// A filtered list rather than null/NaN values on the full set: Radzen resolves
+        /// ValueProperty through a non-nullable getter in CartesianSeries.DataAt/TooltipY, which
+        /// the crosshair calls for the nearest point by X regardless of whether that point is
+        /// drawn — a null there throws while merely moving the mouse.
+        /// </summary>
+        public List<QuarterlyInfoView> ActualPowerPoints { get; private set; } = new();
+
         public double ChartMin => -ChartMinMax;
         public double ChartMax => ChartMinMax;
 
@@ -179,6 +191,8 @@ namespace SessyWeb.Components
         protected override async Task OnParametersSetAsync()
         {
             var now = _timeZoneService!.Now;
+
+            ActualPowerPoints = QuarterlyInfos.Where(q => q.HasActualPower).ToList();
 
             var taxes = await _taxesDataService!.GetTaxesForDate(now).ConfigureAwait(false);
             if (taxes != null)

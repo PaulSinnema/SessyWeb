@@ -192,34 +192,39 @@
             </ChildContent>
         </RadzenAreaSeries>
 
-        <RadzenAreaSeries Data="@QuarterlyInfos"
+        @* Actual battery power, in the same colours as the planned areas. Bound to
+           ActualPowerPoints (only quarters with a real reading), so these end at "now" instead
+           of tracing the plan a second time across the future. *@
+        <RadzenAreaSeries Data="@ActualPowerPoints"
                           Smooth="true"
                           CategoryProperty="Time"
                           Fill="rgba(255, 102, 0, 0.5)"
                           Stroke="#ff6600"
-                          Title="Charge power (kW)"
+                          Title="Charge power actual (kW)"
                           ValueProperty="ChargePowerVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
             </TooltipTemplate>
             <ChildContent>
-                <RadzenMarkers Visible="false" />
+                @* Marker needed because without "Show all" only the executing quarter has a
+                   real reading — a one-point area renders as nothing. *@
+                <RadzenMarkers Visible="true" MarkerType="MarkerType.Circle" Size="4" />
                 <RadzenSeriesDataLabels Visible="false" />
             </ChildContent>
         </RadzenAreaSeries>
 
-        <RadzenAreaSeries Data="@QuarterlyInfos"
+        <RadzenAreaSeries Data="@ActualPowerPoints"
                           Smooth="true"
                           CategoryProperty="Time"
                           Fill="rgba(0, 204, 68, 0.5)"
                           Stroke="#00cc44"
-                          Title="Discharge power (kW)"
+                          Title="Discharge power actual (kW)"
                           ValueProperty="DischargePowerVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
             </TooltipTemplate>
             <ChildContent>
-                <RadzenMarkers Visible="false" />
+                <RadzenMarkers Visible="true" MarkerType="MarkerType.Circle" Size="4" />
                 <RadzenSeriesDataLabels Visible="false" />
             </ChildContent>
         </RadzenAreaSeries>

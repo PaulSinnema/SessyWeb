@@ -65,7 +65,25 @@ namespace SessyController.Services.Items
             }
         }
 
+        /// <summary>
+        /// Cost (EUR) of this quarter's battery charge. Only the part drawn from the grid is
+        /// paid for; a charge covered by solar surplus never crosses the meter and is free.
+        /// Mirror image of <see cref="DischargeValueEur"/> — the two must stay symmetric or
+        /// arbitrage figures gain a bias that has nothing to do with the battery.
+        /// </summary>
+        public double GridChargeCostEur
+        {
+            get
+            {
+                double charged = BatteryChargedKWh;
+                if (charged <= 0.0) return 0.0;
+
+                double fromGrid = Math.Min(GridImportKWh, charged);
+                return fromGrid * BuyingPriceEur;
+            }
+        }
+
         /// <summary>Net arbitrage value (EUR): discharge value minus grid-charge cost.</summary>
-        public double ArbitrageValueEur => DischargeValueEur - BatteryChargedKWh * BuyingPriceEur;
+        public double ArbitrageValueEur => DischargeValueEur - GridChargeCostEur;
     }
 }

@@ -5,6 +5,10 @@
 @inject IJSRuntime JSRuntime
 @inject IWebHostEnvironment HostEnvironment
 
+@{
+    string Version = "v1.0.12";
+}
+
 <AntiforgeryToken />
 
 <CascadingValue Value=@ScreenInfo Name="ScreenInfo" IsFixed=false>
@@ -61,7 +65,7 @@
                         }
                         @if (!isMobile)
                         {
-                            <RadzenText TextStyle="TextStyle.Caption" Style="margin-left: 10px; color:var(--rz-text-secondary-color)">v1.0.7</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Caption" Style="margin-left: 10px; color:var(--rz-text-secondary-color)">@Version</RadzenText>
                         }
                     </RadzenStack>
 
