@@ -257,14 +257,40 @@ namespace SessyController.Services
             };
         }
 
+        /// <summary>
+        /// Deviation between the live SOC and the SOC the plan expects *at this moment*.
+        ///
+        /// _plannedSocByQuarter holds the SOC at the END of each quarter, while currentSocWh is
+        /// sampled at an arbitrary point inside the running quarter. Comparing those two directly
+        /// reports a full quarter of (dis)charge as "deviation" even when execution is perfect —
+        /// at 4 kW that is ~1130 Wh, some 7% of a 16.2 kWh pack, right at the start of the
+        /// quarter. Because this same figure forces a rebuild above SocDeviationThresholdPct,
+        /// that phantom deviation also triggered spurious forced replans.
+        ///
+        /// So interpolate: walk from the previous quarter's end SOC to this quarter's end SOC in
+        /// proportion to how much of the quarter has elapsed.
+        /// </summary>
         public double GetCurrentSocDeviationPct(DateTime now, double currentSocWh)
         {
             double capacityWh = _batteryContainer.GetTotalCapacity();
             if (capacityWh <= 0) return 0.0;
+
             var nowQuarter = now.DateFloorQuarter();
-            if (_plannedSocByQuarter.TryGetValue(nowQuarter, out double expectedSocWh))
-                return Math.Abs(currentSocWh - expectedSocWh) / capacityWh * 100.0;
-            return 0.0;
+            if (!_plannedSocByQuarter.TryGetValue(nowQuarter, out double socEndWh))
+                return 0.0;
+
+            // Start of this quarter = end of the previous one. Without it (first quarter of the
+            // plan) there is nothing to interpolate from, so fall back to the end value.
+            double socStartWh = _plannedSocByQuarter.TryGetValue(nowQuarter.AddMinutes(-15), out double prevEndWh)
+                ? prevEndWh
+                : socEndWh;
+
+            double elapsedFraction = (now - nowQuarter).TotalMinutes / 15.0;
+            elapsedFraction = Math.Clamp(elapsedFraction, 0.0, 1.0);
+
+            double expectedSocWh = socStartWh + (socEndWh - socStartWh) * elapsedFraction;
+
+            return Math.Abs(currentSocWh - expectedSocWh) / capacityWh * 100.0;
         }
 
         public void Dispose() => _sessyBatteryConfigSubscription?.Dispose();
@@ -395,7 +421,7 @@ namespace SessyController.Services
                 int newCount = currentKnownTimes.Count(t => !_lastKnownPriceTimes.Contains(t));
                 reason = $"New EPEX prices arrived ({newCount} quarters)"; forced = true;
             }
-            else if (Math.Abs(GetCurrentSocDeviationPct(nowQuarter, currentSocWh)) > SocDeviationThresholdPct)
+            else if (Math.Abs(GetCurrentSocDeviationPct(_timeZoneService.Now, currentSocWh)) > SocDeviationThresholdPct)
             {
                 reason = $"SOC deviation exceeded {SocDeviationThresholdPct}%"; forced = true;
             }
