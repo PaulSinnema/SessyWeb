@@ -57,6 +57,13 @@ namespace SessyController.Services
         private Dictionary<DateTime, double> _minSocWhByTime = new();
         private Dictionary<DateTime, double> _maxSocWhByTime = new();
 
+        /// <summary>
+        /// Below this many Wh a (dis)charge is not worth issuing to the hardware: the setpoint
+        /// would be a trickle, and the inverter's own idle draw would eat it. Used by the
+        /// execution guards to decide between clamping the action and dropping it to ZeroNetHome.
+        /// </summary>
+        private const double MinimumUsefulWh = 25.0;
+
         private string? _lastRebuildReason;
         private DateTime? _lastBuildTime;
         private double _lastPlanObjectiveEur;
@@ -784,15 +791,35 @@ namespace SessyController.Services
                     return nzh;
                 }
 
-                if (socWh + chargeStepWh > maxSocWh + 0.001)
+                // Clamp the charge to the room that is actually left instead of rejecting it.
+                // Two earlier faults are fixed here: the test used chargeStepWh (FULL charging
+                // capacity) regardless of what was planned, and it was all-or-nothing — with
+                // room for 1647 Wh and a 1650 Wh step it charged 0 Wh, so the top of the battery
+                // was never reached. The discharge branch already sized itself from planned.PowerW.
+                double plannedChargeWh = planned.PowerW > 10 ? planned.PowerW * 0.25 : chargeStepWh;
+                double roomWh = maxSocWh - socWh;
+
+                if (roomWh <= MinimumUsefulWh)
                 {
                     _logger.LogWarning(
-                        $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: GUARD_CHARGE_WOULD_EXCEED_MAX → ZeroNetHome " +
-                        $"(socWh={socWh:F0}, chargeStepWh={chargeStepWh:F0}, maxSocWh={maxSocWh:F0})");
+                        $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: GUARD_CHARGE_NO_ROOM → ZeroNetHome " +
+                        $"(socWh={socWh:F0}, maxSocWh={maxSocWh:F0}, roomWh={roomWh:F0})");
                     var nzh = new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
                     qi?.SetMode(Modes.ZeroNetHome);
                     qi?.SetPlanPower(0, 0);
                     return nzh;
+                }
+
+                if (plannedChargeWh > roomWh)
+                {
+                    double clampedW = roomWh * 4.0;
+                    _logger.LogInformation(
+                        $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: charge clamped to remaining room " +
+                        $"({planned.PowerW:F0}W → {clampedW:F0}W, roomWh={roomWh:F0})");
+
+                    var clamped = new PlanAction { Mode = Modes.Charging, PowerW = clampedW };
+                    qi?.SetPlanPower(clampedW, 0);
+                    return clamped;
                 }
 
                 return planned;
@@ -802,18 +829,35 @@ namespace SessyController.Services
             {
                 double requiredWh = planned.PowerW > 10 ? planned.PowerW * 0.25 : dischargeStepWh;
 
-                // Same reasoning as the charging branch above: not persisted, so a transient
-                // SOC dip doesn't permanently forfeit the rest of this quarter's discharge.
-                if (socWh - requiredWh < minSocWh + 50.0)
+                // Clamp the discharge to the energy actually available above the reserve instead
+                // of rejecting it. The planner deliberately plans down to exactly minSoc, so the
+                // final discharge quarter always landed a few dozen Wh short of the old
+                // "minSocWh + 50" test and was dropped entirely — the bottom of the usable range
+                // was never delivered. Not persisted, so a transient SOC dip cannot forfeit the
+                // rest of the quarter.
+                double availableWh = socWh - minSocWh;
+
+                if (availableWh <= MinimumUsefulWh)
                 {
                     _logger.LogWarning(
-                        $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: GUARD_DISCHARGE_INSUFFICIENT_SOC → ZeroNetHome " +
-                        $"(plannedPowerW={planned.PowerW:F0}, socWh={socWh:F0}, requiredWh={requiredWh:F0}, minSocWh={minSocWh:F0}, " +
-                        $"headroomWh={(socWh - requiredWh - minSocWh):F0})");
+                        $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: GUARD_DISCHARGE_NO_ENERGY → ZeroNetHome " +
+                        $"(socWh={socWh:F0}, minSocWh={minSocWh:F0}, availableWh={availableWh:F0})");
                     var nzh = new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
                     qi?.SetMode(Modes.ZeroNetHome);
                     qi?.SetPlanPower(0, 0);
                     return nzh;
+                }
+
+                if (requiredWh > availableWh)
+                {
+                    double clampedW = availableWh * 4.0;
+                    _logger.LogInformation(
+                        $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: discharge clamped to available energy " +
+                        $"({planned.PowerW:F0}W → {clampedW:F0}W, availableWh={availableWh:F0})");
+
+                    var clamped = new PlanAction { Mode = Modes.Discharging, PowerW = clampedW };
+                    qi?.SetPlanPower(0, clampedW);
+                    return clamped;
                 }
 
                 // NOTE: the previous runtime FIFO cost-basis guard was removed here. It
