@@ -434,6 +434,17 @@ namespace SessyController.Services
 
             double previousObjective = _lastPlanObjectiveEur;
             int previousQuarterCount = _lastPlanQuarterCount;
+
+            // ApplySolveResult installs the new plan into _planByTime/_planSocWhByTime as soon as
+            // the solver returns — before the accept/reject decision below. Keep a copy so a
+            // rejected speculative solve can be undone completely. Without this the rejection only
+            // rolled back the objective bookkeeping while the rejected plan stayed in control of
+            // the batteries: the database kept showing the last accepted plan while execution
+            // silently followed a different one, and _plannedSocByQuarter (refreshed only on an
+            // accepted rebuild) drifted away from the plan actually being executed.
+            var previousPlanByTime = new Dictionary<DateTime, PlanAction>(_planByTime);
+            var previousPlanSocWhByTime = new Dictionary<DateTime, double>(_planSocWhByTime);
+
             _logger.LogInformation($"Solving plan: {reason} (forced={forced})");
 
             bool built = await BuildMilpPlanAsync(currentSocWh).ConfigureAwait(false);
@@ -458,11 +469,20 @@ namespace SessyController.Services
 
                 if (previousRate > 0 && newRate <= previousRate)
                 {
-                    _logger.LogInformation(
+                    _logger.LogWarning(
                         $"Speculative solve rejected: {newRate:F4} <= {previousRate:F4} EUR/quarter " +
                         $"({_lastPlanObjectiveEur:F4}/{_lastPlanQuarterCount} <= {previousObjective:F4}/{previousQuarterCount}).");
+
+                    _planByTime = previousPlanByTime;
+                    _planSocWhByTime = previousPlanSocWhByTime;
                     _lastPlanObjectiveEur = previousObjective;
                     _lastPlanQuarterCount = previousQuarterCount;
+
+                    // The solve also wrote its modes, powers and SOC path onto _quarterlyInfos.
+                    // Re-derive those from the restored plan, otherwise the runtime guards and the
+                    // UI keep reading values belonging to the plan we just threw away.
+                    await WriteBackSocSimulationAsync(currentSocWh).ConfigureAwait(false);
+
                     return false;
                 }
             }
@@ -839,7 +859,7 @@ namespace SessyController.Services
                 if (plannedChargeWh > roomWh)
                 {
                     double clampedW = roomWh * 4.0;
-                    _logger.LogInformation(
+                    _logger.LogWarning(
                         $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: charge clamped to remaining room " +
                         $"({planned.PowerW:F0}W → {clampedW:F0}W, roomWh={roomWh:F0})");
 
@@ -877,7 +897,7 @@ namespace SessyController.Services
                 if (requiredWh > availableWh)
                 {
                     double clampedW = availableWh * 4.0;
-                    _logger.LogInformation(
+                    _logger.LogWarning(
                         $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: discharge clamped to available energy " +
                         $"({planned.PowerW:F0}W → {clampedW:F0}W, availableWh={availableWh:F0})");
 
