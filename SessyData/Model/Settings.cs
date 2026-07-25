@@ -65,10 +65,6 @@ namespace SessyData.Model
         [SkipCopy]
         public string? ManualNetZeroHomeHours { get; set; }
 
-        // ── Legacy — kept for backwards compatibility ──────────────────────
-        [SkipCopy]
-        public string? Hours { get; set; }
-
         // ── General ───────────────────────────────────────────────────────────
         public string? TimeZone { get; set; }
 
