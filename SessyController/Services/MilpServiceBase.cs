@@ -53,15 +53,16 @@ namespace SessyController.Services
         // the displayed SOC matches the plan exactly (single source of truth).
         private Dictionary<DateTime, double> _planSocWhByTime = new();
         private Dictionary<DateTime, double> _plannedSocByQuarter = new();
+
+        // SOC the current plan started from, and the quarter it starts at. The horizon begins at
+        // the current quarter, so that quarter has no predecessor in _plannedSocByQuarter.
+        private double _planStartSocWh;
+        private DateTime _planStartQuarter = DateTime.MinValue;
         private Dictionary<DateTime, bool> _nettingByTime = new();
         private Dictionary<DateTime, double> _minSocWhByTime = new();
         private Dictionary<DateTime, double> _maxSocWhByTime = new();
 
-        /// <summary>
-        /// Below this many Wh a (dis)charge is not worth issuing to the hardware: the setpoint
-        /// would be a trickle, and the inverter's own idle draw would eat it. Used by the
-        /// execution guards to decide between clamping the action and dropping it to ZeroNetHome.
-        /// </summary>
+        /// <summary>Below this many Wh a (dis)charge is not worth issuing; guards drop to ZeroNetHome.</summary>
         private const double MinimumUsefulWh = 25.0;
 
         private string? _lastRebuildReason;
@@ -198,6 +199,8 @@ namespace SessyController.Services
             _lastBuildTime = null;
             _lastPlanObjectiveEur = 0.0;
             _lastPlanQuarterCount = 0;
+            _planStartQuarter = DateTime.MinValue;
+            _planStartSocWh = 0.0;
             _lastSpeculativeSolveQuarter = null;
             _lastKnownPriceTimes = new();
             await _plannedActionDataService.ClearPlanAsync().ConfigureAwait(false);
@@ -258,17 +261,10 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Deviation between the live SOC and the SOC the plan expects *at this moment*.
-        ///
-        /// _plannedSocByQuarter holds the SOC at the END of each quarter, while currentSocWh is
-        /// sampled at an arbitrary point inside the running quarter. Comparing those two directly
-        /// reports a full quarter of (dis)charge as "deviation" even when execution is perfect —
-        /// at 4 kW that is ~1130 Wh, some 7% of a 16.2 kWh pack, right at the start of the
-        /// quarter. Because this same figure forces a rebuild above SocDeviationThresholdPct,
-        /// that phantom deviation also triggered spurious forced replans.
-        ///
-        /// So interpolate: walk from the previous quarter's end SOC to this quarter's end SOC in
-        /// proportion to how much of the quarter has elapsed.
+        /// Deviation between live SOC and the SOC the plan expects at this moment.
+        /// _plannedSocByQuarter holds END-of-quarter SOC, so interpolate from the previous
+        /// quarter's end value by elapsed fraction; comparing directly reports a full quarter
+        /// of (dis)charge as deviation and triggers phantom forced replans.
         /// </summary>
         public double GetCurrentSocDeviationPct(DateTime now, double currentSocWh)
         {
@@ -279,11 +275,15 @@ namespace SessyController.Services
             if (!_plannedSocByQuarter.TryGetValue(nowQuarter, out double socEndWh))
                 return 0.0;
 
-            // Start of this quarter = end of the previous one. Without it (first quarter of the
-            // plan) there is nothing to interpolate from, so fall back to the end value.
-            double socStartWh = _plannedSocByQuarter.TryGetValue(nowQuarter.AddMinutes(-15), out double prevEndWh)
-                ? prevEndWh
-                : socEndWh;
+            // Start of this quarter = end of the previous one; for the first quarter of the plan
+            // that is the SOC the solve started from.
+            double socStartWh;
+            if (_plannedSocByQuarter.TryGetValue(nowQuarter.AddMinutes(-15), out double prevEndWh))
+                socStartWh = prevEndWh;
+            else if (nowQuarter == _planStartQuarter)
+                socStartWh = _planStartSocWh;
+            else
+                socStartWh = socEndWh;
 
             double elapsedFraction = (now - nowQuarter).TotalMinutes / 15.0;
             elapsedFraction = Math.Clamp(elapsedFraction, 0.0, 1.0);
@@ -435,15 +435,12 @@ namespace SessyController.Services
             double previousObjective = _lastPlanObjectiveEur;
             int previousQuarterCount = _lastPlanQuarterCount;
 
-            // ApplySolveResult installs the new plan into _planByTime/_planSocWhByTime as soon as
-            // the solver returns — before the accept/reject decision below. Keep a copy so a
-            // rejected speculative solve can be undone completely. Without this the rejection only
-            // rolled back the objective bookkeeping while the rejected plan stayed in control of
-            // the batteries: the database kept showing the last accepted plan while execution
-            // silently followed a different one, and _plannedSocByQuarter (refreshed only on an
-            // accepted rebuild) drifted away from the plan actually being executed.
+            // ApplySolveResult installs the new plan before the accept/reject decision below,
+            // so keep a copy: a rejected solve must not stay in control of the batteries.
             var previousPlanByTime = new Dictionary<DateTime, PlanAction>(_planByTime);
             var previousPlanSocWhByTime = new Dictionary<DateTime, double>(_planSocWhByTime);
+            var previousPlanStartQuarter = _planStartQuarter;
+            double previousPlanStartSocWh = _planStartSocWh;
 
             _logger.LogInformation($"Solving plan: {reason} (forced={forced})");
 
@@ -457,11 +454,8 @@ namespace SessyController.Services
                 return false;
             }
 
-            // Compare €/quarter, not the raw total: the remaining horizon shrinks every quarter
-            // (fixed calendar window, shorter "future" as the day progresses), so a later solve's
-            // total is naturally smaller than an earlier one even when it makes strictly better use
-            // of the current situation. Comparing rates keeps the guard meaningful across horizon
-            // lengths instead of freezing the plan at whichever solve happened to see the most hours.
+            // Compare EUR/quarter, not the raw total: the horizon shrinks as the day progresses,
+            // so a later solve's total is smaller even when it is strictly better.
             if (!forced && previousQuarterCount > 0 && _lastPlanQuarterCount > 0)
             {
                 double previousRate = previousObjective / previousQuarterCount;
@@ -477,6 +471,8 @@ namespace SessyController.Services
                     _planSocWhByTime = previousPlanSocWhByTime;
                     _lastPlanObjectiveEur = previousObjective;
                     _lastPlanQuarterCount = previousQuarterCount;
+                    _planStartQuarter = previousPlanStartQuarter;
+                    _planStartSocWh = previousPlanStartSocWh;
 
                     // The solve also wrote its modes, powers and SOC path onto _quarterlyInfos.
                     // Re-derive those from the restored plan, otherwise the runtime guards and the
@@ -604,6 +600,8 @@ namespace SessyController.Services
             _planSocWhByTime = newSoc;
             _lastPlanObjectiveEur = result.ObjectiveEur;
             _lastPlanQuarterCount = quarterCount;
+            _planStartQuarter = newSoc.Count > 0 ? newSoc.Keys.Min() : DateTime.MinValue;
+            _planStartSocWh = socKWh * 1000.0;   // parameter is kWh, this field is Wh
             return true;
         }
 
@@ -819,13 +817,8 @@ namespace SessyController.Services
             if (planned.Mode == Modes.Charging)
             {
                 // Don't actively charge when solar surplus is already filling the battery.
-                // NOTE: intentionally NOT written into _planByTime — this is a live safety
-                // check, not a plan revision. Overwriting the stored plan here would make a
-                // single, possibly transient trip (a noisy SOC reading, a momentary reading lag)
-                // stick for the rest of the quarter, since every later tick in the same quarter
-                // would then check against the already-downgraded action instead of the original
-                // plan. Returning the downgrade without persisting it lets each tick re-evaluate
-                // the real, current state fresh.
+                // Deliberately not written into _planByTime: a transient trip must not stick
+                // for the rest of the quarter.
                 if (qi != null && qi.NetLoadWh < -chargeStepWh)
                 {
                     _logger.LogWarning(
@@ -837,11 +830,8 @@ namespace SessyController.Services
                     return nzh;
                 }
 
-                // Clamp the charge to the room that is actually left instead of rejecting it.
-                // Two earlier faults are fixed here: the test used chargeStepWh (FULL charging
-                // capacity) regardless of what was planned, and it was all-or-nothing — with
-                // room for 1647 Wh and a 1650 Wh step it charged 0 Wh, so the top of the battery
-                // was never reached. The discharge branch already sized itself from planned.PowerW.
+                // Clamp to the remaining room; size from planned power, not full capacity.
+                // All-or-nothing rejection left the top of the battery unreachable.
                 double plannedChargeWh = planned.PowerW > 10 ? planned.PowerW * 0.25 : chargeStepWh;
                 double roomWh = maxSocWh - socWh;
 
@@ -875,12 +865,8 @@ namespace SessyController.Services
             {
                 double requiredWh = planned.PowerW > 10 ? planned.PowerW * 0.25 : dischargeStepWh;
 
-                // Clamp the discharge to the energy actually available above the reserve instead
-                // of rejecting it. The planner deliberately plans down to exactly minSoc, so the
-                // final discharge quarter always landed a few dozen Wh short of the old
-                // "minSocWh + 50" test and was dropped entirely — the bottom of the usable range
-                // was never delivered. Not persisted, so a transient SOC dip cannot forfeit the
-                // rest of the quarter.
+                // Clamp to the energy available above the reserve. The planner plans down to
+                // exactly minSoc, so an extra fixed margin dropped the last discharge quarter.
                 double availableWh = socWh - minSocWh;
 
                 if (availableWh <= MinimumUsefulWh)
@@ -906,24 +892,15 @@ namespace SessyController.Services
                     return clamped;
                 }
 
-                // NOTE: the previous runtime FIFO cost-basis guard was removed here. It
-                // re-checked the current quarter against only the *oldest* layer price, a
-                // cruder gate than the solver's own comparison across the whole horizon.
-                // Acquisition cost is handled in the planner instead: energy charged inside
-                // the horizon is priced at the real quarter price (Candidate B), and energy
-                // already in the battery carries SessyOptions.StockCostEurPerKWh — the FIFO
-                // weighted-average — as a reservation price (Candidate A).
+                // Former runtime FIFO guard removed: acquisition cost is handled in the planner
+                // (Candidate B real price, Candidate A via SessyOptions.StockCostEurPerKWh).
 
                 return planned;
             }
 
-            // ZeroNetHome — decide between ZNH (store surplus) and Disabled (battery off).
-            //
-            // The forecast for the current quarter can be badly wrong (e.g. solar forecast
-            // far too low on a sunny day), which would wrongly flag a deficit and Disable the
-            // battery — exporting solar surplus to the grid for almost nothing. Base this
-            // decision on the measured NetLoad of the last completed quarter instead, which
-            // reflects the real situation right now.
+            // ZeroNetHome — choose between ZNH (store surplus) and Disabled (battery off).
+            // Uses the measured NetLoad of the last completed quarter: the current quarter's
+            // forecast can be badly wrong and would wrongly Disable the battery.
             if (qi != null)
             {
                 var prevQuarter = _quarterlyInfos
