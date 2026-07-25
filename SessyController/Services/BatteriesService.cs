@@ -546,7 +546,7 @@ namespace SessyController.Services
 
             return _quarterlyInfos
                 .OrderBy(q => q.Time)
-                .FirstOrDefault(q => q.Time >= now && _milpService.HasPlanFor(q.Time));
+                .FirstOrDefault(q => q.Time > now && _milpService.HasPlanFor(q.Time));
         }
 
         public async Task<double> getBatteryPercentage()
