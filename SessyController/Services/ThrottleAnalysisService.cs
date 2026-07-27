@@ -34,7 +34,23 @@ namespace SessyController.Services
         private const double MaxSocPct = 90.0;     // ignore near-full battery (not a throttle)
         private const double EmaAlpha = 0.2;       // EMA weight for newest sample
         private const int LookbackDays = 31;       // short horizon so cooling resolves within a month
-        private const int MinTaperSamples = 20;    // below this the taper fit is not trustworthy
+        private const int MinTaperSamples = 60;    // three regressors need more data than one
+        private const int MinSocOnlySamples = 20;  // enough for the SOC-only fallback fit
+        private const int Mean48hHours = 48;       // window for the heat build-up term
+
+        // The house terms (C, D) are fitted over a long window, but not an unbounded one: a
+        // change to the room — air conditioning, insulation — makes all older samples wrong.
+        // Samples are weighted by age with an exponential half-life, so such a change works
+        // through in months instead of being averaged away for years, while a full seasonal
+        // cycle still carries measurable weight.
+        private const int TaperHistoryDays = 730;      // hard cap: two years
+        private const double TaperHalfLifeDays = 120;  // a sample this old counts for half
+
+        /// <summary>How long a fitted taper stays valid; the long window barely moves per quarter.</summary>
+        private static readonly TimeSpan TaperCacheTime = TimeSpan.FromHours(6);
+
+        private ChargeTaper? _cachedTaper;
+        private DateTime _cachedTaperAt = DateTime.MinValue;
 
         public ThrottleAnalysisService(
             PlannedQuarterDataService plannedQuarterDataService,
@@ -147,27 +163,145 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Fits the charge taper: how the available charge power falls off as the battery fills.
-        /// Least squares on (socFraction, realized/requested) over the look-back window.
+        /// Fits the charge taper:
+        ///
+        ///     ratio = A - B * soc - C * (temp - ref) - D * (t48 - temp)
+        ///
+        /// The terms live on different timescales, so they are fitted over different windows:
+        ///
+        ///   C, D  — how the building stores heat. A property of the house, not of the battery:
+        ///           it only changes when the room is insulated or cooled. Fitted over ALL
+        ///           available history, so the picture keeps sharpening over the years and
+        ///           eventually covers winter as well as summer.
+        ///   A, B  — the CC/CV taper of the battery itself, which does drift (degradation,
+        ///           firmware). Fitted over the recent window only, with C and D held fixed so
+        ///           a hot spell cannot masquerade as battery wear.
         ///
         /// Deliberately does NOT apply the MinSocPct/MaxSocPct window used for the temperature
         /// buckets — the taper is strongest exactly at the high SOC that window excludes.
-        /// Returns ChargeTaper.None when there are too few samples or the fit shows no fall-off,
-        /// so the planner then behaves exactly as before.
+        ///
+        /// Falls back in steps: no long-window fit → fit everything on the recent window; too
+        /// few samples or a singular system → the SOC-only fit; no fall-off with SOC →
+        /// ChargeTaper.None, which makes the planner behave as before.
+        ///
+        /// The result is cached: the long window grows without bound and the fit barely moves
+        /// from one quarter to the next.
         /// </summary>
         public async Task<ChargeTaper> GetChargeTaperAsync()
         {
             var now = _timeZoneService.Now;
-            var start = now.AddDays(-LookbackDays);
+
+            if (_cachedTaper != null && now - _cachedTaperAt < TaperCacheTime)
+                return _cachedTaper;
+
+            var taper = await FitChargeTaperAsync(now).ConfigureAwait(false);
+
+            _cachedTaper = taper;
+            _cachedTaperAt = now;
+
+            return taper;
+        }
+
+        private async Task<ChargeTaper> FitChargeTaperAsync(DateTime now)
+        {
+            double capacity = _batteryContainer.GetTotalCapacity();
+            if (capacity <= 0) return ChargeTaper.None;
+
+            var samples = await CollectSamplesAsync(now, capacity).ConfigureAwait(false);
+            if (samples.Count == 0) return ChargeTaper.None;
+
+            var recentFrom = now.AddDays(-LookbackDays);
+            var recent = samples.Where(s => s.Time >= recentFrom).ToList();
+
+            // Step 1: house behaviour over the long window, samples weighted by age.
+            var weights = samples
+                .Select(s => Math.Pow(0.5, (now - s.Time).TotalDays / TaperHalfLifeDays))
+                .ToList();
+
+            var longFit = samples.Count >= MinTaperSamples
+                ? SolveLeastSquares(BuildDesign(samples), samples.Select(s => s.Ratio).ToList(), weights)
+                : null;
+
+            if (longFit == null || longFit[1] >= 0.0)
+            {
+                // No usable long fit — fall back to fitting everything on the recent window.
+                return FitAllOnRecent(recent.Count >= MinTaperSamples ? recent : samples);
+            }
+
+            // Warmer meaning MORE power is not physical — drop that term rather than the whole
+            // fit, so the SOC taper survives a noisy temperature season.
+            double c = longFit[2] < 0.0 ? -longFit[2] : 0.0;
+            double d = longFit[3] < 0.0 ? -longFit[3] : 0.0;
+
+            // Step 2: battery taper on the recent window, temperature terms held fixed. Subtract
+            // their contribution first, then a plain line through (soc, corrected ratio).
+            var forSocFit = recent.Count >= MinSocOnlySamples ? recent : samples;
+
+            var corrected = forSocFit
+                .Select(s => (
+                    s.Soc,
+                    Ratio: s.Ratio
+                         + c * (s.Temp - ChargeTaper.RefTemperatureC)
+                         + d * (s.Mean48h - s.Temp)))
+                .ToList();
+
+            if (!TryFitLine(corrected, out double a, out double socSlope) || socSlope >= 0.0)
+                return new ChargeTaper(longFit[0], -longFit[1], c, d, samples.Count);
+
+            return new ChargeTaper(a, -socSlope, c, d, samples.Count);
+        }
+
+        /// <summary>
+        /// Fits all four coefficients on a single sample set — used when the two-window split is
+        /// not available.
+        /// </summary>
+        private static ChargeTaper FitAllOnRecent(
+            IReadOnlyList<(DateTime Time, double Soc, double Temp, double Mean48h, double Ratio)> samples)
+        {
+            if (samples.Count < MinTaperSamples) return FitSocOnly(samples);
+
+            var coefficients = SolveLeastSquares(BuildDesign(samples), samples.Select(s => s.Ratio).ToList());
+            if (coefficients == null) return FitSocOnly(samples);
+
+            if (coefficients[1] >= 0.0) return ChargeTaper.None;
+
+            double c = coefficients[2] < 0.0 ? -coefficients[2] : 0.0;
+            double d = coefficients[3] < 0.0 ? -coefficients[3] : 0.0;
+
+            return new ChargeTaper(coefficients[0], -coefficients[1], c, d, samples.Count);
+        }
+
+        private static List<double[]> BuildDesign(
+            IReadOnlyList<(DateTime Time, double Soc, double Temp, double Mean48h, double Ratio)> samples)
+            => samples
+                .Select(s => new[]
+                {
+                    1.0,
+                    s.Soc,
+                    s.Temp - ChargeTaper.RefTemperatureC,
+                    s.Mean48h - s.Temp
+                })
+                .ToList();
+
+        /// <summary>
+        /// Loads every usable charge sample and pairs it with the temperature at that moment and
+        /// the mean over the preceding 48 hours.
+        /// </summary>
+        private async Task<List<(DateTime Time, double Soc, double Temp, double Mean48h, double Ratio)>>
+            CollectSamplesAsync(DateTime now, double capacity)
+        {
+            var historyStart = now.AddDays(-TaperHistoryDays);
 
             var plans = await _plannedQuarterDataService.GetList(async set =>
-                await Task.FromResult(set
-                    .Where(p => p.Time >= start && p.Time <= now)
-                    .ToList()));
+                await Task.FromResult(set.Where(p => p.Time >= historyStart && p.Time <= now).ToList()));
 
             var measurements = await _measurementDataService.GetList(async set =>
+                await Task.FromResult(set.Where(m => m.Time >= historyStart && m.Time <= now).ToList()));
+
+            // Reaches back an extra 48 hours so the oldest sample still has a full window.
+            var consumptions = await _consumptionDataService.GetList(async set =>
                 await Task.FromResult(set
-                    .Where(m => m.Time >= start && m.Time <= now)
+                    .Where(c => c.Time >= historyStart.AddHours(-Mean48hHours) && c.Time <= now)
                     .ToList()));
 
             var planByTime = plans
@@ -180,14 +314,24 @@ namespace SessyController.Services
                         : p.PlannedPowerW;
                 });
 
-            double capacity = _batteryContainer.GetTotalCapacity();
-            if (capacity <= 0) return ChargeTaper.None;
+            var temperatures = consumptions
+                .Where(c => c.Temperature > -50.0)          // drop the -999 sentinel
+                .OrderBy(c => c.Time)
+                .Select(c => (c.Time, Temp: (double)c.Temperature))
+                .ToList();
 
-            // Sums for the least-squares fit of ratio = a - b * socFraction.
-            double sx = 0.0, sy = 0.0, sxx = 0.0, sxy = 0.0;
-            int n = 0;
+            // Prefix sums over the temperature series, so each 48-hour mean costs two binary
+            // searches instead of a scan. Without this the fit is quadratic in the history
+            // length, which stops being acceptable once there are years of data.
+            var prefix = new double[temperatures.Count + 1];
+            for (int i = 0; i < temperatures.Count; i++)
+                prefix[i + 1] = prefix[i] + temperatures[i].Temp;
 
-            foreach (var m in measurements)
+            var times = temperatures.Select(t => t.Time).ToList();
+
+            var samples = new List<(DateTime, double, double, double, double)>();
+
+            foreach (var m in measurements.OrderBy(m => m.Time))
             {
                 if (m.BatteryMode != Modes.Charging) continue;
                 if (!planByTime.TryGetValue(m.Time, out var requestedW)) continue;
@@ -196,28 +340,182 @@ namespace SessyController.Services
                 double socFraction = m.BatteryStateOfChargeWh / capacity;
                 if (socFraction < 0.0 || socFraction > 1.0) continue;
 
-                double ratio = Math.Min(Math.Abs(m.BatteryPowerWatts) / requestedW, 1.0);
+                if (!TryMean48h(times, temperatures, prefix, m.Time, out double temp, out double mean48h))
+                    continue;
 
-                sx += socFraction;
-                sy += ratio;
-                sxx += socFraction * socFraction;
-                sxy += socFraction * ratio;
-                n++;
+                samples.Add((
+                    m.Time,
+                    socFraction,
+                    temp,
+                    mean48h,
+                    Math.Min(Math.Abs(m.BatteryPowerWatts) / requestedW, 1.0)));
             }
 
-            if (n < MinTaperSamples) return ChargeTaper.None;
+            return samples;
+        }
 
+        /// <summary>Least squares through (x, y) — returns false when x has no spread.</summary>
+        private static bool TryFitLine(
+            IReadOnlyList<(double Soc, double Ratio)> points, out double intercept, out double slope)
+        {
+            intercept = 0.0;
+            slope = 0.0;
+
+            int n = points.Count;
+            if (n < 2) return false;
+
+            double sx = 0.0, sy = 0.0, sxx = 0.0, sxy = 0.0;
+            foreach (var (x, y) in points)
+            {
+                sx += x;
+                sy += y;
+                sxx += x * x;
+                sxy += x * y;
+            }
+
+            double denominator = n * sxx - sx * sx;
+            if (Math.Abs(denominator) < 1e-9) return false;
+
+            slope = (n * sxy - sx * sy) / denominator;
+            intercept = (sy - slope * sx) / n;
+            return true;
+        }
+
+        /// <summary>
+        /// Measured outside temperatures in a time range, oldest first. The planner needs these to
+        /// build the 48-hour mean for quarters whose window reaches into the past; the forecast
+        /// only covers the future.
+        /// </summary>
+        public async Task<List<(DateTime Time, double Temperature)>> GetMeasuredTemperaturesAsync(
+            DateTime from, DateTime to)
+        {
+            var consumptions = await _consumptionDataService.GetList(async set =>
+                await Task.FromResult(set
+                    .Where(c => c.Time >= from && c.Time <= to)
+                    .ToList()));
+
+            return consumptions
+                .Where(c => c.Temperature > -50.0)          // drop the -999 sentinel
+                .OrderBy(c => c.Time)
+                .Select(c => (c.Time, (double)c.Temperature))
+                .ToList();
+        }
+
+        /// <summary>Length of the heat build-up window, so callers can size their history query.</summary>
+        public static int Mean48hWindowHours => Mean48hHours;
+
+        /// <summary>
+        /// Mean temperature over the 48 hours before <paramref name="time"/>, plus the temperature
+        /// at that moment. False when either is missing.
+        /// </summary>
+        private static bool TryMean48h(
+            List<DateTime> times,
+            List<(DateTime Time, double Temp)> temperatures,
+            double[] prefix,
+            DateTime time,
+            out double temperature,
+            out double mean48h)
+        {
+            temperature = 0.0;
+            mean48h = 0.0;
+
+            int index = times.BinarySearch(time);
+            if (index < 0) return false;                    // no measurement at this quarter
+
+            temperature = temperatures[index].Temp;
+
+            int from = times.BinarySearch(time.AddHours(-Mean48hHours));
+            if (from < 0) from = ~from;                     // first entry inside the window
+
+            int count = index - from + 1;
+            if (count <= 0) return false;
+
+            mean48h = (prefix[index + 1] - prefix[from]) / count;
+            return true;
+        }
+
+        /// <summary>
+        /// Fallback fit on SOC alone — used when the three-regressor system cannot be solved or
+        /// there is not enough data for it.
+        /// </summary>
+        private static ChargeTaper FitSocOnly(
+            IReadOnlyList<(DateTime Time, double Soc, double Temp, double Mean48h, double Ratio)> samples)
+        {
+            if (samples.Count < MinSocOnlySamples) return ChargeTaper.None;
+
+            double sx = 0.0, sy = 0.0, sxx = 0.0, sxy = 0.0;
+            foreach (var s in samples)
+            {
+                sx += s.Soc;
+                sy += s.Ratio;
+                sxx += s.Soc * s.Soc;
+                sxy += s.Soc * s.Ratio;
+            }
+
+            int n = samples.Count;
             double denominator = n * sxx - sx * sx;
             if (Math.Abs(denominator) < 1e-9) return ChargeTaper.None;
 
-            double slope = (n * sxy - sx * sy) / denominator;      // negative when power tapers
-            double intercept = (sy - slope * sx) / n;
-
-            // A rising or flat fit means no taper was observed; don't let noise raise the caps
-            // above nameplate.
+            double slope = (n * sxy - sx * sy) / denominator;
             if (slope >= 0.0) return ChargeTaper.None;
 
-            return new ChargeTaper(intercept, -slope, n);
+            double intercept = (sy - slope * sx) / n;
+            return new ChargeTaper(intercept, -slope, 0.0, 0.0, n);
+        }
+
+        /// <summary>
+        /// Ordinary least squares via the normal equations, solved with Gaussian elimination and
+        /// partial pivoting. Returns null when the system is singular or near-singular.
+        /// </summary>
+        internal static double[]? SolveLeastSquares(
+            IReadOnlyList<double[]> design, IReadOnlyList<double> y, IReadOnlyList<double>? weights = null)
+        {
+            int k = design[0].Length;
+            var matrix = new double[k, k + 1];
+
+            for (int row = 0; row < k; row++)
+            {
+                for (int col = 0; col < k; col++)
+                {
+                    double sum = 0.0;
+                    for (int i = 0; i < design.Count; i++)
+                        sum += (weights?[i] ?? 1.0) * design[i][row] * design[i][col];
+                    matrix[row, col] = sum;
+                }
+
+                double rhs = 0.0;
+                for (int i = 0; i < design.Count; i++)
+                    rhs += (weights?[i] ?? 1.0) * design[i][row] * y[i];
+                matrix[row, k] = rhs;
+            }
+
+            for (int pivot = 0; pivot < k; pivot++)
+            {
+                int best = pivot;
+                for (int row = pivot + 1; row < k; row++)
+                    if (Math.Abs(matrix[row, pivot]) > Math.Abs(matrix[best, pivot]))
+                        best = row;
+
+                if (Math.Abs(matrix[best, pivot]) < 1e-9) return null;
+
+                if (best != pivot)
+                    for (int col = 0; col <= k; col++)
+                        (matrix[pivot, col], matrix[best, col]) = (matrix[best, col], matrix[pivot, col]);
+
+                for (int row = 0; row < k; row++)
+                {
+                    if (row == pivot) continue;
+                    double factor = matrix[row, pivot] / matrix[pivot, pivot];
+                    for (int col = pivot; col <= k; col++)
+                        matrix[row, col] -= factor * matrix[pivot, col];
+                }
+            }
+
+            var result = new double[k];
+            for (int i = 0; i < k; i++)
+                result[i] = matrix[i, k] / matrix[i, i];
+
+            return result;
         }
 
         /// <summary>

@@ -110,10 +110,19 @@ namespace SessyController.Services
                     _logger.LogInformation(
                         $"Charge taper fitted on {chargeTaper.Samples} samples: " +
                         $"ratio = {chargeTaper.A:F3} - {chargeTaper.B:F3} * soc " +
-                        $"({chargeTaper.Ratio(0.2):F2} at 20% SOC, {chargeTaper.Ratio(0.8):F2} at 80%).");
+                        $"- {chargeTaper.C:F4} * (temp - {ChargeTaper.RefTemperatureC:F0}) " +
+                        $"- {chargeTaper.D:F4} * (t48 - temp) " +
+                        $"({chargeTaper.Ratio(0.2):F2} at 20% SOC, {chargeTaper.Ratio(0.8):F2} at 80%, " +
+                        $"{chargeTaper.Ratio(0.5, 30.0, 28.0):F2} at 50% SOC in a heatwave).");
+
+                // Temperatures for the heat build-up term: measured history for the part of the
+                // 48-hour window that lies in the past, forecast for the rest.
+                var temperatureByHour = await BuildTemperatureSeriesAsync(quarters, nowQuarter)
+                    .ConfigureAwait(false);
 
                 _throttleRatioByTime.Clear();
                 _chargeThrottleRatioByTime.Clear();
+                _taperInputsByTime.Clear();
 
                 double throttleFallback = _settingsConfig.ThrottleFallbackPct > 0.0
                     ? _settingsConfig.ThrottleFallbackPct / 100.0
@@ -131,30 +140,35 @@ namespace SessyController.Services
                     var temp = _weatherService.GetTemperature(q.Time);
                     if (temp.HasValue)
                     {
-                        // Use the measured throttle ratio when this temperature has samples.
-                        // Otherwise fall back to the configured estimate — assuming no throttle
-                        // at all would make the planner request power the battery cannot deliver.
-                        if (!_throttleAnalysisService.TryGetChargeRatio(throttleBuckets, temp.Value, out double chargeRatio))
-                            chargeRatio = throttleFallback;
-
+                        // Discharge keeps the temperature buckets: the SOC signal is weak there.
+                        // Fall back to the configured estimate when this temperature has no
+                        // samples — assuming no throttle at all would make the planner request
+                        // power the battery cannot deliver.
                         if (!_throttleAnalysisService.TryGetDischargeRatio(throttleBuckets, temp.Value, out double dischargeRatio))
                             dischargeRatio = throttleFallback;
 
-                        // With a measured taper the planner derates the charge side itself, per
-                        // quarter, from the SOC it has reached there — a temperature ratio on top
-                        // would derate twice.
-                        if (chargeTaper.Samples > 0)
-                            chargeRatio = 1.0;
-
-                        qMaxChargeKW = maxChargeKW * chargeRatio;
                         qMaxDischargeKW = maxDischargeKW * dischargeRatio;
-
-                        // Store the direction-appropriate ratio so the throttle-free target
-                        // power can be recovered later. Discharge ratio is used by default;
-                        // the writeback picks the right one based on the executed mode.
                         _throttleRatioByTime[q.Time] = dischargeRatio;
-                        _chargeThrottleRatioByTime[q.Time] = chargeRatio;
+
+                        // Charge side: with a measured taper the planner derates per quarter from
+                        // the SOC and temperatures it has there, so no cap is imposed here — a
+                        // temperature ratio on top would derate twice. Without a taper the old
+                        // bucket ratio still applies.
+                        if (chargeTaper.Samples == 0)
+                        {
+                            if (!_throttleAnalysisService.TryGetChargeRatio(throttleBuckets, temp.Value, out double chargeRatio))
+                                chargeRatio = throttleFallback;
+
+                            qMaxChargeKW = maxChargeKW * chargeRatio;
+                            _chargeThrottleRatioByTime[q.Time] = chargeRatio;
+                        }
                     }
+
+                    double? quarterTemp = temp ?? Mean(temperatureByHour, q.Time, q.Time);
+                    double? mean48h = Mean(temperatureByHour, q.Time.AddHours(-Mean48hHours), q.Time);
+
+                    if (quarterTemp.HasValue)
+                        _taperInputsByTime[q.Time] = (quarterTemp.Value, mean48h ?? quarterTemp.Value);
 
                     // Predicted quarters carry price uncertainty.
                     //   Off        → reserve-only (no trading; horizon extension only).
@@ -183,7 +197,8 @@ namespace SessyController.Services
                     }
 
                     return new PricePoint(q.Time, buyPrice, sellPrice, q.NetLoadWh,
-                        solarSurplusWh, qMaxChargeKW, qMaxDischargeKW, reserveOnly);
+                        solarSurplusWh, qMaxChargeKW, qMaxDischargeKW, reserveOnly,
+                        quarterTemp, mean48h);
                 }).ToList();
 
                 var socBounds = BuildSocBounds(quarters, socKWh, capKWh);
@@ -220,6 +235,64 @@ namespace SessyController.Services
                 _logger.LogError($"{GetType().Name}.BuildMilpPlanAsync failed: {ex.ToDetailedString()}");
                 return false;
             }
+        }
+
+        /// <summary>Length of the heat build-up window used by the charge taper.</summary>
+        private static int Mean48hHours => ThrottleAnalysisService.Mean48hWindowHours;
+
+        /// <summary>
+        /// One temperature per hour covering the 48 hours before the horizon plus the horizon
+        /// itself. Measured values are used where they exist; the hourly forecast fills the rest,
+        /// so a quarter halfway through the horizon still gets a 48-hour mean that blends real
+        /// history with prediction.
+        /// </summary>
+        private async Task<SortedList<DateTime, double>> BuildTemperatureSeriesAsync(
+            IReadOnlyList<QuarterlyInfo> quarters, DateTime nowQuarter)
+        {
+            var series = new SortedList<DateTime, double>();
+
+            var historyStart = nowQuarter.AddHours(-Mean48hHours);
+            var measured = await _throttleAnalysisService
+                .GetMeasuredTemperaturesAsync(historyStart, nowQuarter)
+                .ConfigureAwait(false);
+
+            foreach (var (time, temperature) in measured)
+                series[time.DateHour()] = temperature;
+
+            // Forecast for everything the measurements do not cover, history included: a gap in
+            // the measured series would otherwise skew the mean.
+            var last = quarters.Count > 0 ? quarters[^1].Time : nowQuarter;
+
+            for (var hour = historyStart.DateHour(); hour <= last.DateHour(); hour = hour.AddHours(1))
+            {
+                if (series.ContainsKey(hour)) continue;
+
+                var forecast = _weatherService.GetTemperature(hour);
+                if (forecast.HasValue) series[hour] = forecast.Value;
+            }
+
+            return series;
+        }
+
+        /// <summary>
+        /// Mean of the series over [from, to]. Null when the window holds no data at all, so the
+        /// caller can leave the temperature unknown rather than pass a made-up number.
+        /// </summary>
+        private static double? Mean(SortedList<DateTime, double> series, DateTime from, DateTime to)
+        {
+            double sum = 0.0;
+            int count = 0;
+
+            foreach (var entry in series)
+            {
+                if (entry.Key < from.DateHour()) continue;
+                if (entry.Key > to.DateHour()) break;
+
+                sum += entry.Value;
+                count++;
+            }
+
+            return count == 0 ? null : sum / count;
         }
     }
 }

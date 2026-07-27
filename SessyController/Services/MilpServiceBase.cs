@@ -56,6 +56,12 @@ namespace SessyController.Services
         /// target is recovered from the taper too.
         /// </summary>
         protected ChargeTaper _chargeTaper = ChargeTaper.None;
+
+        /// <summary>
+        /// Outside temperature and 48-hour mean per quarter, as handed to the planner. Kept so the
+        /// throttle-free target can be recovered with the same numbers that capped the solver.
+        /// </summary>
+        protected Dictionary<DateTime, (double TemperatureC, double Mean48hC)> _taperInputsByTime = new();
         // Battery SOC (Wh) at the end of each quarter, taken directly from the solver so
         // the displayed SOC matches the plan exactly (single source of truth).
         private Dictionary<DateTime, double> _planSocWhByTime = new();
@@ -650,13 +656,17 @@ namespace SessyController.Services
         private double Unthrottle(DateTime time, double throttledPowerW, bool charging)
         {
             // Charge side: the taper is what actually capped the solver, so it is also what has
-            // to be divided out. It is evaluated at the planned SOC of this quarter.
+            // to be divided out. Evaluated at the planned SOC of this quarter and the same
+            // temperatures the planner was given.
             if (charging && _chargeTaper.Samples > 0)
             {
                 double capWh = _batteryContainer.GetTotalCapacity();
                 if (capWh > 0.0 && _planSocWhByTime.TryGetValue(time, out var socWh))
                 {
-                    double taperRatio = _chargeTaper.Ratio(socWh / capWh);
+                    double taperRatio = _taperInputsByTime.TryGetValue(time, out var inputs)
+                        ? _chargeTaper.Ratio(socWh / capWh, inputs.TemperatureC, inputs.Mean48hC)
+                        : _chargeTaper.Ratio(socWh / capWh);
+
                     if (taperRatio > 0.0)
                         return throttledPowerW / taperRatio;
                 }

@@ -131,7 +131,13 @@ namespace SessyController.Services.Optimization
             {
                 double cap = maxChargeKWh[t];
                 if (taper.Samples == 0 || capacity <= 0.0) return cap;
-                return Math.Min(cap, Math.Max(0.0, spec.MaxChargeKW) * taper.Ratio(socStartKWh / capacity) * dt);
+
+                // Unknown temperature → the taper's reference, so the SOC term still applies.
+                double temp = pricePoints[t].TemperatureC ?? ChargeTaper.RefTemperatureC;
+                double mean48h = pricePoints[t].Temperature48hC ?? temp;
+
+                double ratio = taper.Ratio(socStartKWh / capacity, temp, mean48h);
+                return Math.Min(cap, Math.Max(0.0, spec.MaxChargeKW) * ratio * dt);
             }
 
             // ── State per quarter ────────────────────────────────────────────

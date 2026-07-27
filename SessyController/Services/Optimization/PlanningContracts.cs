@@ -77,6 +77,8 @@ namespace SessyController.Services.Optimization
     /// MaxChargeKW / MaxDischargeKW override the battery spec when throttling applies.
     /// ReserveOnly marks a quarter whose price is predicted rather than published: the planner
     /// may use it to reserve energy for the coming night, but must not trade on it.
+    /// TemperatureC and Temperature48hC feed the charge taper; null means "unknown", and the
+    /// taper then falls back to its reference temperature.
     /// </summary>
     public sealed record PricePoint(
         DateTime Start,
@@ -86,7 +88,9 @@ namespace SessyController.Services.Optimization
         double SolarSurplusWh,
         double? MaxChargeKW = null,
         double? MaxDischargeKW = null,
-        bool ReserveOnly = false
+        bool ReserveOnly = false,
+        double? TemperatureC = null,
+        double? Temperature48hC = null
     );
 
     /// <summary>The planned action for one quarter.</summary>

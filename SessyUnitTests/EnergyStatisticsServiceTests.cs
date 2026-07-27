@@ -776,7 +776,7 @@ namespace SessyTests.Services
         public void ChargeTaper_RatioFallsWithSocAndStaysClamped()
         {
             // ratio = 1.05 - 0.5 * soc, matching the measured fall-off.
-            var taper = new ChargeTaper(1.05, 0.5, 100);
+            var taper = new ChargeTaper(1.05, 0.5, 0.0, 0.0, 100);
 
             Assert.Equal(1.0, taper.Ratio(0.0), 2);    // clamped to nameplate
             Assert.Equal(0.95, taper.Ratio(0.2), 2);
@@ -785,6 +785,142 @@ namespace SessyTests.Services
             Assert.Equal(0.55, taper.Ratio(5.0), 2);   // out of range above → clamped at soc=1
 
             Assert.Equal(1.0, ChargeTaper.None.Ratio(0.9), 2);
+        }
+
+        [Fact]
+        public void ChargeTaper_TemperatureTermsLowerTheRatio()
+        {
+            // Coefficients as fitted on production data.
+            var taper = new ChargeTaper(1.054, 0.535, 0.0237, 0.0152, 300);
+
+            double atReference = taper.Ratio(0.5, ChargeTaper.RefTemperatureC, ChargeTaper.RefTemperatureC);
+
+            // Hotter outside → less power.
+            Assert.True(taper.Ratio(0.5, 30.0, 30.0) < atReference);
+
+            // Same moment, but the last 48 hours were warmer → the house is warm → less power.
+            double sameMomentNoBuildUp = taper.Ratio(0.5, 28.0, 28.0);
+            double sameMomentAfterHeat = taper.Ratio(0.5, 28.0, 32.0);
+            Assert.True(sameMomentAfterHeat < sameMomentNoBuildUp);
+
+            // The single-argument overload sits at the reference temperature.
+            Assert.Equal(atReference, taper.Ratio(0.5), 6);
+
+            // Clamped from below however extreme the inputs.
+            Assert.Equal(0.15, taper.Ratio(1.0, 45.0, 45.0), 2);
+        }
+
+        [Fact]
+        public void ChargeTaper_WithoutTemperatureCoefficients_MatchesSocOnlyFit()
+        {
+            var socOnly = new ChargeTaper(1.05, 0.5, 0.0, 0.0, 100);
+
+            // No C/D means temperature cannot change the outcome — protects the v1.0.20 behaviour.
+            Assert.Equal(socOnly.Ratio(0.6), socOnly.Ratio(0.6, 5.0, 5.0), 6);
+            Assert.Equal(socOnly.Ratio(0.6), socOnly.Ratio(0.6, 35.0, 30.0), 6);
+        }
+
+        [Fact]
+        public void SolveLeastSquares_RecoversKnownCoefficients()
+        {
+            // y = 2 - 0.5*x1 + 0.25*x2, exactly recoverable.
+            var design = new List<double[]>();
+            var y = new List<double>();
+
+            for (int x1 = 0; x1 < 5; x1++)
+                for (int x2 = 0; x2 < 5; x2++)
+                {
+                    design.Add(new double[] { 1.0, x1, x2 });
+                    y.Add(2.0 - 0.5 * x1 + 0.25 * x2);
+                }
+
+            var beta = ThrottleAnalysisService.SolveLeastSquares(design, y);
+
+            Assert.NotNull(beta);
+            Assert.Equal(2.0, beta![0], 6);
+            Assert.Equal(-0.5, beta[1], 6);
+            Assert.Equal(0.25, beta[2], 6);
+        }
+
+        [Fact]
+        public void SolveLeastSquares_WeightsShiftTheFitTowardsRecentSamples()
+        {
+            // Two regimes on the same regressor: the old one says y = 10 - x, the new one y = 4 - x.
+            // Think "before and after air conditioning was installed in the battery room".
+            var design = new List<double[]>();
+            var y = new List<double>();
+            var weights = new List<double>();
+
+            for (int i = 0; i < 20; i++)
+            {
+                design.Add(new double[] { 1.0, i % 5 });
+                y.Add(10.0 - (i % 5));
+                weights.Add(0.02);          // old regime, heavily discounted
+            }
+
+            for (int i = 0; i < 20; i++)
+            {
+                design.Add(new double[] { 1.0, i % 5 });
+                y.Add(4.0 - (i % 5));
+                weights.Add(1.0);           // recent regime, full weight
+            }
+
+            var unweighted = ThrottleAnalysisService.SolveLeastSquares(design, y);
+            var weighted = ThrottleAnalysisService.SolveLeastSquares(design, y, weights);
+
+            Assert.NotNull(unweighted);
+            Assert.NotNull(weighted);
+
+            // Unweighted lands halfway between the regimes; weighted tracks the recent one.
+            Assert.Equal(7.0, unweighted![0], 3);
+            Assert.True(weighted![0] < 4.3,
+                $"Expected the weighted intercept near the recent regime (4.0), got {weighted[0]:F2}");
+
+            // The slope is the same in both regimes and must survive the reweighting.
+            Assert.Equal(-1.0, weighted[1], 3);
+        }
+
+        [Fact]
+        public void SolveLeastSquares_ReturnsNullOnCollinearInput()
+        {
+            // x2 is a copy of x1, so the system is singular and must be rejected rather than
+            // producing arbitrary coefficients.
+            var design = new List<double[]>();
+            var y = new List<double>();
+
+            for (int i = 0; i < 10; i++)
+            {
+                design.Add(new double[] { 1.0, i, i });
+                y.Add(i * 0.5);
+            }
+
+            Assert.Null(ThrottleAnalysisService.SolveLeastSquares(design, y));
+        }
+
+        [Fact]
+        public void SolveLeastSquares_MatchesProductionFit()
+        {
+            // Four points lying exactly on the fit measured in production:
+            // ratio = 1.054 - 0.535*soc - 0.0237*(temp-20) - 0.0152*(t48-temp)
+            var design = new List<double[]>
+            {
+                new[] { 1.0, 0.2, 0.0,  0.0 },
+                new[] { 1.0, 0.8, 0.0,  0.0 },
+                new[] { 1.0, 0.5, 10.0, 0.0 },
+                new[] { 1.0, 0.5, 8.0,  4.0 },
+            };
+
+            var y = design
+                .Select(r => 1.054 - 0.535 * r[1] - 0.0237 * r[2] - 0.0152 * r[3])
+                .ToList();
+
+            var beta = ThrottleAnalysisService.SolveLeastSquares(design, y);
+
+            Assert.NotNull(beta);
+            Assert.Equal(1.054, beta![0], 4);
+            Assert.Equal(-0.535, beta[1], 4);
+            Assert.Equal(-0.0237, beta[2], 4);
+            Assert.Equal(-0.0152, beta[3], 4);
         }
 
         [Fact]
@@ -813,7 +949,7 @@ namespace SessyTests.Services
 
             var withoutTaper = BatteryGreedyPlanner.Solve(pricePoints, Spec(null), MakeOpt(0.02), bounds);
             var withTaper = BatteryGreedyPlanner.Solve(
-                pricePoints, Spec(new ChargeTaper(1.05, 0.5, 100)), MakeOpt(0.02), bounds);
+                pricePoints, Spec(new ChargeTaper(1.05, 0.5, 0.0, 0.0, 100)), MakeOpt(0.02), bounds);
 
             double peakWithout = withoutTaper!.Plan.Max(p => p.ChargeKW);
             double peakWith = withTaper!.Plan.Max(p => p.ChargeKW);
@@ -828,6 +964,47 @@ namespace SessyTests.Services
             // ... so the same energy has to be spread over more cheap quarters.
             Assert.True(quartersWith > quartersWithout,
                 $"Expected more charging quarters with taper, got {quartersWith} vs {quartersWithout}");
+        }
+
+        [Fact]
+        public void BatteryGreedyPlanner_ChargeTaper_HeatwavePlansLowerPowerOverMoreQuarters()
+        {
+            var baseTime = new DateTime(2027, 1, 1);
+
+            List<PricePoint> Points(double temperatureC, double mean48hC) =>
+                Enumerable.Range(0, 12).Select(i => new PricePoint(
+                    baseTime.AddMinutes(i * 15),
+                    BuyEurPerKWh: 0.05, SellEurPerKWh: 0.05, NetLoadWh: 0, SolarSurplusWh: 0,
+                    TemperatureC: temperatureC, Temperature48hC: mean48hC))
+                .Concat(Enumerable.Range(12, 8).Select(i => new PricePoint(
+                    baseTime.AddMinutes(i * 15),
+                    BuyEurPerKWh: 0.40, SellEurPerKWh: 0.40, NetLoadWh: 0, SolarSurplusWh: 0,
+                    TemperatureC: temperatureC, Temperature48hC: mean48hC)))
+                .ToList();
+
+            var spec = new BatterySpec(
+                CapacityKWh: 16.2, InitialSocKWh: 4.0,
+                MaxChargeKW: 6.6, MaxDischargeKW: 5.1,
+                ChargeEfficiency: 0.95, DischargeEfficiency: 0.95,
+                ChargeTaper: new ChargeTaper(1.054, 0.535, 0.0237, 0.0152, 300));
+
+            // Cool day versus the third day of a heatwave: same prices, same SOC.
+            var coolPoints = Points(temperatureC: 16.0, mean48hC: 15.0);
+            var heatPoints = Points(temperatureC: 30.0, mean48hC: 32.0);
+
+            var cool = BatteryGreedyPlanner.Solve(
+                coolPoints, spec, MakeOpt(0.02), MakeBounds(coolPoints.Select(p => p.Start)));
+            var heat = BatteryGreedyPlanner.Solve(
+                heatPoints, spec, MakeOpt(0.02), MakeBounds(heatPoints.Select(p => p.Start)));
+
+            double coolPeak = cool!.Plan.Max(p => p.ChargeKW);
+            double heatPeak = heat!.Plan.Max(p => p.ChargeKW);
+
+            Assert.True(heatPeak < coolPeak,
+                $"Expected a lower peak during a heatwave, got {heatPeak:F2} vs {coolPeak:F2} kW");
+
+            Assert.True(heat.Plan.Count(p => p.ChargeKW > 0.01) >= cool.Plan.Count(p => p.ChargeKW > 0.01),
+                "Expected the heatwave plan to need at least as many charging quarters");
         }
 
         // ── Helper methods ───────────────────────────────────────────────────
