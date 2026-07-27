@@ -208,6 +208,14 @@ namespace SessyController.Services.Items
             return await _sessyService.GetDynamicScheduleAsync(Id);
         }
 
+        /// <summary>
+        /// Get the dynamic schedule from the battery when Charged is in control.
+        /// </summary>
+        public async Task<SessyScheduleResponse?> GetChargedScheduleAsync()
+        {
+            return await _sessyService.GetChargedScheduleAsync(Id);
+        }
+
         internal void Inject(string id, SessyBatteryEndpoint endpoint)
         {
             Id = id;

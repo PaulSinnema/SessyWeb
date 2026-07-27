@@ -24,6 +24,8 @@ namespace SessyWeb.Components
 
         public bool WeAreInControl => _batteriesService!.WeAreInControl;
 
+        public bool ChargedInControl => _batteriesService!.ChargedInControl;
+
 
 
         public IFormatProvider GetFormatProvider()

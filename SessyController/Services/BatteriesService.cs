@@ -67,6 +67,7 @@ namespace SessyController.Services
 
         public bool IsManualOverride => _settingsConfig.ManualOverride;
         public bool WeAreInControl { get; private set; } = true;
+        public bool ChargedInControl => _settingsConfig.ChargedInControl;
 
         public delegate Task DataChangedDelegate();
         public event DataChangedDelegate? DataChanged;
@@ -255,6 +256,8 @@ namespace SessyController.Services
                                 await _batteryContainer.StartRoi().ConfigureAwait(false);
                                 break;
                         }
+
+                        await ApplyChargedScheduleAsync().ConfigureAwait(false);
                     }
                     else
                     {
@@ -544,9 +547,69 @@ namespace SessyController.Services
         {
             var now = _timeZoneService.Now.DateFloorQuarter();
 
+            if (_settingsConfig.ChargedInControl)
+            {
+                // When Charged is in control, find the next quarter that has a
+                // mode set from the Sessy dynamic schedule.
+                return _quarterlyInfos
+                    .OrderBy(q => q.Time)
+                    .FirstOrDefault(q => q.Time > now && q.Mode != Modes.Unknown);
+            }
+
             return _quarterlyInfos
                 .OrderBy(q => q.Time)
                 .FirstOrDefault(q => q.Time > now && _milpService.HasPlanFor(q.Time));
+        }
+
+        /// <summary>
+        /// Fetches the dynamic schedule from the Sessy batteries (when Charged controls them)
+        /// and maps the planned power values onto the QuarterlyInfo objects so the chart and
+        /// mobile view can display Charged's plan.
+        /// </summary>
+        private async Task ApplyChargedScheduleAsync()
+        {
+            try
+            {
+                var battery = _batteryContainer.Batteries?.FirstOrDefault();
+                if (battery == null) return;
+
+                var schedule = await battery.GetChargedScheduleAsync().ConfigureAwait(false);
+                if (schedule?.DynamicSchedule == null || schedule.DynamicSchedule.Count == 0)
+                    return;
+
+                foreach (var item in schedule.DynamicSchedule)
+                {
+                    // Each schedule item may span multiple quarters (15-min slots).
+                    var start = item.StartTime;
+                    var end = item.EndTime;
+
+                    for (var time = start; time < end; time = time.AddMinutes(15))
+                    {
+                        var qi = _quarterlyInfos.FirstOrDefault(q => q.Time == time);
+                        if (qi == null) continue;
+
+                        if (item.Power < 0)
+                        {
+                            qi.SetMode(Modes.Charging);
+                            qi.SetPlanPower(Math.Abs(item.Power), 0);
+                        }
+                        else if (item.Power > 0)
+                        {
+                            qi.SetMode(Modes.Discharging);
+                            qi.SetPlanPower(0, item.Power);
+                        }
+                        else
+                        {
+                            qi.SetMode(Modes.Disabled);
+                            qi.SetPlanPower(0, 0);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"ApplyChargedScheduleAsync failed: {ex.ToDetailedString()}");
+            }
         }
 
         public async Task<double> getBatteryPercentage()

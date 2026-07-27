@@ -56,6 +56,8 @@ namespace SessyWeb.Pages
 
         public bool WeAreInControl => _batteriesService!.WeAreInControl;
 
+        public bool ChargedInControl => _batteriesService!.ChargedInControl;
+
 
 
         protected override void OnInitialized()

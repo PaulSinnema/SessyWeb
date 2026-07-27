@@ -154,6 +154,28 @@ namespace SessyController.Services
         }
 
         /// <summary>
+        /// Fetches the dynamic schedule from the Sessy battery when Charged is in control.
+        /// Returns null when SessyWeb is in control (use GetDynamicScheduleAsync instead).
+        /// </summary>
+        public async Task<SessyScheduleResponse?> GetChargedScheduleAsync(string id)
+        {
+            if (_settingsService.Current.ChargedInControl)
+            {
+                _logger.LogInformation($"GetChargedScheduleAsync({id})");
+
+                SessyBatteryEndpoint battery = GetBatteryConfiguration(id);
+                using var client = CreateHttpClient(battery);
+                var response = await client.GetAsync("/api/v2/dynamic/schedule");
+                response.EnsureSuccessStatusCode();
+                var content = await response.Content.ReadAsStringAsync();
+                var result = JsonConvert.DeserializeObject<SessyScheduleResponse>(content);
+                return result;
+            }
+
+            return null;
+        }
+
+        /// <summary>
         /// Get the configuration for a battery with Id.
         /// </summary>
         /// <param name="id">>Id of the battery configuration object containing authentication and URL details.</param>
