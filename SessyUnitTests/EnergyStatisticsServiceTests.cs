@@ -536,9 +536,13 @@ namespace SessyTests.Services
             SetupMeasurements(measurements);
             SetupPrices(0.10, 0.30);
 
+            // 250 Wh import per charging quarter so all charging counts as grid-charged, and
             // 250 Wh export per discharging quarter so all discharge counts as export.
-            SetupMeterReadings(Enumerable.Range(4, 4).Select(i =>
-                (PeriodStart.AddMinutes(i * 15), 0.0, 250.0)));
+            // The import matters: charge cost is min(gridImport, charged) * buy, so without it
+            // the charge is treated as free solar and the arbitrage profit comes out as 0.30.
+            SetupMeterReadings(
+                Enumerable.Range(0, 4).Select(i => (PeriodStart.AddMinutes(i * 15), 250.0, 0.0))
+                .Concat(Enumerable.Range(4, 4).Select(i => (PeriodStart.AddMinutes(i * 15), 0.0, 250.0))));
 
             var result = await _sut.GetEnergyStatisticsAsync(PeriodStart, PeriodEnd);
 
@@ -766,6 +770,64 @@ namespace SessyTests.Services
             var result = BatteryGreedyPlanner.Solve(pricePoints, MakeSpec(8.0), MakeOpt(0.02), bounds);
 
             Assert.NotNull(result);
+        }
+
+        [Fact]
+        public void ChargeTaper_RatioFallsWithSocAndStaysClamped()
+        {
+            // ratio = 1.05 - 0.5 * soc, matching the measured fall-off.
+            var taper = new ChargeTaper(1.05, 0.5, 100);
+
+            Assert.Equal(1.0, taper.Ratio(0.0), 2);    // clamped to nameplate
+            Assert.Equal(0.95, taper.Ratio(0.2), 2);
+            Assert.Equal(0.65, taper.Ratio(0.8), 2);
+            Assert.Equal(1.0, taper.Ratio(-5.0), 2);   // out of range below
+            Assert.Equal(0.55, taper.Ratio(5.0), 2);   // out of range above → clamped at soc=1
+
+            Assert.Equal(1.0, ChargeTaper.None.Ratio(0.9), 2);
+        }
+
+        [Fact]
+        public void BatteryGreedyPlanner_ChargeTaper_SpreadsChargingOverMoreQuarters()
+        {
+            var baseTime = new DateTime(2027, 1, 1);
+
+            // 12 cheap quarters followed by 8 expensive ones: room to charge either fast in a
+            // few quarters or slower across many.
+            var pricePoints =
+                Enumerable.Range(0, 12).Select(i => new PricePoint(
+                    baseTime.AddMinutes(i * 15),
+                    BuyEurPerKWh: 0.05, SellEurPerKWh: 0.05, NetLoadWh: 0, SolarSurplusWh: 0))
+                .Concat(Enumerable.Range(12, 8).Select(i => new PricePoint(
+                    baseTime.AddMinutes(i * 15),
+                    BuyEurPerKWh: 0.40, SellEurPerKWh: 0.40, NetLoadWh: 0, SolarSurplusWh: 0)))
+                .ToList();
+
+            var bounds = MakeBounds(pricePoints.Select(p => p.Start));
+
+            BatterySpec Spec(ChargeTaper? taper) => new(
+                CapacityKWh: 16.2, InitialSocKWh: 4.0,
+                MaxChargeKW: 6.6, MaxDischargeKW: 5.1,
+                ChargeEfficiency: 0.95, DischargeEfficiency: 0.95,
+                ChargeTaper: taper);
+
+            var withoutTaper = BatteryGreedyPlanner.Solve(pricePoints, Spec(null), MakeOpt(0.02), bounds);
+            var withTaper = BatteryGreedyPlanner.Solve(
+                pricePoints, Spec(new ChargeTaper(1.05, 0.5, 100)), MakeOpt(0.02), bounds);
+
+            double peakWithout = withoutTaper!.Plan.Max(p => p.ChargeKW);
+            double peakWith = withTaper!.Plan.Max(p => p.ChargeKW);
+
+            int quartersWithout = withoutTaper.Plan.Count(p => p.ChargeKW > 0.01);
+            int quartersWith = withTaper.Plan.Count(p => p.ChargeKW > 0.01);
+
+            // The taper caps the power the plan may ask for at a given SOC ...
+            Assert.True(peakWith < peakWithout,
+                $"Expected a lower peak with taper, got {peakWith:F2} vs {peakWithout:F2} kW");
+
+            // ... so the same energy has to be spread over more cheap quarters.
+            Assert.True(quartersWith > quartersWithout,
+                $"Expected more charging quarters with taper, got {quartersWith} vs {quartersWithout}");
         }
 
         // ── Helper methods ───────────────────────────────────────────────────

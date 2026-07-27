@@ -199,6 +199,10 @@ namespace SessyController.Services.Items
             Mode = mode;
         }
 
+        /// <summary>
+        /// Sets the planned power. Callers that (dis)charge must pass unthrottledPowerW —
+        /// the default 0.0 wipes a value set earlier in the same cycle.
+        /// </summary>
         public void SetPlanPower(double chargePowerW, double dischargePowerW, double unthrottledPowerW = 0.0)
         {
             PlannedChargePowerW = Math.Max(0, chargePowerW);

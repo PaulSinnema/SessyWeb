@@ -99,6 +99,19 @@ namespace SessyController.Services
                 var throttleBuckets = await _throttleAnalysisService.GetThrottleBucketsAsync()
                     .ConfigureAwait(false);
 
+                // Charge power is limited far more by the CC/CV taper than by temperature, so the
+                // taper — when measured — replaces the temperature ratio on the charge side.
+                // Applying both would count the same throttle twice.
+                var chargeTaper = await _throttleAnalysisService.GetChargeTaperAsync()
+                    .ConfigureAwait(false);
+                _chargeTaper = chargeTaper;
+
+                if (chargeTaper.Samples > 0)
+                    _logger.LogInformation(
+                        $"Charge taper fitted on {chargeTaper.Samples} samples: " +
+                        $"ratio = {chargeTaper.A:F3} - {chargeTaper.B:F3} * soc " +
+                        $"({chargeTaper.Ratio(0.2):F2} at 20% SOC, {chargeTaper.Ratio(0.8):F2} at 80%).");
+
                 _throttleRatioByTime.Clear();
                 _chargeThrottleRatioByTime.Clear();
 
@@ -126,6 +139,12 @@ namespace SessyController.Services
 
                         if (!_throttleAnalysisService.TryGetDischargeRatio(throttleBuckets, temp.Value, out double dischargeRatio))
                             dischargeRatio = throttleFallback;
+
+                        // With a measured taper the planner derates the charge side itself, per
+                        // quarter, from the SOC it has reached there — a temperature ratio on top
+                        // would derate twice.
+                        if (chargeTaper.Samples > 0)
+                            chargeRatio = 1.0;
 
                         qMaxChargeKW = maxChargeKW * chargeRatio;
                         qMaxDischargeKW = maxDischargeKW * dischargeRatio;
@@ -175,7 +194,8 @@ namespace SessyController.Services
                     MaxChargeKW: maxChargeKW,
                     MaxDischargeKW: maxDischargeKW,
                     ChargeEfficiency: chargeEfficiency,
-                    DischargeEfficiency: dischargeEfficiency);
+                    DischargeEfficiency: dischargeEfficiency,
+                    ChargeTaper: chargeTaper);
 
                 // Reservation price for energy already in the battery, from the FIFO ledger.
                 // Solar layers cost 0, so a solar-filled battery yields ~0 and behaves as before.

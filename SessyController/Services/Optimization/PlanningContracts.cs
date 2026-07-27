@@ -1,4 +1,6 @@
-﻿namespace SessyController.Services.Optimization
+﻿using SessyController.Services.Items;
+
+namespace SessyController.Services.Optimization
 {
     /// <summary>What the battery is doing during a quarter.</summary>
     public enum ActionMode
@@ -12,14 +14,19 @@
         ZeroNetHome = 3
     }
 
-    /// <summary>Physical properties and limits of the battery bank.</summary>
+    /// <summary>
+    /// Physical properties and limits of the battery bank.
+    /// ChargeTaper models the CC/CV fall-off of charge power with rising SOC; null means no
+    /// taper (nameplate power at any SOC).
+    /// </summary>
     public sealed record BatterySpec(
         double CapacityKWh,
         double InitialSocKWh,
         double MaxChargeKW,
         double MaxDischargeKW,
         double ChargeEfficiency,
-        double DischargeEfficiency
+        double DischargeEfficiency,
+        ChargeTaper? ChargeTaper = null
     );
 
     /// <summary>Planner tuning.</summary>

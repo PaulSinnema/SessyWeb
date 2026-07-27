@@ -34,6 +34,7 @@ namespace SessyController.Services
         private const double MaxSocPct = 90.0;     // ignore near-full battery (not a throttle)
         private const double EmaAlpha = 0.2;       // EMA weight for newest sample
         private const int LookbackDays = 31;       // short horizon so cooling resolves within a month
+        private const int MinTaperSamples = 20;    // below this the taper fit is not trustworthy
 
         public ThrottleAnalysisService(
             PlannedQuarterDataService plannedQuarterDataService,
@@ -143,6 +144,80 @@ namespace SessyController.Services
             }
 
             return buckets.Values.OrderBy(b => b.TemperatureLow).ToList();
+        }
+
+        /// <summary>
+        /// Fits the charge taper: how the available charge power falls off as the battery fills.
+        /// Least squares on (socFraction, realized/requested) over the look-back window.
+        ///
+        /// Deliberately does NOT apply the MinSocPct/MaxSocPct window used for the temperature
+        /// buckets — the taper is strongest exactly at the high SOC that window excludes.
+        /// Returns ChargeTaper.None when there are too few samples or the fit shows no fall-off,
+        /// so the planner then behaves exactly as before.
+        /// </summary>
+        public async Task<ChargeTaper> GetChargeTaperAsync()
+        {
+            var now = _timeZoneService.Now;
+            var start = now.AddDays(-LookbackDays);
+
+            var plans = await _plannedQuarterDataService.GetList(async set =>
+                await Task.FromResult(set
+                    .Where(p => p.Time >= start && p.Time <= now)
+                    .ToList()));
+
+            var measurements = await _measurementDataService.GetList(async set =>
+                await Task.FromResult(set
+                    .Where(m => m.Time >= start && m.Time <= now)
+                    .ToList()));
+
+            var planByTime = plans
+                .GroupBy(p => p.Time)
+                .ToDictionary(g => g.Key, g =>
+                {
+                    var p = g.First();
+                    return p.PlannedUnthrottledPowerW != 0.0
+                        ? p.PlannedUnthrottledPowerW
+                        : p.PlannedPowerW;
+                });
+
+            double capacity = _batteryContainer.GetTotalCapacity();
+            if (capacity <= 0) return ChargeTaper.None;
+
+            // Sums for the least-squares fit of ratio = a - b * socFraction.
+            double sx = 0.0, sy = 0.0, sxx = 0.0, sxy = 0.0;
+            int n = 0;
+
+            foreach (var m in measurements)
+            {
+                if (m.BatteryMode != Modes.Charging) continue;
+                if (!planByTime.TryGetValue(m.Time, out var requestedW)) continue;
+                if (requestedW < MinRequestedW) continue;   // charge requests are positive
+
+                double socFraction = m.BatteryStateOfChargeWh / capacity;
+                if (socFraction < 0.0 || socFraction > 1.0) continue;
+
+                double ratio = Math.Min(Math.Abs(m.BatteryPowerWatts) / requestedW, 1.0);
+
+                sx += socFraction;
+                sy += ratio;
+                sxx += socFraction * socFraction;
+                sxy += socFraction * ratio;
+                n++;
+            }
+
+            if (n < MinTaperSamples) return ChargeTaper.None;
+
+            double denominator = n * sxx - sx * sx;
+            if (Math.Abs(denominator) < 1e-9) return ChargeTaper.None;
+
+            double slope = (n * sxy - sx * sy) / denominator;      // negative when power tapers
+            double intercept = (sy - slope * sx) / n;
+
+            // A rising or flat fit means no taper was observed; don't let noise raise the caps
+            // above nameplate.
+            if (slope >= 0.0) return ChargeTaper.None;
+
+            return new ChargeTaper(intercept, -slope, n);
         }
 
         /// <summary>

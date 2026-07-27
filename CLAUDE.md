@@ -115,7 +115,7 @@ Blazor Server, Radzen components, `.razor` + `.razor.cs` code-behind pairs. Page
 # SessyWeb — Samenvatting voor nieuwe chat
 
 ## Wat is SessyWeb
-C#/.NET Blazor Server EMS. Stuurt 3× Sessy batterij (cap 16,2 kWh; raw charge 6600W/discharge 5100W, praktijk max ~4,4kW), SolarEdge inverter, Daikin warmtepomp. Draait op Synology NAS via Docker. Huidige versie **v1.0.16**.
+C#/.NET Blazor Server EMS. Stuurt 3× Sessy batterij (cap 16,2 kWh; raw charge 6600W/discharge 5100W, praktijk max ~4,4kW), SolarEdge inverter, Daikin warmtepomp. Draait op Synology NAS via Docker. Huidige versie **v1.0.20**.
 
 ## Werkafspraken
 - Antwoorden in het Nederlands, caveman-ultra kort. Code-commentaar in het Engels, **kort — één regel waar mogelijk** (user leest alle comments na ter controle).
@@ -155,9 +155,12 @@ Laadkant waardeerde overal álle lading tegen inkoopprijs, ook gratis zon → ve
 ## Zelf-lerende planner (interview afgerond, NOG NIET gebouwd)
 User's doel: investering z.s.m. terugverdienen, winst leidend. Terugvalpunt-spec: open horizon (geen harde cap), minimale reserve, zelf-lerende discount-rate én nacht-reserve uit 21-daagse voorspelfouten (zon+verbruik samen), nachtelijk herberekend, bounds ~0,5-3%/uur (ondergrens boven 0% houden), alert bij grens-pinning, log van geleerde waarde, geleerd overschrijft handmatig. Fallback 1% tot 21 dagen data. Op bestaande Settings-pagina.
 
+## Opgelost 27-07 (v1.0.19 / v1.0.20)
+1. **`PlannedUnthrottledPowerW` = 0 in alle rijen — OPGELOST (v1.0.19).** `WriteBackSocSimulationAsync` en de twee clamp-takken in `GetExecutableActionAsync` riepen `SetPlanPower` met 2 args aan → default unthrottled=0 overschreef wat `WritePlanIntoQuarterlyInfos` net had gezet. Alle vier callsites geven nu `Unthrottle(...)` mee. Historische rijen blijven 0; vult zich vanaf de eerstvolgende rebuild.
+2. **Laadtaper genegeerd door de planner — OPGELOST (v1.0.20).** `ThrottleAnalysisService` bucketde alleen op buitentemperatuur; nagerekend op de productie-DB is dat signaal vlak (0,74-0,79 over 18-24°C) terwijl SOC monotoon daalt (1,00 bij 20% → 0,65 bij 80%). Gevolg 27-07: gepland 15319 Wh laden in 13 kwartieren, geleverd 11536 Wh (-25%), eindstand 87,7% terwijl er 23 even goedkope ZeroNetHome-kwartieren ongebruikt bleven. Nieuw: `ChargeTaper` (least-squares fit `ratio = A - B*soc`, min 20 samples, productie-fit A=1,08 B=0,585 op 196 samples) in `ThrottleAnalysisService.GetChargeTaperAsync()`, doorgegeven via `BatterySpec.ChargeTaper` en per kwartier toegepast in `BatteryGreedyPlanner` op basis van de SOC aan het begin van dat kwartier. Bij een geldige taper wordt de temperatuur-charge-ratio op 1,0 gezet (anders dubbel derated); ontladen houdt de temperatuurbuckets. `Unthrottle()` deelt op de laadkant nu door de taper.
+
 ## Openstaande punten
-1. **DIRECTE OPDRACHT — `PlannedUnthrottledPowerW` = 0 in alle 5887 rijen.** Root cause: `ApplySolveResult` zet 'm (MilpServiceBase ~609/614) maar `WriteBackSocSimulationAsync` roept `SetPlanPower` met 2 args aan (~773-777) → default unthrottled=0 overschrijft elke cyclus. `ThrottleAnalysisService:85` gebruikt altijd fallback → throttle-analyse + "Throttle loss"-grafiek krijgen geen data. Laadtaper is fors (6600W gevraagd → ~3100W geleverd, SOC-afhankelijk: ratio 1,0 bij 40% SOC → 0,49 bij 75%). **User's laatste opdracht: repareren.**
-2. Zelf-lerende parameters bouwen (interview-spec).
+1. Zelf-lerende parameters bouwen (interview-spec).
 3. EF-migraties (user-kant): drop `SolarSystemShutsDownDuringNegativePrices`; `FutureValueDiscountPerHour` toegevoegd, `NearTermHedgeHours`/`Fraction` verwijderd.
 4. JSON `Infinity`/`NaN` crash (22-07 17:22, MVC-controller) + lege Enever gasprijs-feed.
 5. Comment-opschoning was bezig toen onderbroken — meeste lange blocks al ingekort, mogelijk nog een paar razor/test-comments over.
@@ -166,4 +169,4 @@ User's doel: investering z.s.m. terugverdienen, winst leidend. Terugvalpunt-spec
 - Setpoint requested ≠ Setpoint: Sessy-hardware klemt/tapert zelf (CC/CV, SOC-afhankelijk). API meldt geen reden. `Battery.SetpointRequested` (ons) vs `Sessy.PowerSetpoint` (device).
 - 21-07 avond niet-ontladen: economisch correct (export tegen €0,30 was netto verlies vs. latere terugkoop); de niet-uitvoering die avond was de `j=1`-bug op v1.0.4.
 
-**Directe vervolgactie: begin met punt 1 — repareer `PlannedUnthrottledPowerW` zodat `WriteBackSocSimulationAsync` de unthrottled waarde niet meer overschrijft.**
+**Te verifiëren na de eerstvolgende productie-run van v1.0.20:** vult `PlannedUnthrottledPowerW` zich, blijft de taper-fit stabiel (log: "Charge taper fitted on N samples"), en wordt het laadvenster nu vroeger gestart bij een lange goedkope periode.

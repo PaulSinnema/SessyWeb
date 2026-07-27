@@ -49,6 +49,13 @@ namespace SessyController.Services
 
         /// <summary>Charge throttle ratio per quarter (see _throttleRatioByTime).</summary>
         protected Dictionary<DateTime, double> _chargeThrottleRatioByTime = new();
+
+        /// <summary>
+        /// Measured CC/CV taper of the charge power. When it has samples the planner derates the
+        /// charge side from it instead of from _chargeThrottleRatioByTime, so the throttle-free
+        /// target is recovered from the taper too.
+        /// </summary>
+        protected ChargeTaper _chargeTaper = ChargeTaper.None;
         // Battery SOC (Wh) at the end of each quarter, taken directly from the solver so
         // the displayed SOC matches the plan exactly (single source of truth).
         private Dictionary<DateTime, double> _planSocWhByTime = new();
@@ -642,6 +649,19 @@ namespace SessyController.Services
         /// </summary>
         private double Unthrottle(DateTime time, double throttledPowerW, bool charging)
         {
+            // Charge side: the taper is what actually capped the solver, so it is also what has
+            // to be divided out. It is evaluated at the planned SOC of this quarter.
+            if (charging && _chargeTaper.Samples > 0)
+            {
+                double capWh = _batteryContainer.GetTotalCapacity();
+                if (capWh > 0.0 && _planSocWhByTime.TryGetValue(time, out var socWh))
+                {
+                    double taperRatio = _chargeTaper.Ratio(socWh / capWh);
+                    if (taperRatio > 0.0)
+                        return throttledPowerW / taperRatio;
+                }
+            }
+
             var map = charging ? _chargeThrottleRatioByTime : _throttleRatioByTime;
             if (map.TryGetValue(time, out var ratio) && ratio > 0.0)
                 return throttledPowerW / ratio;
@@ -786,10 +806,18 @@ namespace SessyController.Services
                 qi.SetChargeLeft(soc);
                 qi.SetMode(act.Mode);
 
+                // Pass the unthrottled target along: omitting it resets PlannedUnthrottledPowerW
+                // to 0 for every quarter, wiping what WritePlanIntoQuarterlyInfos just set.
                 if (act.Mode == Modes.Charging)
-                    qi.SetPlanPower(act.PowerW > 0 ? act.PowerW : _batteryContainer.GetChargingCapacityInWattsPerHour(), 0);
+                {
+                    double chargeW = act.PowerW > 0 ? act.PowerW : _batteryContainer.GetChargingCapacityInWattsPerHour();
+                    qi.SetPlanPower(chargeW, 0, Unthrottle(qi.Time, chargeW, charging: true));
+                }
                 else if (act.Mode == Modes.Discharging)
-                    qi.SetPlanPower(0, act.PowerW > 0 ? act.PowerW : _batteryContainer.GetDischargingCapacityInWattsPerHour());
+                {
+                    double dischargeW = act.PowerW > 0 ? act.PowerW : _batteryContainer.GetDischargingCapacityInWattsPerHour();
+                    qi.SetPlanPower(0, dischargeW, Unthrottle(qi.Time, dischargeW, charging: false));
+                }
                 else
                     qi.SetPlanPower(0, 0);
             }
@@ -854,7 +882,7 @@ namespace SessyController.Services
                         $"({planned.PowerW:F0}W → {clampedW:F0}W, roomWh={roomWh:F0})");
 
                     var clamped = new PlanAction { Mode = Modes.Charging, PowerW = clampedW };
-                    qi?.SetPlanPower(clampedW, 0);
+                    qi?.SetPlanPower(clampedW, 0, Unthrottle(nowQuarter, clampedW, charging: true));
                     return clamped;
                 }
 
@@ -888,7 +916,7 @@ namespace SessyController.Services
                         $"({planned.PowerW:F0}W → {clampedW:F0}W, availableWh={availableWh:F0})");
 
                     var clamped = new PlanAction { Mode = Modes.Discharging, PowerW = clampedW };
-                    qi?.SetPlanPower(0, clampedW);
+                    qi?.SetPlanPower(0, clampedW, Unthrottle(nowQuarter, clampedW, charging: false));
                     return clamped;
                 }
 

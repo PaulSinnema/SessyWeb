@@ -1,4 +1,6 @@
-﻿namespace SessyController.Services.Optimization
+﻿using SessyController.Services.Items;
+
+namespace SessyController.Services.Optimization
 {
     /// <summary>
     /// Deterministic, greedy battery planner.
@@ -120,6 +122,18 @@
                 maxSoc[t] = mx;
             }
 
+            // Charge power tapers as the battery fills (CC/CV), so the cap cannot be a constant
+            // per quarter: it depends on the SOC the plan has reached by then. Evaluated against
+            // the SOC at the START of the quarter, which is the last committed value and does not
+            // change while the block being considered is allocated.
+            var taper = spec.ChargeTaper ?? ChargeTaper.None;
+            double taperedChargeKWh(int t, double socStartKWh)
+            {
+                double cap = maxChargeKWh[t];
+                if (taper.Samples == 0 || capacity <= 0.0) return cap;
+                return Math.Min(cap, Math.Max(0.0, spec.MaxChargeKW) * taper.Ratio(socStartKWh / capacity) * dt);
+            }
+
             // ── State per quarter ────────────────────────────────────────────
             var chargeKWh = new double[n];       // AC energy into the battery
             var dischargeKWh = new double[n];    // AC energy out of the battery
@@ -141,7 +155,7 @@
                 {
                     // Store as much solar as the room and the charge limit allow.
                     double roomStore = Math.Max(0.0, maxSoc[t] - soc);
-                    double absorb = Math.Min(surplus, Math.Min(roomStore / chEff, maxChargeKWh[t]));
+                    double absorb = Math.Min(surplus, Math.Min(roomStore / chEff, taperedChargeKWh(t, soc)));
                     if (absorb > Eps)
                     {
                         chargeKWh[t] += absorb;
@@ -263,7 +277,9 @@
                     {
                         if (pricePoints[i].ReserveOnly) continue;      // no grid charging on predicted quarters
 
-                        double chargeHeadroom = maxChargeKWh[i] - chargeKWh[i];
+                        // Cap at i depends on the SOC the plan has reached by the start of i.
+                        double socStartI = i == 0 ? Clamp(spec.InitialSocKWh, 0.0, capacity) : socEnd[i - 1];
+                        double chargeHeadroom = taperedChargeKWh(i, socStartI) - chargeKWh[i];
                         if (chargeHeadroom <= Eps) continue;
 
                         // What does one more kWh of AC charge at i cost?
