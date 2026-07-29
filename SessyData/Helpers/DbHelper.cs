@@ -21,7 +21,8 @@ namespace SessyData.Helpers
 
         private SemaphoreSlim dbHelperSemaphore = new SemaphoreSlim(1);
 
-        public async Task BackupDatabase()
+        /// <summary>Writes a VACUUM INTO backup and returns the file it was written to.</summary>
+        public async Task<string> BackupDatabase()
         {
             try
             {
@@ -52,6 +53,8 @@ namespace SessyData.Helpers
                 });
 
                 Console.WriteLine($"Database backup completed successfully to {backupFilePath}");
+
+                return backupFilePath;
             }
             catch (Exception ex)
             {

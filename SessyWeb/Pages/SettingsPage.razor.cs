@@ -592,31 +592,47 @@ namespace SessyWeb.Pages
 
         [Inject] private IServiceScopeFactory? _scopeFactory { get; set; }
         [Inject] private IJSRuntime? _js { get; set; }
+        [Inject] private DatabaseBackupDataService? _backupService { get; set; }
         private string? _sqlStatement;
         private string? _sqlError;
         private string? _sqlRowsAffected;
         private bool _sqlBusy;
         private List<Dictionary<string, object>>? _sqlResult;
         private List<string> _sqlColumns = [];
+        private string? _sqlBackupMessage;
+        private bool _sqlBackupBusy;
 
-        private static readonly HashSet<string> _blockedKeywords =
-            new(StringComparer.OrdinalIgnoreCase) { "ALTER" };
+        /// <summary>
+        /// Writes a VACUUM INTO backup to the configured backup directory — the same routine
+        /// Program.cs runs before applying migrations. Meant to be pressed before running a
+        /// destructive script, since the console applies whatever it is given.
+        /// </summary>
+        private async Task BackupDatabaseAsync()
+        {
+            _sqlBackupBusy = true;
+            _sqlBackupMessage = null;
+            _sqlError = null;
+            StateHasChanged();
+
+            try
+            {
+                var path = await _backupService!.BackupDatabase();
+                _sqlBackupMessage = $"Backup written to {path}";
+            }
+            catch (Exception ex)
+            {
+                _sqlError = $"Backup failed: {ex.Message}";
+            }
+            finally
+            {
+                _sqlBackupBusy = false;
+                StateHasChanged();
+            }
+        }
 
         private async Task ExecuteSqlAsync()
         {
             if (string.IsNullOrWhiteSpace(_sqlStatement)) return;
-
-            // Block destructive DDL statements.
-            var upper = _sqlStatement.ToUpperInvariant();
-            foreach (var kw in _blockedKeywords)
-            {
-                if (upper.Contains(kw))
-                {
-                    _sqlError = $"Statement contains blocked keyword: {kw}";
-                    _sqlResult = null;
-                    return;
-                }
-            }
 
             List<string> statements;
             List<string> skipped;

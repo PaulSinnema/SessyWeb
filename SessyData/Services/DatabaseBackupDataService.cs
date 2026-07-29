@@ -14,9 +14,10 @@ namespace SessyData.Services
             _dbHelper = _scope.ServiceProvider.GetRequiredService<DbHelper>();
         }
 
-        public async Task BackupDatabase()
+        /// <summary>Writes a backup and returns the file it was written to.</summary>
+        public async Task<string> BackupDatabase()
         {
-            await _dbHelper.BackupDatabase();
+            return await _dbHelper.BackupDatabase();
         }
     }
 }
