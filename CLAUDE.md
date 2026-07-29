@@ -131,7 +131,7 @@ C#/.NET Blazor Server EMS. Stuurt 3× Sessy batterij (cap 16,2 kWh; raw charge 6
 
 ## Planner-architectuur (BatteryGreedyPlanner.cs)
 Deterministisch, greedy, twee passes: (1) ZeroNetHome-baseline, (2) arbitrage in 0,1 kWh-blokken. Candidate A = ontladen van al-aanwezige energie (geen gekoppeld laadmoment); Candidate B = laden-i → ontladen-j met `i<j`.
-- **FutureValueDiscountPerHour** (default 0,01): continue korting op waarde[j]/kosten[i], vervangt de oude discrete "near-term hedge" die drie keer op randgevallen stukliep. Rapportage/objective gebruiken echte prijzen.
+- **FutureValueDiscountPerHour** (default 0,003 — UI toont procenten, dus 0,3): continue korting op waarde[j]/kosten[i], vervangt de oude discrete "near-term hedge" die drie keer op randgevallen stukliep. Rapportage/objective gebruiken echte prijzen. Default afgeleid uit gemeten planstabiliteit in `PlannedActions` (94-97% tot 18 u lead → 0,002-0,006/u). Hoort samen met `PredictedPriceMode`: bij `Off` is >24 u toch `reserveOnly`; zet je die op `SoftMargin`, dan moet de discount omhoog want daar houdt maar 23-63% stand.
 - **StockCostEurPerKWh**: FIFO-gemiddelde als bodemprijs (reservatieprijs) voor Candidate A — voorkomt dumpen van doorschuif-energie. Zon-voorraad = 0.
 
 ## Grote bugs deze sessie opgelost

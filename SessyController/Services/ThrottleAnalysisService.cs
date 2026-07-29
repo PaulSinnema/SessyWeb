@@ -15,8 +15,12 @@ namespace SessyController.Services
     /// look-back window (default one month) means that if the room is later cooled, the high-
     /// throttle samples age out and the ratios recover automatically within that window.
     ///
+    /// Every ratio divides by PlannedQuarter.PlannedUnthrottledPowerW, never by PlannedPowerW:
+    /// the latter is already throttled, so it would measure the plan against itself and report
+    /// almost no throttling. Quarters without a recorded unthrottled target are skipped entirely.
+    ///
     /// Sign conventions differ between the two sources and are normalized here:
-    ///   PlannedQuarter.PlannedPowerW : discharge negative, charge positive
+    ///   PlannedQuarter.PlannedUnthrottledPowerW : discharge negative, charge positive
     ///   QuarterlyMeasurement.BatteryPowerWatts : discharge positive, charge negative
     /// </summary>
     public class ThrottleAnalysisService
@@ -75,9 +79,12 @@ namespace SessyController.Services
             var now = _timeZoneService.Now;
             var start = now.AddDays(-LookbackDays);
 
+            // Only quarters with a recorded throttle-free target count. Falling back to
+            // PlannedPowerW would divide by an already-throttled number, so every such sample
+            // reports a ratio near 1.0 and drags the measured throttle towards "none".
             var plans = await _plannedQuarterDataService.GetList(async set =>
                 await Task.FromResult(set
-                    .Where(p => p.Time >= start && p.Time <= now)
+                    .Where(p => p.Time >= start && p.Time <= now && p.PlannedUnthrottledPowerW != 0.0)
                     .ToList()));
 
             var measurements = await _measurementDataService.GetList(async set =>
@@ -91,18 +98,9 @@ namespace SessyController.Services
                     .ToList()));
 
             // Index plan and temperature by quarter for a fast in-memory join.
-            // Use the throttle-free target power as the denominator. If the plan was already
-            // throttled, PlannedPowerW would hide future throttling (ratio → 1.0); the
-            // unthrottled target keeps the ratio measuring the true, absolute throttle.
             var planByTime = plans
                 .GroupBy(p => p.Time)
-                .ToDictionary(g => g.Key, g =>
-                {
-                    var p = g.First();
-                    return p.PlannedUnthrottledPowerW != 0.0
-                        ? p.PlannedUnthrottledPowerW
-                        : p.PlannedPowerW;
-                });
+                .ToDictionary(g => g.Key, g => g.First().PlannedUnthrottledPowerW);
 
             var tempByTime = consumptions
                 .Where(c => c.Temperature > -50.0) // drop the -999 sentinel
@@ -292,8 +290,13 @@ namespace SessyController.Services
         {
             var historyStart = now.AddDays(-TaperHistoryDays);
 
+            // Same rule as the buckets: an already-throttled denominator yields ratio ≈ 1.0 and
+            // biases the fit towards no taper, and because MinRequestedW then drops the small
+            // high-SOC requests it biases the SOC range as well.
             var plans = await _plannedQuarterDataService.GetList(async set =>
-                await Task.FromResult(set.Where(p => p.Time >= historyStart && p.Time <= now).ToList()));
+                await Task.FromResult(set
+                    .Where(p => p.Time >= historyStart && p.Time <= now && p.PlannedUnthrottledPowerW != 0.0)
+                    .ToList()));
 
             var measurements = await _measurementDataService.GetList(async set =>
                 await Task.FromResult(set.Where(m => m.Time >= historyStart && m.Time <= now).ToList()));
@@ -306,13 +309,7 @@ namespace SessyController.Services
 
             var planByTime = plans
                 .GroupBy(p => p.Time)
-                .ToDictionary(g => g.Key, g =>
-                {
-                    var p = g.First();
-                    return p.PlannedUnthrottledPowerW != 0.0
-                        ? p.PlannedUnthrottledPowerW
-                        : p.PlannedPowerW;
-                });
+                .ToDictionary(g => g.Key, g => g.First().PlannedUnthrottledPowerW);
 
             var temperatures = consumptions
                 .Where(c => c.Temperature > -50.0)          // drop the -999 sentinel

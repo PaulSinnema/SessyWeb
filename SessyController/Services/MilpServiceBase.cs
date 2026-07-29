@@ -533,8 +533,10 @@ namespace SessyController.Services
 
         /// <summary>
         /// Builds SOC bounds per quarter — shared by all strategies.
-        /// maxSoc is reduced by solar surplus so the solver is never forced to discharge
-        /// just to stay feasible when the battery is full and solar is producing.
+        /// maxSoc is full capacity. It used to be reduced by that quarter's solar surplus to keep
+        /// an old solver feasible when the battery filled up while solar was producing; the greedy
+        /// planner exports whatever it cannot absorb, so it can never be infeasible. The reduction
+        /// only capped every plan at capacity − surplus, which is why a plan never targeted 100%.
         /// </summary>
         protected List<SocBound> BuildSocBounds(List<QuarterlyInfo> quarters, double socKWh, double capKWh)
         {
@@ -544,11 +546,7 @@ namespace SessyController.Services
                 double mx = _maxSocWhByTime.TryGetValue(q.Time, out var maxV) ? maxV / 1000.0 : capKWh;
 
                 mn = Math.Max(0.0, Math.Min(mn, capKWh));
-
-                double solarSurplusKWh = q.NetLoadWh < 0.0 ? -q.NetLoadWh / 1000.0 : 0.0;
-                mx = Math.Min(mx, capKWh - solarSurplusKWh);
-                mx = Math.Max(mn, Math.Min(mx, capKWh));
-                mx = Math.Max(mx, mn + 0.01);
+                mx = Math.Max(Math.Min(mx, capKWh), mn + 0.01);
 
                 if (mn > socKWh) mn = socKWh;
 

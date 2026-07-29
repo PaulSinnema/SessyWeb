@@ -102,10 +102,20 @@ namespace SessyData.Model
         /// compared on equal footing with a smooth time preference, so a distant peak must be
         /// genuinely better by more than the accumulated forecast-uncertainty discount to still
         /// win, instead of a single far-off peak always being able to claim the entire battery.
-        /// 0.01 (default) means a peak 24h out needs to be roughly 24% better to still win over
+        /// 0.003 (default) means a peak 24h out needs to be roughly 7% better to still win over
         /// an equally-reachable one tonight. 0 disables this (original undiscounted behaviour).
+        ///
+        /// The default comes from measured plan stability, not a guess: over the PlannedActions
+        /// history a planned mode still matches the plan that actually ran in 94-97% of cases up
+        /// to 18h ahead, which implies 0.002-0.006 per hour. Beyond 24h stability collapses (23%
+        /// at 30-36h), but with PredictedPriceMode.Off those quarters are reserve-only and are not
+        /// traded anyway. Raise this again if predicted prices are ever opened up for trading —
+        /// the two settings belong together.
+        ///
+        /// Note the UI shows this as a PERCENTAGE per hour (SettingsPage divides by 100), so the
+        /// default reads as 0.3 there.
         /// </summary>
-        public double FutureValueDiscountPerHour { get; set; } = 0.01;
+        public double FutureValueDiscountPerHour { get; set; } = 0.003;
 
         // ── Statistics ────────────────────────────────────────────────────────
         public DateTime? StatisticsFromDate { get; set; }

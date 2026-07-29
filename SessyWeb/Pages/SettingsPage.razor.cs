@@ -489,7 +489,7 @@ namespace SessyWeb.Pages
             if (_settings == null) return;
             _settings.ReserveSafetyFactor = 1.10;
             _settings.PlanningHorizonHours = 0;
-            _settings.FutureValueDiscountPerHour = 0.01;
+            _settings.FutureValueDiscountPerHour = 0.003;
         }
         private bool _settingsSaving;
         private bool _settingsSaved;

@@ -165,7 +165,7 @@
                                 <RadzenRow Gap="1rem">
                                     <RadzenColumn Size="12" SizeMD="4">
                                         <RadzenLabel Text="Future value discount (%/hour)" />
-                                        <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">How much less a quarter is worth per hour of distance when deciding where to send stock — a peak 24h out needs to be that much better to still win over an equally-reachable one tonight. Only affects planning; the executed plan uses real prices. 0 = off (pure winner-takes-all). Default: 1%.</RadzenText>
+                                        <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">How much less a quarter is worth per hour of distance when deciding where to send stock — a peak 24h out needs to be that much better to still win over an equally-reachable one tonight. Only affects planning; the executed plan uses real prices. 0 = off (pure winner-takes-all). Default: 0.3%, taken from measured plan stability (94-97% of planned modes still hold up to 18h ahead). Raise it if you switch predicted prices on for trading — beyond 24h plans hold only 23-63%.</RadzenText>
                                         <RadzenNumeric TValue="double" Value="@(_settings.FutureValueDiscountPerHour * 100.0)"
                                                        ValueChanged="@(v => _settings.FutureValueDiscountPerHour = v / 100.0)"
                                                        Format="F2" Min="0" Style="width:100%" />
