@@ -15,6 +15,11 @@
                       Size="ButtonSize.Small"
                       Click="@OnClearPlanAsync"
                       title="Removes the current plan from memory and database. A fresh plan will be built on the next cycle." />
+        <RadzenButton Text="Force new plan" Icon="refresh"
+                      ButtonStyle="ButtonStyle.Primary"
+                      Size="ButtonSize.Small"
+                      Click="@OnForceNewPlanAsync"
+                      title="Solves again right now and keeps the result, even when the current plan would normally be kept." />
     </RadzenStack>
     <RadzenRow Gap="8px">
         <RadzenColumn Size="6" SizeMD="3">
@@ -84,4 +89,5 @@
 @code {
     [Parameter, EditorRequired] public DashboardStatistics? Dashboard { get; set; }
     [Parameter, EditorRequired] public EventCallback OnClearPlanAsync { get; set; }
+    [Parameter, EditorRequired] public EventCallback OnForceNewPlanAsync { get; set; }
 }

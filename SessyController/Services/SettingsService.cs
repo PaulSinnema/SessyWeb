@@ -129,10 +129,25 @@ namespace SessyController.Services
                 record.ThrottleFallbackPct = 80.0;
                 dirty = true;
             }
+            else if (record.ThrottleFallbackPct <= 1.0)
+            {
+                // Legacy value: the EfficiencyParameters migration renamed the fraction
+                // DischargingEfficiencyFactor (0.83) into a percentage column without
+                // converting it. Read as a percentage it caps discharge at 0.83% of full
+                // power — 42 W — which silently blocks the planner.
+                record.ThrottleFallbackPct *= 100.0;
+                dirty = true;
+            }
 
             if (record.RoundTripEfficiencyFallbackPct == 0.0)
             {
                 record.RoundTripEfficiencyFallbackPct = 90.0;
+                dirty = true;
+            }
+            else if (record.RoundTripEfficiencyFallbackPct <= 1.0)
+            {
+                // Same rename, from ChargingEfficiencyFactor.
+                record.RoundTripEfficiencyFallbackPct *= 100.0;
                 dirty = true;
             }
 

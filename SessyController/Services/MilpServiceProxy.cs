@@ -50,6 +50,9 @@ namespace SessyController.Services
         public bool HasPlanFor(DateTime quarter)
     => Current.HasPlanFor(quarter);
 
+        public void ForceRebuild(string reason)
+            => Current.ForceRebuild(reason);
+
         public void Dispose()
             => Current.Dispose();
     }

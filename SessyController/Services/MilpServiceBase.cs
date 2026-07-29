@@ -202,6 +202,10 @@ namespace SessyController.Services
         public bool HasPlanFor(DateTime quarter) => _planByTime.ContainsKey(quarter);
         public bool IsNettingActive(DateTime quarter) => _nettingByTime.TryGetValue(quarter, out var n) ? n : true;
 
+        // Reuses the settings-changed path: RebuildIfNeededAsync treats a pending reason as a
+        // forced rebuild and clears it after one use.
+        public void ForceRebuild(string reason) => _configChangedReason = reason;
+
         public void ApplyRuntimeOverride(DateTime time, Modes mode, double powerW)
             => _planByTime[time] = new PlanAction { Mode = mode, PowerW = powerW };
 

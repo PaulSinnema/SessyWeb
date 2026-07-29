@@ -52,7 +52,9 @@
                 @if (Dashboard.Plan != null)
                 {
                     <RadzenColumn Size="12" class="rz-display-flex">
-                        <CurrentPlanComponent Dashboard="@Dashboard" OnClearPlanAsync="@ClearPlanAsync" />
+                        <CurrentPlanComponent Dashboard="@Dashboard"
+                                              OnClearPlanAsync="@ClearPlanAsync"
+                                              OnForceNewPlanAsync="@ForceNewPlanAsync" />
                     </RadzenColumn>
                 }
 

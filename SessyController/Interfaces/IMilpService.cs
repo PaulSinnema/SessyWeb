@@ -12,5 +12,11 @@ namespace SessyController.Interfaces
         Task ClearPlanAsync();
         Task<bool> TryRestorePlanAsync();
         bool HasPlanFor(DateTime quarter);
+
+        /// <summary>
+        /// Makes the next BuildPlanAsync rebuild unconditionally, instead of only on a price
+        /// change, SOC deviation or settings change. The reason is stored with the plan.
+        /// </summary>
+        void ForceRebuild(string reason);
     }
 }
