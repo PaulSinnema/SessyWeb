@@ -108,10 +108,14 @@ namespace SessyController.Services
                 var now = _timeZoneService.Now;
                 var selectTime = now.DateFloorQuarter();
 
-                // Skip if already stored for this quarter.
-                bool exists = await _measurementService.Exists(async set =>
+                // Skip if the meter readings for this quarter are already stored. Keyed on
+                // EnergyHistory, not on QuarterlyMeasurement — BatteriesService may have created
+                // the measurement row first, which would otherwise lose the meter readings.
+                var meterId = p1Meter.Id;
+
+                bool exists = await _energyHistoryService.Exists(async set =>
                 {
-                    var result = set.Any(m => m.Time == selectTime);
+                    var result = set.Any(h => h.Time == selectTime && h.MeterId == meterId);
                     return await Task.FromResult(result);
                 });
 
@@ -128,7 +132,7 @@ namespace SessyController.Services
                 var quarterlyInfo = prices
                     .FirstOrDefault(hi => hi.Time.DateFloorQuarter() == selectTime);
 
-                await StoreMeasurement(p1Details!, quarterlyInfo, selectTime, weatherHourData, p1Meter.Id);
+                await StoreMeasurement(p1Details!, quarterlyInfo, selectTime, weatherHourData, meterId);
 
                 DataChanged?.Invoke();
 
@@ -177,15 +181,26 @@ namespace SessyController.Services
                 // Non-fatal — BatteriesService will fill this in on its next cycle.
             }
 
-            var measurement = new QuarterlyMeasurement
+            // BatteriesService may already have created the record for this quarter; adding a
+            // second one would violate the unique index on Time.
+            bool measurementExists = await _measurementService.Exists(async set =>
             {
-                Time = time,
-                BatteryStateOfChargeWh = socWh,
-                // Battery mode is filled in by BatteriesService. Grid flows are derived from
-                // EnergyHistory meter readings, no longer stored on the measurement.
-            };
+                var result = set.Any(m => m.Time == time);
+                return await Task.FromResult(result);
+            });
 
-            await _measurementService.Add(new List<QuarterlyMeasurement> { measurement });
+            if (!measurementExists)
+            {
+                var measurement = new QuarterlyMeasurement
+                {
+                    Time = time,
+                    BatteryStateOfChargeWh = socWh,
+                    // Battery mode is filled in by BatteriesService. Grid flows are derived from
+                    // EnergyHistory meter readings, no longer stored on the measurement.
+                };
+
+                await _measurementService.Add(new List<QuarterlyMeasurement> { measurement });
+            }
 
             // Store the cumulative P1 meter readings (meterstanden) so the raw meter history
             // is preserved, as in earlier versions. Values stay in Wh to match how

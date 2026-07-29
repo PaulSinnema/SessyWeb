@@ -473,7 +473,13 @@ namespace SessyController.Services
             if (_measurementService == null)
                 return;
 
-            var currentQuarterlyInfo = GetNextQuarterlyInfoInPlan();
+            // A measurement belongs to the quarter that is running NOW. Never use
+            // GetNextQuarterlyInfoInPlan() here — that is a UI helper returning the upcoming
+            // quarter, and writing a row for a future quarter makes EnergyMonitorService skip
+            // that quarter (its Exists() check) so the meter readings are never stored.
+            var nowQuarter = _timeZoneService.Now.DateFloorQuarter();
+
+            var currentQuarterlyInfo = _quarterlyInfos.FirstOrDefault(q => q.Time == nowQuarter);
             if (currentQuarterlyInfo == null)
                 return;
 
@@ -484,7 +490,6 @@ namespace SessyController.Services
 
             // Use the actually executed mode, not the planned mode from QuarterlyInfo.
             // The runtime may have overridden the plan (e.g. SOC guard → NZH, curtailment → Disabled).
-            var nowQuarter = _timeZoneService.Now.DateFloorQuarter();
             var (mode, _) = await _milpService.GetExecutableActionForNowAsync(nowQuarter).ConfigureAwait(false);
 
             // Update the existing QuarterlyMeasurement record created by EnergyMonitorService,
