@@ -11,11 +11,15 @@
 --     * the SHAPE (how much is consumed/produced per quarter) comes from the same
 --       time-of-day in the days before the gap, matched on weekday vs weekend;
 --     * the shape is then SCALED so the cumulative counters land exactly on the
---       measured values of the closing anchor row (today 10:30).
+--       measured values of the closing anchor row.
 --   So totals over the gap are exact; the distribution inside the gap is an estimate.
 --
 -- THESE ROWS ARE RECONSTRUCTED, NOT MEASURED. They feed EnergyStatisticsService and
 -- FinancialResultsService, so per-quarter figures in that window are approximations.
+--
+-- Time is compared as plain text: EnergyHistory.Time is stored as a 19-character
+-- 'YYYY-MM-DD HH:MM:SS' string, so string order equals chronological order and the
+-- index on Time is usable. Wrapping it in datetime() defeats both.
 --
 -- BEFORE RUNNING
 --   1. Stop the container.
@@ -26,35 +30,41 @@
 --   sqlite3 Sessy.db < RepairEnergyHistoryGap.sql
 -- ─────────────────────────────────────────────────────────────────────────────
 
-.headers on
-.mode column
+-- Nothing below is CLI-specific, so this file also runs in DB Browser, DBeaver or any
+-- other client. For readable output in the sqlite3 shell, type these two dot-commands
+-- yourself before running it — they are shell commands, not SQL, and a client that
+-- sends them to SQLite reports: near ".": syntax error.
+--     .headers on
+--     .mode column
 
 BEGIN TRANSACTION;
 
 -- ── Parameters ───────────────────────────────────────────────────────────────
 -- gap_end      : timestamp of the first GOOD reading after the gap.
 -- profile_days : how many days before the gap are used to build the shape.
+-- max_slots    : safety cap on the number of reconstructed quarters.
 DROP TABLE IF EXISTS temp.p;
 CREATE TEMP TABLE p AS
 SELECT '2026-07-29 10:30:00' AS gap_end,
-       14                    AS profile_days;
+       14                    AS profile_days,
+       2000                  AS max_slots;
 
 -- ── Anchors: last row before the gap, first row after it (per meter) ─────────
 DROP TABLE IF EXISTS temp.bounds;
 CREATE TEMP TABLE bounds AS
 WITH endrow AS (
-    SELECT MeterId, MIN(datetime(Time)) AS end_time
+    SELECT MeterId, MIN(Time) AS end_time
     FROM EnergyHistory
-    WHERE datetime(Time) >= datetime((SELECT gap_end FROM p))
+    WHERE Time >= (SELECT gap_end FROM p)
     GROUP BY MeterId
 ),
 anchor AS (
     SELECT er.MeterId,
            er.end_time,
-           (SELECT MAX(datetime(s.Time))
+           (SELECT MAX(s.Time)
             FROM EnergyHistory s
             WHERE s.MeterId IS er.MeterId
-              AND datetime(s.Time) < er.end_time) AS start_time
+              AND s.Time < er.end_time) AS start_time
     FROM endrow er
 )
 SELECT a.MeterId,
@@ -65,12 +75,12 @@ SELECT a.MeterId,
        e.ConsumedTariff1 AS c1_1, e.ConsumedTariff2 AS c2_1,
        e.ProducedTariff1 AS p1_1, e.ProducedTariff2 AS p2_1
 FROM anchor a
-JOIN EnergyHistory s ON s.MeterId IS a.MeterId AND datetime(s.Time) = a.start_time
-JOIN EnergyHistory e ON e.MeterId IS a.MeterId AND datetime(e.Time) = a.end_time;
+JOIN EnergyHistory s ON s.MeterId IS a.MeterId AND s.Time = a.start_time
+JOIN EnergyHistory e ON e.MeterId IS a.MeterId AND e.Time = a.end_time;
 
 SELECT '=== ANCHORS ===' AS check_1;
 SELECT MeterId, start_time, end_time,
-       ROUND((julianday(end_time) - julianday(start_time)) * 96) - 1 AS missing_slots,
+       CAST(ROUND((julianday(end_time) - julianday(start_time)) * 96) AS INT) - 1 AS missing_slots,
        ROUND(c1_1 - c1_0, 1) AS delta_consumed_t1,
        ROUND(c2_1 - c2_0, 1) AS delta_consumed_t2,
        ROUND(p1_1 - p1_0, 1) AS delta_produced_t1,
@@ -78,17 +88,24 @@ SELECT MeterId, start_time, end_time,
 FROM bounds;
 
 -- ── Missing 15-minute slots ─────────────────────────────────────────────────
+-- A bare counter drives the recursion; joining bounds inside a recursive step makes
+-- SQLite re-evaluate it per iteration.
+--
+-- The closing quarter (end_time itself) is included here on purpose: it carries a
+-- share of the shape, so the measured delta is spread over every interval including
+-- the last one. gap_rows drops it again — that row already exists.
 DROP TABLE IF EXISTS temp.slots;
 CREATE TEMP TABLE slots AS
-WITH RECURSIVE seq(MeterId, t) AS (
-    SELECT MeterId, datetime(start_time, '+15 minutes') FROM bounds
+WITH RECURSIVE n(i) AS (
+    SELECT 1
     UNION ALL
-    SELECT s.MeterId, datetime(s.t, '+15 minutes')
-    FROM seq s
-    JOIN bounds b ON b.MeterId IS s.MeterId
-    WHERE datetime(s.t, '+15 minutes') < b.end_time
+    SELECT i + 1 FROM n WHERE i < (SELECT max_slots FROM p)
 )
-SELECT MeterId, t FROM seq;
+SELECT b.MeterId,
+       datetime(b.start_time, '+' || (n.i * 15) || ' minutes') AS t
+FROM bounds b
+JOIN n
+WHERE datetime(b.start_time, '+' || (n.i * 15) || ' minutes') <= b.end_time;
 
 -- ── Shape: average per-quarter increments per time-of-day, before the gap ────
 -- Only consecutive rows exactly 15 minutes apart are used; negative increments
@@ -97,21 +114,20 @@ DROP TABLE IF EXISTS temp.prof;
 CREATE TEMP TABLE prof AS
 WITH src AS (
     SELECT MeterId,
-           datetime(Time) AS t,
+           Time AS t,
            CASE WHEN strftime('%w', Time) IN ('0','6') THEN 1 ELSE 0 END AS is_we,
-           strftime('%H:%M', Time) AS tod,
+           substr(Time, 12, 5) AS tod,
            TarrifIndicator,
            Temperature,
            ConsumedTariff1, ConsumedTariff2, ProducedTariff1, ProducedTariff2,
-           LAG(datetime(Time))    OVER (PARTITION BY MeterId ORDER BY Time) AS pt,
-           LAG(ConsumedTariff1)   OVER (PARTITION BY MeterId ORDER BY Time) AS pc1,
-           LAG(ConsumedTariff2)   OVER (PARTITION BY MeterId ORDER BY Time) AS pc2,
-           LAG(ProducedTariff1)   OVER (PARTITION BY MeterId ORDER BY Time) AS pp1,
-           LAG(ProducedTariff2)   OVER (PARTITION BY MeterId ORDER BY Time) AS pp2
+           LAG(Time)            OVER (PARTITION BY MeterId ORDER BY Time) AS pt,
+           LAG(ConsumedTariff1) OVER (PARTITION BY MeterId ORDER BY Time) AS pc1,
+           LAG(ConsumedTariff2) OVER (PARTITION BY MeterId ORDER BY Time) AS pc2,
+           LAG(ProducedTariff1) OVER (PARTITION BY MeterId ORDER BY Time) AS pp1,
+           LAG(ProducedTariff2) OVER (PARTITION BY MeterId ORDER BY Time) AS pp2
     FROM EnergyHistory
-    WHERE datetime(Time) >  datetime((SELECT MIN(start_time) FROM bounds),
-                                     '-' || (SELECT profile_days FROM p) || ' days')
-      AND datetime(Time) <= (SELECT MIN(start_time) FROM bounds)
+    WHERE Time >  (SELECT datetime(MIN(start_time), '-' || (SELECT profile_days FROM p) || ' days') FROM bounds)
+      AND Time <= (SELECT MIN(start_time) FROM bounds)
 )
 SELECT MeterId, is_we, tod,
        AVG(MAX(ConsumedTariff1 - pc1, 0)) AS w_c1,
@@ -146,7 +162,7 @@ WITH w AS (
     FROM slots s
     LEFT JOIN prof pr
            ON pr.MeterId IS s.MeterId
-          AND pr.tod    =  strftime('%H:%M', s.t)
+          AND pr.tod    =  substr(s.t, 12, 5)
           AND pr.is_we  =  CASE WHEN strftime('%w', s.t) IN ('0','6') THEN 1 ELSE 0 END
 )
 SELECT MeterId, t, avg_temp, tariff,
@@ -170,11 +186,7 @@ DROP TABLE IF EXISTS temp.gap_rows;
 CREATE TEMP TABLE gap_rows AS
 SELECT
     w.MeterId,
-    -- Match the timestamp format already used in the table.
-    CASE WHEN (SELECT instr(Time, '.') FROM EnergyHistory ORDER BY Id DESC LIMIT 1) > 0
-         THEN strftime('%Y-%m-%d %H:%M:%S.0000000', w.t)
-         ELSE strftime('%Y-%m-%d %H:%M:%S', w.t)
-    END AS Time,
+    w.t AS Time,
     ROUND(b.c1_0 + (b.c1_1 - b.c1_0) *
         CASE WHEN w.tot_c1 > 0 THEN w.cum_c1 / w.tot_c1 ELSE CAST(w.rn AS REAL) / w.n END, 3) AS ConsumedTariff1,
     ROUND(b.c2_0 + (b.c2_1 - b.c2_0) *
@@ -183,21 +195,19 @@ SELECT
         CASE WHEN w.tot_p1 > 0 THEN w.cum_p1 / w.tot_p1 ELSE CAST(w.rn AS REAL) / w.n END, 3) AS ProducedTariff1,
     ROUND(b.p2_0 + (b.p2_1 - b.p2_0) *
         CASE WHEN w.tot_p2 > 0 THEN w.cum_p2 / w.tot_p2 ELSE CAST(w.rn AS REAL) / w.n END, 3) AS ProducedTariff2,
-    -- Tariff indicator: prefer the row exactly one week earlier (same weekday/time).
-    COALESCE(
-        (SELECT h.TarrifIndicator FROM EnergyHistory h
-          WHERE h.MeterId IS w.MeterId AND datetime(h.Time) = datetime(w.t, '-7 days') LIMIT 1),
-        w.tariff,
-        0) AS TarrifIndicator,
-    -- Temperature: the live weather stored by ConsumptionMonitorService for that
-    -- quarter (that service kept running), otherwise the time-of-day average.
-    ROUND(COALESCE(
-        (SELECT NULLIF(c.Temperature, -999) FROM Consumption c
-          WHERE datetime(c.Time) = w.t LIMIT 1),
-        w.avg_temp,
-        0), 1) AS Temperature
+    -- Tariff indicator: prefer the row exactly one week earlier (same weekday and time).
+    COALESCE(h.TarrifIndicator, w.tariff, 0) AS TarrifIndicator,
+    -- Temperature: the live weather stored by ConsumptionMonitorService for that quarter
+    -- (that service kept running), otherwise the time-of-day average.
+    ROUND(COALESCE(NULLIF(c.Temperature, -999), w.avg_temp, 0), 1) AS Temperature
 FROM weighted w
-JOIN bounds b ON b.MeterId IS w.MeterId;
+JOIN bounds b ON b.MeterId IS w.MeterId
+LEFT JOIN EnergyHistory h
+       ON h.MeterId IS w.MeterId
+      AND h.Time = datetime(w.t, '-7 days')
+LEFT JOIN Consumption c
+       ON substr(c.Time, 1, 19) = w.t
+WHERE w.t < b.end_time;
 
 -- ── Verification (inspect before committing) ────────────────────────────────
 SELECT '=== ROWS TO INSERT ===' AS check_3;
@@ -207,11 +217,11 @@ FROM gap_rows GROUP BY MeterId;
 SELECT '=== NO OVERLAP WITH EXISTING ROWS (must be 0) ===' AS check_4;
 SELECT COUNT(*) AS collisions
 FROM gap_rows g
-JOIN EnergyHistory e ON e.MeterId IS g.MeterId AND datetime(e.Time) = datetime(g.Time);
+JOIN EnergyHistory e ON e.MeterId IS g.MeterId AND e.Time = g.Time;
 
-SELECT '=== MONOTONICITY (must all be 0) ===' AS check_5;
+SELECT '=== MONOTONICITY OF THE FILLED ROWS (must all be 0) ===' AS check_5;
 WITH chk AS (
-    SELECT MeterId, Time, ConsumedTariff1, ConsumedTariff2, ProducedTariff1, ProducedTariff2,
+    SELECT ConsumedTariff1, ConsumedTariff2, ProducedTariff1, ProducedTariff2,
            LAG(ConsumedTariff1) OVER (PARTITION BY MeterId ORDER BY Time) AS l1,
            LAG(ConsumedTariff2) OVER (PARTITION BY MeterId ORDER BY Time) AS l2,
            LAG(ProducedTariff1) OVER (PARTITION BY MeterId ORDER BY Time) AS l3,
@@ -224,16 +234,40 @@ SELECT SUM(ConsumedTariff1 < l1) AS drops_c1,
        SUM(ProducedTariff2 < l4) AS drops_p2
 FROM chk WHERE l1 IS NOT NULL;
 
-SELECT '=== JOIN ON THE CLOSING ANCHOR (last generated value vs measured) ===' AS check_6;
+SELECT '=== JOIN ONTO THE CLOSING ANCHOR ===' AS check_6;
+-- Increment of the existing anchor row over the last reconstructed one.
+-- Must be >= 0 and of the size of a single quarter.
 SELECT b.MeterId,
-       ROUND(b.c1_1 - (SELECT ConsumedTariff1 FROM gap_rows g WHERE g.MeterId IS b.MeterId ORDER BY g.Time DESC LIMIT 1), 3) AS remainder_c1,
-       ROUND(b.c2_1 - (SELECT ConsumedTariff2 FROM gap_rows g WHERE g.MeterId IS b.MeterId ORDER BY g.Time DESC LIMIT 1), 3) AS remainder_c2,
-       ROUND(b.p1_1 - (SELECT ProducedTariff1 FROM gap_rows g WHERE g.MeterId IS b.MeterId ORDER BY g.Time DESC LIMIT 1), 3) AS remainder_p1,
-       ROUND(b.p2_1 - (SELECT ProducedTariff2 FROM gap_rows g WHERE g.MeterId IS b.MeterId ORDER BY g.Time DESC LIMIT 1), 3) AS remainder_p2
+       ROUND(b.c1_1 - (SELECT ConsumedTariff1 FROM gap_rows g WHERE g.MeterId IS b.MeterId ORDER BY g.Time DESC LIMIT 1), 3) AS last_step_c1,
+       ROUND(b.c2_1 - (SELECT ConsumedTariff2 FROM gap_rows g WHERE g.MeterId IS b.MeterId ORDER BY g.Time DESC LIMIT 1), 3) AS last_step_c2,
+       ROUND(b.p1_1 - (SELECT ProducedTariff1 FROM gap_rows g WHERE g.MeterId IS b.MeterId ORDER BY g.Time DESC LIMIT 1), 3) AS last_step_p1,
+       ROUND(b.p2_1 - (SELECT ProducedTariff2 FROM gap_rows g WHERE g.MeterId IS b.MeterId ORDER BY g.Time DESC LIMIT 1), 3) AS last_step_p2
 FROM bounds b;
--- remainder_* is the increment of the final (existing) 10:30 row — must be small and >= 0.
 
-SELECT '=== SAMPLE (every 8th row) ===' AS check_7;
+SELECT '=== BOUNDARY STEPS (opening anchor → first row, last row → closing anchor) ===' AS check_7;
+SELECT 'open' AS edge,
+       ROUND((SELECT MIN(ConsumedTariff2) FROM gap_rows) - b.c2_0, 3) AS step_c2,
+       ROUND((SELECT MIN(ProducedTariff2) FROM gap_rows) - b.p2_0, 3) AS step_p2
+FROM bounds b
+UNION ALL
+SELECT 'close',
+       ROUND(b.c2_1 - (SELECT MAX(ConsumedTariff2) FROM gap_rows), 3),
+       ROUND(b.p2_1 - (SELECT MAX(ProducedTariff2) FROM gap_rows), 3)
+FROM bounds b;
+
+SELECT '=== LARGEST QUARTER INCREMENT vs REFERENCE DAYS ===' AS check_8;
+WITH d AS (
+    SELECT ConsumedTariff2 - LAG(ConsumedTariff2) OVER (ORDER BY Time) AS dc2,
+           ProducedTariff2 - LAG(ProducedTariff2) OVER (ORDER BY Time) AS dp2
+    FROM gap_rows
+)
+SELECT ROUND(MAX(dc2), 1) AS max_quarter_consumed,
+       ROUND(MAX(dp2), 1) AS max_quarter_produced,
+       (SELECT ROUND(MAX(w_c2), 1) FROM prof) AS reference_max_consumed,
+       (SELECT ROUND(MAX(w_p2), 1) FROM prof) AS reference_max_produced
+FROM d;
+
+SELECT '=== SAMPLE (every 8th row) ===' AS check_9;
 SELECT Time, ConsumedTariff1, ConsumedTariff2, ProducedTariff1, ProducedTariff2, TarrifIndicator, Temperature
 FROM (SELECT *, ROW_NUMBER() OVER (ORDER BY Time) AS rn FROM gap_rows)
 WHERE rn % 8 = 1;
@@ -245,7 +279,7 @@ SELECT Time, MeterId, ConsumedTariff1, ConsumedTariff2, ProducedTariff1, Produce
 FROM gap_rows
 WHERE NOT EXISTS (
     SELECT 1 FROM EnergyHistory e
-    WHERE e.MeterId IS gap_rows.MeterId AND datetime(e.Time) = datetime(gap_rows.Time)
+    WHERE e.MeterId IS gap_rows.MeterId AND e.Time = gap_rows.Time
 );
 
 SELECT '=== INSERTED ===' AS result, changes() AS rows_inserted;
@@ -255,4 +289,4 @@ COMMIT;
 
 -- ── Undo (only valid before the app writes new EnergyHistory rows) ──────────
 -- DELETE FROM EnergyHistory
---  WHERE datetime(Time) > '2026-07-27 22:15:00' AND datetime(Time) < '2026-07-29 10:30:00';
+--  WHERE Time > '2026-07-27 22:45:00' AND Time < '2026-07-29 10:30:00';

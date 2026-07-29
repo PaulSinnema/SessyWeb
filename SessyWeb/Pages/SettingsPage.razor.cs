@@ -600,7 +600,7 @@ namespace SessyWeb.Pages
         private List<string> _sqlColumns = [];
 
         private static readonly HashSet<string> _blockedKeywords =
-            new(StringComparer.OrdinalIgnoreCase) { "DROP", "ALTER", "CREATE", "TRUNCATE" };
+            new(StringComparer.OrdinalIgnoreCase) { "ALTER" };
 
         private async Task ExecuteSqlAsync()
         {
@@ -618,6 +618,27 @@ namespace SessyWeb.Pages
                 }
             }
 
+            List<string> statements;
+            List<string> skipped;
+
+            try
+            {
+                statements = SqlScriptSplitter.Split(_sqlStatement, out skipped);
+            }
+            catch (Exception ex)
+            {
+                _sqlError = ex.Message;
+                _sqlResult = null;
+                return;
+            }
+
+            if (statements.Count == 0)
+            {
+                _sqlError = "Nothing to execute — the script contains only comments.";
+                _sqlResult = null;
+                return;
+            }
+
             _sqlBusy = true;
             _sqlError = null;
             _sqlResult = null;
@@ -629,44 +650,79 @@ namespace SessyWeb.Pages
                 using var scope = _scopeFactory!.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<ModelContext>();
 
-                var isSelect = upper.TrimStart().StartsWith("SELECT");
+                // One connection for the whole script, so temp tables created by an early
+                // statement are still there for a later one.
+                var conn = db.Database.GetDbConnection();
+                await conn.OpenAsync();
 
-                if (isSelect)
+                // One transaction around everything: a script that fails halfway leaves no
+                // half-applied result behind.
+                using var transaction = await conn.BeginTransactionAsync();
+
+                int executed = 0;
+                int affected = 0;
+                int resultSets = 0;
+
+                try
                 {
-                    // Use raw ADO.NET for SELECT — EF Core ExecuteSqlRaw does not return result sets.
-                    var conn = db.Database.GetDbConnection();
-                    await conn.OpenAsync();
-                    try
+                    foreach (var statement in statements)
                     {
                         using var cmd = conn.CreateCommand();
-                        cmd.CommandText = _sqlStatement;
-                        using var reader = await cmd.ExecuteReaderAsync();
-                        _sqlColumns = Enumerable.Range(0, reader.FieldCount)
-                            .Select(i => reader.GetName(i))
-                            .ToList();
-                        var rows = new List<Dictionary<string, object>>();
-                        while (await reader.ReadAsync())
+                        cmd.Transaction = transaction;
+                        cmd.CommandText = statement;
+
+                        // ExecuteReader handles both kinds: a query exposes columns, anything
+                        // else reports its row count. No guessing from the first keyword.
+                        var reader = await cmd.ExecuteReaderAsync();
+                        try
                         {
-                            var row = new Dictionary<string, object>();
-                            for (int i = 0; i < reader.FieldCount; i++)
-                                row[reader.GetName(i)] = reader.IsDBNull(i) ? (object)"NULL" : reader.GetValue(i);
-                            rows.Add(row);
+                            if (reader.FieldCount > 0)
+                            {
+                                var columns = Enumerable.Range(0, reader.FieldCount)
+                                    .Select(i => reader.GetName(i))
+                                    .ToList();
+
+                                var rows = new List<Dictionary<string, object>>();
+                                while (await reader.ReadAsync())
+                                {
+                                    var row = new Dictionary<string, object>();
+                                    for (int i = 0; i < reader.FieldCount; i++)
+                                        row[reader.GetName(i)] = reader.IsDBNull(i) ? (object)"NULL" : reader.GetValue(i);
+                                    rows.Add(row);
+                                }
+
+                                // The grid shows one result set; keep the last one.
+                                _sqlColumns = columns;
+                                _sqlResult = rows;
+                                resultSets++;
+                            }
                         }
-                        _sqlResult = rows;
-                        _sqlRowsAffected = $"{rows.Count} row(s) returned.";
+                        finally
+                        {
+                            await reader.DisposeAsync();
+                        }
+
+                        // Only valid once the reader is closed.
+                        if (reader.RecordsAffected > 0)
+                            affected += reader.RecordsAffected;
+
+                        executed++;
                     }
-                    finally
-                    {
-                        await conn.CloseAsync();
-                    }
+
+                    await transaction.CommitAsync();
                 }
-                else
+                catch
                 {
-                    // Use EF Core for UPDATE/DELETE — ensures correct connection and WAL checkpoint.
-                    var affected = await db.Database.ExecuteSqlRawAsync(_sqlStatement);
-                    _sqlResult = [];
-                    _sqlRowsAffected = $"{affected} row(s) affected.";
+                    await transaction.RollbackAsync();
+                    throw;
                 }
+                finally
+                {
+                    await conn.CloseAsync();
+                }
+
+                _sqlResult ??= [];
+                _sqlRowsAffected = BuildSqlSummary(executed, affected, resultSets, skipped);
             }
             catch (Exception ex)
             {
@@ -678,6 +734,30 @@ namespace SessyWeb.Pages
                 StateHasChanged();
             }
         }
+
+        private static string BuildSqlSummary(int executed, int affected, int resultSets, List<string> skipped)
+        {
+            var parts = new List<string>
+            {
+                executed == 1 ? "1 statement executed." : $"{executed} statements executed."
+            };
+
+            if (affected > 0)
+                parts.Add($"{affected} row(s) affected.");
+
+            if (resultSets > 0)
+            {
+                parts.Add(resultSets == 1
+                    ? "1 result set."
+                    : $"{resultSets} result sets — the grid shows the last one.");
+            }
+
+            if (skipped.Count > 0)
+                parts.Add($"Skipped: {string.Join(", ", skipped)}.");
+
+            return string.Join(" ", parts);
+        }
+
 
         private string GetExportDirectory()
         {

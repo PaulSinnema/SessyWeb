@@ -1,67 +1,35 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// Paste-ready migration body for the EnergyHistory gap repair.
-//
-// This file is NOT compiled (it lives outside every csproj). Generate an empty
-// migration and paste Up()/Down() into it:
-//
-//   dotnet build C:\Projects\Sessy\SessyController.sln
-//   dotnet ef migrations add RepairEnergyHistoryGap --project SessyData --startup-project SessyWeb
-//
-// It runs inside the migration transaction from Program.cs (dbContext.Database.Migrate()),
-// which is preceded by the automatic VACUUM INTO backup.
-//
-// WHAT IT DOES
-//   For every 15-minute slot between the last reading before the gap and the first
-//   reading after it, a row is reconstructed:
-//     * the SHAPE (consumption/production per quarter) comes from the same time-of-day
-//       in the days before the gap, matched on weekday vs weekend;
-//     * the shape is SCALED so the cumulative counters land exactly on the measured
-//       values of the closing anchor row (GapEnd).
-//   Totals over the gap are therefore exact; the distribution inside it is an estimate.
-//   THESE ROWS ARE RECONSTRUCTED, NOT MEASURED — EnergyStatisticsService and
-//   FinancialResultsService will report approximations for that window.
-//
-//   Safe on an empty or already-repaired database: without an anchor row at/after
-//   GapEnd nothing is selected, and existing timestamps are skipped.
-//
-// Verified against a copy of the production database (37 373 EnergyHistory rows):
-// 142 rows inserted for 27-07 23:00 .. 29-07 10:15, no collisions, no counter that
-// ever decreases, every interval exactly 15 minutes, runtime 0.4 s.
-//
-// Time is compared as plain text throughout: EnergyHistory.Time is a 19-character
-// 'YYYY-MM-DD HH:MM:SS' string, so string order is chronological order and the index
-// on Time stays usable. Wrapping the column in datetime() defeats both — an earlier
-// version of this script did and took 3 m 45 s instead.
-// ─────────────────────────────────────────────────────────────────────────────
+-- ─────────────────────────────────────────────────────────────────────────────
+-- RepairEnergyHistoryGap.Console.sql
+--
+-- Version for the SQL Console in SessyWeb => Settings. That console sends the whole
+-- text as ONE command, so this file is a single INSERT statement:
+--   * no .headers / .mode  — those are sqlite3-shell commands, not SQL, and the
+--     console reports them as: near ".": syntax error
+--   * no temp tables and no BEGIN/COMMIT — everything is CTEs inside the statement
+--
+-- Paste this whole file into the console and run it once. It reports
+-- "142 row(s) affected". Running it a second time affects 0 rows: the NOT EXISTS
+-- guard at the bottom skips timestamps that are already present.
+--
+-- Verify afterwards with the SELECTs at the bottom of this file — paste them ONE AT
+-- A TIME and make sure the text you paste STARTS with SELECT. The console decides
+-- between "show a grid" and "execute" by looking at the first word, so a leading
+-- comment line turns a SELECT into a silent no-op reporting "0 row(s) affected".
+--
+-- Back up first: Settings has a database backup button, or copy Sessy.db while the
+-- container is stopped. Undo is at the very bottom.
+--
+-- THESE ROWS ARE RECONSTRUCTED, NOT MEASURED. The totals over the gap are exact —
+-- they are scaled onto the measured anchor readings — but the distribution within
+-- the gap is an estimate built from the same time-of-day on the preceding days.
+-- ─────────────────────────────────────────────────────────────────────────────
 
-using Microsoft.EntityFrameworkCore.Migrations;
-
-#nullable disable
-
-namespace SessyData.Migrations
-{
-    /// <inheritdoc />
-    public partial class RepairEnergyHistoryGap : Migration
-    {
-        // First good reading after the gap; the reconstruction is scaled to join onto it.
-        private const string GapEnd = "2026-07-29 10:30:00";
-
-        // Days before the gap used to build the time-of-day shape.
-        private const int ProfileDays = 14;
-
-        // Safety cap on the number of reconstructed quarters (2000 = ~20 days).
-        private const int MaxSlots = 2000;
-
-        /// <inheritdoc />
-        protected override void Up(MigrationBuilder migrationBuilder)
-        {
-            migrationBuilder.Sql($@"
 WITH RECURSIVE
 -- Closing anchor: first stored reading at or after the gap (per meter).
 endrow AS (
     SELECT MeterId, MIN(Time) AS end_time
       FROM EnergyHistory
-     WHERE Time >= '{GapEnd}'
+     WHERE Time >= '2026-07-29 10:30:00'
      GROUP BY MeterId
 ),
 -- Opening anchor: last reading before that.
@@ -89,7 +57,7 @@ bounds AS (
 n(i) AS (
     SELECT 1
     UNION ALL
-    SELECT i + 1 FROM n WHERE i < {MaxSlots}
+    SELECT i + 1 FROM n WHERE i < 2000
 ),
 -- The closing quarter (end_time itself) is included on purpose: it carries a share of
 -- the shape, so the measured delta is spread over every interval including the last.
@@ -116,7 +84,7 @@ src AS (
            LAG(ProducedTariff1) OVER (PARTITION BY MeterId ORDER BY Time) AS pp1,
            LAG(ProducedTariff2) OVER (PARTITION BY MeterId ORDER BY Time) AS pp2
       FROM EnergyHistory
-     WHERE Time >  (SELECT datetime(MIN(start_time), '-{ProfileDays} days') FROM bounds)
+     WHERE Time >  (SELECT datetime(MIN(start_time), '-14 days') FROM bounds)
        AND Time <= (SELECT MIN(start_time) FROM bounds)
 ),
 -- Average increment per time-of-day. Only pairs exactly 15 minutes apart count;
@@ -202,19 +170,34 @@ SELECT Time, MeterId, ConsumedTariff1, ConsumedTariff2, ProducedTariff1, Produce
         SELECT 1 FROM EnergyHistory e
          WHERE e.MeterId IS gap_rows.MeterId
            AND e.Time = gap_rows.Time);
-");
-        }
 
-        /// <inheritdoc />
-        protected override void Down(MigrationBuilder migrationBuilder)
-        {
-            // Removes the reconstructed rows. Anything the app stored itself in that window
-            // would go with them, but by definition there was nothing — that was the gap.
-            migrationBuilder.Sql($@"
-DELETE FROM EnergyHistory
- WHERE Time >  datetime('{GapEnd}', '-36 hours')
-   AND Time <  '{GapEnd}';
-");
-        }
-    }
-}
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- VERIFICATION — paste one at a time, each must start with SELECT.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- 1. How many rows are there now, and where do they start and end?
+-- SELECT COUNT(*) AS filled, MIN(Time) AS first, MAX(Time) AS last
+--   FROM EnergyHistory
+--  WHERE Time > '2026-07-27 22:45:00' AND Time < '2026-07-29 10:30:00';
+
+-- 2. Continuity: every gap 15 minutes, no counter ever decreasing. All three 0.
+-- SELECT SUM(gap_min <> 15) AS bad_gaps, SUM(dc2 < 0) AS negative_consumed, SUM(dp2 < 0) AS negative_produced
+--   FROM (SELECT ROUND((julianday(Time) - julianday(LAG(Time) OVER (ORDER BY Time))) * 1440) AS gap_min,
+--                ConsumedTariff2 - LAG(ConsumedTariff2) OVER (ORDER BY Time) AS dc2,
+--                ProducedTariff2 - LAG(ProducedTariff2) OVER (ORDER BY Time) AS dp2
+--           FROM EnergyHistory
+--          WHERE Time >= '2026-07-27 20:00:00' AND Time <= '2026-07-29 11:00:00')
+--  WHERE dc2 IS NOT NULL;
+
+-- 3. The two seams: last measured row before, first reconstructed row after, and vice versa.
+-- SELECT Time, ConsumedTariff2, ProducedTariff2 FROM EnergyHistory
+--  WHERE Time BETWEEN '2026-07-27 22:30:00' AND '2026-07-27 23:30:00'
+--     OR Time BETWEEN '2026-07-29 10:00:00' AND '2026-07-29 10:45:00'
+--  ORDER BY Time;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- UNDO — only valid before the app has written new rows in this window.
+-- ─────────────────────────────────────────────────────────────────────────────
+-- DELETE FROM EnergyHistory
+--  WHERE Time > '2026-07-27 22:45:00' AND Time < '2026-07-29 10:30:00';
