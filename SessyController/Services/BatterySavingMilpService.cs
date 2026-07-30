@@ -18,13 +18,16 @@ namespace SessyController.Services
             TaxesDataService taxesDataService,
             PlannedActionDataService plannedActionDataService,
             PlannedQuarterDataService plannedQuarterDataService,
+            ForecastSnapshotDataService forecastSnapshotDataService,
             ChargeCostBasisService chargeCostBasisService,
+            ReplacementCostService replacementCostService,
             ThrottleAnalysisService throttleAnalysisService,
             WeatherService weatherService,
             BatteryEfficiencyService batteryEfficiencyService)
             : base(new BatterySavingStrategy(), logger, settingsService, sessyBatteryConfigMonitor,
                    batteryContainer, timeZoneService, taxesDataService,
-                   plannedActionDataService, plannedQuarterDataService, chargeCostBasisService,
+                   plannedActionDataService, plannedQuarterDataService, forecastSnapshotDataService,
+                   chargeCostBasisService, replacementCostService,
                    throttleAnalysisService, weatherService, batteryEfficiencyService)
         {
         }

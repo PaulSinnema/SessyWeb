@@ -13,15 +13,15 @@
 
 	<ItemGroup>
 		<PackageReference Include="BlazorPro.BlazorSize" Version="9.0.0" />
-		<PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="10.0.9" />
-		<PackageReference Include="Microsoft.Build" Version="18.7.1" />
-		<PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.9" />
-		<PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.9">
+		<PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="10.0.10" />
+		<PackageReference Include="Microsoft.Build" Version="18.8.2" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.10" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		<PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.9" />
-		<PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.9">
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.10" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.10">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
@@ -29,11 +29,11 @@
 		<PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="10.0.2" />
 		<PackageReference Include="NuGet.Packaging" Version="7.6.0" />
 		<PackageReference Include="NuGet.Protocol" Version="7.6.0" />
-		<PackageReference Include="Radzen.Blazor" Version="11.1.2" />
+		<PackageReference Include="Radzen.Blazor" Version="11.1.9" />
 		<PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.53.3" />
-		<PackageReference Include="System.Linq.Dynamic.Core" Version="1.7.2" />
+		<PackageReference Include="System.Linq.Dynamic.Core" Version="1.7.3" />
 		<PackageReference Include="DocumentFormat.OpenXml" Version="3.5.1" />
-		<PackageReference Include="System.IO.Packaging" Version="10.0.9" />
+		<PackageReference Include="System.IO.Packaging" Version="10.0.10" />
 	</ItemGroup>
 
 	<ItemGroup>

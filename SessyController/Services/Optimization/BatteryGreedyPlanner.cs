@@ -45,6 +45,13 @@ namespace SessyController.Services.Optimization
     ///     fits in j's remaining discharge power, and raising the SOC across (i, j] keeps it at
     ///     or below the maximum SOC on every quarter in between.
     ///
+    ///     A third candidate exists when SessyOptions.AllowCarryForward is set: charge at i and
+    ///     keep the energy past the end of the horizon, valued at the measured replacement cost.
+    ///     Without it the planner can hold stock but can never acquire stock for beyond the
+    ///     horizon, because the pair above needs a discharge quarter inside it — exactly the case
+    ///     that matters when prices go negative. The cycle cost does not enter this comparison:
+    ///     the kWh is cycled once whichever day it is charged, so it cancels.
+    ///
     ///  3. Classification.
     ///     Charging fed by the grid → Charge. Discharging that exports → Discharge.
     ///     Everything else (storing solar, covering the house) → ZeroNetHome.
@@ -82,6 +89,9 @@ namespace SessyController.Services.Optimization
 
         /// <summary>Sentinel: the discharge is fed from the initial stock, not from a charge quarter.</summary>
         private const int StockSource = -2;
+
+        /// <summary>Sentinel target: the energy is kept past the end of the horizon, not discharged.</summary>
+        private const int CarryTarget = -3;
 
         public static PlanResult? Solve(
             IReadOnlyList<PricePoint> pricePoints,
@@ -238,17 +248,20 @@ namespace SessyController.Services.Optimization
                     // sunk and deliberately plays no part in choosing *when* to discharge —
                     // that would be a sunk-cost error and would reject genuinely good trades.
                     //
-                    // StockCostEurPerKWh enters as a floor, for a different reason: a kWh still
+                    // The replacement cost enters as a floor, for a different reason: a kWh still
                     // in the battery at the end of the horizon is worth zero in the objective,
                     // so without it the planner prefers dumping at any price above cycleCost
-                    // over carrying energy forward. Charging the replacement cost against each
-                    // stock discharge prices that carry-forward option back in. Solar energy has
-                    // a cost basis of 0, so a solar-filled battery behaves exactly as before.
+                    // over carrying energy forward. Charging what a replacement kWh will cost
+                    // against each stock discharge prices that carry-forward option back in.
+                    //
+                    // Divided by the round trip for the same reason Candidate B divides costI:
+                    // replacing one delivered kWh means buying 1 / roundTrip kWh on the AC side.
+                    // It plays exactly the part of a charge quarter beyond the end of the horizon.
                     //
                     // Feasibility: draining the store at j lowers the SOC path from j onward,
                     // which must stay at or above the reserve on every later quarter.
                     {
-                        double profitPerKWh = valueJ - opt.StockCostEurPerKWh - cycleCost;
+                        double profitPerKWh = valueJ - opt.ReplacementCostEurPerKWh / roundTrip - cycleCost;
                         if (profitPerKWh > bestProfitPerKWh + Eps)
                         {
                             double block = Math.Min(BlockKWh, Math.Min(dischargeHeadroom, valueLimit));
@@ -339,6 +352,77 @@ namespace SessyController.Services.Optimization
                     }
                 }
 
+                // ── Candidate C: charge at i and keep it past the end of the horizon ──
+                // No discharge quarter: the energy is valued at what replacing it would cost.
+                // Both sides are divided by the round trip, because both are AC-side purchases
+                // of the same stored kWh — one now, one later — so this is simply "is buying
+                // now cheaper than buying later". The cycle cost cancels: the kWh is discharged
+                // once whichever day it was charged, so subtracting it here would double-count
+                // against Candidate B, which already carries it.
+                //
+                // The value is realized after the horizon, so it is discounted at the horizon's
+                // end. Discounting costI as well (as Candidate B does) would make a distant
+                // cheap quarter look cheaper still, which is backwards for an option whose whole
+                // payoff lies beyond the plan.
+                if (opt.AllowCarryForward && opt.ReplacementCostEurPerKWh > 0.0)
+                {
+                    double carryValue = opt.ReplacementCostEurPerKWh * Discount(n);
+
+                    for (int i = 0; i < n; i++)
+                    {
+                        if (pricePoints[i].ReserveOnly) continue;      // no grid charging on predicted quarters
+
+                        double socStartI = i == 0 ? Clamp(spec.InitialSocKWh, 0.0, capacity) : socEnd[i - 1];
+                        double chargeHeadroom = taperedChargeKWh(i, socStartI) - chargeKWh[i];
+                        if (chargeHeadroom <= Eps) continue;
+
+                        double costI;
+                        double costLimit;
+
+                        if (exportKWh[i] > Eps)
+                        {
+                            costI = pricePoints[i].SellEurPerKWh;      // forgone export revenue
+                            costLimit = exportKWh[i];
+                        }
+                        else
+                        {
+                            costI = pricePoints[i].BuyEurPerKWh;       // imported from grid
+                            costLimit = double.MaxValue;
+                        }
+
+                        double profitPerKWh = (carryValue - costI) / roundTrip;
+                        if (profitPerKWh <= bestProfitPerKWh + Eps) continue;
+
+                        double block = BlockKWh;
+                        block = Math.Min(block, chargeHeadroom * roundTrip);
+                        block = Math.Min(block, costLimit * roundTrip);
+
+                        // The SOC stays raised from i to the end of the horizon — nothing gives
+                        // it back — so every quarter from i onward must have room for it.
+                        double storeDelta = block / disEff;
+                        double allowed = storeDelta;
+                        for (int k = i; k < n; k++)
+                        {
+                            double room = maxSoc[k] - socEnd[k];
+                            if (room < allowed) allowed = room;
+                            if (allowed <= Eps) break;
+                        }
+                        if (allowed <= Eps) continue;
+
+                        if (allowed < storeDelta)
+                        {
+                            storeDelta = allowed;
+                            block = storeDelta * disEff;
+                        }
+                        if (block <= Eps) continue;
+
+                        bestProfitPerKWh = profitPerKWh;
+                        bestI = i;
+                        bestJ = CarryTarget;
+                        bestBlock = block;
+                    }
+                }
+
                 if (bestI == NoSource || bestBlock <= Eps) break;   // nothing profitable left
 
                 // Allocate the block.
@@ -367,6 +451,15 @@ namespace SessyController.Services.Optimization
                     double fromSolar = Math.Min(acCharge, exportKWh[bestI]);
                     solarChargeKWh[bestI] += fromSolar;
                     exportKWh[bestI] -= fromSolar;
+                }
+
+                if (bestJ == CarryTarget)
+                {
+                    // Kept past the end of the horizon: the SOC stays raised all the way out.
+                    for (int k = bestI; k < n; k++)
+                        socEnd[k] += store;
+
+                    continue;
                 }
 
                 dischargeKWh[bestJ] += deliver;
@@ -417,6 +510,13 @@ namespace SessyController.Services.Optimization
                     SocStartKWh: socStart,
                     SocEndKWh: soc));
             }
+
+            // Energy left in the battery is worth what buying it again would cost. Without this
+            // the objective would score every carry-forward block as a pure loss and report a
+            // plan as worse than the one it beats. Only when carry-forward is on, so the reported
+            // objective is unchanged for callers that do not use it.
+            if (opt.AllowCarryForward && opt.ReplacementCostEurPerKWh > 0.0)
+                objective += soc / chEff * opt.ReplacementCostEurPerKWh;
 
             return new PlanResult(true, objective, plan);
         }

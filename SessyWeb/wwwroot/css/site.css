@@ -137,3 +137,20 @@ a, .btn-link {
     }
 }
 
+
+/* ── Info-tooltips (InfoTipComponent) ─────────────────────────────────────────
+   Het thema schildert tooltips met --rz-info als achtergrond (#2cc8c8) en witte
+   tekst: contrast ~1,9:1 en het lijkt op niets anders in de app. Deze volgen het
+   oppervlak van kaarten en panelen, met de meest contrastrijke tekstkleur die het
+   thema heeft — licht ~13,5:1, donker ~8,6:1.
+   De pijl erft background-color van dit element, dus de achtergrond hier zetten
+   verft de pijl mee; border-bottom/right erven ook, wat de pijl netjes omlijnt. */
+.sessy-tooltip .rz-tooltip-content {
+    background: var(--rz-panel-background-color);
+    color: var(--rz-text-title-color);
+    border: 1px solid var(--rz-base-600);
+    padding: 0.75rem 1rem;
+    line-height: 1.45;
+    text-align: left;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}

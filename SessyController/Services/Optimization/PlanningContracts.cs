@@ -46,25 +46,32 @@ namespace SessyController.Services.Optimization
     /// undiscounted prices — this only shapes which comparable quarter the search reaches for.
     /// 0 (default) reproduces the original undiscounted behaviour exactly.
     /// </param>
-    /// <param name="StockCostEurPerKWh">
-    /// Weighted-average acquisition cost (EUR/kWh) of the energy already in the battery at the
-    /// start of the horizon, from the FIFO cost-basis ledger. Solar-charged energy is 0, so a
-    /// solar-filled battery leaves behaviour unchanged; only grid-charged energy raises this.
+    /// <param name="ReplacementCostEurPerKWh">
+    /// What one kWh will cost to put back into the battery later (EUR/kWh, AC side), measured
+    /// by ReplacementCostService. It gives energy a value outside the horizon, which the
+    /// objective otherwise puts at zero, and it is used on both sides of that:
     ///
-    /// Used as a RESERVATION PRICE (a floor), not as a cost to be recovered. The distinction
-    /// matters: what you already paid is sunk and must never decide *when* to sell. What this
-    /// value actually stands in for is the residual worth of a kWh that survives past the end of
-    /// the horizon — the objective assigns it zero, so without a floor the planner would rather
-    /// dump energy at any price above the cycle cost than carry it forward. Replacing that kWh
-    /// later costs roughly what it cost to acquire, so that price is the natural floor.
+    ///   as a floor      Stock is not sold below what buying it back would cost. Note this is a
+    ///                   reservation price, never a cost to be recovered — what was actually
+    ///                   paid is sunk and must not decide when to sell.
+    ///   as a value      Charging for beyond the end of the horizon becomes possible at all
+    ///                   (see AllowCarryForward), which is where charging at a negative price
+    ///                   and simply holding pays.
+    ///
     /// 0 (default) restores the original behaviour exactly.
+    /// </param>
+    /// <param name="AllowCarryForward">
+    /// Whether the planner may charge purely to carry energy past the end of the horizon, valued
+    /// at ReplacementCostEurPerKWh. Off (default) keeps every charge tied to a discharge quarter
+    /// inside the horizon, as before.
     /// </param>
     public sealed record SessyOptions(
         int QuarterMinutes,
         double CycleCostEurPerKWh,
         bool AllowExport = true,
         double FutureValueDiscountPerHour = 0.0,
-        double StockCostEurPerKWh = 0.0
+        double ReplacementCostEurPerKWh = 0.0,
+        bool AllowCarryForward = false
     );
 
     /// <summary>Allowed state-of-charge window at the end of a quarter.</summary>

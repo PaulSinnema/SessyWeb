@@ -117,6 +117,46 @@ namespace SessyData.Model
         /// </summary>
         public double FutureValueDiscountPerHour { get; set; } = 0.003;
 
+        // ── Carry-forward / replacement cost ──────────────────────────────────
+
+        /// <summary>
+        /// Whether the planner may charge purely to hold energy past the end of its horizon,
+        /// valued at the measured replacement cost. Off means every charge must be paired with a
+        /// discharge quarter inside the horizon, which leaves the planner blind exactly where
+        /// holding pays: cheap or negative prices whose payoff lies further out than it can see.
+        /// Off by default: it changes what the planner buys, so it is switched on deliberately.
+        /// </summary>
+        public bool CarryForwardEnabled { get; set; }
+
+        /// <summary>
+        /// Trailing window (days) over which the replacement cost is measured. 0 = default (30).
+        /// </summary>
+        public int ReplacementCostWindowDays { get; set; } = 30;
+
+        /// <summary>
+        /// Percentile of the daily cheapest buy price that becomes the replacement cost. Low on
+        /// purpose: too high a value makes charging always attractive and selling never, and the
+        /// battery ends up full and idle. 0 = default (25).
+        /// </summary>
+        public double ReplacementCostPercentile { get; set; } = 25.0;
+
+        // ── Self-learning planner parameters ──────────────────────────────────
+
+        /// <summary>
+        /// Whether the nightly learner derives <see cref="FutureValueDiscountPerHour"/> and
+        /// <see cref="NightReserveCapPct"/> from measured forecast errors and overwrites them.
+        /// While there is not enough history it writes nothing and both settings keep their
+        /// configured values, so they can still be tuned by hand in the meantime.
+        /// Off by default: it overwrites values you may have tuned.
+        /// </summary>
+        public bool SelfLearningEnabled { get; set; }
+
+        /// <summary>When the learner last wrote its values. Null = never.</summary>
+        public DateTime? LastLearnedAt { get; set; }
+
+        /// <summary>What the learner concluded last time, for the UI and the Tips tab.</summary>
+        public string? LastLearnedSummary { get; set; }
+
         // ── Statistics ────────────────────────────────────────────────────────
         public DateTime? StatisticsFromDate { get; set; }
 

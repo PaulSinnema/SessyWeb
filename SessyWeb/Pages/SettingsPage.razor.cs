@@ -490,6 +490,10 @@ namespace SessyWeb.Pages
             _settings.ReserveSafetyFactor = 1.10;
             _settings.PlanningHorizonHours = 0;
             _settings.FutureValueDiscountPerHour = 0.003;
+            _settings.CarryForwardEnabled = false;
+            _settings.ReplacementCostWindowDays = 30;
+            _settings.ReplacementCostPercentile = 25.0;
+            _settings.SelfLearningEnabled = false;
         }
         private bool _settingsSaving;
         private bool _settingsSaved;

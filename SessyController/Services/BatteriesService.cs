@@ -53,6 +53,7 @@ namespace SessyController.Services
         private EnergySystemInput _systemInput;
         private HardwareStatusService _hardwareStatus;
         private ActualQuarterDataService _actualQuarterDataService;
+        private PlannerLearningService _plannerLearningService;
 
         // Curtailment: throttles the solar inverter when price is negative.
         private InverterCurtailmentService _inverterCurtailmentService;
@@ -106,6 +107,7 @@ namespace SessyController.Services
             _hardwareStatus = _scope.ServiceProvider.GetRequiredService<HardwareStatusService>();
             _stateMachine = _scope.ServiceProvider.GetRequiredService<EnergySystemStateMachine>();
             _actualQuarterDataService = _scope.ServiceProvider.GetRequiredService<ActualQuarterDataService>();
+            _plannerLearningService = _scope.ServiceProvider.GetRequiredService<PlannerLearningService>();
             _systemInput = new EnergySystemInput(
                 _hardwareStatus,
                 _milpService,
@@ -139,6 +141,9 @@ namespace SessyController.Services
                 try
                 {
                     await HeartBeatAsync().ConfigureAwait(false);
+
+                    // Returns immediately unless today's nightly fit is still due.
+                    await _plannerLearningService.EnsureLearnedAsync().ConfigureAwait(false);
 
                     await Process(cancellationToken).ConfigureAwait(false);
 

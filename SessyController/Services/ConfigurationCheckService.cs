@@ -22,6 +22,7 @@ namespace SessyController.Services
         private readonly HeatPumpConfig _heatPumpConfig;
         private readonly IMilpService _milpService;
         private readonly SettingsService _settingsService;
+        private readonly PlannerLearningService _plannerLearningService;
 
         public ConfigurationCheckService(
             IConfiguration configuration,
@@ -31,7 +32,8 @@ namespace SessyController.Services
             TimeZoneService timeZoneService,
             IOptions<HeatPumpConfig> heatPumpConfig,
             IMilpService milpService,
-            SettingsService settingsService)
+            SettingsService settingsService,
+            PlannerLearningService plannerLearningService)
         {
             _configuration = configuration;
             _taxesDataService = taxesDataService;
@@ -41,6 +43,7 @@ namespace SessyController.Services
             _heatPumpConfig = heatPumpConfig.Value;
             _milpService = milpService;
             _settingsService = settingsService;
+            _plannerLearningService = plannerLearningService;
         }
 
         public async Task<List<ConfigurationCheck>> RunAllChecksAsync()
@@ -52,6 +55,7 @@ namespace SessyController.Services
             await CheckGasPricesHistory(checks);
             CheckHeatPumpConfiguration(checks);
             CheckSettingsExtremes(checks);
+            CheckPlannerLearning(checks);
             await CheckPlanStatus(checks).ConfigureAwait(false);
 
             return checks.OrderBy(c => c.Severity).ToList();
@@ -229,6 +233,26 @@ namespace SessyController.Services
         /// Warns when battery planning settings hold extreme values that usually indicate
         /// a mistake. Values are shown as the user sees them in Settings (whole percentages).
         /// </summary>
+        /// <summary>
+        /// A learned value that lands on its bound is not a measurement, it is the model running
+        /// out of room — worth saying out loud rather than applying silently.
+        /// </summary>
+        private void CheckPlannerLearning(List<ConfigurationCheck> checks)
+        {
+            var warning = _plannerLearningService.PinnedWarning;
+            if (string.IsNullOrWhiteSpace(warning)) return;
+
+            checks.Add(new ConfigurationCheck
+            {
+                Severity = CheckSeverity.Warning,
+                Title = "Learned planner parameter hit its bound",
+                Description = $"{warning} The measured value falls outside what the planner accepts, so the " +
+                              "bound is being used instead. Check the forecast quality before trusting the plan.",
+                ActionUrl = "/settings",
+                ActionLabel = "Open settings"
+            });
+        }
+
         private void CheckSettingsExtremes(List<ConfigurationCheck> checks)
         {
             var s = _settingsService.Current;

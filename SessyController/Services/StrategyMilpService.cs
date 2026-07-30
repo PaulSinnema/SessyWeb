@@ -30,13 +30,16 @@ namespace SessyController.Services
             TaxesDataService taxesDataService,
             PlannedActionDataService plannedActionDataService,
             PlannedQuarterDataService plannedQuarterDataService,
+            ForecastSnapshotDataService forecastSnapshotDataService,
             ChargeCostBasisService chargeCostBasisService,
+            ReplacementCostService replacementCostService,
             ThrottleAnalysisService throttleAnalysisService,
             WeatherService weatherService,
             BatteryEfficiencyService batteryEfficiencyService)
             : base(logger, settingsService, sessyBatteryConfigMonitor, batteryContainer,
                    timeZoneService, taxesDataService, plannedActionDataService, plannedQuarterDataService,
-                   chargeCostBasisService, throttleAnalysisService, weatherService)
+                   forecastSnapshotDataService, chargeCostBasisService, replacementCostService,
+                   throttleAnalysisService, weatherService)
         {
             _strategy = strategy;
             _batteryEfficiencyService = batteryEfficiencyService;
@@ -212,15 +215,26 @@ namespace SessyController.Services
                     DischargeEfficiency: dischargeEfficiency,
                     ChargeTaper: chargeTaper);
 
-                // Reservation price for energy already in the battery, from the FIFO ledger.
-                // Solar layers cost 0, so a solar-filled battery yields ~0 and behaves as before.
-                var costBasis = await _chargeCostBasisService.GetSnapshotAsync().ConfigureAwait(false);
+                // What replacing a kWh will cost, measured over a trailing window. It prices both
+                // the floor under selling stock and the option of keeping energy past the end of
+                // the horizon. Until there is enough price history it is 0, and the FIFO cost
+                // basis stands in as the floor — what was paid is the best guess left. Solar
+                // layers cost 0 there, so a solar-filled battery behaves as it always did.
+                double replacementCost = await _replacementCostService.GetReplacementCostAsync()
+                    .ConfigureAwait(false);
+
+                if (replacementCost <= 0.0)
+                {
+                    var costBasis = await _chargeCostBasisService.GetSnapshotAsync().ConfigureAwait(false);
+                    replacementCost = Math.Max(0.0, costBasis.AverageCostBasisEur);
+                }
 
                 var opt = new SessyOptions(
                     QuarterMinutes: 15,
                     CycleCostEurPerKWh: _settingsService.CycleCost,
                     FutureValueDiscountPerHour: _settingsConfig.FutureValueDiscountPerHour,
-                    StockCostEurPerKWh: Math.Max(0.0, costBasis.AverageCostBasisEur));
+                    ReplacementCostEurPerKWh: replacementCost,
+                    AllowCarryForward: _settingsConfig.CarryForwardEnabled);
 
                 var context = new SolveContext(pricePoints, spec, opt, socBounds);
 

@@ -25,7 +25,9 @@ namespace SessyController.Services
         private readonly TaxesDataService _taxesDataService;
         private readonly PlannedActionDataService _plannedActionDataService;
         private readonly PlannedQuarterDataService _plannedQuarterDataService;
+        private readonly ForecastSnapshotDataService _forecastSnapshotDataService;
         protected readonly ChargeCostBasisService _chargeCostBasisService;
+        protected readonly ReplacementCostService _replacementCostService;
         protected readonly ThrottleAnalysisService _throttleAnalysisService;
         protected readonly WeatherService _weatherService;
 
@@ -108,7 +110,9 @@ namespace SessyController.Services
             TaxesDataService taxesDataService,
             PlannedActionDataService plannedActionDataService,
             PlannedQuarterDataService plannedQuarterDataService,
+            ForecastSnapshotDataService forecastSnapshotDataService,
             ChargeCostBasisService chargeCostBasisService,
+            ReplacementCostService replacementCostService,
             ThrottleAnalysisService throttleAnalysisService,
             WeatherService weatherService)
         {
@@ -119,7 +123,9 @@ namespace SessyController.Services
             _taxesDataService = taxesDataService;
             _plannedActionDataService = plannedActionDataService;
             _plannedQuarterDataService = plannedQuarterDataService;
+            _forecastSnapshotDataService = forecastSnapshotDataService;
             _chargeCostBasisService = chargeCostBasisService;
+            _replacementCostService = replacementCostService;
             _throttleAnalysisService = throttleAnalysisService;
             _weatherService = weatherService;
             _settingsService = settingsService;
@@ -132,6 +138,8 @@ namespace SessyController.Services
                 _settingsConfig = s;
                 if (!isStartup)
                 {
+                    // Window and percentile live in these settings, so the cached value is stale.
+                    _replacementCostService.Invalidate();
                     _configChangedReason = "Management settings changed";
                     _logger.LogInformation("MilpService: settings changed — rebuild scheduled.");
                 }
@@ -190,6 +198,56 @@ namespace SessyController.Services
 
                 await _plannedQuarterDataService.AddOrUpdate(plannedQuarters,
                     (item, set) => set.FirstOrDefault(q => q.Time == item.Time)).ConfigureAwait(false);
+
+                await SaveForecastSnapshotsAsync(planStart).ConfigureAwait(false);
+            }
+        }
+
+        /// <summary>
+        /// Records the current forecast for each quarter at its lead-time bucket, but only where
+        /// that bucket is still empty: the point is to keep the forecast as it looked N hours
+        /// ahead, so the first write at a distance is the one that must survive. PlannedQuarter
+        /// cannot serve this purpose — it is upserted on every rebuild.
+        /// </summary>
+        private async Task SaveForecastSnapshotsAsync(DateTime planStart)
+        {
+            try
+            {
+                var horizonEnd = _quarterlyInfos.Count > 0 ? _quarterlyInfos.Max(qi => qi.Time) : planStart;
+
+                var existing = await _forecastSnapshotDataService.GetList(async set =>
+                    await Task.FromResult(set
+                        .Where(f => f.Time >= planStart && f.Time <= horizonEnd)
+                        .ToList())).ConfigureAwait(false);
+
+                var known = existing
+                    .Select(e => (e.Time, e.LeadHours))
+                    .ToHashSet();
+
+                var newRows = new List<ForecastSnapshot>();
+
+                foreach (var qi in _quarterlyInfos.Where(qi => qi.Time >= planStart))
+                {
+                    int bucket = ForecastSnapshot.BucketFor((qi.Time - planStart).TotalHours);
+                    if (!known.Add((qi.Time, bucket))) continue;
+
+                    newRows.Add(new ForecastSnapshot
+                    {
+                        Time = qi.Time,
+                        LeadHours = bucket,
+                        SolarForecastW = qi.SolarPowerPerQuarterInWatts,
+                        ConsumptionForecastW = qi.EstimatedConsumptionPerQuarterInWatts,
+                        CreatedAt = planStart
+                    });
+                }
+
+                if (newRows.Count > 0)
+                    await _forecastSnapshotDataService.Add(newRows).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                // Learning data is nice to have; never let it break a plan write.
+                _logger.LogWarning($"Storing forecast snapshots failed: {ex.Message}");
             }
         }
 
@@ -654,30 +712,79 @@ namespace SessyController.Services
         /// Recovers the throttle-free target power from the throttled solver output:
         /// target = throttled / ratio. Returns the throttled value unchanged when no ratio
         /// is known or the ratio is non-positive.
+        ///
+        /// The result is capped at nameplate power, and that cap is not cosmetic. This value is
+        /// the DENOMINATOR of the next throttle and taper fit, so a target above what the
+        /// hardware can ever deliver makes every measured ratio look worse than it is, the fitted
+        /// taper steeper, the planned power lower — and the next division by that smaller ratio
+        /// inflates the target further. Left unclamped it feeds itself: on the production plan of
+        /// 30-07 it had already reached 9850 W on a 6600 W battery.
+        ///
+        /// The overshoot has two sources, both handled here: dividing by a ratio taken at a
+        /// different SOC than the planner used, and dividing at all in a quarter the taper never
+        /// capped (the greedy allocation often stops below the cap because there is nothing
+        /// profitable left to put there — there is no throttling to undo in that case).
         /// </summary>
         private double Unthrottle(DateTime time, double throttledPowerW, bool charging)
         {
+            double nameplateW = charging
+                ? _sessyBatteryConfig.TotalRawChargingCapacity
+                : _sessyBatteryConfig.TotalRawDischargingCapacity;
+
+            double target = throttledPowerW;
+
             // Charge side: the taper is what actually capped the solver, so it is also what has
-            // to be divided out. Evaluated at the planned SOC of this quarter and the same
-            // temperatures the planner was given.
+            // to be divided out. Evaluated at the SOC the planner had at the START of this
+            // quarter — the same value BatteryGreedyPlanner.taperedChargeKWh uses. Taking the
+            // end-of-quarter SOC instead reads the taper further along its slope and so divides
+            // by a ratio that is too small.
             if (charging && _chargeTaper.Samples > 0)
             {
                 double capWh = _batteryContainer.GetTotalCapacity();
-                if (capWh > 0.0 && _planSocWhByTime.TryGetValue(time, out var socWh))
+                if (capWh > 0.0 && TryGetPlanSocAtQuarterStart(time, out double socWh))
                 {
                     double taperRatio = _taperInputsByTime.TryGetValue(time, out var inputs)
                         ? _chargeTaper.Ratio(socWh / capWh, inputs.TemperatureC, inputs.Mean48hC)
                         : _chargeTaper.Ratio(socWh / capWh);
 
                     if (taperRatio > 0.0)
-                        return throttledPowerW / taperRatio;
+                        return Clamp(throttledPowerW / taperRatio, nameplateW);
                 }
             }
 
             var map = charging ? _chargeThrottleRatioByTime : _throttleRatioByTime;
             if (map.TryGetValue(time, out var ratio) && ratio > 0.0)
-                return throttledPowerW / ratio;
-            return throttledPowerW;
+                target = throttledPowerW / ratio;
+
+            return Clamp(target, nameplateW);
+
+            // Keeps the sign the caller passed in: discharge targets are negative.
+            static double Clamp(double powerW, double nameplateW)
+            {
+                if (nameplateW <= 0.0) return powerW;
+                return Math.Abs(powerW) <= nameplateW
+                    ? powerW
+                    : Math.Sign(powerW) * nameplateW;
+            }
+        }
+
+        /// <summary>
+        /// Planned SOC (Wh) at the start of <paramref name="quarter"/>: the end-of-quarter value
+        /// of its predecessor, or the SOC the plan was built from for the first quarter.
+        /// </summary>
+        private bool TryGetPlanSocAtQuarterStart(DateTime quarter, out double socWh)
+        {
+            if (quarter == _planStartQuarter)
+            {
+                socWh = _planStartSocWh;
+                return true;
+            }
+
+            if (_planSocWhByTime.TryGetValue(quarter.AddMinutes(-15), out socWh))
+                return true;
+
+            // No predecessor in the plan: the end-of-quarter value is the only figure available.
+            return _planSocWhByTime.TryGetValue(quarter, out socWh);
         }
 
         /// <summary>

@@ -1,0 +1,39 @@
+@inject TooltipService TooltipService
+
+@* Small info marker that carries the long explanation of a setting, so the form stays readable.
+   Focusable as well as hoverable, so the text is reachable without a mouse. *@
+<span @ref="_icon"
+      tabindex="0"
+      class="info-tip"
+      style="cursor:help; display:inline-flex; vertical-align:middle; margin-left:0.25rem; color:var(--rz-text-secondary-color);"
+      @onmouseenter="Show"
+      @onmouseleave="Hide"
+      @onfocus="Show"
+      @onblur="Hide">
+    @* Material Symbols has no info_outline ligature: it matches "info" and leaves "_outline"
+       standing on the page as text. *@
+    <RadzenIcon Icon="info" Style="font-size:1rem;" />
+</span>
+
+@code {
+    /// <summary>The full explanation, shown on hover or focus.</summary>
+    [Parameter, EditorRequired] public string Text { get; set; } = string.Empty;
+
+    /// <summary>Where the tooltip appears relative to the icon.</summary>
+    [Parameter] public TooltipPosition Position { get; set; } = TooltipPosition.Top;
+
+    private ElementReference _icon;
+
+    // Duration null means the tooltip has no auto-close timer, so a long text can be read at
+    // leisure; it closes when the pointer or the focus leaves.
+    // Colours come from .sessy-tooltip in site.css, not from an inline style: the arrow is a
+    // pseudo-element on the same node and has to inherit the same background.
+    private void Show() => TooltipService.Open(_icon, Text, new TooltipOptions
+    {
+        Position = Position,
+        Duration = null,
+        CssClass = "sessy-tooltip"
+    });
+
+    private void Hide() => TooltipService.Close();
+}

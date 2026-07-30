@@ -56,6 +56,8 @@ namespace SessyData.Model
 
         public DbSet<ActualQuarter> ActualQuarters => Set<ActualQuarter>();
 
+        public DbSet<ForecastSnapshot> ForecastSnapshots => Set<ForecastSnapshot>();
+
         public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
         protected override void OnConfiguring(DbContextOptionsBuilder options)

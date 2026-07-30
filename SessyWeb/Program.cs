@@ -106,6 +106,9 @@ builder.Services.AddSingleton<InvestmentGroupDataService>();
 builder.Services.AddScoped<EnergyStatisticsService>();
 builder.Services.AddSingleton<ThrottleAnalysisService>();
 builder.Services.AddSingleton<BatteryEfficiencyService>();
+builder.Services.AddSingleton<ReplacementCostService>();
+builder.Services.AddSingleton<PlannerLearningService>();
+builder.Services.AddSingleton<ForecastSnapshotDataService>();
 
 builder.Services.AddSingleton<QuarterlyMeasurementDataService>();
 builder.Services.AddSingleton<InverterMeasurementDataService>();
