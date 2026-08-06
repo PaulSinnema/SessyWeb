@@ -168,6 +168,30 @@ User's doel: investering z.s.m. terugverdienen, winst leidend. Terugvalpunt-spec
 2. **Zelf-lerende planner-parameters.** Nieuwe tabel `ForecastSnapshots` (Time, LeadHours-ladder 0/1/2/3/4/6/8/12/16/20/24/30/36/48, solar- en verbruiksforecast) — één keer per (kwartier, bucket) geschreven vanuit `MilpServiceBase`, nooit ge-upsert, want `PlannedQuarter` overschrijft zijn forecast elke rebuild en is daardoor waardeloos voor foutmeting op afstand. Retentie 40 dagen. `PlannerLearningService` draait één keer per nacht (na 03:00, aangeroepen vanuit de BatteriesService-lus) en fit over 21 dagen: discount uit de gecombineerde netto-belastingfout per lead-bucket via `r(h) = e(h) / (h·(1−e(h)))`, mediaan over de buckets, minus de fout die al op lead 0 zit; nachtreserve uit P80 van wat het huis werkelijk trok tussen 21:00 en 07:00. Grenzen 0,5–3 %/uur en 5–60 %; pinnen logt Warning én verschijnt in Tips & Checks. Terugval 1 %/uur tot 21 dagen data. Geleerde waarden overschrijven de handmatige (die velden zijn read-only in de UI zolang het aan staat). Achter `Settings.SelfLearningEnabled`, **default uit**.
 3. Tests: `CarryForwardPlannerTests` (9) en `PlannerLearningTests` (12). De discount-fit is inverteerbaar getest — een reeks gegenereerd uit een bekende r moet exact die r teruggeven.
 
+## Gebouwd 04-08 (v1.0.37)
+**Toekomstige kostenbasis + twee FIFO-fouten opgelost.** `ChargeCostBasisService` is nu de enige
+FIFO-motor, met twee voedingen: gemeten historie en het lopende plan (`ProjectAsync`, met een pure
+`Project(...)` eronder zonder klok of DB). De projectie zat eerder los in
+`MilpServiceBase.ProjectCostBasisAsync`; die krimpt tot een mapping.
+1. **Gratis-deel kwam uit totale zonproductie** — laden uit het net tijdens een zonnig kwartier
+   waar het huis alle zon opat werd als gratis geboekt, in beide takken. Nu: gemeten kant
+   `min(GridImport, Charged)` uit de P1-meterdelta's (`SplitChargeByMeter`, dezelfde conventie als
+   `MeasurementView.GridChargeCostEur`), plangekant `max(0, -NetLoadWh)` (`SplitChargeBySurplus`).
+   `LoadSolarAsync` is vervangen door `LoadGridImportAsync`.
+2. **Rendement ontbrak.** Lagen dragen nu opgeslagen (DC) Wh tegen `buy/chEff` per opgeslagen kWh;
+   ontladen drukt `wh/disEff` uit de stapel. Geleverde kostenbasis = opgeslagen / disEff, en dat is
+   het getal dat náást de verkoopprijs hoort — de grafiekserie is daarop omgezet
+   ("Cost basis delivered"), de tooltip toont beide. Was ~15% te optimistisch.
+3. Nieuw in de UI (`CostBasisComponent` + `CostBasisLayerGridComponent`): blok "Projected — end of
+   plan horizon" met eind-lagen, kostenbasis opgeslagen/geleverd en wat het plan aan netinkoop van
+   plan is (kWh, €, gemiddelde €/kWh). Gevoed uit `ChargeCostBasisService.LastProjection`.
+4. `PlannedQuarter.ProjectedCostBasisEurKWh` (migratie `AddProjectedCostBasisToPlannedQuarter`)
+   bewaart de projectie per kwartier, zodat geprojecteerd vs werkelijk achteraf meetbaar wordt.
+5. Bijvangst: `RemoveOldest` liet stoflaagjes van ~1e-13 Wh achter die nooit meer leegliepen en het
+   gemiddelde vervuilden. Alles onder `MinLayerWh` gaat er nu in zijn geheel uit.
+Geen datareparatie nodig — de FIFO wordt bij elke start uit metingen herbouwd. Tests:
+`ChargeCostBasisTests` (14).
+
 ## Openstaande punten
 1. Verifiëren op productiedata: revenue mét en zonder `CarryForwardEnabled` op teruggespeelde dagen vergelijken (niet naar SOC kijken). Faalmodus: terminal value te hoog → batterij laadt alleen nog en verkoopt nooit.
 2. **Hittegolf-validatie (vanaf 28-07, ~34°C Apeldoorn).** Model is gefit op data tot 30°C, dus 34°C is extrapolatie. Toetsen: voorspelde ratio bij 50% SOC ≈ 0,52 bij temp 34 / t48 30 (tegen ≈ 0,77 op een koele dag) — dus ~3400W i.p.v. ~5100W gevraagd laadvermogen. Narekenen of de gemeten ratio's daarbij in de buurt komen en of het residu vlak blijft.

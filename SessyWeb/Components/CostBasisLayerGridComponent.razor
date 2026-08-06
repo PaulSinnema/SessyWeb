@@ -1,0 +1,42 @@
+@using Radzen
+@using Radzen.Blazor
+@using SessyController.Services
+
+@* Renders one FIFO stack (oldest first). Shared by the measured and the projected block. *@
+
+<RadzenDataGrid Data="@Layers" TItem="ChargeCostBasisService.CostBasisLayerInfo"
+                AllowSorting="false" Density="Density.Compact" class="rz-mt-2">
+    <Columns>
+        <RadzenDataGridColumn TItem="ChargeCostBasisService.CostBasisLayerInfo" Title="#" Width="50px">
+            <Template Context="layer">
+                @(layer.Index + 1)
+            </Template>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="ChargeCostBasisService.CostBasisLayerInfo" Title="Energy">
+            <Template Context="layer">@($"{layer.Wh / 1000.0:F3} kWh")</Template>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="ChargeCostBasisService.CostBasisLayerInfo" Title="Cost / kWh stored">
+            <Template Context="layer">@($"€ {layer.CostEurPerKWh:F4}")</Template>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="ChargeCostBasisService.CostBasisLayerInfo" Title="Cost / kWh delivered">
+            <Template Context="layer">@($"€ {layer.CostEurPerKWhDelivered:F4}")</Template>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="ChargeCostBasisService.CostBasisLayerInfo" Title="Source">
+            <Template Context="layer">
+                @if (layer.IsSolar)
+                {
+                    <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="Solar" />
+                }
+                else
+                {
+                    <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="Grid" />
+                }
+            </Template>
+        </RadzenDataGridColumn>
+    </Columns>
+</RadzenDataGrid>
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<ChargeCostBasisService.CostBasisLayerInfo> Layers { get; set; } = [];
+}

@@ -150,14 +150,24 @@ namespace SessyController.Services.Items
         public double PlannedUnthrottledPowerW { get; private set; }
 
         /// <summary>
-        /// Projected FIFO cost basis (EUR/kWh) of the energy stored in the battery at
-        /// this quarter, simulated forward through the current plan. Solar-charged energy
-        /// is free; grid-charged energy carries its buying price. Used for the cost-basis
-        /// chart series and tooltip.
+        /// Projected FIFO cost basis (EUR per *stored* kWh) of the energy in the battery at
+        /// this quarter, simulated forward through the current plan. Energy covered by solar
+        /// surplus is free; the rest carries its buying price divided by the charge efficiency.
         /// </summary>
         public double ProjectedCostBasisEur { get; private set; }
 
-        public void SetProjectedCostBasis(double eurPerKWh) => ProjectedCostBasisEur = eurPerKWh;
+        /// <summary>
+        /// Same cost basis expressed per *delivered* kWh (stored / discharge efficiency).
+        /// This is the figure that may be compared with the selling price — it is what the
+        /// stored energy has to fetch to break even. Used for the cost-basis chart series.
+        /// </summary>
+        public double ProjectedCostBasisDeliveredEur { get; private set; }
+
+        public void SetProjectedCostBasis(double storedEurPerKWh, double deliveredEurPerKWh)
+        {
+            ProjectedCostBasisEur = storedEurPerKWh;
+            ProjectedCostBasisDeliveredEur = deliveredEurPerKWh;
+        }
 
         /// <summary>
         /// Energy state tracking (Wh). Naming kept close to your codebase, but explicit now.

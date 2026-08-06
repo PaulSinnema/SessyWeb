@@ -65,10 +65,10 @@
 
         <RadzenColumnSeries Data="@QuarterlyInfos"
                             CategoryProperty="Time"
-                            Title="Cost basis (€/kWh)"
+                            Title="Cost basis delivered (€/kWh)"
                             Fill="#9b59b6"
                             Stroke="#9b59b6"
-                            ValueProperty="ProjectedCostBasisEur">
+                            ValueProperty="ProjectedCostBasisDeliveredEur">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
             </TooltipTemplate>

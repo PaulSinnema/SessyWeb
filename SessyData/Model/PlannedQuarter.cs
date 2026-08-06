@@ -52,6 +52,14 @@ namespace SessyData.Model
         /// <summary>All-in buying price for this quarter (EUR/kWh).</summary>
         public double BuyingPriceEurKWh { get; set; }
 
+        /// <summary>
+        /// Projected FIFO cost basis of the battery contents at this quarter, in EUR per
+        /// *stored* kWh. Written from QuarterlyInfo.ProjectedCostBasisEur. Divide by the
+        /// discharge efficiency for the cost per delivered kWh. Kept so projected and realized
+        /// cost basis can be compared after the fact.
+        /// </summary>
+        public double ProjectedCostBasisEurKWh { get; set; }
+
         // ── Forecast ───────────────────────────────────────────────────────────
 
         /// <summary>Solar production forecast for this quarter (W).</summary>

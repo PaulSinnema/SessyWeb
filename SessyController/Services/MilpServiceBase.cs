@@ -192,6 +192,7 @@ namespace SessyController.Services
                         PlannedChargeLeftWh = qi.ChargeLeftWh,
                         SellingPriceEurKWh = qi.SellingPrice,
                         BuyingPriceEurKWh = qi.BuyingPrice,
+                        ProjectedCostBasisEurKWh = qi.ProjectedCostBasisEur,
                         SolarForecastW = qi.SolarPowerPerQuarterInWatts,
                         ConsumptionForecastW = qi.EstimatedConsumptionPerQuarterInWatts
                     }).ToList();
@@ -789,78 +790,44 @@ namespace SessyController.Services
 
         /// <summary>
         /// Projects the FIFO cost basis forward through the plan and stores the average
-        /// cost basis per quarter on each QuarterlyInfo. Starts from the current measured
-        /// cost-basis layers, then tracks the per-quarter SOC change from the simulation
-        /// (ChargeLeftWh): a rising SOC adds a layer (solar free / grid at buy price), a
-        /// falling SOC removes the oldest energy first. Using the SOC delta captures
-        /// ZeroNetHome discharge too, so the cost-basis line stays consistent with the
-        /// displayed SOC line.
+        /// cost basis per quarter on each QuarterlyInfo. The FIFO bookkeeping itself lives in
+        /// ChargeCostBasisService so the measured and the projected branch cannot drift apart;
+        /// this only maps the plan onto its input contract.
+        ///
+        /// The per-quarter SOC from the simulation (ChargeLeftWh) drives it, not the planned
+        /// power, because that also captures ZeroNetHome — a quarter that stores solar while
+        /// covering the house at the same time.
         /// </summary>
         private async Task ProjectCostBasisAsync(double currentSocWh)
         {
             try
             {
-                var snapshot = await _chargeCostBasisService.GetSnapshotAsync().ConfigureAwait(false);
-
-                // Local FIFO copy seeded with the current real layers.
-                var layers = new LinkedList<(double Wh, double Cost)>();
-                foreach (var l in snapshot.Layers)
-                    layers.AddLast((l.Wh, l.CostEurPerKWh));
-
                 var nowQuarter = _timeZoneService.Now.DateFloorQuarter();
+
                 var ordered = _quarterlyInfos
                     .Where(q => q.Time >= nowQuarter)
                     .OrderBy(q => q.Time)
                     .ToList();
 
-                double prevSoc = currentSocWh;
+                if (ordered.Count == 0) return;
 
-                foreach (var qi in ordered)
+                var steps = ordered
+                    .Select(q => new ChargeCostBasisService.ProjectionStep(
+                        q.Time,
+                        q.ChargeLeftWh,
+                        Math.Max(0.0, -q.NetLoadWh),
+                        q.BuyingPrice))
+                    .ToList();
+
+                var projection = await _chargeCostBasisService
+                    .ProjectAsync(steps, currentSocWh).ConfigureAwait(false);
+
+                // ProjectAsync returns one entry per step, in order.
+                for (int i = 0; i < ordered.Count && i < projection.Quarters.Count; i++)
                 {
-                    double soc = qi.ChargeLeftWh;
-                    double delta = soc - prevSoc;
-                    prevSoc = soc;
-
-                    if (delta > 1.0)
-                    {
-                        // SOC rose: energy added. Solar covers it first (free), rest is grid.
-                        double solarWh = qi.SolarPowerPerQuarterHour > 0
-                            ? qi.SolarPowerPerQuarterHour * 1000.0 * 0.25
-                            : 0.0;
-                        double solarPart = Math.Min(delta, Math.Max(solarWh, 0.0));
-                        double gridPart = Math.Max(delta - solarPart, 0.0);
-
-                        if (solarPart > 1.0) layers.AddLast((solarPart, 0.0));
-                        if (gridPart > 1.0) layers.AddLast((gridPart, qi.BuyingPrice));
-                    }
-                    else if (delta < -1.0)
-                    {
-                        // SOC fell: energy removed (discharge or ZeroNetHome). Pop oldest.
-                        double remaining = -delta;
-                        while (remaining > 1.0 && layers.First != null)
-                        {
-                            var f = layers.First.Value;
-                            if (f.Wh <= remaining)
-                            {
-                                remaining -= f.Wh;
-                                layers.RemoveFirst();
-                            }
-                            else
-                            {
-                                layers.First.Value = (f.Wh - remaining, f.Cost);
-                                remaining = 0.0;
-                            }
-                        }
-                    }
-
-                    // Average cost basis of the projected battery contents this quarter.
-                    double totalWh = 0.0, totalCost = 0.0;
-                    foreach (var l in layers)
-                    {
-                        totalWh += l.Wh;
-                        totalCost += l.Wh / 1000.0 * l.Cost;
-                    }
-                    qi.SetProjectedCostBasis(totalWh > 1.0 ? totalCost / (totalWh / 1000.0) : 0.0);
+                    ordered[i].SetProjectedCostBasis(
+                        projection.Quarters[i].AvgStoredEurPerKWh,
+                        projection.Quarters[i].AvgDeliveredEurPerKWh);
                 }
             }
             catch (Exception ex)

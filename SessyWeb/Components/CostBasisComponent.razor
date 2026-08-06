@@ -1,4 +1,4 @@
-﻿@using Radzen
+@using Radzen
 @using Radzen.Blazor
 @using SessyController.Services
 @inject ChargeCostBasisService ChargeCostBasisService
@@ -11,56 +11,34 @@
     </RadzenStack>
 
     <RadzenRow Gap="8px" class="rz-mt-2">
-        <RadzenColumn Size="6" SizeMD="4">
+        <RadzenColumn Size="6" SizeMD="3">
             <StatCardComponent Title="Stored energy"
                                Value="@($"{_snapshot?.TrackedWh / 1000.0:F2} kWh")" />
         </RadzenColumn>
-        <RadzenColumn Size="6" SizeMD="4">
-            <StatCardComponent Title="Average cost basis"
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Cost basis delivered"
+                               Value="@($"€ {_snapshot?.AverageCostBasisDeliveredEur:F4}")" />
+        </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="Cost basis stored"
                                Value="@($"€ {_snapshot?.AverageCostBasisEur:F4}")" />
         </RadzenColumn>
-        <RadzenColumn Size="6" SizeMD="4">
+        <RadzenColumn Size="6" SizeMD="3">
             <StatCardComponent Title="Layers"
                                Value="@($"{_snapshot?.Layers.Count ?? 0}")" />
         </RadzenColumn>
     </RadzenRow>
 
     <RadzenText TextStyle="TextStyle.Caption" Style="margin-top: 0.75rem; opacity: 0.7;">
-        FIFO layers, oldest first. Solar-charged energy has cost € 0.0000; grid-charged
-        energy carries its real buying price. This is bookkeeping only: it shows what the
-        stored energy cost, and does not drive the planner.
+        FIFO layers, oldest first. Energy covered by solar surplus costs € 0.0000; energy that
+        crossed the meter carries its real buying price. Stored is what a kWh cost to put in;
+        delivered is what it must fetch to break even. This is bookkeeping only — it does not
+        drive the planner.
     </RadzenText>
 
     @if (_snapshot != null && _snapshot.Layers.Any())
     {
-        <RadzenDataGrid Data="@_snapshot.Layers" TItem="ChargeCostBasisService.CostBasisLayerInfo"
-                        AllowSorting="false" Density="Density.Compact" class="rz-mt-2">
-            <Columns>
-                <RadzenDataGridColumn TItem="ChargeCostBasisService.CostBasisLayerInfo" Title="#" Width="50px">
-                    <Template Context="layer">
-                        @(layer.Index + 1)
-                    </Template>
-                </RadzenDataGridColumn>
-                <RadzenDataGridColumn TItem="ChargeCostBasisService.CostBasisLayerInfo" Title="Energy">
-                    <Template Context="layer">@($"{layer.Wh / 1000.0:F3} kWh")</Template>
-                </RadzenDataGridColumn>
-                <RadzenDataGridColumn TItem="ChargeCostBasisService.CostBasisLayerInfo" Title="Cost / kWh">
-                    <Template Context="layer">@($"€ {layer.CostEurPerKWh:F4}")</Template>
-                </RadzenDataGridColumn>
-                <RadzenDataGridColumn TItem="ChargeCostBasisService.CostBasisLayerInfo" Title="Source">
-                    <Template Context="layer">
-                        @if (layer.IsSolar)
-                        {
-                            <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="Solar" />
-                        }
-                        else
-                        {
-                            <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="Grid" />
-                        }
-                    </Template>
-                </RadzenDataGridColumn>
-            </Columns>
-        </RadzenDataGrid>
+        <CostBasisLayerGridComponent Layers="@_snapshot.Layers" />
     }
     else
     {
@@ -70,8 +48,72 @@
     }
 </RadzenCard>
 
+<RadzenCard class="rz-mt-4">
+    <RadzenText TextStyle="TextStyle.H6">🔮 Projected — end of plan horizon</RadzenText>
+
+    @if (_projection == null)
+    {
+        <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-2" Style="opacity:0.6;">
+            No plan has been built yet — nothing to project.
+        </RadzenText>
+    }
+    else
+    {
+        <RadzenRow Gap="8px" class="rz-mt-2">
+            <RadzenColumn Size="6" SizeMD="4">
+                <StatCardComponent Title="Stored at end of horizon"
+                                   Value="@($"{EndTrackedWh / 1000.0:F2} kWh")" />
+            </RadzenColumn>
+            <RadzenColumn Size="6" SizeMD="4">
+                <StatCardComponent Title="Cost basis delivered"
+                                   Value="@($"€ {_projection.EndOfHorizonDeliveredEurPerKWh:F4}")" />
+            </RadzenColumn>
+            <RadzenColumn Size="6" SizeMD="4">
+                <StatCardComponent Title="Cost basis stored"
+                                   Value="@($"€ {_projection.EndOfHorizonStoredEurPerKWh:F4}")" />
+            </RadzenColumn>
+            <RadzenColumn Size="6" SizeMD="4">
+                <StatCardComponent Title="Planned grid charge"
+                                   Value="@($"{_projection.PlannedGridChargeKWh:F2} kWh")" />
+            </RadzenColumn>
+            <RadzenColumn Size="6" SizeMD="4">
+                <StatCardComponent Title="Planned grid charge cost"
+                                   Value="@($"€ {_projection.PlannedGridChargeCostEur:F2}")" />
+            </RadzenColumn>
+            <RadzenColumn Size="6" SizeMD="4">
+                <StatCardComponent Title="Average buy price"
+                                   Value="@($"€ {_projection.PlannedAverageBuyEurPerKWh:F4}")" />
+            </RadzenColumn>
+        </RadzenRow>
+
+        <RadzenText TextStyle="TextStyle.Caption" Style="margin-top: 0.75rem; opacity: 0.7;">
+            The current layers rolled forward through the plan, up to
+            @(_projection.Quarters.Count > 0
+                ? _projection.Quarters[^1].Time.ToString("dd-MM HH:mm")
+                : "—").
+            "Planned grid charge" is what the plan intends to buy over that horizon; the free
+            part of the charging is solar surplus and is not counted there.
+            Projection built at @_projection.BuiltAt.ToString("dd-MM HH:mm").
+        </RadzenText>
+
+        @if (_projection.EndOfHorizonLayers.Any())
+        {
+            <CostBasisLayerGridComponent Layers="@_projection.EndOfHorizonLayers" />
+        }
+        else
+        {
+            <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-2" Style="opacity:0.6;">
+                The plan empties the battery before the end of the horizon.
+            </RadzenText>
+        }
+    }
+</RadzenCard>
+
 @code {
     private ChargeCostBasisService.CostBasisSnapshot? _snapshot;
+    private ChargeCostBasisService.CostBasisProjection? _projection;
+
+    private double EndTrackedWh => _projection?.EndOfHorizonLayers.Sum(l => l.Wh) ?? 0.0;
 
     protected override async Task OnInitializedAsync()
     {
@@ -81,6 +123,10 @@
     private async Task RefreshAsync()
     {
         _snapshot = await ChargeCostBasisService.GetSnapshotAsync();
+
+        // Filled by the planner each cycle; null until the first plan has been built.
+        _projection = ChargeCostBasisService.LastProjection;
+
         StateHasChanged();
     }
 }

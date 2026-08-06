@@ -37,6 +37,7 @@ namespace SessyWeb.Pages
             AverageSellingPrice = averageSellingPrice;
             DeltaLowestPrice = qi.DeltaLowestPrice;
             ProjectedCostBasisEur = qi.ProjectedCostBasisEur;
+            ProjectedCostBasisDeliveredEur = qi.ProjectedCostBasisDeliveredEur;
             IsCurtailed = qi.SellingPriceIsNegative;
             ThrottlePct = qi.SellingPriceIsNegative ? currentThrottlePct : 100.0;
 
@@ -126,6 +127,9 @@ namespace SessyWeb.Pages
         public double AverageSellingPrice { get; }
         public double DeltaLowestPrice { get; }
         public double ProjectedCostBasisEur { get; }
+
+        /// <summary>Cost basis per delivered kWh — directly comparable with the selling price.</summary>
+        public double ProjectedCostBasisDeliveredEur { get; }
         public bool IsCurtailed { get; }
         public double ThrottlePct { get; }
 

@@ -46,7 +46,10 @@
         <span class="sw-tt-k">Charge needed</span>
         <span class="sw-tt-v">@fmt(q?.ChargeNeeded, "0") Wh · @fmt(q?.ChargeNeededPercentage, "0.0")%</span>
 
-        <span class="sw-tt-k">Cost basis</span>
+        <span class="sw-tt-k">Cost basis delivered</span>
+        <span class="sw-tt-v">@fmt(q?.ProjectedCostBasisDeliveredEur, "0.0000")</span>
+
+        <span class="sw-tt-k">Cost basis stored</span>
         <span class="sw-tt-v">@fmt(q?.ProjectedCostBasisEur, "0.0000")</span>
     </div>
 
