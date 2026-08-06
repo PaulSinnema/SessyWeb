@@ -176,7 +176,8 @@ namespace SessyWeb.Pages
         public string PlanDeviationReason { get; }
 
         // ── Charged's schedule ────────────────────────────────────────────────
-        // What the batteries plan for themselves; only filled while Charged is in control.
+        // What the batteries plan for themselves. Read in both directions since v1.0.46, so this
+        // is filled whoever is executing.
         public double ChargedChargePowerW { get; }
         public double ChargedDischargePowerW { get; }
         public double ChargedChargeLeftWh { get; }

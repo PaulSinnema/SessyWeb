@@ -71,6 +71,13 @@ namespace SessyWeb.Components
         /// </summary>
         public List<QuarterlyInfoView> ActualPowerPoints { get; private set; } = new();
 
+        /// <summary>
+        /// True when the batteries returned a schedule of their own for this window. They keep
+        /// planning whoever is executing, so this is normally true in both directions; it stays
+        /// false while the schedule could not be read.
+        /// </summary>
+        public bool HasChargedSchedule { get; private set; }
+
         public double ChartMin => -ChartMinMax;
         public double ChartMax => ChartMinMax;
 
@@ -260,6 +267,10 @@ namespace SessyWeb.Components
             MarkDirty();
 
             ActualPowerPoints = QuarterlyInfos.Where(q => q.HasActualPower).ToList();
+
+            // Computed here rather than in the markup: the series binds it on every render, and a
+            // scan per render is exactly what the render gating in this component exists to avoid.
+            HasChargedSchedule = QuarterlyInfos.Any(q => q.HasChargedPlan);
 
             // Taxes only change per day; asking the database on every parameter set meant a query
             // per page render.

@@ -408,14 +408,17 @@
             </ChildContent>
         </RadzenLineSeries>
 
-        @* SOC. Under Charged this follows their schedule instead of our plan simulation, which
-           would otherwise draw a curve for something that is not going to happen. *@
-        <RadzenLineSeries Visible="@(!ChargedInControl)"
-                          Data="@QuarterlyInfos"
+        @* Both SOC forecasts, so the two strategies can be compared on the same axis. Red is the
+           SOC that is actually going to happen, blue the shadow, and solid/dotted says the same
+           thing again — so exactly one red line is on the chart whoever is driving.
+           Ours stays meaningful under Charged: it is re-anchored on the measured SOC every rebuild,
+           so it reads as "what we would do from here", not as a prediction of what will happen. *@
+        <RadzenLineSeries Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Stroke="red"
-                          Title="Charge remaining (kWh)"
+                          Stroke="@(WeAreInControl ? "red" : "#7fd1ff")"
+                          LineType="@(WeAreInControl ? LineType.Solid : LineType.Dotted)"
+                          Title="⟨SessyWeb⟩ charge remaining (kWh)"
                           ValueProperty="ChargeLeftVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
@@ -426,12 +429,12 @@
             </ChildContent>
         </RadzenLineSeries>
 
-        <RadzenLineSeries Visible="@ChargedInControl"
+        <RadzenLineSeries Visible="@HasChargedSchedule"
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Stroke="#7fd1ff"
-                          LineType="LineType.Dotted"
+                          Stroke="@(ChargedInControl ? "red" : "#7fd1ff")"
+                          LineType="@(ChargedInControl ? LineType.Solid : LineType.Dotted)"
                           Title="⟨Charged⟩ charge remaining (kWh)"
                           ValueProperty="ChargedChargeLeftVisual">
             <TooltipTemplate Context="data">
