@@ -256,6 +256,9 @@ Create a file called **`docker-compose.yml`** next to the two folders you made i
 services:
   sessyweb:
     image: ghcr.io/paulsinnema/sessyweb:latest
+    # Always check the registry on start. Without this, Docker sees that it
+    # already has something tagged "latest" and keeps running the old version.
+    pull_policy: always
     container_name: sessyweb
     restart: unless-stopped
     ports:
@@ -292,6 +295,8 @@ Images are published for both `linux/amd64` and `linux/arm64`, so the same line 
 docker compose pull
 docker compose up -d
 ```
+
+`pull_policy: always` above makes a plain `docker compose up -d` do the same thing, which matters most in a GUI like Synology's Container Manager where there is no separate pull button.
 
 To pin a specific version instead of following `latest`, replace the tag with a version number, for example `ghcr.io/paulsinnema/sessyweb:v1.0.61`. Every published version is listed on the [package page](https://github.com/PaulSinnema/SessyWeb/pkgs/container/sessyweb).
 
@@ -338,6 +343,7 @@ Use **Container Manager → Project**, not the Registry tab. The Registry tab se
 services:
   sessyweb:
     image: ghcr.io/paulsinnema/sessyweb:latest
+    pull_policy: always
     container_name: sessyweb
     restart: unless-stopped
     ports:
@@ -354,7 +360,12 @@ services:
 
 4. Build the project. Container Manager pulls the image and starts it.
 
-To update later, open the project and press **Build** again — it pulls the newest `latest` and restarts. Your database and configuration are on the mounted folders, so they survive every update.
+To update later, open the project and press **Build** again. Your database and configuration are on the mounted folders, so they survive every update.
+
+> [!IMPORTANT]
+> **`pull_policy: always` is what makes that Build an actual update.** Without it, Docker sees a local image already tagged `latest`, reuses it, and you keep running the old version — Build and Clean both succeed while nothing changes. Check the version in the bottom-left corner of the UI after updating; if it did not move, the old image was reused.
+>
+> On an older Compose that rejects `pull_policy`, either update over SSH with `docker compose pull && docker compose up -d`, or pin an explicit version tag such as `:v1.0.62` — a tag you do not have locally must be fetched.
 
 ---
 
