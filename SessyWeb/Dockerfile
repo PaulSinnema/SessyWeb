@@ -1,4 +1,4 @@
-# Gebruik .NET 9.0 runtime voor de uiteindelijke container
+# Runtime image for the final container.
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 WORKDIR /app
 EXPOSE 80
@@ -6,27 +6,32 @@ EXPOSE 443
 
 ENV DOTNET_RUNNING_IN_DOCKER=true
 
-# Gebruik .NET 9.0 SDK om de app te bouwen
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+# Build runs on the runner's own architecture and cross-compiles to the target,
+# which is far faster than emulating the SDK under QEMU for arm64.
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
+ARG TARGETARCH
 WORKDIR /src
 
-# Kopieer het projectbestand en herstel de dependencies
+# Project files first, so the restore layer stays cached until a package or
+# project reference actually changes.
 COPY ["SessyWeb/SessyWeb.csproj", "SessyWeb/"]
-RUN dotnet restore "./SessyWeb/SessyWeb.csproj"
+COPY ["SessyController/SessyController.csproj", "SessyController/"]
+COPY ["SessyData/SessyData.csproj", "SessyData/"]
+COPY ["SessyCommon/SessyCommon.csproj", "SessyCommon/"]
+COPY ["Djohnnie.SolarEdge.ModBus.TCP/Djohnnie.SolarEdge.ModBus.TCP.csproj", "Djohnnie.SolarEdge.ModBus.TCP/"]
+RUN dotnet restore "SessyWeb/SessyWeb.csproj" -a $TARGETARCH
 
-# Kopieer alle projectbestanden en bouw de applicatie
+# Publish builds as well, so there is no separate build step.
 COPY . .
-WORKDIR "/src/SessyWeb"
-RUN dotnet build "./SessyWeb.csproj" -c $BUILD_CONFIGURATION -o /app/build /p:UseAppHost=false
+RUN dotnet publish "SessyWeb/SessyWeb.csproj" \
+    -c $BUILD_CONFIGURATION \
+    -a $TARGETARCH \
+    --no-restore \
+    -o /app/publish \
+    /p:UseAppHost=false
 
-# Publiceer de applicatie
-FROM build AS publish
-ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./SessyWeb.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
-
-# Gebruik de .NET 9.0 runtime voor de uiteindelijke container
 FROM base AS final
 WORKDIR /app
-COPY --from=publish /app/publish .
+COPY --from=build /app/publish .
 ENTRYPOINT ["dotnet", "SessyWeb.dll"]

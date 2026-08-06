@@ -1,5 +1,7 @@
 # SessyWeb
 
+[![Publish Docker image](https://github.com/PaulSinnema/SessyWeb/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/PaulSinnema/SessyWeb/actions/workflows/docker-publish.yml)
+
 **SessyWeb** is an open-source home energy management system (HEMS) for households with one or more [Sessy](https://www.sessy.nl) home batteries. It runs as a Docker container on a NAS, mini-PC or Raspberry Pi and plans battery charging and discharging against dynamic day-ahead electricity prices, your solar forecast and your household consumption.
 
 > ⚡ Charge cheap. Sell expensive. Let the sun do the rest.
@@ -22,7 +24,7 @@ Everything runs locally. The database is a SQLite file on your own disk; the onl
   - [Step 3 — Create the folders](#step-3--create-the-folders)
   - [Step 4 — Write `appsettings.json`](#step-4--write-appsettingsjson)
   - [Step 5 — Write `secrets.json`](#step-5--write-secretsjson)
-  - [Step 6 — Build and start the container](#step-6--build-and-start-the-container)
+  - [Step 6 — Start the container](#step-6--start-the-container)
   - [Step 7 — Open the web interface](#step-7--open-the-web-interface)
   - [Step 8 — First-run checklist inside the UI](#step-8--first-run-checklist-inside-the-ui)
 - [Installing on a Synology NAS](#installing-on-a-synology-nas)
@@ -56,7 +58,7 @@ Everything runs locally. The database is a SQLite file on your own disk; the onl
 
 **Software**
 
-- Docker, or Docker Desktop, or Synology Container Manager. Nothing else — you do not need .NET installed to run SessyWeb.
+- Docker, or Docker Desktop, or Synology Container Manager. Nothing else — there is a ready-made image, so you need neither .NET nor the source code to run SessyWeb.
 - Memory to spare for the container. The example below gives it 4 GB; day to day it uses far less, but a NAS that hands out 512 MB will make it struggle.
 
 **Skill level**: you need to be able to edit a text file and run one or two commands in a terminal. No programming required.
@@ -243,23 +245,14 @@ The numbering must line up with `appsettings.json`: battery `"1"` here is batter
 > [!WARNING]
 > The P1 username and password are **not optional**. Leave them out and the meter service throws `Password for P1 configuration with id P1 is empty` at startup.
 
-### Step 6 — Build and start the container
+### Step 6 — Start the container
 
-There is no pre-built image yet, so you build it once from the source. Clone the repository:
-
-```bash
-git clone https://github.com/PaulSinnema/SessyWeb.git
-cd SessyWeb
-```
-
-Create a file called **`docker-compose.yml`** in that folder:
+A ready-made image is published on every change, so there is nothing to build and you do not need the source code. Create a file called **`docker-compose.yml`** next to the two folders you made in Step 3:
 
 ```yaml
 services:
   sessyweb:
-    build:
-      context: .
-      dockerfile: SessyWeb/Dockerfile
+    image: ghcr.io/paulsinnema/sessyweb:latest
     container_name: sessyweb
     restart: unless-stopped
     ports:
@@ -276,17 +269,28 @@ services:
     mem_limit: 4g
 ```
 
-Then build and start it:
+Then start it:
 
 ```bash
-docker compose up -d --build
+docker compose up -d
 ```
 
-The first build downloads the .NET SDK image and takes several minutes. Later starts are instant. Watch it come up with:
+The first start downloads the image, which takes a minute or two. Watch it come up with:
 
 ```bash
 docker compose logs -f
 ```
+
+Images are published for both `linux/amd64` and `linux/arm64`, so the same line works on an Intel NAS, an ARM NAS and a Raspberry Pi.
+
+**Updating later** is two commands, and your configuration and database are untouched because they live in the mounted folders:
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+To pin a specific version instead of following `latest`, replace the tag with a version number, for example `ghcr.io/paulsinnema/sessyweb:v1.0.61`. Every published version is listed on the [package page](https://github.com/PaulSinnema/SessyWeb/pkgs/container/sessyweb).
 
 SessyWeb creates the SQLite database and applies its migrations on the first start; you do not have to prepare anything.
 
@@ -321,43 +325,33 @@ Leave it running for a day before trusting it. The planner needs measurements to
 
 ## Installing on a Synology NAS
 
-Container Manager cannot build an image from source, so build it elsewhere first (on a PC with Docker) and export it:
+Use **Container Manager → Project**, not the Registry tab. The Registry tab searches Docker Hub and cannot find an image on ghcr.io; a project simply takes the image address, so this is both easier and less error-prone.
 
-```bash
-docker build -t sessyweb:latest -f SessyWeb/Dockerfile .
-docker save sessyweb:latest -o sessyweb.tar
+1. Create the two folders on the NAS, for example `/volume1/SessyController/Config` and `/volume1/SessyController/Data`, and put your `appsettings.json` and `secrets.json` in the Config one.
+2. **Container Manager → Project → Create**. Give it the name `sessyweb`, pick a path, and choose *Create docker-compose.yml*.
+3. Paste this:
+
+```yaml
+services:
+  sessyweb:
+    image: ghcr.io/paulsinnema/sessyweb:latest
+    container_name: sessyweb
+    restart: unless-stopped
+    ports:
+      - "8101:80"
+    volumes:
+      - /volume1/SessyController/Config:/SessyController/Config
+      - /volume1/SessyController/Data:/SessyController/Data
+    environment:
+      - ASPNETCORE_URLS=http://+:80
+      - ASPNETCORE_HTTP_PORTS=80
+      - CONFIG_PATH=/SessyController/Config
+    mem_limit: 4g
 ```
 
-Copy `sessyweb.tar` to the NAS, then in **Container Manager → Image → Add → Add from file**, import it and create a container with these settings:
+4. Build the project. Container Manager pulls the image and starts it.
 
-| Setting | Value |
-|---|---|
-| Container name | `sessyweb` |
-| Enable auto-restart | ✅ |
-| Memory limit | 4096 MB |
-
-**Port settings**
-
-| Local port | Container port | Type |
-|---|---|---|
-| `8101` | `80` | TCP |
-
-**Volume settings**
-
-| NAS folder | Mount path |
-|---|---|
-| `/volume1/SessyController/Config` | `/SessyController/Config` |
-| `/volume1/SessyController/Data` | `/SessyController/Data` |
-
-**Environment**
-
-| Variable | Value |
-|---|---|
-| `ASPNETCORE_URLS` | `http://+:80` |
-| `ASPNETCORE_HTTP_PORTS` | `80` |
-| `CONFIG_PATH` | `/SessyController/Config` |
-
-Put `appsettings.json` and `secrets.json` in the Config folder before starting the container.
+To update later, open the project and press **Build** again — it pulls the newest `latest` and restarts. Your database and configuration are on the mounted folders, so they survive every update.
 
 ---
 
@@ -486,6 +480,18 @@ dotnet ef migrations add <Name> --project SessyData --startup-project SessyWeb
 Migrations are applied automatically at startup, preceded by an automatic `VACUUM INTO` backup into `DatabaseBackupDirectory` whenever there are pending ones.
 
 An API browser is available at `/swagger`.
+
+### Building and publishing the image
+
+Every push to `master` triggers `.github/workflows/docker-publish.yml`, which builds for `linux/amd64` and `linux/arm64` and pushes to `ghcr.io/paulsinnema/sessyweb`. The image tag is read straight from `SessyCommon/AppInfo.cs`, so bumping the version there is what names the release; `latest` moves along with it. No secrets are configured — the workflow authenticates with the token GitHub hands it.
+
+To build the same image locally:
+
+```powershell
+docker build -f SessyWeb/Dockerfile -t sessyweb:test .
+```
+
+The Dockerfile copies the five `.csproj` files before restoring, so that layer stays cached until a package or project reference changes. It cross-compiles rather than emulating: the SDK stage always runs on the host architecture and `dotnet publish -a $TARGETARCH` targets the other one, which is why an arm64 image costs almost nothing extra to produce.
 
 ### Adding another inverter brand
 

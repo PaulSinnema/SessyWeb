@@ -28,3 +28,19 @@ README.md
 !.git/config
 !.git/packed-refs
 !.git/refs/heads/**
+
+# Credentials. This file is gitignored, so a CI build never sees it, but a local
+# build would otherwise bake the real battery, meter and API credentials into an
+# image that may be pushed to a public registry.
+**/secrets.json
+**/appsettings.Development.json
+
+# Nothing below is needed to build the app, and databases must never be baked
+# into an image that gets published.
+db
+Sql
+TestResults
+.abacusai
+**/*.db
+**/*.db-shm
+**/*.db-wal
