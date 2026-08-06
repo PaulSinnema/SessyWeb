@@ -119,7 +119,7 @@ Blazor Server, Radzen components, `.razor` + `.razor.cs` code-behind pairs. Page
 # SessyWeb — Samenvatting voor nieuwe chat
 
 ## Wat is SessyWeb
-C#/.NET Blazor Server EMS. Stuurt 3× Sessy batterij (cap 16,2 kWh; raw charge 6600W/discharge 5100W; **aantoonbaar gehaald ~5,0-5,3 kW laden** over vrijwel het hele SOC-bereik — zie Openstaande punten, de eerdere "praktijk max ~4,4kW" was de getaperde planwaarde, niet de hardwarelimiet), SolarEdge inverter, Daikin warmtepomp. Draait op Synology NAS via Docker. Huidige versie **v1.0.55**. Locatie: Apeldoorn.
+C#/.NET Blazor Server EMS. Stuurt 3× Sessy batterij (cap 16,2 kWh; raw charge 6600W/discharge 5100W; **aantoonbaar gehaald ~5,0-5,3 kW laden** over vrijwel het hele SOC-bereik — zie Openstaande punten, de eerdere "praktijk max ~4,4kW" was de getaperde planwaarde, niet de hardwarelimiet), SolarEdge inverter, Daikin warmtepomp. Draait op Synology NAS via Docker. Huidige versie **v1.0.56**. Locatie: Apeldoorn.
 
 ## Werkafspraken
 - Antwoorden in het Nederlands, caveman-ultra kort. Code-commentaar in het Engels, **kort — één regel waar mogelijk** (user leest alle comments na ter controle).
@@ -464,6 +464,17 @@ Twee dingen die het verschil maken tussen dit en de dode versie van v1.0.6:
    onbekend en draait Charged al een tijd. Praktisch gevolg: staat Charged al aan, dan moet je hem
    uit- en weer aanzetten om de overdracht te laten vuren.
 Zit binnen `#if !DEBUG`, dus lokaal gebeurt er niets. Tests: `ChargedHandoverTests` (8). Totaal 278.
+
+**Charged-series achter een checkbox (v1.0.56).** Alle zeven Charged-series staan nu achter
+`ShowCharged` in de grafiekheader, **standaard uit** — zes extra series maken de grafiek onleesbaar
+als je niet aan het vergelijken bent. Eén ding dat niet vanzelf goed gaat: met de toggle uit tekenen
+we ons eigen plan als gevulde vlakken ongeacht wie stuurt (`!ShowCharged || !ChargedInControl`),
+anders houd je onder Charged alleen de flauwe gestippelde schaduwlijnen over en zie je helemaal
+niets meer. Om dezelfde reden krijgt onze SOC-lijn alleen de schaduwopmaak (blauw, gestippeld) als
+de vergelijking daadwerkelijk op het scherm staat. De headertekst beweegt mee: zonder vergelijking
+alleen wie er stuurt, met vergelijking de kleuruitleg plus de leeftijd van het schema.
+`ToggleCharged` roept `MarkDirty()` — zonder dat doet de checkbox niets, want `ShouldRender` gate
+op `_dirty` (v1.0.40).
 
 ## Openstaande punten
 0. **De taper is vlak, geen aflopende lijn — hoogste prioriteit (06-08).** Hoogst gemeten laadvermogen

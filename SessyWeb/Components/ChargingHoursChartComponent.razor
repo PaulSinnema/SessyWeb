@@ -14,31 +14,55 @@
 @* Says whose plan is on screen. Colour tells you WHOSE plan a series is — orange and green are
    SessyWeb's, blue is Charged's — and the sign tells you what it does: charging is drawn below
    zero, discharging above. Whichever plan is not being executed is drawn as a line rather than a
-   filled area. *@
-<div style="padding: 2px 8px; font-size: 0.85em; color: var(--rz-text-secondary-color);">
-    @if (ChargedInControl)
-    {
-        <text>
-            <b>Charged</b> is in control — the <span style="color:#7fd1ff;">blue areas</span> are the
-            batteries' own schedule; SessyWeb's plan is the dashed orange/green line.
-        </text>
-    }
-    else
-    {
-        <text>
-            <b>SessyWeb</b> is in control — the orange/green areas are our plan; the dashed
-            <span style="color:#7fd1ff;">blue line</span> is what Charged would have done.
-        </text>
-    }
+   filled area.
 
-    @if (ChargedScheduleFetchedAt != null)
-    {
-        <text> Charged's schedule read at @ChargedScheduleFetchedAt.Value.ToString("HH:mm").</text>
-    }
-    else
-    {
-        <text> No schedule received from the batteries yet.</text>
-    }
+   Charged's series are behind "Show Charged" and off by default: six extra series make the chart
+   hard to read when you are not comparing. With the toggle off, our own plan is drawn as filled
+   areas whoever is executing — otherwise switching it off under Charged would leave nothing but
+   faint dashed lines. *@
+<div style="padding: 2px 8px; font-size: 0.85em; color: var(--rz-text-secondary-color); display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center;">
+    <span>
+        @if (ShowCharged)
+        {
+            @if (ChargedInControl)
+            {
+                <text>
+                    <b>Charged</b> is in control — the <span style="color:#7fd1ff;">blue areas</span> are
+                    the batteries' own schedule; SessyWeb's plan is the dashed orange/green line.
+                </text>
+            }
+            else
+            {
+                <text>
+                    <b>SessyWeb</b> is in control — the orange/green areas are our plan; the dashed
+                    <span style="color:#7fd1ff;">blue line</span> is what Charged would have done.
+                </text>
+            }
+
+            @if (ChargedScheduleFetchedAt != null)
+            {
+                <text> Charged's schedule read at @ChargedScheduleFetchedAt.Value.ToString("HH:mm").</text>
+            }
+            else
+            {
+                <text> No schedule received from the batteries yet.</text>
+            }
+        }
+        else
+        {
+            <text>
+                <b>@(ChargedInControl ? "Charged" : "SessyWeb")</b> is in control. The orange/green
+                areas are the SessyWeb plan.
+            </text>
+        }
+    </span>
+
+    @* Off by default — the comparison is something you ask for. *@
+    <RadzenCheckBox Value="@ShowCharged"
+                    TValue="bool"
+                    Change="@((bool value) => ToggleCharged(value))"
+                    Name="showCharged" />
+    <RadzenLabel Text="Show Charged" Component="showCharged" Style="font-size: 0.85em;" />
 </div>
 
 <div class="now-chart" style="width: 100%; overflow: auto;">
@@ -194,7 +218,7 @@
 
         @* Our own plan as filled areas — only while SessyWeb is the one executing it. Under
            Charged the same numbers come back below as a dashed shadow line. *@
-        <RadzenAreaSeries Visible="@(!ChargedInControl)"
+        <RadzenAreaSeries Visible="@(!ShowCharged || !ChargedInControl)"
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
@@ -211,7 +235,7 @@
             </ChildContent>
         </RadzenAreaSeries>
 
-        <RadzenAreaSeries Visible="@(!ChargedInControl)"
+        <RadzenAreaSeries Visible="@(!ShowCharged || !ChargedInControl)"
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
@@ -230,7 +254,7 @@
 
         @* Charged's own schedule. Same colours as the plan areas above so charging still reads as
            orange below zero and discharging as green above it. *@
-        <RadzenAreaSeries Visible="@ChargedInControl"
+        <RadzenAreaSeries Visible="@(ShowCharged && ChargedInControl)"
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
@@ -247,7 +271,7 @@
             </ChildContent>
         </RadzenAreaSeries>
 
-        <RadzenAreaSeries Visible="@ChargedInControl"
+        <RadzenAreaSeries Visible="@(ShowCharged && ChargedInControl)"
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
@@ -266,7 +290,7 @@
 
         @* The mirror image: while SessyWeb executes, Charged's own schedule is the road not taken.
            Same dashed treatment, so whichever plan is not being executed reads as a shadow. *@
-        <RadzenLineSeries Visible="@(!ChargedInControl)"
+        <RadzenLineSeries Visible="@(ShowCharged && !ChargedInControl)"
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
@@ -284,7 +308,7 @@
             </ChildContent>
         </RadzenLineSeries>
 
-        <RadzenLineSeries Visible="@(!ChargedInControl)"
+        <RadzenLineSeries Visible="@(ShowCharged && !ChargedInControl)"
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
@@ -303,7 +327,7 @@
         </RadzenLineSeries>
 
         @* What SessyWeb would have done instead — the price of handing over control, in one line. *@
-        <RadzenLineSeries Visible="@ChargedInControl"
+        <RadzenLineSeries Visible="@(ShowCharged && ChargedInControl)"
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
@@ -321,7 +345,7 @@
             </ChildContent>
         </RadzenLineSeries>
 
-        <RadzenLineSeries Visible="@ChargedInControl"
+        <RadzenLineSeries Visible="@(ShowCharged && ChargedInControl)"
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
@@ -416,8 +440,8 @@
         <RadzenLineSeries Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Stroke="@(WeAreInControl ? "red" : "#7fd1ff")"
-                          LineType="@(WeAreInControl ? LineType.Solid : LineType.Dotted)"
+                          Stroke="@(ShowCharged && !WeAreInControl ? "#7fd1ff" : "red")"
+                          LineType="@(ShowCharged && !WeAreInControl ? LineType.Dotted : LineType.Solid)"
                           Title="⟨SessyWeb⟩ charge remaining (kWh)"
                           ValueProperty="ChargeLeftVisual">
             <TooltipTemplate Context="data">
@@ -429,7 +453,7 @@
             </ChildContent>
         </RadzenLineSeries>
 
-        <RadzenLineSeries Visible="@HasChargedSchedule"
+        <RadzenLineSeries Visible="@(ShowCharged && HasChargedSchedule)"
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"

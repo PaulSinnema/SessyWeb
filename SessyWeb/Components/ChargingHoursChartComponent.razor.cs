@@ -78,6 +78,24 @@ namespace SessyWeb.Components
         /// </summary>
         public bool HasChargedSchedule { get; private set; }
 
+        /// <summary>
+        /// Whether Charged's series are drawn at all. Off by default: the comparison is something
+        /// you ask for, and six extra series make the chart hard to read the rest of the time.
+        /// With it off the chart shows our own plan as filled areas whoever is executing, so it
+        /// never falls back to nothing but faint dashed lines.
+        /// </summary>
+        public bool ShowCharged { get; private set; }
+
+        public void ToggleCharged(bool value)
+        {
+            if (ShowCharged == value) return;
+
+            ShowCharged = value;
+
+            // ShouldRender gates on _dirty, so without this the checkbox does nothing visible.
+            MarkDirty();
+        }
+
         public double ChartMin => -ChartMinMax;
         public double ChartMax => ChartMinMax;
 
