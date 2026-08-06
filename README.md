@@ -44,7 +44,7 @@ Everything runs locally. The database is a SQLite file on your own disk; the onl
 |---|---|---|
 | Sessy home battery (1–3) | Yes | Must be on your local network with the **Open API / local API enabled** in the Sessy app |
 | Sessy P1 dongle (or another networked DSMR P1 reader) | Yes | SessyWeb refuses to start the meter service without one |
-| Solar inverter | Optional | Only if you have solar panels — see the supported list below |
+| SolarEdge solar inverter | Optional | Only if you have solar panels. **SolarEdge over Modbus TCP is the only inverter that is actually supported.** |
 
 **Accounts (all free)**
 
@@ -87,7 +87,7 @@ You need, for **each** Sessy battery and for the P1 dongle:
 > [!TIP]
 > Give every Sessy device and your inverter a **fixed IP address** (a DHCP reservation) in your router. If an address changes later, SessyWeb silently loses that device.
 
-If you have solar panels, also note your inverter's IP address and Modbus TCP port (SolarEdge uses `1502`; Modbus TCP must be enabled in the inverter's own settings).
+If you have a SolarEdge inverter, also note its IP address. Modbus TCP must be switched on in the inverter itself (SetApp → Site Communication → Modbus TCP); it listens on port `1502`.
 
 ### Step 3 — Create the folders
 
@@ -155,9 +155,9 @@ Start from this example and replace every `<...>` placeholder:
     }
   },
 
-  // Solar inverter. Remove this whole section if you have no solar panels.
-  // The outer key ("SolarEdge") selects the driver — see the supported list.
-  // The inner key ("1") is the inverter number; add "2" for a second inverter.
+  // SolarEdge inverter over Modbus TCP. Remove this whole section if you have
+  // no solar panels. The outer key must be exactly "SolarEdge"; the inner key
+  // ("1") is the inverter number, add "2" for a second inverter.
   "PowerSystems": {
     "Endpoints": {
       "SolarEdge": {
@@ -201,14 +201,13 @@ Notes on the values:
 - **`Location`** is `latitude,longitude` for the weather forecast, e.g. `52.2185,5.947`. Look yours up on any map site.
 - **`Tilt`** is the roof angle in degrees, **`Orientation`** is the compass bearing the panels face (180 = due south). Add one numbered entry under `SolarPanels` per group of panels with a different roof face.
 - **`HighestDailySolarProduction`** is the most Wh your array has ever made in a day. A rough guess is fine — it is a scaling hint for the forecast, and you can refine it later.
-- **`Interface`, `Port`, `SlaveId`** stay as shown for SolarEdge.
+- **`Interface`, `Port`, `SlaveId`** stay as shown.
 - `//` comments are allowed in these files; the loader ignores them.
 
-Supported values for the driver key under `PowerSystems:Endpoints`:
-
-`SolarEdge` · `Sma` · `Enphase` · `Victron` · `Huawei` · `Sungrow` · `Solis` · `GoodWe`
-
-Spelling matters — the key must match exactly, or the inverter is silently skipped.
+> [!NOTE]
+> **Only SolarEdge is supported.** The key under `PowerSystems:Endpoints` must be spelled exactly `SolarEdge`, or the inverter is silently skipped.
+>
+> The source also contains skeleton drivers named `Sma`, `Enphase`, `Victron`, `Huawei`, `Sungrow`, `Solis` and `GoodWe`. They are thin subclasses of a generic SunSpec reader, have never been tested against real hardware, and are not supported. Use them only if you are prepared to debug them yourself — see [For developers](#for-developers).
 
 ### Step 5 — Write `secrets.json`
 
@@ -409,7 +408,7 @@ Optional sections in `appsettings.json`:
 |---|---|
 | Batteries | Sessy (1–3 units, local Open API) |
 | Smart meters | P1 / DSMR (Sessy P1 dongle and compatible readers) |
-| Solar inverters | SolarEdge, SMA, Enphase, Victron, Huawei, Sungrow, Solis, GoodWe (Modbus TCP / SunSpec) |
+| Solar inverters | SolarEdge over Modbus TCP — the only supported inverter, and the only one running in production |
 | Weather | WeerLive |
 
 ### Monitoring
@@ -439,7 +438,7 @@ docker compose restart          # restart after editing appsettings.json
 | `Password for P1 configuration with id P1 is empty` | The P1 credentials are missing from `secrets.json`, or the key numbering does not match `appsettings.json`. |
 | No prices, empty chart | Batteries unreachable **and** no ENTSO-E token. Check the log for `Day-ahead prices now come from ENTSO-E`, verify the token, and confirm the container can reach your batteries (`docker exec sessyweb curl -u <user>:<password> http://<battery-ip>/api/v1/power/status`). |
 | Prices look wrong / profit makes no sense | The **Taxes** page has not been filled in. The planner works on the all-in price, not the market price. |
-| Inverter not found | Wrong provider key under `PowerSystems:Endpoints` (case-sensitive), wrong IP, or Modbus TCP not enabled in the inverter itself. |
+| Inverter not found | The key under `PowerSystems:Endpoints` must be exactly `SolarEdge` (case-sensitive), the IP must be right, and Modbus TCP must be enabled in the inverter itself. |
 | Battery does not react | On **Settings → Management Settings**, check **Charged in control** — if it is ticked, SessyWeb deliberately sends no commands. Refused writes are logged as warnings, so the log tells you which mode blocked them. |
 | SOC deviation warnings | Normal. The planner corrects every quarter. |
 | Container restarts or is killed | Raise the memory limit; the solver needs room. |
@@ -487,6 +486,10 @@ dotnet ef migrations add <Name> --project SessyData --startup-project SessyWeb
 Migrations are applied automatically at startup, preceded by an automatic `VACUUM INTO` backup into `DatabaseBackupDirectory` whenever there are pending ones.
 
 An API browser is available at `/swagger`.
+
+### Adding another inverter brand
+
+`SessyController/Services/InverterServices/` holds `SunspecInverterService`, a generic SunSpec Modbus reader, plus one small subclass per brand that does nothing but pass its provider name. Only `SolarEdgeInverterService` has brand-specific code and real-world mileage; the others are placeholders. Making one of them work means checking that brand's register map against the SunSpec base and overriding what differs. Pull requests welcome — say which inverter you tested against.
 
 ---
 
