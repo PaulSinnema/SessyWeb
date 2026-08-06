@@ -375,3 +375,5 @@ FodyWeavers.xsd
 /SessyWeb/data/Sessy.db-shm
 /SessyWeb/data/Sessy.db-wal
 /SessyWeb/SessyController/Data/Sessy.db
+/SessyWeb/SessyController/Data/Sessy.db-shm
+/SessyWeb/SessyController/Data/Sessy.db-wal
