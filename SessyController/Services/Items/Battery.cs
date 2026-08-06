@@ -170,7 +170,7 @@ namespace SessyController.Services.Items
             }
         }
 
-        private async Task SetActivePowerStrategy(ActivePowerStrategy strategy)
+        private async Task SetActivePowerStrategy(ActivePowerStrategy strategy, bool handover = false)
         {
             EnsureInitialized();
 
@@ -182,7 +182,7 @@ namespace SessyController.Services.Items
                 {
                     _logger.LogInformation($"Changing strategy to {strategy.Strategy}: 1");
 
-                    await _sessyService.SetActivePowerStrategyAsync(Id, strategy);
+                    await _sessyService.SetActivePowerStrategyAsync(Id, strategy, handover);
                     InvalidateStatusCache();
                 }
             }
@@ -190,9 +190,32 @@ namespace SessyController.Services.Items
             {
                 _logger.LogInformation($"Changing strategy to {strategy.Strategy}: 2");
 
-                await _sessyService.SetActivePowerStrategyAsync(Id, strategy);
+                await _sessyService.SetActivePowerStrategyAsync(Id, strategy, handover);
                 InvalidateStatusCache();
             }
+        }
+
+        /// <summary>
+        /// Hand the battery to Sessy's own ROI (Dynamic) strategy. Only used when control is handed
+        /// to Charged, so it passes handover: the normal write guard blocks exactly this case.
+        /// </summary>
+        public async Task SetActivePowerStrategyToRoi()
+        {
+            _logger.LogInformation("Setting strategy to ROI (Dynamic)");
+
+            await SetActivePowerStrategy(
+                new ActivePowerStrategy { Strategy = PowerStrategies.POWER_STRATEGY_ROI.ToString() },
+                handover: true);
+        }
+
+        /// <summary>Hand the battery to Sessy's own ECO strategy. See SetActivePowerStrategyToRoi.</summary>
+        public async Task SetActivePowerStrategyToEco()
+        {
+            _logger.LogInformation("Setting strategy to ECO");
+
+            await SetActivePowerStrategy(
+                new ActivePowerStrategy { Strategy = PowerStrategies.POWER_STRATEGY_ECO.ToString() },
+                handover: true);
         }
 
         public async Task SetActivePowerStrategyToOpenAPI()

@@ -104,9 +104,15 @@ namespace SessyController.Services
         /// <param name="id">Id of the battery configuration object containing authentication and URL details.</param>
         /// <param name="strategy">The strategy to be applied.</param>
         /// <returns>An awaitable Task representing the asynchronous operation.</returns>
-        public async Task SetActivePowerStrategyAsync(string id, ActivePowerStrategy strategy)
+        /// <param name="handover">
+        /// Set only when this write *is* the act of handing control over to Charged. That happens at
+        /// the moment the mode has already flipped, so the normal guard would block precisely the
+        /// call that carries out the handover — the reason the old handoff was dead code for
+        /// months. Everything else must leave this false.
+        /// </param>
+        public async Task SetActivePowerStrategyAsync(string id, ActivePowerStrategy strategy, bool handover = false)
         {
-            if (!_controlMode.WeMayDriveTheBatteries)
+            if (!handover && !_controlMode.WeMayDriveTheBatteries)
             {
                 _logger.LogWarning($"SetActivePowerStrategyAsync({id}, {strategy.Strategy}) refused — {_controlMode.Current} is in control.");
                 return;

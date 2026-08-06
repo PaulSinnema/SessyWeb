@@ -260,8 +260,14 @@ namespace SessyController.Services
                 else
                 {
 #if !DEBUG
-                    // Charged sets its own strategy on the batteries, so we leave them alone; for
-                    // provider (supplier) control we release them fully.
+                    // Handing over to Charged: put the batteries on the Sessy strategy that matches
+                    // ours. Once, on the transition — re-asserting it every cycle would overwrite a
+                    // strategy set by hand in the Sessy portal.
+                    if (_controlMode.JustHandedOverToCharged)
+                        await HandOverToChargedAsync().ConfigureAwait(false);
+
+                    // For provider (supplier) control we release the batteries fully. Under Charged
+                    // we leave them alone after the handover — they are running their own plan.
                     if (!ChargedInControl)
                         await _batteryContainer.StopAll().ConfigureAwait(false);
 #endif
@@ -405,6 +411,41 @@ namespace SessyController.Services
 #else
             await Task.Delay(1).ConfigureAwait(false);
 #endif
+        }
+
+        /// <summary>
+        /// Maps our optimisation strategy onto Sessy's own when control moves to Charged:
+        ///   ProfitMaximization → ROI (Dynamic)
+        ///   anything else      → ECO
+        /// Balanced is ECO by agreement; SelfConsumption and BatterySaving follow it because ECO is
+        /// the self-consumption-oriented, lower-cycle mode of the two Sessy offers.
+        /// </summary>
+        internal static bool MapsToRoi(OptimizationStrategy strategy)
+            => strategy == OptimizationStrategy.ProfitMaximization;
+
+        private async Task HandOverToChargedAsync()
+        {
+            try
+            {
+                var strategy = _settingsConfig.Strategy;
+
+                if (MapsToRoi(strategy))
+                {
+                    _logger.LogWarning($"Handing over to Charged: {strategy} → ROI (Dynamic).");
+                    await _batteryContainer.StartRoi().ConfigureAwait(false);
+                }
+                else
+                {
+                    _logger.LogWarning($"Handing over to Charged: {strategy} → ECO.");
+                    await _batteryContainer.StartEco().ConfigureAwait(false);
+                }
+            }
+            catch (Exception ex)
+            {
+                // A failed handover must not take the cycle down; the batteries keep their previous
+                // strategy and the user can set it in the Sessy portal.
+                _logger.LogError($"Handing over to Charged failed: {ex.ToDetailedString()}");
+            }
         }
 
         private async Task<bool> WeControlTheBatteries()

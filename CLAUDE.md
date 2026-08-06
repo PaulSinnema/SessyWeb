@@ -119,7 +119,7 @@ Blazor Server, Radzen components, `.razor` + `.razor.cs` code-behind pairs. Page
 # SessyWeb — Samenvatting voor nieuwe chat
 
 ## Wat is SessyWeb
-C#/.NET Blazor Server EMS. Stuurt 3× Sessy batterij (cap 16,2 kWh; raw charge 6600W/discharge 5100W; **aantoonbaar gehaald ~5,0-5,3 kW laden** over vrijwel het hele SOC-bereik — zie Openstaande punten, de eerdere "praktijk max ~4,4kW" was de getaperde planwaarde, niet de hardwarelimiet), SolarEdge inverter, Daikin warmtepomp. Draait op Synology NAS via Docker. Huidige versie **v1.0.52**. Locatie: Apeldoorn.
+C#/.NET Blazor Server EMS. Stuurt 3× Sessy batterij (cap 16,2 kWh; raw charge 6600W/discharge 5100W; **aantoonbaar gehaald ~5,0-5,3 kW laden** over vrijwel het hele SOC-bereik — zie Openstaande punten, de eerdere "praktijk max ~4,4kW" was de getaperde planwaarde, niet de hardwarelimiet), SolarEdge inverter, Daikin warmtepomp. Draait op Synology NAS via Docker. Huidige versie **v1.0.55**. Locatie: Apeldoorn.
 
 ## Werkafspraken
 - Antwoorden in het Nederlands, caveman-ultra kort. Code-commentaar in het Engels, **kort — één regel waar mogelijk** (user leest alle comments na ter controle).
@@ -447,6 +447,23 @@ fallback bereikbaar is. Ook `SingleOrDefault` → `FirstOrDefault` op de schedul
 `StartTime`s in de respons gooiden anders óók.
 **Regel hieruit:** een fallback is pas een fallback als de primaire bron *terugkeert* in plaats van
 gooit. Bij het toevoegen van een fallback altijd eerst het faalpad van de primaire bron nalopen.
+
+## Gebouwd 06-08 (v1.0.55)
+**Charged-handoff teruggebouwd, met de afgesproken mapping.** In v1.0.51 geschrapt als dode code;
+de afspraak was echter dat hij bestaat. `ProfitMaximization` → ROI (Dynamisch), `Balanced` → ECO,
+en `SelfConsumption`/`BatterySaving` volgen Balanced naar ECO (ECO is Sessy's op zelfverbruik
+gerichte, cyclus-armere modus). Mapping staat als `BatteriesService.MapsToRoi`.
+Twee dingen die het verschil maken tussen dit en de dode versie van v1.0.6:
+1. **De guard laat hem door.** `SetActivePowerStrategyAsync` krijgt `handover: true` mee — dit ís de
+   overdracht, en de modus is op dat moment al geflipt, dus de normale schrijfguard zou precies de
+   aanroep blokkeren die de overdracht uitvoert. Alleen `SetActivePowerStrategyToRoi/ToEco` zetten
+   die vlag; al het andere blijft geguard.
+2. **Hij vuurt één keer, op de overgang** (`ControlModeService.JustHandedOverToCharged`), niet elke
+   cyclus — anders overschrijft hij een strategie die de gebruiker met de hand in de Sessy-portal
+   heeft gezet. Bewust óók niet bij de eerste `Update` na een herstart, want dan is de vorige modus
+   onbekend en draait Charged al een tijd. Praktisch gevolg: staat Charged al aan, dan moet je hem
+   uit- en weer aanzetten om de overdracht te laten vuren.
+Zit binnen `#if !DEBUG`, dus lokaal gebeurt er niets. Tests: `ChargedHandoverTests` (8). Totaal 278.
 
 ## Openstaande punten
 0. **De taper is vlak, geen aflopende lijn — hoogste prioriteit (06-08).** Hoogst gemeten laadvermogen

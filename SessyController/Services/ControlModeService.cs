@@ -54,6 +54,16 @@ namespace SessyController.Services
         /// </summary>
         public bool WeMayDriveTheBatteries => Current is ControlMode.SessyWeb or ControlMode.Manual;
 
+        /// <summary>
+        /// True on the cycle where control just moved to Charged from a mode we were driving.
+        ///
+        /// Deliberately false on the first Update after a restart, when the previous mode is
+        /// unknown: at that point Charged has been in control for a while and the strategy on the
+        /// batteries may have been set by hand in the Sessy portal. Re-asserting it every start —
+        /// or every cycle — would silently overwrite that.
+        /// </summary>
+        public bool JustHandedOverToCharged { get; private set; }
+
         /// <summary>Recomputes the mode. Only BatteriesService knows the supplier state.</summary>
         public ControlMode Update(bool supplierInControl)
         {
@@ -61,6 +71,10 @@ namespace SessyController.Services
             var mode = Resolve(supplierInControl);
 
             _current = mode;
+
+            JustHandedOverToCharged = previous.HasValue
+                                      && previous != ControlMode.Charged
+                                      && mode == ControlMode.Charged;
 
             if (previous != mode)
                 _logger.LogWarning($"Control mode: {previous?.ToString() ?? "unknown"} → {mode}");
