@@ -210,7 +210,13 @@ namespace SessyWeb.Pages
 
         private string _lastStatusSignature = string.Empty;
 
-        private readonly RenderTimer _renderTimer = new("ChargingHoursPage");
+        [Inject] private ILogger<ChargingHoursPage>? _renderLogger { get; set; }
+
+        private RenderTimer? _renderTimerInstance;
+
+        private RenderTimer _renderTimer =>
+            _renderTimerInstance ??= new RenderTimer(
+                nameof(ChargingHoursPage), message => _renderLogger?.LogInformation(message));
 
         protected override bool ShouldRender()
         {

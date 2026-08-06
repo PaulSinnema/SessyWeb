@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SessyCommon.Configurations;
 using SessyCommon.Extensions;
@@ -32,10 +33,20 @@ namespace SessyData.Helpers
     public class DbHelper : IDisposable
     {
         private readonly IServiceScopeFactory _serviceScopeFactory;
+        private readonly ILogger<DbHelper>? _logger;
 
+        // Two constructors rather than one with an optional argument: dependency injection picks
+        // the widest one it can satisfy, while Moq matches a constructor on the exact arguments it
+        // is handed and cannot see through an optional parameter.
         public DbHelper(IServiceScopeFactory serviceScopeFactory)
+            : this(serviceScopeFactory, null)
+        {
+        }
+
+        public DbHelper(IServiceScopeFactory serviceScopeFactory, ILogger<DbHelper>? logger)
         {
             _serviceScopeFactory = serviceScopeFactory;
+            _logger = logger;
         }
 
         /// <summary>Concurrent readers allowed per data service.</summary>
@@ -205,14 +216,17 @@ namespace SessyData.Helpers
         public Task<T> ExecuteQueryAsync<T>(Func<ModelContext, T> queryFunc, [CallerMemberName] string caller = "")
             => ExecuteQueryAsync(db => Task.FromResult(queryFunc(db)), caller);
 
-        /// <summary>
-        /// Logs the calls that are slow enough to be felt in the UI. Production runs at log level
-        /// Warning, so these go to the console the same way the rest of this class reports.
-        /// </summary>
-        private static void ReportSlow(string kind, string caller, long waitedMs, long heldMs)
+        /// <summary>Logs the calls that are slow enough to be felt in the UI.</summary>
+        private void ReportSlow(string kind, string caller, long waitedMs, long heldMs)
         {
-            if (waitedMs >= SlowWaitMs || heldMs >= SlowHoldMs)
-                Console.WriteLine($"DbHelper: slow {kind} from {caller} — waited {waitedMs} ms, held {heldMs} ms");
+            if (waitedMs < SlowWaitMs && heldMs < SlowHoldMs) return;
+
+            var message = $"DbHelper: slow {kind} from {caller} — waited {waitedMs} ms, held {heldMs} ms";
+
+            if (_logger != null)
+                _logger.LogInformation(message);
+            else
+                Console.WriteLine(message);
         }
 
         private bool _isDisposed = false;

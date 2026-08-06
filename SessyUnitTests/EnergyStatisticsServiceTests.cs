@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using SessyCommon.Configurations;
@@ -124,8 +125,13 @@ namespace SessyTests.Services
                 null!,   // hardwareStatusService
                 null!,   // planVsActualService
                 _inverterMeasurementMock.Object,
-                _solarDataMock.Object);
+                _solarDataMock.Object,
+                NewLogger());
         }
+
+        /// <summary>Logger for the timing line the service writes; nothing under test reads it.</summary>
+        private static LoggingService<EnergyStatisticsService> NewLogger() =>
+            new(new Mock<ILogger<EnergyStatisticsService>>().Object);
 
         // ── Grid flow tests ──────────────────────────────────────────────────
 
@@ -498,7 +504,8 @@ namespace SessyTests.Services
                 null!,   // hardwareStatusService
                 null!,   // planVsActualService
                 _inverterMeasurementMock.Object,
-                _solarDataMock.Object);
+                _solarDataMock.Object,
+                NewLogger());
 
             // Request full month — StatisticsFromDate clips it to May 15.
             var result = await sut.GetEnergyStatisticsAsync(DateTime.MinValue, PeriodEnd);

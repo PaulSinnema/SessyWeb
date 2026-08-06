@@ -209,7 +209,13 @@ namespace SessyWeb.Components
         /// <summary>Marks the chart as needing a redraw; the plan-history paths call it directly.</summary>
         private void MarkDirty() => _dirty = true;
 
-        private readonly RenderTimer _renderTimer = new("ChargingHoursChartComponent");
+        [Inject] private ILogger<ChargingHoursChartComponent>? _logger { get; set; }
+
+        private RenderTimer? _renderTimerInstance;
+
+        private RenderTimer _renderTimer =>
+            _renderTimerInstance ??= new RenderTimer(
+                nameof(ChargingHoursChartComponent), message => _logger?.LogInformation(message));
 
         protected override bool ShouldRender()
         {

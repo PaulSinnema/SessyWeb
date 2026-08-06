@@ -43,7 +43,7 @@ namespace SessyController.Services
                     {
                         ThreadPool.GetMinThreads(out int minWorker, out _);
 
-                        _logger.LogWarning(
+                        _logger.LogInformation(
                             $"ThreadPool busy: {pending} queued, {ThreadPool.ThreadCount} threads " +
                             $"(min {minWorker}), {completed - previousCompleted} completed in the last " +
                             $"{SampleInterval.TotalSeconds:F0}s.");

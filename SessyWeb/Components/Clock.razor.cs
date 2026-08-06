@@ -7,6 +7,8 @@
 
     public partial class Clock : BaseComponent, IDisposable
     {
+        [Inject] private ILogger<Clock>? _logger { get; set; }
+
         private string? CurrentTime { get; set; } = "";
         private System.Timers.Timer? Timer;
 
@@ -40,7 +42,7 @@
                         if (delay >= TickDelayWarningMs)
                         {
                             if (!_wasLate)
-                                Console.WriteLine($"UI blocked: clock tick ran {delay} ms late.");
+                                _logger?.LogInformation($"UI blocked: clock tick ran {delay} ms late.");
 
                             _wasLate = true;
                         }

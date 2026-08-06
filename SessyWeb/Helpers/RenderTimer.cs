@@ -14,11 +14,14 @@ namespace SessyWeb.Helpers
     {
         private readonly string _name;
         private readonly int _thresholdMs;
+        private readonly Action<string>? _log;
         private long _startedAt;
 
-        public RenderTimer(string name, int thresholdMs = 250)
+        /// <param name="log">Where to report. Components pass their logger's Information sink.</param>
+        public RenderTimer(string name, Action<string>? log = null, int thresholdMs = 250)
         {
             _name = name;
+            _log = log;
             _thresholdMs = thresholdMs;
         }
 
@@ -31,8 +34,14 @@ namespace SessyWeb.Helpers
             var elapsed = Stopwatch.GetElapsedTime(_startedAt).TotalMilliseconds;
             _startedAt = 0;
 
-            if (elapsed >= _thresholdMs)
-                Console.WriteLine($"Slow render: {_name} took {elapsed:F0} ms.");
+            if (elapsed < _thresholdMs) return;
+
+            var message = $"Slow render: {_name} took {elapsed:F0} ms.";
+
+            if (_log != null)
+                _log(message);
+            else
+                Console.WriteLine(message);
         }
     }
 }

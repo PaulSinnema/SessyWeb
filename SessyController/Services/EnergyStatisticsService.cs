@@ -46,6 +46,7 @@ namespace SessyController.Services
         private readonly PlanVsActualService _planVsActualService;
         private readonly InverterMeasurementDataService _inverterMeasurementDataService;
         private readonly SolarDataService _solarDataDataService;
+        private readonly LoggingService<EnergyStatisticsService> _logger;
 
         // Convenience property: total battery capacity in kWh from BatteryContainer.
         private double BatteryCapacityKWh => _batteryContainer.GetTotalCapacity() / 1000.0;
@@ -69,8 +70,10 @@ namespace SessyController.Services
                                        HardwareStatusService hardwareStatusService,
                                        PlanVsActualService planVsActualService,
                                        InverterMeasurementDataService inverterMeasurementDataService,
-                                       SolarDataService solarDataDataService)
+                                       SolarDataService solarDataDataService,
+                                       LoggingService<EnergyStatisticsService> logger)
         {
+            _logger = logger;
             _measurementDataService = measurementDataService;
             _investmentDataService = investmentDataService;
             _energyHistoryDataService = energyHistoryDataService;
@@ -1308,7 +1311,7 @@ namespace SessyController.Services
                 stopwatch.Stop();
 
                 if (stopwatch.ElapsedMilliseconds >= SlowDashboardMs)
-                    Console.WriteLine($"Statistics dashboard took {stopwatch.ElapsedMilliseconds} ms ({start:d} - {end:d}).");
+                    _logger.LogInformation($"Statistics dashboard took {stopwatch.ElapsedMilliseconds} ms ({start:d} - {end:d}).");
             }
         }
 
