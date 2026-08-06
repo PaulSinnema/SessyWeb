@@ -70,7 +70,7 @@ namespace SessyWeb.Pages
             }
         }
 
-        void LoadData(LoadDataArgs args)
+        async Task LoadData(LoadDataArgs args)
         {
             IsBusy = true;
 
@@ -81,7 +81,7 @@ namespace SessyWeb.Pages
                 var now = _timeZoneService!.Now;
                 var filter = historyGrid!.ColumnsCollection;
 
-                StatusHistoryList = _sessyStatusHistoryService!.GetSessyStatusHistory((ModelContext modelContext) =>
+                StatusHistoryList = await _sessyStatusHistoryService!.GetSessyStatusHistory((ModelContext modelContext) =>
                 {
                     var query = GetGroupedList(modelContext);
 

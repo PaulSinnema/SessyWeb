@@ -47,64 +47,127 @@ namespace SessyController.Services.Items
             return powerStatus?.Sessy?.Power ?? 0.0;
         }
 
+        /// <summary>
+        /// Current power status, cached for <see cref="StatusTtl"/>.
+        ///
+        /// Every browser circuit used to poll this itself — the charging-hours page every 5 seconds
+        /// for all three batteries, plus BatteryInfo once more per battery — so the load on the
+        /// hardware scaled with the number of open tabs. The cache makes it scale with time
+        /// instead, and the lock collapses simultaneous callers into a single request. The TTL is
+        /// far below the control loop's own interval, so nothing decides on stale data.
+        /// </summary>
         public async Task<PowerStatus?> GetPowerStatus()
         {
-            var tries = 0;
-            Exception? exception = null;
-
             EnsureInitialized();
 
-            do
+            if (TryGetFresh(_powerStatus, _powerStatusAt, out var cached))
+                return cached;
+
+            await _powerStatusLock.WaitAsync().ConfigureAwait(false);
+
+            try
             {
-                try
-                {
-                    var result = await _sessyService.GetPowerStatusAsync(Id).ConfigureAwait(false);
+                // Another caller may have refreshed it while we waited for the lock.
+                if (TryGetFresh(_powerStatus, _powerStatusAt, out cached))
+                    return cached;
 
-#if DEBUG
-                    // result.Sessy.StateOfCharge = 0.10;
-#endif
+                var result = await FetchWithRetries(
+                    () => _sessyService.GetPowerStatusAsync(Id), "power status").ConfigureAwait(false);
 
-                    return result;
-                }
-                catch (Exception ex)
-                {
-                    exception = ex;
-                    tries++;
-                    _logger.LogInformation($"Could not get power status for battery {Id}. Retry {tries}");
+                _powerStatus = result;
+                _powerStatusAt = DateTime.UtcNow;
 
-                    await Task.Delay(5000);
-                }
-            } while (tries <= 10);
-
-            throw new InvalidOperationException($"Could not get power status after 10 retries for battery {Id}", exception);
+                return result;
+            }
+            finally
+            {
+                _powerStatusLock.Release();
+            }
         }
 
-        public async Task<ActivePowerStrategy?> GetActivePowerStrategy()
+        /// <summary>How long a hardware reading is served from cache.</summary>
+        private static readonly TimeSpan StatusTtl = TimeSpan.FromSeconds(2);
+
+        /// <summary>
+        /// Retries left deliberately short. It used to be 10 attempts with a 5 second wait between
+        /// them, on an HttpClient without a timeout — an unreachable battery could occupy the
+        /// caller for a quarter of an hour.
+        /// </summary>
+        private const int MaxTries = 3;
+        private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(1);
+
+        private PowerStatus? _powerStatus;
+        private DateTime _powerStatusAt = DateTime.MinValue;
+        private readonly SemaphoreSlim _powerStatusLock = new(1, 1);
+
+        private ActivePowerStrategy? _activeStrategy;
+        private DateTime _activeStrategyAt = DateTime.MinValue;
+        private readonly SemaphoreSlim _activeStrategyLock = new(1, 1);
+
+        private static bool TryGetFresh<T>(T? value, DateTime readAt, out T? fresh) where T : class
         {
-            var tries = 0;
+            fresh = value;
+
+            return value != null && DateTime.UtcNow - readAt < StatusTtl;
+        }
+
+        /// <summary>Invalidates the cached readings after a command that changes them.</summary>
+        private void InvalidateStatusCache()
+        {
+            _powerStatusAt = DateTime.MinValue;
+            _activeStrategyAt = DateTime.MinValue;
+        }
+
+        private async Task<T?> FetchWithRetries<T>(Func<Task<T?>> fetch, string what)
+        {
             Exception? exception = null;
 
-            EnsureInitialized();
-
-            do
+            for (var attempt = 1; attempt <= MaxTries; attempt++)
             {
                 try
                 {
-                    return await _sessyService.GetActivePowerStrategyAsync(Id);
+                    return await fetch().ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
                     exception = ex;
-                    tries++;
-                    _logger.LogInformation($"Could not get active power strategy for battery {Id}. Retry {tries}");
+                    _logger.LogInformation($"Could not get {what} for battery {Id}. Retry {attempt}");
 
-                    await Task.Delay(10000); // wait a while.
+                    if (attempt < MaxTries)
+                        await Task.Delay(RetryDelay).ConfigureAwait(false);
                 }
-
             }
-            while (tries <= 10);
 
-            throw new InvalidOperationException($"Could not get active power strategy after 10 retries for battery {Id}", exception);
+            throw new InvalidOperationException($"Could not get {what} after {MaxTries} tries for battery {Id}", exception);
+        }
+
+        /// <summary>Active strategy, cached the same way as GetPowerStatus.</summary>
+        public async Task<ActivePowerStrategy?> GetActivePowerStrategy()
+        {
+            EnsureInitialized();
+
+            if (TryGetFresh(_activeStrategy, _activeStrategyAt, out var cached))
+                return cached;
+
+            await _activeStrategyLock.WaitAsync().ConfigureAwait(false);
+
+            try
+            {
+                if (TryGetFresh(_activeStrategy, _activeStrategyAt, out cached))
+                    return cached;
+
+                var result = await FetchWithRetries(
+                    () => _sessyService.GetActivePowerStrategyAsync(Id), "active power strategy").ConfigureAwait(false);
+
+                _activeStrategy = result;
+                _activeStrategyAt = DateTime.UtcNow;
+
+                return result;
+            }
+            finally
+            {
+                _activeStrategyLock.Release();
+            }
         }
 
         private async Task SetActivePowerStrategy(ActivePowerStrategy strategy)
@@ -120,6 +183,7 @@ namespace SessyController.Services.Items
                     _logger.LogInformation($"Changing strategy to {strategy.Strategy}: 1");
 
                     await _sessyService.SetActivePowerStrategyAsync(Id, strategy);
+                    InvalidateStatusCache();
                 }
             }
             else
@@ -127,6 +191,7 @@ namespace SessyController.Services.Items
                 _logger.LogInformation($"Changing strategy to {strategy.Strategy}: 2");
 
                 await _sessyService.SetActivePowerStrategyAsync(Id, strategy);
+                InvalidateStatusCache();
             }
         }
 
@@ -169,6 +234,7 @@ namespace SessyController.Services.Items
             if (powerStatus.Sessy.PowerSetpoint != powerSetpoint.Setpoint)
             {
                 await _sessyService.SetPowerSetpointAsync(Id, powerSetpoint).ConfigureAwait(false);
+                InvalidateStatusCache();
             }
         }
 

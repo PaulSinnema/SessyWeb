@@ -4,6 +4,7 @@ using SessyCommon.Extensions;
 using SessyController.Services.Items;
 using SessyData.Model;
 using SessyData.Services;
+using SessyWeb.Helpers;
 using SessyWeb.Pages;
 
 namespace SessyWeb.Components
@@ -84,6 +85,9 @@ namespace SessyWeb.Components
         /// </summary>
         public async Task SetPlanHistoryWindowAsync(bool showAll, DateTime from, DateTime to)
         {
+            if (ShowPlanHistory != showAll)
+                MarkDirty();
+
             ShowPlanHistory = showAll;
 
             if (!showAll)
@@ -116,6 +120,8 @@ namespace SessyWeb.Components
                 })
                 .ToList();
 
+            MarkDirty();
+
             // Keep the current selection if it's still in the refreshed list, else pick the newest.
             if (SelectedPlanId == null || !AvailablePlans.Any(p => p.PlanId == SelectedPlanId))
             {
@@ -129,6 +135,7 @@ namespace SessyWeb.Components
         public async Task OnPlanSelected(Guid? planId)
         {
             SelectedPlanId = planId;
+            MarkDirty();
 
             if (planId == null || _plannedActionDataService == null)
             {
@@ -188,21 +195,71 @@ namespace SessyWeb.Components
             }
         }
 
+        // ── Render gating ─────────────────────────────────────────────────────
+        // This chart draws roughly 17 series over up to 288 quarters, so a redraw is thousands of
+        // SVG nodes to diff and ship over SignalR. The page above it re-renders on a timer, which
+        // used to drag the whole chart along every few seconds, on every open tab.
+
+        private List<QuarterlyInfoView>? _renderedSeries;
+        private string? _renderedGraphStyle;
+        private bool _renderedShowAll;
+        private DateTime _renderedQuarter;
+        private bool _dirty = true;
+
+        /// <summary>Marks the chart as needing a redraw; the plan-history paths call it directly.</summary>
+        private void MarkDirty() => _dirty = true;
+
+        private readonly RenderTimer _renderTimer = new("ChargingHoursChartComponent");
+
+        protected override bool ShouldRender()
+        {
+            if (!_dirty) return false;
+
+            _dirty = false;
+            _renderTimer.Started();
+            return true;
+        }
+
+        protected override void OnAfterRender(bool firstRender) => _renderTimer.Finished();
+
         protected override async Task OnParametersSetAsync()
         {
             var now = _timeZoneService!.Now;
+            var nowQuarter = now.DateFloorQuarter();
+
+            bool changed = !ReferenceEquals(_renderedSeries, QuarterlyInfos)
+                        || _renderedGraphStyle != GraphStyle
+                        || _renderedShowAll != ShowAll
+                        || _renderedQuarter != nowQuarter;
+
+            if (!changed) return;
+
+            _renderedSeries = QuarterlyInfos;
+            _renderedGraphStyle = GraphStyle;
+            _renderedShowAll = ShowAll;
+            _renderedQuarter = nowQuarter;
+            MarkDirty();
 
             ActualPowerPoints = QuarterlyInfos.Where(q => q.HasActualPower).ToList();
 
-            var taxes = await _taxesDataService!.GetTaxesForDate(now).ConfigureAwait(false);
-            if (taxes != null)
-                ShowSellingPriceLabels = !taxes.Netting;
+            // Taxes only change per day; asking the database on every parameter set meant a query
+            // per page render.
+            if (_taxesForDate != now.Date)
+            {
+                var taxes = await _taxesDataService!.GetTaxesForDate(now).ConfigureAwait(false);
+                if (taxes != null)
+                    ShowSellingPriceLabels = !taxes.Netting;
+
+                _taxesForDate = now.Date;
+            }
 
             // Find the exact current quarter in the series and set its NowLineHeight to ChartMax
             // so the vertical bar spans the full chart height.
-            NowQuarter = QuarterlyInfos.FirstOrDefault(q => q.Time == now.DateFloorQuarter());
+            NowQuarter = QuarterlyInfos.FirstOrDefault(q => q.Time == nowQuarter);
             if (NowQuarter != null)
                 NowQuarter.NowLineHeight = ChartMax;
         }
+
+        private DateTime _taxesForDate = DateTime.MinValue;
     }
 }

@@ -175,7 +175,15 @@ namespace SessyWeb.Pages
                     // Solver-based: next planned action
                     NextQuarterlyInfoInSession = _batteriesService?.GetNextQuarterlyInfoInPlan();
 
-                    await InvokeAsync(StateHasChanged);
+                    // Only redraw when something actually moved. This loop fires every 5 seconds
+                    // per open tab, and a render here walks the whole page — chart included.
+                    var signature = StatusSignature(newStatuses);
+
+                    if (signature != _lastStatusSignature)
+                    {
+                        _lastStatusSignature = signature;
+                        await InvokeAsync(StateHasChanged);
+                    }
                 }
                 catch
                 {
@@ -193,16 +201,40 @@ namespace SessyWeb.Pages
             }
         }
 
+        /// <summary>What the status panel actually shows — used to skip no-op renders.</summary>
+        private string StatusSignature(List<BatteryWithStatus> statuses) =>
+            string.Join('|', statuses.Select(s =>
+                $"{s.Battery.Id}:{s.PowerStatus?.Sessy?.SystemState}:{s.PowerStatus?.Sessy?.Power:F0}:{s.PowerStatus?.Sessy?.StateOfCharge:F3}"))
+            + $"|throttle:{currentThrottlePercentage:F0}"
+            + $"|next:{NextQuarterlyInfoInSession?.Time:O}";
+
+        private string _lastStatusSignature = string.Empty;
+
+        private readonly RenderTimer _renderTimer = new("ChargingHoursPage");
+
+        protected override bool ShouldRender()
+        {
+            _renderTimer.Started();
+            return true;
+        }
+
         protected override async Task OnAfterRenderAsync(bool firstRender)
         {
+            _renderTimer.Finished();
+
             if (firstRender)
             {
                 _batteriesService!.DataChanged += BatteriesServiceDataChanged;
                 _batteriesService!.OnHeartBeat += HeartBeat;
 
-                await InvokeAsync(async () =>
+                // Deliberately NOT wrapped in InvokeAsync: this loads measurements, plan statistics
+                // and battery state, and running that on the circuit's dispatcher blocks every
+                // other UI event for its duration. The refresh switches to the dispatcher itself
+                // for the part that touches component state.
+                await BatteriesServiceDataChanged().ConfigureAwait(false);
+
+                await InvokeAsync(() =>
                 {
-                    await BatteriesServiceDataChanged();
                     HandleScreenHeight();
                     StateHasChanged();
                 });

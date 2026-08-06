@@ -1,6 +1,7 @@
 ﻿using BlazorPro.BlazorSize;
 using Microsoft.AspNetCore.Components;
 using Radzen;
+using SessyWeb.Components;
 using SessyWeb.Helpers;
 
 namespace SessyWeb.Shared
@@ -26,16 +27,15 @@ namespace SessyWeb.Shared
 
         public string? MenuStyle { get; set; }
 
-        public bool IsBusy { get; set; }
+        private BusyOverlay? _busyOverlay;
 
-        public void SetIsBusy(bool isBusy)
-        {
-            if (IsBusy != isBusy)
-            {
-                IsBusy = isBusy;
-                _ = InvokeAsync(StateHasChanged);
-            }
-        }
+        /// <summary>
+        /// Routes the busy flag to the overlay component, which redraws only itself. Calling
+        /// StateHasChanged on the layout re-rendered @Body — on the charging-hours page that is a
+        /// chart of some 17 series over up to 288 quarters, twice per data refresh.
+        /// The ref is only set after the first render, so a very early call is simply ignored.
+        /// </summary>
+        public void SetIsBusy(bool isBusy) => _busyOverlay?.SetBusy(isBusy);
 
         protected override void OnInitialized()
         {

@@ -94,6 +94,12 @@ namespace SessyController.Services
 #endif
         private const double SocDeviationThresholdPct = 20.0;
 
+        /// <summary>Below this a setpoint correction is noise, not news — see the logging in GetExecutableActionAsync.</summary>
+        private const double MaterialPowerChangeW = 250.0;
+
+        private DateTime _lastPowerLogQuarter = DateTime.MinValue;
+        private double _lastPowerLogW;
+
         // PowerW is what the plan expects to flow (taper included, drives the SOC path);
         // RequestedPowerW is what the batteries are asked for on the charge side. 0 means
         // "not known" — a restored or overridden plan — and then PowerW is asked for.
@@ -197,8 +203,19 @@ namespace SessyController.Services
                         ConsumptionForecastW = qi.EstimatedConsumptionPerQuarterInWatts
                     }).ToList();
 
-                await _plannedQuarterDataService.AddOrUpdate(plannedQuarters,
-                    (item, set) => set.FirstOrDefault(q => q.Time == item.Time)).ConfigureAwait(false);
+                if (plannedQuarters.Count > 0)
+                {
+                    // One lookup for the whole horizon instead of a query per quarter: with ~288
+                    // quarters that was 288 table scans inside a single write transaction.
+                    var windowFrom = plannedQuarters.Min(q => q.Time);
+                    var windowTo = plannedQuarters.Max(q => q.Time);
+
+                    await _plannedQuarterDataService.AddOrUpdate(
+                        plannedQuarters,
+                        PlannedQuarterDataService.MatchOn(
+                            q => q.Time,
+                            q => q.Time >= windowFrom && q.Time <= windowTo)).ConfigureAwait(false);
+                }
 
                 await SaveForecastSnapshotsAsync(planStart).ConfigureAwait(false);
             }
@@ -972,14 +989,24 @@ namespace SessyController.Services
 
                 double chargeW = ChargeSetpointW(requestedW, qi?.NetLoadWh ?? 0.0, limitWh);
 
-                if (chargeW > requestedW)
-                    _logger.LogWarning(
-                        $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: charge raised to solar surplus " +
-                        $"({requestedW:F0}W → {chargeW:F0}W, NetLoadWh={qi?.NetLoadWh ?? 0.0:F0})");
-                else if (chargeW < requestedW)
-                    _logger.LogWarning(
-                        $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: charge clamped to what is still wanted " +
-                        $"({requestedW:F0}W → {chargeW:F0}W, roomWh={roomWh:F0}, limitWh={limitWh:F0})");
+                // Only report a correction that is worth reporting, and only once per quarter:
+                // this method runs on every cycle and every UI refresh, so an unconditional line
+                // buries the log in dozens of copies of the same 1% adjustment.
+                if (Math.Abs(chargeW - requestedW) >= MaterialPowerChangeW &&
+                    (_lastPowerLogQuarter != nowQuarter || Math.Abs(_lastPowerLogW - chargeW) >= MaterialPowerChangeW))
+                {
+                    _lastPowerLogQuarter = nowQuarter;
+                    _lastPowerLogW = chargeW;
+
+                    if (chargeW > requestedW)
+                        _logger.LogWarning(
+                            $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: charge raised to solar surplus " +
+                            $"({requestedW:F0}W → {chargeW:F0}W, NetLoadWh={qi?.NetLoadWh ?? 0.0:F0})");
+                    else
+                        _logger.LogWarning(
+                            $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: charge clamped to what is still wanted " +
+                            $"({requestedW:F0}W → {chargeW:F0}W, roomWh={roomWh:F0}, limitWh={limitWh:F0})");
+                }
 
                 // Expected flow stays the tapered plan power (it drives the SOC path); the
                 // unthrottled field carries what was actually commanded, so the next taper fit

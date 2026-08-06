@@ -185,6 +185,10 @@ builder.Services.AddHostedService(provider => provider.GetRequiredService<Consum
 builder.Services.AddHostedService(provider => provider.GetRequiredService<DatabaseBackupService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<InverterCurtailmentService>());
 
+// Reports thread-pool starvation — the mechanism behind a UI that stalls on every page at once.
+builder.Services.AddSingleton<ThreadPoolMonitorService>();
+builder.Services.AddHostedService(provider => provider.GetRequiredService<ThreadPoolMonitorService>());
+
 // (was AddScoped, nu AddHostedService omdat het een BackgroundService is)
 builder.Services.AddRazorPages(options =>
 {
@@ -266,6 +270,11 @@ using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     var dbContext = services.GetRequiredService<ModelContext>();
+
+    // Once per database, before anything else opens it: under WAL readers no longer queue behind
+    // writers, which is what made the UI stall on every page. Reports and continues on failure.
+    SqliteSetup.EnableWriteAheadLogging(dbContext.Database.GetDbConnection());
+
     var pendingMigrations = dbContext.Database.GetPendingMigrations();
 
     if (pendingMigrations.Any())

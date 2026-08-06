@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using SessyCommon.Services;
 using SessyData.Model;
 
@@ -22,20 +23,15 @@ namespace SessyData.Services
         /// </summary>
         public async Task SavePlanAsync(IEnumerable<PlannedAction> actions)
         {
-            // Purge old plans beyond retention window.
+            // Purge old plans beyond retention window — one DELETE, not a fetch plus a query and a
+            // delete per row.
             var cutoff = _timeZoneService.Now.AddDays(-PlannedAction.MaxPlanRetentionDays);
 
-            var old = await GetList(async set =>
-                await Task.FromResult(
-                    set.Where(p => p.SavedAt < cutoff).ToList()));
-
-            if (old.Any())
-                await Remove(old, (item, set) =>
-                    set.FirstOrDefault(p => p.Id == item.Id));
+            await RemoveWhere(p => p.SavedAt < cutoff).ConfigureAwait(false);
 
             // Insert new plan — each solve gets a unique PlanId.
             if (actions.Any())
-                await Add(actions.ToList());
+                await Add(actions.ToList()).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -44,23 +40,24 @@ namespace SessyData.Services
         /// </summary>
         public async Task<List<PlannedAction>> LoadPlanAsync()
         {
-            var all = await GetList(async set =>
-                await Task.FromResult(set.OrderByDescending(p => p.SavedAt).ToList()));
+            // Only the newest plan matters, so ask SQL for its identity instead of sorting the
+            // whole table in memory.
+            var latest = await Query(async set => await set
+                .OrderByDescending(p => p.SavedAt)
+                .Select(p => new { p.PlanId, p.SavedAt })
+                .FirstOrDefaultAsync()).ConfigureAwait(false);
 
-            if (!all.Any())
+            if (latest == null)
                 return new List<PlannedAction>();
 
-            var latestPlanId = all.First().PlanId;
-            var latestPlan = all.Where(p => p.PlanId == latestPlanId).ToList();
-
-            var savedAt = latestPlan.Max(p => p.SavedAt);
-            var ageHours = (_timeZoneService.Now - savedAt).TotalHours;
-
-            if (ageHours > PlannedAction.MaxPlanAgeHours)
+            if ((_timeZoneService.Now - latest.SavedAt).TotalHours > PlannedAction.MaxPlanAgeHours)
                 return new List<PlannedAction>();
 
-            var now = _timeZoneService.Now;
-            return latestPlan.Where(p => p.Time >= now.AddMinutes(-15)).ToList();
+            var from = _timeZoneService.Now.AddMinutes(-15);
+
+            return await GetList(async set => await set
+                .Where(p => p.PlanId == latest.PlanId && p.Time >= from)
+                .ToListAsync()).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -72,29 +69,35 @@ namespace SessyData.Services
         public async Task<List<PlanHistoryEntry>> GetPlanHistoryAsync(
             int maxEntries = 50, DateTime? since = null, DateTime? until = null)
         {
-            var all = await GetList(async set =>
-                await Task.FromResult(set.OrderByDescending(p => p.SavedAt).ToList()));
+            // Grouped in SQL. This used to materialize every row of the table — 80.000 of them on
+            // the production database — on every dashboard refresh, per open browser tab.
+            // Reason and ObjectiveEur are identical for all rows of one plan, so Min() picks the
+            // value without needing a correlated subquery.
+            return await Query(async set =>
+            {
+                var query = set;
 
-            if (since != null)
-                all = all.Where(p => p.SavedAt >= since.Value).ToList();
+                if (since != null)
+                    query = query.Where(p => p.SavedAt >= since.Value);
 
-            if (until != null)
-                all = all.Where(p => p.SavedAt < until.Value).ToList();
+                if (until != null)
+                    query = query.Where(p => p.SavedAt < until.Value);
 
-            return all
-                .GroupBy(p => p.PlanId)
-                .Select(g => new PlanHistoryEntry
-                {
-                    PlanId = g.Key,
-                    SavedAt = g.Max(p => p.SavedAt),
-                    Reason = g.First().Reason,
-                    ObjectiveEur = g.First().ObjectiveEur,
-                    QuarterCount = g.Count(),
-                    PlanHorizon = g.Max(p => p.Time),
-                })
-                .OrderByDescending(e => e.SavedAt)
-                .Take(maxEntries)
-                .ToList();
+                return await query
+                    .GroupBy(p => p.PlanId)
+                    .Select(g => new PlanHistoryEntry
+                    {
+                        PlanId = g.Key,
+                        SavedAt = g.Max(p => p.SavedAt),
+                        Reason = g.Min(p => p.Reason) ?? string.Empty,
+                        ObjectiveEur = g.Min(p => p.ObjectiveEur),
+                        QuarterCount = g.Count(),
+                        PlanHorizon = g.Max(p => p.Time),
+                    })
+                    .OrderByDescending(e => e.SavedAt)
+                    .Take(maxEntries)
+                    .ToListAsync();
+            }).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -113,12 +116,7 @@ namespace SessyData.Services
         /// <summary>Removes all saved plan entries.</summary>
         public async Task ClearPlanAsync()
         {
-            var existing = await GetList(async set =>
-                await Task.FromResult(set.ToList()));
-
-            if (existing.Any())
-                await Remove(existing, (item, set) =>
-                    set.FirstOrDefault(p => p.Id == item.Id));
+            await RemoveWhere(p => true).ConfigureAwait(false);
         }
     }
 

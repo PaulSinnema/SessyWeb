@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore.Sqlite.Infrastructure.Internal;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SessyCommon.Services;
+using SessyData.Helpers;
 
 namespace SessyData.Model
 {
@@ -62,10 +63,25 @@ namespace SessyData.Model
 
         public DbSet<AppVersion> AppVersions => Set<AppVersion>();
 
+        /// <summary>
+        /// Applied to every connection this context opens. Session settings only — they configure
+        /// the connection and never write to the file.
+        ///
+        /// synchronous=NORMAL halves the fsyncs per commit and is the recommended companion to WAL:
+        /// a crash can lose the last transaction, never the database. busy_timeout replaces an
+        /// immediate "database is locked" with a short wait.
+        ///
+        /// journal_mode is set once at startup instead — it is stored in the file, so setting it is
+        /// a write. See SqliteSetup.EnableWriteAheadLogging.
+        /// </summary>
+        private const string ConnectionPragmas =
+            "PRAGMA synchronous=NORMAL; PRAGMA busy_timeout=5000;";
+
         protected override void OnConfiguring(DbContextOptionsBuilder options)
         {
             options
-                .UseSqlite(_connectionString);
+                .UseSqlite(_connectionString)
+                .AddInterceptors(new SqlitePragmaInterceptor(ConnectionPragmas));
             //.LogTo(log =>
             //{
             //    if (log.Contains("EPEXPrices", StringComparison.OrdinalIgnoreCase) &&

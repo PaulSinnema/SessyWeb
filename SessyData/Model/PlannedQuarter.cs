@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using Microsoft.EntityFrameworkCore;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using SessyCommon.Extensions;
 
@@ -13,6 +14,7 @@ namespace SessyData.Model
     ///
     /// JOIN with ActualQuarter on Time for plan vs actual comparison.
     /// </summary>
+    [Index(nameof(Time))]
     public class PlannedQuarter : IUpdatable<PlannedQuarter>
     {
         [Key]

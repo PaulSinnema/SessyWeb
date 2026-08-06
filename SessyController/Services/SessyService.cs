@@ -32,6 +32,13 @@ namespace SessyController.Services
             _logger = logger; ;
         }
 
+        /// <summary>
+        /// The batteries sit on the local network, so a request either answers quickly or is not
+        /// going to. Without this the HttpClient default of 100 seconds applies, and a battery that
+        /// stops responding parks every caller for that long.
+        /// </summary>
+        private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(5);
+
         private HttpClient CreateHttpClient(SessyBatteryEndpoint battery)
         {
             if (battery == null) throw new ArgumentNullException(nameof(battery));
@@ -39,6 +46,7 @@ namespace SessyController.Services
 
             var client = _httpClientFactory.CreateClient();
             client.BaseAddress = new Uri(battery.BaseUrl);
+            client.Timeout = RequestTimeout;
             var authToken = Encoding.ASCII.GetBytes($"{battery.UserId}:{battery.Password}");
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(authToken));
             return client;

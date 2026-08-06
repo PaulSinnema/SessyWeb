@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using Microsoft.EntityFrameworkCore;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using SessyCommon.Extensions;
 
@@ -9,6 +10,9 @@ namespace SessyData.Model
     /// The plan is saved after each successful solve and restored on startup
     /// if it is not older than <see cref="MaxPlanAgeHours"/> hours.
     /// </summary>
+    [Index(nameof(PlanId))]
+    [Index(nameof(SavedAt))]
+    [Index(nameof(Time))]
     public class PlannedAction : IUpdatable<PlannedAction>
     {
         [Key]

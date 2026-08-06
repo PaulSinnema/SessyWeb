@@ -705,9 +705,43 @@ namespace SessyController.Services
             return Math.Round(forecast, 0);
         }
 
+        /// <summary>
+        /// Seasonal averages walk the data month by month with database round trips per month, so
+        /// on a year and a half of history that is dozens of queries — while the answer is a set of
+        /// historical monthly averages that barely moves within a day. Cached per (start, end) day.
+        /// </summary>
+        private static readonly TimeSpan SeasonalCacheTime = TimeSpan.FromHours(6);
+
+        private readonly Dictionary<string, (DateTime BuiltAt, Dictionary<int, double> Values)> _seasonalCache = new();
+
+        private bool TryGetSeasonal(string key, out Dictionary<int, double> values)
+        {
+            values = new Dictionary<int, double>();
+
+            lock (_seasonalCache)
+            {
+                if (!_seasonalCache.TryGetValue(key, out var entry)) return false;
+                if (_timeZoneService.Now - entry.BuiltAt > SeasonalCacheTime) return false;
+
+                values = entry.Values;
+                return true;
+            }
+        }
+
+        private void StoreSeasonal(string key, Dictionary<int, double> values)
+        {
+            lock (_seasonalCache)
+                _seasonalCache[key] = (_timeZoneService.Now, values);
+        }
+
         private async Task<Dictionary<int, double>> BuildSeasonalSolarSavingsAsync(
             DateTime dataStart, DateTime dataEnd)
         {
+            var cacheKey = $"solar:{dataStart:yyyy-MM-dd}:{dataEnd:yyyy-MM-dd}";
+
+            if (TryGetSeasonal(cacheKey, out var cached))
+                return cached;
+
             var allMonthly = new Dictionary<int, List<double>>();
             var current = new DateTime(dataStart.Year, dataStart.Month, 1);
 
@@ -820,12 +854,19 @@ namespace SessyController.Services
                 }
             }
 
+            StoreSeasonal(cacheKey, result);
+
             return result;
         }
 
         private async Task<Dictionary<int, double>> BuildSeasonalArbitrageSavingsAsync(
             DateTime dataStart, DateTime dataEnd)
         {
+            var cacheKey = $"arbitrage:{dataStart:yyyy-MM-dd}:{dataEnd:yyyy-MM-dd}";
+
+            if (TryGetSeasonal(cacheKey, out var cached))
+                return cached;
+
             // Arbitrage savings can only be measured from QuarterlyMeasurements —
             // EnergyHistory has no battery data. Starting from dataStart (which may
             // include the EnergyHistory period) would dilute the average with zero months.
@@ -880,8 +921,13 @@ namespace SessyController.Services
             {
                 var simulated = await SimulateAnnualArbitrageAsync(arbitrageStart, dataEnd);
                 if (simulated != null)
+                {
+                    StoreSeasonal(cacheKey, simulated);
                     return simulated;
+                }
             }
+
+            StoreSeasonal(cacheKey, result);
 
             return result;
         }
@@ -1250,6 +1296,26 @@ namespace SessyController.Services
         /// These two values are never mixed or interchanged.
         /// </summary>
         public async Task<DashboardStatistics> GetDashboardStatisticsAsync(DateTime start, DateTime end)
+        {
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+            try
+            {
+                return await BuildDashboardStatisticsAsync(start, end).ConfigureAwait(false);
+            }
+            finally
+            {
+                stopwatch.Stop();
+
+                if (stopwatch.ElapsedMilliseconds >= SlowDashboardMs)
+                    Console.WriteLine($"Statistics dashboard took {stopwatch.ElapsedMilliseconds} ms ({start:d} - {end:d}).");
+            }
+        }
+
+        /// <summary>Above this the dashboard build is worth a line in the log.</summary>
+        private const int SlowDashboardMs = 500;
+
+        private async Task<DashboardStatistics> BuildDashboardStatisticsAsync(DateTime start, DateTime end)
         {
             // ── Step 1: Clamp period ──────────────────────────────────────────
             if (_settingsConfig.StatisticsFromDate.HasValue)

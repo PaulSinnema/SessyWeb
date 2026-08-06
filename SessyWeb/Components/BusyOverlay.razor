@@ -1,0 +1,22 @@
+@* Own component on purpose: when this lived in MainLayout, every flip of the busy flag
+   re-rendered the layout and therefore @Body — the whole page including the chart. *@
+
+@if (_isBusy)
+{
+    <div style="position:fixed; top:0; left:0; width:100%; height:100%; background: rgba(255,255,255,0); display:flex; align-items:center; justify-content:center; z-index:1000;">
+        <RadzenProgressBarCircular Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Large" ShowValue="false" />
+        <span style="margin-left:12px;">Loading data…</span>
+    </div>
+}
+
+@code {
+    private bool _isBusy;
+
+    public void SetBusy(bool isBusy)
+    {
+        if (_isBusy == isBusy) return;
+
+        _isBusy = isBusy;
+        _ = InvokeAsync(StateHasChanged);
+    }
+}

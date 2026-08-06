@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SessyData.Helpers;
 using SessyData.Model;
 using System.ComponentModel.DataAnnotations;
+using System.Linq.Expressions;
 using System.Reflection;
 
 namespace SessyData.Services
@@ -200,26 +201,77 @@ namespace SessyData.Services
 
         public virtual async Task<bool> Exists(Func<DbSet<T>, Task<bool>> func)
         {
-            return await _dbHelper.ExecuteQuery(async (ModelContext db) =>
+            return await _dbHelper.ExecuteQueryAsync(async (ModelContext db) =>
             {
                 return await func(db.Set<T>());
-            });
+            }).ConfigureAwait(false);
         }
 
         public virtual async Task<T?> Get(Func<IQueryable<T>, Task<T?>> func)
         {
-            return await _dbHelper.ExecuteQuery(async (ModelContext db) =>
+            return await _dbHelper.ExecuteQueryAsync(async (ModelContext db) =>
             {
                 return await func(db.Set<T>().AsNoTracking());
-            });
+            }).ConfigureAwait(false);
         }
 
         public virtual async Task<List<T>> GetList(Func<IQueryable<T>, Task<List<T>>> func)
         {
-            return await _dbHelper.ExecuteQuery(async (ModelContext db) =>
+            return await _dbHelper.ExecuteQueryAsync(async (ModelContext db) =>
             {
                 return await func(db.Set<T>().AsNoTracking());
-            });
+            }).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Read with a projection, so filtering, grouping and paging stay in SQL. GetList can only
+        /// hand back whole entities, which tempts callers into pulling a table into memory and
+        /// finishing the job with LINQ-to-Objects — on PlannedActions that was 80.000 rows per call.
+        /// </summary>
+        public virtual async Task<TResult> Query<TResult>(Func<IQueryable<T>, Task<TResult>> func)
+        {
+            return await _dbHelper.ExecuteQueryAsync(async (ModelContext db) =>
+            {
+                return await func(db.Set<T>().AsNoTracking());
+            }).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Bulk delete in one statement. Remove() fetches every row and deletes it one by one,
+        /// which is fine for a handful and ruinous for a purge. Runs without an explicit
+        /// transaction: ExecuteDelete applies immediately and would be rolled back by
+        /// ExecuteTransaction, which only commits when the change tracker has something to save.
+        /// </summary>
+        public virtual async Task RemoveWhere(Expression<Func<T, bool>> predicate)
+        {
+            await _dbHelper.ExecuteWriteAsync(async db =>
+            {
+                await db.Set<T>().Where(predicate).ExecuteDeleteAsync().ConfigureAwait(false);
+            }).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Match delegate for AddOrUpdate that looks the existing rows up once instead of running a
+        /// query per item. <paramref name="window"/> limits what is loaded — an upsert of one plan
+        /// must not pull in the whole table. The entities come from the same context AddOrUpdate
+        /// writes through, so they stay tracked and Update() behaves exactly as before.
+        /// </summary>
+        public static Func<T, DbSet<T>, T?> MatchOn<TKey>(
+            Func<T, TKey> keySelector,
+            Expression<Func<T, bool>>? window = null)
+            where TKey : notnull
+        {
+            Dictionary<TKey, T>? existing = null;
+
+            return (item, set) =>
+            {
+                existing ??= (window == null ? set : set.Where(window))
+                    .AsEnumerable()
+                    .GroupBy(keySelector)
+                    .ToDictionary(g => g.Key, g => g.First());
+
+                return existing.TryGetValue(keySelector(item), out var found) ? found : null;
+            };
         }
         private bool _isDisposed = false;
 

@@ -89,12 +89,16 @@ Services cache `Settings` in a field and refresh it in the `SettingsChanged` han
 
 ### Data access
 
-`DataService` classes derive from `ServiceBase<T>` (`Add`, `AddOrUpdate`, `Update`, `Remove`, `Get`, `GetList`) and go through `DbHelper`, which serializes **all** DB access behind a single process-wide `SemaphoreSlim` and creates a fresh scope + `ModelContext` per call. Consequences:
+`DataService` classes derive from `ServiceBase<T>` (`Add`, `AddOrUpdate`, `Update`, `Remove`, `Get`, `GetList`, `Query`, `RemoveWhere`) and go through `DbHelper`, dat per aanroep een verse scope + `ModelContext` maakt. Sinds v1.0.40:
 
-- Never hold a `ModelContext` across calls; never call a data service from inside another data service's callback (deadlock on the semaphore).
+- **Schrijven** loopt door één **statische** `SemaphoreSlim` — proces-breed, want SQLite laat maar één schrijver toe. (Vóór v1.0.40 stond hier "één proces-brede semafoor voor álle toegang"; dat klopte niet: `DbHelper` is `AddScoped` en `ServiceBase` maakt een eigen scope, dus het slot gold per data-service. Het enige echt globale slot zat in SQLite zelf.)
+- **Lezen** loopt via `ExecuteQueryAsync` (max 4 tegelijk per data-service) en blokkeert geen thread meer. De oude synchrone `ExecuteQuery` met `Wait()` parkeerde een thread-pool thread per query — de directe oorzaak van seconden-lange GUI-haperingen.
+- Nooit een `ModelContext` over aanroepen heen vasthouden; nooit een data-service aanroepen *binnen* de callback van een andere schrijfactie (deadlock op het statische schrijfslot).
 - Reads use `AsNoTracking()`, so returned entities are detached — write back through `AddOrUpdate`/`Update`.
 - `AddOrUpdate`/`Update`/`Remove` require `T : IUpdatable<T>` and use that `Update()` implementation to copy fields.
-- `ExecuteTransaction` throws if `SaveChangesAsync` writes 0 rows.
+- `ExecuteTransaction` throws if `SaveChangesAsync` writes 0 rows. `RemoveWhere` (bulk delete) draait daarom via `ExecuteWriteAsync` zónder transactie — `ExecuteDelete` gaat buiten de change-tracker om en zou anders teruggerold worden.
+- Grote upserts: geef `ServiceBase.MatchOn(key, window)` mee aan `AddOrUpdate` in plaats van een `contains`-lambda die per rij een query doet.
+- Verbindingen krijgen `journal_mode=WAL`, `synchronous=NORMAL` en `busy_timeout=5000` via `SqlitePragmaInterceptor`.
 
 ### Background services
 
@@ -231,6 +235,56 @@ per versie met `FirstSeen` (`[SkipCopy]`, wordt nooit overschreven), `LastSeen` 
 toegepaste migratie. Wijkt de vorige rij af, dan logt de start
 "Database last ran under vX, now vY" — zo zie je ook een oudere build op een nieuwere DB. Tests:
 `AppVersionRecordingTests` (3, tegen een echt SQLite-bestand met de echte migraties).
+
+## Gebouwd 06-08 (v1.0.40)
+**GUI-haperingen: klikken kwamen soms seconden later aan, op élke pagina.** Vier oorzaken, van
+groot naar klein:
+1. **`DbHelper.ExecuteQuery` blokkeerde threads.** Eén overload, beginnend met een synchrone
+   `Wait()`, en álle leesacties (`ServiceBase.Get/GetList/Exists`) liepen erlangs. Elke query
+   parkeerde een thread-pool thread; de pool groeit met ~1 thread/seconde, dus onder belasting
+   kwamen ook de SignalR-berichten van de klikken seconden te laat. Bovendien gaf die overload bij
+   een async-lambda de Task terug ná het disposen van de scope — dat ging alleen goed omdat de
+   SQLite-provider vrijwel alles synchroon afhandelt. Nu `ExecuteQueryAsync` (await binnen de
+   scope) plus `ExecuteWriteAsync` voor statements die geen transactie verdragen.
+2. **Geen WAL.** De DB stond op `journal_mode=delete` + `synchronous=FULL`: een schrijver
+   vergrendelt het hele bestand en doet twee fsyncs per commit, dus élke lezer wachtte. Dit was het
+   enige écht proces-brede slot (de "process-wide semafoor" uit de oude documentatie bestond niet —
+   `DbHelper` is `AddScoped`). Nu WAL + `synchronous=NORMAL` + `busy_timeout`; schrijven zit achter
+   één statisch slot. **Let op waar je `journal_mode` zet (v1.0.41):** het staat ín het
+   databasebestand, dus het is een schrijfactie die exclusieve toegang vraagt. Vanuit
+   `SqlitePragmaInterceptor` op élke connectie-open gaf dat "SQLite Error 8: attempt to write a
+   readonly database" op de eerste connectie, nog vóór de migraties. Nu één keer bij het starten via
+   `SqliteSetup.EnableWriteAheadLogging` (Program.cs, vóór `GetPendingMigrations`), met een log-regel
+   in plaats van een crash als het niet lukt; de interceptor doet alleen nog sessie-pragma's die
+   niets schrijven.
+3. **Tabelscans en tabellen in het geheugen.** `PlannedQuarters`, `ActualQuarters` en
+   `PlannedActions` hadden geen index op `Time` (migratie `AddPlanTimeIndexes`), de plan-upsert deed
+   ~288 losse lookups binnen één schrijftransactie (nu `MatchOn`), en `GetPlanHistoryAsync` /
+   `LoadPlanAsync` trokken alle 79.776 `PlannedActions`-rijen in het geheugen — bij elke
+   dashboard-refresh, per open tab. Nu groepeert en filtert SQL dat; purges gaan via één DELETE.
+4. **Per tab werd de hardware gepolld en de hele pagina hertekend.** `Battery.GetPowerStatus` en
+   `GetActivePowerStrategy` cachen nu 2 s met single-flight, dus de belasting schaalt met tijd in
+   plaats van met het aantal tabs; retry ging van 10×5 s naar 3×1 s en `HttpClient` kreeg een
+   timeout van 5 s (was de default van 100 s). De spinner zit in een eigen `BusyOverlay`-component
+   (stond in `MainLayout`, dus elke flip hertekende `@Body` inclusief de grafiek), de grafiek heeft
+   `ShouldRender` op basis van een echte wijziging, en de 5-seconden-loop hertekent alleen nog bij
+   een gewijzigde status.
+
+Meetpunten die blijven staan: `DbHelper` logt trage wachttijden/houdtijden, `ThreadPoolMonitorService`
+meldt een oplopende werkqueue, `RenderTimer` logt "Slow render: <component> took N ms", en `Clock`
+logt "UI blocked: clock tick ran N ms late" (één regel per blok — de timer tikt door terwijl de
+dispatcher vastzit, dus een stall loopt leeg als een aflopende reeks). Tests:
+`DbHelperConcurrencyTests` (5, tegen een echt SQLite-bestand incl. WAL-check).
+
+**Vervolg (v1.0.43).** Eerste productie-log gaf precies waar de instrumenten voor bedoeld waren:
+géén `DbHelper: slow` en géén `ThreadPool busy`, dus de DB-laag was het niet meer — maar de
+Statistics-pagina bleef seconden hangen. Oorzaak: componentcode draait op de sync-context van het
+circuit, dus élke `await`-continuation in `EnergyStatisticsService` kwam op de dispatcher terug, en
+die dienst loopt maand voor maand door de historie met DB-rondjes per maand. Nu draait de
+dashboard-opbouw via `Task.Run` (pagina) en zijn de twee seizoensbouwers 6 uur gecached; de opbouw
+logt zichzelf boven 500 ms. Openstaand: die maand-loops zelf één keer laten ophalen en in het
+geheugen groeperen. Bijvangst: de `charge clamped`-logregel spamde tientallen identieke regels per
+kwartier en logt nu alleen nog materiële correcties (≥250 W), één keer per kwartier.
 
 ## Openstaande punten
 1. Verifiëren op productiedata: revenue mét en zonder `CarryForwardEnabled` op teruggespeelde dagen vergelijken (niet naar SOC kijken). Faalmodus: terminal value te hoog → batterij laadt alleen nog en verkoopt nooit.

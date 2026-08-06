@@ -7,14 +7,14 @@ namespace SessyData.Services
     {
         public ConsumptionDataService(IServiceScopeFactory serviceScopeFactory) : base(serviceScopeFactory) { }
 
-        public (bool noData, double watts) GetConsumptionBetween(DateTime time, DateTime dateTime)
+        public async Task<(bool noData, double watts)> GetConsumptionBetween(DateTime time, DateTime dateTime)
         {
-            var list = _dbHelper.ExecuteQuery(db =>
+            var list = await _dbHelper.ExecuteQueryAsync(db =>
             {
                 return db.Set<Consumption>()
                     .Where(c => c.Time >= time && c.Time < dateTime)
                     .ToList();
-            });
+            }).ConfigureAwait(false);
 
             return ( list.Count <= 0, list.Sum(c => c.ConsumptionWh));
         }

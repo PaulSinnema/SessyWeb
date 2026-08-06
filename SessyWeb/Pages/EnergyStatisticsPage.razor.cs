@@ -41,7 +41,12 @@ namespace SessyWeb.Pages
                 var start = args?.Start ?? DateTime.MinValue;
                 var end = args?.End ?? DateTime.MaxValue;
 
-                Dashboard = await _statisticsService!.GetDashboardStatisticsAsync(start, end);
+                // Task.Run on purpose. Component code runs on the circuit's synchronization
+                // context, so without it every continuation inside the statistics service — and it
+                // walks the data month by month, with database round trips and LINQ per month —
+                // resumes on the dispatcher and blocks every other click for the whole build.
+                Dashboard = await Task.Run(() => _statisticsService!.GetDashboardStatisticsAsync(start, end))
+                    .ConfigureAwait(true);
             }
             finally
             {

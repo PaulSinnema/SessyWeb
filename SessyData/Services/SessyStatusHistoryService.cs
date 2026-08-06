@@ -8,12 +8,12 @@ namespace SessyData.Services
     {
         public SessyStatusHistoryService(IServiceScopeFactory serviceScopeFactory) : base(serviceScopeFactory) { }
 
-        public List<GroupedSessyStatus> GetSessyStatusHistory(Func<ModelContext, List<GroupedSessyStatus>> func)
+        public async Task<List<GroupedSessyStatus>> GetSessyStatusHistory(Func<ModelContext, List<GroupedSessyStatus>> func)
         {
-            return _dbHelper.ExecuteQuery((ModelContext dbContext) =>
+            return await _dbHelper.ExecuteQueryAsync((ModelContext dbContext) =>
             {
                 return func(dbContext);
-            });
+            }).ConfigureAwait(false);
         }
     }
 }

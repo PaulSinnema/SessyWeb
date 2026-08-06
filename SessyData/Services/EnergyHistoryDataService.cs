@@ -8,15 +8,15 @@ namespace SessyData.Services
     {
         public EnergyHistoryDataService(IServiceScopeFactory serviceScopeFactory) : base(serviceScopeFactory) { }
 
-        public (bool noData, double watts) GetNetPowerBetween(DateTime time, DateTime dateTime)
+        public async Task<(bool noData, double watts)> GetNetPowerBetween(DateTime time, DateTime dateTime)
         {
-            var list = _dbHelper.ExecuteQuery(db =>
+            var list = await _dbHelper.ExecuteQueryAsync(db =>
             {
                 return db.Set<EnergyHistory>()
                     .Where(c => c.Time >= time && c.Time <= dateTime)
                     .OrderBy(c => c.Time)
                     .ToList();
-            });
+            }).ConfigureAwait(false);
 
             EnergyHistory? previousHistory = null;
 
