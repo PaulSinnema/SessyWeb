@@ -57,7 +57,7 @@ Everything runs locally. The database is a SQLite file on your own disk; the onl
 **Software**
 
 - Docker, or Docker Desktop, or Synology Container Manager. Nothing else — you do not need .NET installed to run SessyWeb.
-- About 4 GB of memory available for the container (the MILP solver is the hungry part).
+- Memory to spare for the container. The example below gives it 4 GB; day to day it uses far less, but a NAS that hands out 512 MB will make it struggle.
 
 **Skill level**: you need to be able to edit a text file and run one or two commands in a terminal. No programming required.
 
@@ -441,7 +441,7 @@ docker compose restart          # restart after editing appsettings.json
 | Inverter not found | The key under `PowerSystems:Endpoints` must be exactly `SolarEdge` (case-sensitive), the IP must be right, and Modbus TCP must be enabled in the inverter itself. |
 | Battery does not react | On **Settings → Management Settings**, check **Charged in control** — if it is ticked, SessyWeb deliberately sends no commands. Refused writes are logged as warnings, so the log tells you which mode blocked them. |
 | SOC deviation warnings | Normal. The planner corrects every quarter. |
-| Container restarts or is killed | Raise the memory limit; the solver needs room. |
+| Container restarts or is killed | Out of memory — raise `mem_limit` (or the NAS memory limit) and check whether anything else on the machine is competing for RAM. |
 | Everything is slow | Look for `DbHelper: slow`, `ThreadPool busy` or `UI blocked` in the log and open an issue with those lines. |
 
 ---
@@ -468,7 +468,7 @@ Running locally still reads `appsettings.json` from `CONFIG_PATH` (default: the 
 | Project | Role |
 |---|---|
 | `SessyWeb` | Blazor Server UI (Radzen), `Program.cs` with all dependency injection, API controllers, EF migrations |
-| `SessyController` | Domain and background services: MILP planner, hardware polling, state machine, inverter drivers |
+| `SessyController` | Domain and background services: planner (`Services/Optimization/BatteryGreedyPlanner.cs` plus one class per strategy), hardware polling, state machine, inverter drivers |
 | `SessyData` | EF Core / SQLite: `ModelContext`, entities, one data service per entity |
 | `SessyCommon` | Configuration POCOs, extensions, time zone service, service locator |
 | `Djohnnie.SolarEdge.ModBus.TCP` | Vendored SolarEdge Modbus library |
@@ -515,8 +515,9 @@ The plan is only rebuilt when something material changed — a new price set, a 
 
 - [.NET 10 / ASP.NET Core](https://dotnet.microsoft.com/) — Blazor Server
 - [Radzen Blazor](https://blazor.radzen.com/) — UI components
-- [Google OR-Tools](https://developers.google.com/optimization) — MILP solver
 - [Entity Framework Core](https://learn.microsoft.com/ef/core/) + SQLite (WAL mode)
+- [NModbus](https://github.com/NModbus/NModbus) — inverter communication
+- [NodaTime](https://nodatime.org/) and [SolCalc](https://github.com/Yeah69/SolCalc) — time zones and sun position
 - [ENTSO-E Transparency Platform](https://transparency.entsoe.eu/) — day-ahead prices
 - [WeerLive](https://weerlive.nl/) — weather and radiation data
 - [Enever](https://enever.nl/) — daily gas price
