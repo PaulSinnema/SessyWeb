@@ -26,6 +26,7 @@ namespace SessyController.Services
     public class ThrottleAnalysisService
     {
         private readonly PlannedQuarterDataService _plannedQuarterDataService;
+        private readonly ActualQuarterDataService _actualQuarterDataService;
         private readonly QuarterlyMeasurementDataService _measurementDataService;
         private readonly ConsumptionDataService _consumptionDataService;
         private readonly IBatteryContainer _batteryContainer;
@@ -67,15 +68,53 @@ namespace SessyController.Services
             PlannedQuarterDataService plannedQuarterDataService,
             QuarterlyMeasurementDataService measurementDataService,
             ConsumptionDataService consumptionDataService,
+            ActualQuarterDataService actualQuarterDataService,
             IBatteryContainer batteryContainer,
             TimeZoneService timeZoneService)
         {
             _plannedQuarterDataService = plannedQuarterDataService;
             _measurementDataService = measurementDataService;
             _consumptionDataService = consumptionDataService;
+            _actualQuarterDataService = actualQuarterDataService;
             _batteryContainer = batteryContainer;
             _timeZoneService = timeZoneService;
         }
+
+        /// <summary>
+        /// Quarters that someone else drove, and that therefore say nothing about our throttle.
+        ///
+        /// Every ratio here divides a planned setpoint by the realized power, which only means
+        /// something when we issued that setpoint. Under Charged the plan is still written but
+        /// never executed, so the pair becomes "Charged's power over our unexecuted request" —
+        /// and because the envelope fit keeps the *highest* ratio per SOC bin, that is not noise
+        /// that averages out but a bias in one direction. Manual override is excluded for the
+        /// same reason: it commands full power on clock hours, not the planned setpoint.
+        ///
+        /// Selecting what to DROP rather than what to keep is deliberate: a quarter with no
+        /// ActualQuarter row (before v1.0.51, or a missed cycle) is then kept automatically, so
+        /// the existing history stays in the fit.
+        /// </summary>
+        private async Task<HashSet<DateTime>> LoadForeignQuartersAsync(DateTime from, DateTime to)
+        {
+            var actuals = await _actualQuarterDataService.GetList(async set =>
+                await Task.FromResult(set
+                    .Where(a => a.Time >= from && a.Time <= to)
+                    .ToList()));
+
+            return actuals
+                .Where(a => IsForeign(a.ControlMode))
+                .Select(a => a.Time)
+                .ToHashSet();
+        }
+
+        /// <summary>
+        /// True when the quarter was driven by someone other than our own planner, and therefore
+        /// says nothing about our throttle. Empty means the row predates v1.0.51 — those count as
+        /// ours, so the existing history stays in the fit.
+        /// </summary>
+        internal static bool IsForeign(string? controlMode)
+            => !string.IsNullOrEmpty(controlMode)
+               && controlMode != nameof(ControlMode.SessyWeb);
 
         /// <summary>
         /// Computes throttle buckets over the look-back window. Buckets are returned ordered by
@@ -104,6 +143,8 @@ namespace SessyController.Services
                     .Where(c => c.Time >= start && c.Time <= now)
                     .ToList()));
 
+            var foreignQuarters = await LoadForeignQuartersAsync(start, now).ConfigureAwait(false);
+
             // Index plan and temperature by quarter for a fast in-memory join.
             var planByTime = plans
                 .GroupBy(p => p.Time)
@@ -122,6 +163,7 @@ namespace SessyController.Services
 
             foreach (var m in measurements.OrderBy(m => m.Time))
             {
+                if (foreignQuarters.Contains(m.Time)) continue;
                 if (!planByTime.TryGetValue(m.Time, out var requestedW)) continue;
                 if (!tempByTime.TryGetValue(m.Time, out var temperature)) continue;
 
@@ -351,6 +393,8 @@ namespace SessyController.Services
                     .Where(c => c.Time >= historyStart.AddHours(-Mean48hHours) && c.Time <= now)
                     .ToList()));
 
+            var foreignQuarters = await LoadForeignQuartersAsync(historyStart, now).ConfigureAwait(false);
+
             var planByTime = plans
                 .GroupBy(p => p.Time)
                 .ToDictionary(g => g.Key, g => g.First().PlannedUnthrottledPowerW);
@@ -374,6 +418,10 @@ namespace SessyController.Services
 
             foreach (var m in measurements.OrderBy(m => m.Time))
             {
+                // BatteryMode is our planned mode, not what the hardware chose (see
+                // BatteriesService.StoreQuarterlyMeasurement), so it does not filter out quarters
+                // someone else drove — this does.
+                if (foreignQuarters.Contains(m.Time)) continue;
                 if (m.BatteryMode != Modes.Charging) continue;
                 if (!planByTime.TryGetValue(m.Time, out var requestedW)) continue;
                 if (requestedW < MinRequestedW) continue;   // charge requests are positive

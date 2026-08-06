@@ -119,7 +119,7 @@ Blazor Server, Radzen components, `.razor` + `.razor.cs` code-behind pairs. Page
 # SessyWeb — Samenvatting voor nieuwe chat
 
 ## Wat is SessyWeb
-C#/.NET Blazor Server EMS. Stuurt 3× Sessy batterij (cap 16,2 kWh; raw charge 6600W/discharge 5100W, praktijk max ~4,4kW), SolarEdge inverter, Daikin warmtepomp. Draait op Synology NAS via Docker. Huidige versie **v1.0.22**. Locatie: Apeldoorn.
+C#/.NET Blazor Server EMS. Stuurt 3× Sessy batterij (cap 16,2 kWh; raw charge 6600W/discharge 5100W; **aantoonbaar gehaald ~5,0-5,3 kW laden** over vrijwel het hele SOC-bereik — zie Openstaande punten, de eerdere "praktijk max ~4,4kW" was de getaperde planwaarde, niet de hardwarelimiet), SolarEdge inverter, Daikin warmtepomp. Draait op Synology NAS via Docker. Huidige versie **v1.0.52**. Locatie: Apeldoorn.
 
 ## Werkafspraken
 - Antwoorden in het Nederlands, caveman-ultra kort. Code-commentaar in het Engels, **kort — één regel waar mogelijk** (user leest alle comments na ter controle).
@@ -316,7 +316,151 @@ uitgevoerd — onder Charged het onze, onder eigen aansturing dat van Charged. O
 op één keer per 5 minuten (`MinRefreshInterval`), geteld vanaf de póging, anders wordt een batterij
 die een leeg schema teruggeeft elke cyclus opnieuw bevraagd.
 
+## Gebouwd 06-08 (v1.0.47)
+**Rendement hangt van vermogen af, en de planner ziet dat nu.** Gemeten op de productie-DB stijgt
+het laadrendement van 0,80 onder 1 kW naar 0,92 bij 4-5 kW: een groot deel van het omzettingsverlies
+is vaste overhead, dus dezelfde energie overleeft beter in minder, vollere kwartieren. Met een
+constante efficiëntie lijkt uitsmeren gratis.
+1. `EfficiencyCurve` (`Services/Items/`): `rendement = plafond − overhead / vermogen`, met
+   `Flat(...)` als exacte terugval op het oude gedrag. `BatteryEfficiencyService.GetEfficiencyCurveAsync`
+   fit hem per richting op opeenvolgende kwartieren (AC in versus SOC-verschil), 6 uur gecached;
+   `Fit` is statisch en puur, dus testbaar. Te weinig samples of een niet-fysieke helling → vlak.
+2. `BatterySpec.Efficiency` gaat via `StrategyMilpService` naar `BatteryGreedyPlanner`. Alle vier de
+   strategieën delen diezelfde spec en planner, dus er was geen strategie-specifiek werk.
+3. In de planner geldt een bewuste asymmetrie: **beslissingen** lezen de curve op het vermogen dat
+   een kwartier *aankan* (`chEffAtCapacity`), **boekhouding** (SOC-pad, objective) op het vermogen
+   dat het kwartier werkelijk kreeg. Eerst geprobeerd op het blokje van 0,1 kWh — dat werkt niet:
+   één blokje is in elk kwartier even klein, dus de curve zag geen verschil (test bewees dat).
+4. **Bevinding uit de tests:** bij gelijke prijzen concentreerde de greedy al vanzelf (vult één
+   kwartier tot de cap voor hij de volgende opent). Het uitsmeren in productie komt dus níet uit de
+   doelfunctie maar uit de taper-cap op geplande energie — vastgelegd in
+   `On_equal_prices_the_planner_already_fills_quarter_by_quarter`. Die cap staat op de lijst maar is
+   bewust nog niet aangeraakt (zie Openstaande punten).
+Tests: `EfficiencyCurveTests` (10), waaronder de discriminerende: een kwartier van 5 kW à €0,105
+hoort te winnen van 1 kW à €0,100.
+
+**Grafiek: kleur zegt wie (v1.0.47).** Oranje/groen is SessyWeb, blauw (`#7fd1ff`) is Charged, het
+teken zegt wat (laden onder nul). Het niet-uitgevoerde plan is een lijn, het uitgevoerde een vlak.
+Titels dragen `⟨Charged⟩` respectievelijk `⟨SessyWeb⟩`.
+
+## Gebouwd 06-08 (v1.0.48)
+**"Nu verkopen, later terugkopen" bestond niet in het model.** Klacht: 21% lading over bij
+zonsopgang terwijl de avondpiek €0,305 betaalde. Nagerekend op de plandata van 06-08 is de reserve
+níet de oorzaak — bij zonsopgang eiste die maar 81 Wh, en de 33%-cap (`NightReserveCapPct`) begrenst
+de reserve juist naar bóven. De klem: Candidate A mag voorraad alleen verkopen als het SOC-pad
+daarná nergens onder de reserve zakt, en het minimum van die keten lag op het **laatste kwartier van
+de horizon** (551 Wh). Verkopen kon dus niet, want `Candidate B` eist `laden i < ontladen j` — de
+omgekeerde volgorde bestond niet.
+1. **Candidate D**: ontladen bij j, terugkopen bij k > j. Winst = `waarde[j] − kosten[k]/roundtrip −
+   cycluskosten`; alleen de dip tussen j en k hoeft boven de reserve te blijven, want na k staat het
+   pad weer op niveau. Allocatie via `bestIsRebuy`.
+2. **Nachtreserve telt niet meer over een zonvenster heen.** De lus sloeg het zonvenster over en
+   reserveerde voor de avond dáárna — bij zonsopgang dus voor een avond een hele zonnedag later.
+   Nu wordt de verwachte zonoogst tot dat venster afgetrokken (`solarBeforeWh`). Op 06-08 zakte de
+   middagreserve daardoor van 2099 Wh naar 0; op de bindende keten maakte het die dag niets uit.
+Tests: `SellNowRebuyLaterTests` (4), inclusief de gevallen waarin er níet gehandeld mag worden
+(verliesgevende round trip; geen dip-ruimte).
+
+**Les uit deze sessie:** `SolarPowerPerQuarterInWatts` is ondanks zijn naam **Wh per kwartier**
+(`=> SolarPowerPerQuarterHour * 1000.0`). Met W×0,25 gerekend lijkt de zonvoorspelling een factor 4
+te laag en concludeer je ten onrechte dat de forecast stuk is. Gecontroleerd: voorspeld 18,6 kWh
+tegen gemeten 16,0 kWh op 06-08 — die klopt gewoon.
+
+## Gebouwd 06-08 (v1.0.49 / v1.0.50)
+**Twee tegenstrijdige definities van "wie stuurt" — vijf stille storingen.** Aanleiding: met Charged
+in control toonde de UI de energiestrategie uit de Sessy-portal niet. De guard bleek op een *lees*-
+methode te staan (v1.0.49), en dat bleek een klasse fouten, geen los geval. Er bestonden twee
+definities: `Settings.WeAreInControl` = `!(Charged || ManualOverride)` (kende de leverancier niet) en
+`BatteriesService.WeAreInControl` = `!(supplier || Charged)` (kende ManualOverride niet). De UI las de
+tweede, de hardware-guards in `SessyService` de eerste.
+1. **Manual override stuurde niets aan.** `ExecuteManualOverride` liep via `StartCharging` c.s. op
+   `SetPowerSetpointAsync`/`SetActivePowerStrategyAsync`, en die guard is per definitie `false` zodra
+   ManualOverride aan staat. Elke opdracht werd geslikt; de UI toonde ondertussen het badge.
+2. **Day-ahead-prijzen ververste niet buiten eigen aansturing.** `EPEXPricesService.FetchPricesFromSources`
+   is de enige prijsbron en leest ze uit `GetDynamicScheduleAsync` — óók guarded. Onder Charged of
+   manual override gaf die `null` → `PricesAvailable = false` → geen `StorePrices()`. Een draaiende
+   instantie bleef werken omdat `_initialized` blijft plakken zodra hij één keer `true` was, maar een
+   **herstart terwijl Charged stuurt** zette hem nooit meer aan: `Process()` valt dan elke cyclus uit
+   op `!IsInitialized()` en er gebeurt niets meer.
+3. **Curtailment bevroor.** `Evaluate()` stond binnen de in-control-tak terwijl
+   `InverterCurtailmentService` elke 5 s op `CurrentAction` blijft handelen: Charged aanzetten tijdens
+   een curtailment liet de omvormer onbeperkt op Shutdown/Throttle staan.
+4. **Geen `ActualQuarters`** onder Charged/leverancier → gat in `PlanVsActualService`.
+   (`StoreQuarterlyMeasurement` draaide wél altijd, dus taper-/efficiency-/cost-basis-fits waren heel.)
+5. **Charged-handoff was dode code** sinds v1.0.6: `StartRoi`/`StartEco` draaiden alleen in de tak
+   waar de POST juist dichtstond.
+
+Opgelost met één bron: `ControlModeService` (`ControlMode.SessyWeb/Manual/Charged/Provider`,
+prioriteit leverancier > Charged > manual > wij). `WeMayDriveTheBatteries` is de enige conditie op de
+schrijvers — **manual override is SessyWeb die schrijft**, een ander plan, geen andere bestuurder.
+Weigeren logt nu op Warning; dat stilzwijgen hield bug 1 verborgen. Lezers zijn ongeguard:
+`GetDynamicScheduleAsync`/`GetChargedScheduleAsync` (identieke GET, tegengestelde guard) zijn één
+`GetScheduleAsync` geworden. `Settings.WeAreInControl` is weg (berekende property, geen migratie).
+`Evaluate` + `WriteActualQuarterIfNewAsync` staan nu vóór de modus-check; alleen `ExecuteAction`
+blijft erachter. Handoff-tak en `StartRoi`/`StartEco`/`SetActivePowerStrategyToRoi`/`ToEco` geschrapt.
+Tests: `ControlModeTests` (10) en `SessyServiceGuardTests` (7, tellen echte requests via een
+`HttpMessageHandler` — dus een guard die stil slikt faalt).
+
+## Gebouwd 06-08 (v1.0.51)
+**Alles wordt opgeslagen alsof SessyWeb stuurt.** Vervolg op v1.0.50: niet de twee gaten die ik
+tegenkwam, maar een sweep over álle schrijfpaden, plus het probleem dat "alles opslaan" oproept.
+1. **Sweep, nagelopen niet aangenomen.** `P1MeterService`, `SessyMonitorService`,
+   `ConsumptionMonitorService`, `EnergyMonitorService`, `WeatherService` en `SolarService` noemen de
+   besturingsmodus nergens; hun enige poorten zijn *readiness*-checks. Bijvangst die de ernst van de
+   prijzenbug van v1.0.50 vastlegt: `EnergyMonitorService.EnsureServicesAreInitialized` **gooit** als
+   EPEX niet initialiseert. Een herstart onder Charged op ≤v1.0.48 stopte dus niet alleen het plan,
+   maar ook `EnergyHistory` en `QuarterlyMeasurements` — de meterhistorie zelf.
+2. **`ActualQuarter.ControlMode`** (migratie `AddControlModeToActualQuarter`, default `""`) tagt elk
+   kwartier met wie er stuurde. Een kolom op het kwartier is robuuster dan achteraf
+   `SessyWebControl`-overgangen paren; dat registreert alleen wisselingen.
+3. **Taper-fit filtert.** `ThrottleAnalysisService` deelt een gepland setpoint door het gerealiseerde
+   vermogen; onder Charged is dat "Charged's vermogen ÷ ons niet-verzonden verzoek". Met de
+   envelope-fit uit v1.0.38, die per SOC-bin de hóógste ratio bewaart, middelt dat niet uit maar
+   trekt het één kant op. Beide sample-lussen slaan nu vreemde kwartieren over via
+   `IsForeign(controlMode)` — die selecteert wat eruit **moet**, zodat een kwartier zonder rij
+   (vóór v1.0.51) vanzelf blijft meetellen. Let op: `QuarterlyMeasurement.BatteryMode` is óns
+   geplande mode, niet wat de hardware koos, dus die filtert hier niets.
+4. **Expliciet vastgelegd wat wél alles mag eten:** `BatteryEfficiencyService` (AC-in tegen
+   SOC-verschil = natuurkunde) en `PlannerLearningService` (voorspelfout tegen werkelijkheid). Beide
+   met reden in commentaar, anders "repareert" iemand ze later naar analogie van punt 3.
+5. **Replan-lus gedempt.** De SOC-deviatietrigger (`SocDeviationThresholdPct = 20`) vuurde onder
+   Charged zodra de SOC ~3,2 kWh van ons plan wegliep — geforceerde rebuild, `PlannedActions`-rij,
+   plan opnieuw verankerd, gat weer open. Die trigger geldt nu alleen als wij sturen; de kwartaal-
+   speculatieve solve houdt het schaduwplan vers.
+6. **ENTSO-E is weer een echte fallback.** De code stond er compleet en werkend, maar werd nergens
+   aangeroepen. Nu: batterijen eerst, anders ENTSO-E. Vier dingen nagerekend in plaats van aangenomen
+   — eenheden kloppen (ENTSO-E EUR/MWh ÷1000, Sessy ÷100.000, beide EUR/kWh); resolutie klopte
+   **niet** (PT60M geeft uurstempels terwijl alles kwartier-aligned is), dus `ExpandToQuarters`
+   herhaalt de prijs over vier kwartieren — een prijs is een tarief, niet delen; `Power = 0` want
+   Sessy's eigen geplande vermogen bestaat in die bron niet; en `_prices` wordt alleen nog toegewezen
+   bij succes — de oude regel wiste bij één mislukte fetch alle prijzen. `PriceSource` logt en toont
+   welke bron levert, en een ontbrekende `ENTSO-E:SecurityToken` logt hard bij het uitwijken.
+Tests: `ControlModeDataTests` (9). Totaal 270.
+
+**Fallback vuurde niet (v1.0.52).** De fallbackketen uit v1.0.51 was onbereikbaar in precies het
+geval waarvoor hij bestaat: `FetchDayAheadPricesAsync()` had geen try/catch, dus een onbereikbare
+batterij (`EnsureSuccessStatusCode`, de 5s-timeout), een lege `Batteries`-lijst (`!.First()`) of een
+respons zonder `EnergyPrices` gooide een exception die langs de ENTSO-E-tak heen naar buiten vloog.
+Alleen een batterij die netjes 200 mét een lege prijzenlijst antwoordde zou hem hebben getriggerd.
+Nu geeft die methode bij élke storing een lege dictionary terug — dat is de enige manier waarop de
+fallback bereikbaar is. Ook `SingleOrDefault` → `FirstOrDefault` op de schedule-join: dubbele
+`StartTime`s in de respons gooiden anders óók.
+**Regel hieruit:** een fallback is pas een fallback als de primaire bron *terugkeert* in plaats van
+gooit. Bij het toevoegen van een fallback altijd eerst het faalpad van de primaire bron nalopen.
+
 ## Openstaande punten
+0. **De taper is vlak, geen aflopende lijn — hoogste prioriteit (06-08).** Hoogst gemeten laadvermogen
+   per SOC-band (`QuarterlyMeasurements`, vanaf 15-06): 10-20% → 5087 W, 20-30% → 5294, 30-40% → 4987,
+   40-50% → 4694, 50-60% → 4436, 60-70% → 4951, 70-80% → 5335, 80-90% → 5118, 90-100% → 3014. Dus
+   ~0,78 van de 6600 W nameplate over vrijwel het hele bereik, met de knik pas boven ~85-90% SOC —
+   terwijl het gefitte model (`1,054 − 0,535·soc`) op 50% SOC 0,53 zegt. De planner plant daardoor
+   ~4,3 kW waar ~5,0-5,3 kW kan, en dat is waarom de batterij 's avonds op ~60-80% blijft steken.
+   Twee valkuilen: de fit gooit elke sample weg waarvan `PlannedUnthrottledPowerW` 0 is (álle
+   historische rijen, precies het beste bewijs), en gewoon álles meenemen geeft een fysiek
+   onmogelijke *stijgende* fit omdat lage-SOC-kwartieren meestal traag zonladen zijn — dat meet
+   vraag, geen kunnen. Oplossing is een envelope per SOC-band (hoogst aangetoonde ratio, monotoon
+   niet-stijgend gemaakt), geen filter-tweak. Eerst de eerste eerlijke meting afwachten: een
+   middagsessie die bij ~23% SOC begint met 6600 W setpoint (v1.0.38 stuurt dat nu).
 1. Verifiëren op productiedata: revenue mét en zonder `CarryForwardEnabled` op teruggespeelde dagen vergelijken (niet naar SOC kijken). Faalmodus: terminal value te hoog → batterij laadt alleen nog en verkoopt nooit.
 2. **Hittegolf-validatie (vanaf 28-07, ~34°C Apeldoorn).** Model is gefit op data tot 30°C, dus 34°C is extrapolatie. Toetsen: voorspelde ratio bij 50% SOC ≈ 0,52 bij temp 34 / t48 30 (tegen ≈ 0,77 op een koele dag) — dus ~3400W i.p.v. ~5100W gevraagd laadvermogen. Narekenen of de gemeten ratio's daarbij in de buurt komen en of het residu vlak blijft.
 3. EF-migraties (user-kant): drop `SolarSystemShutsDownDuringNegativePrices`; `FutureValueDiscountPerHour` toegevoegd, `NearTermHedgeHours`/`Fraction` verwijderd.
@@ -327,4 +471,11 @@ die een leeg schema teruggeeft elke cyclus opnieuw bevraagd.
 - Setpoint requested ≠ Setpoint: Sessy-hardware klemt/tapert zelf (CC/CV, SOC-afhankelijk). API meldt geen reden. `Battery.SetpointRequested` (ons) vs `Sessy.PowerSetpoint` (device).
 - 21-07 avond niet-ontladen: economisch correct (export tegen €0,30 was netto verlies vs. latere terugkoop); de niet-uitvoering die avond was de `j=1`-bug op v1.0.4.
 
-**Te verifiëren na de eerstvolgende productie-run van v1.0.20:** vult `PlannedUnthrottledPowerW` zich, blijft de taper-fit stabiel (log: "Charge taper fitted on N samples"), en wordt het laadvenster nu vroeger gestart bij een lange goedkope periode.
+**Te verifiëren na de eerstvolgende productie-run van v1.0.48 (uitgerold 06-08 avond):**
+1. De middagsessie: setpoint 6600 W vanaf ~23% SOC — wat levert de hardware? Dat beslist over
+   Openstaand punt 0.
+2. Ontlaadt de avond dieper door Candidate D, en komt de SOC bij zonsopgang lager uit dan de 21%
+   van 06-08?
+3. Verschijnt "Efficiency curve fitted on N samples" in het log? Zo niet, dan draait de planner nog
+   op de vlakke terugval en doet het vermogensafhankelijke rendement niets.
+4. Blijven `DbHelper: slow`, `ThreadPool busy` en "UI blocked: clock tick ran N ms late" stil?

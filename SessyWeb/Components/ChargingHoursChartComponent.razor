@@ -11,17 +11,24 @@
     }
 </style>
 
-@* Says whose plan is on screen. Without it the chart looks the same whether the bars are ours or
-   Charged's, which is exactly the confusion this is meant to remove. The dashed line is always the
-   plan that is NOT being executed. *@
+@* Says whose plan is on screen. Colour tells you WHOSE plan a series is — orange and green are
+   SessyWeb's, blue is Charged's — and the sign tells you what it does: charging is drawn below
+   zero, discharging above. Whichever plan is not being executed is drawn as a line rather than a
+   filled area. *@
 <div style="padding: 2px 8px; font-size: 0.85em; color: var(--rz-text-secondary-color);">
     @if (ChargedInControl)
     {
-        <text><b>Charged</b> is in control — the areas are the batteries' own schedule, the dashed line is SessyWeb's plan.</text>
+        <text>
+            <b>Charged</b> is in control — the <span style="color:#7fd1ff;">blue areas</span> are the
+            batteries' own schedule; SessyWeb's plan is the dashed orange/green line.
+        </text>
     }
     else
     {
-        <text><b>SessyWeb</b> is in control — the areas are our plan, the dashed line is what Charged would have done.</text>
+        <text>
+            <b>SessyWeb</b> is in control — the orange/green areas are our plan; the dashed
+            <span style="color:#7fd1ff;">blue line</span> is what Charged would have done.
+        </text>
     }
 
     @if (ChargedScheduleFetchedAt != null)
@@ -227,9 +234,9 @@
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Fill="rgba(255, 102, 0, 0.5)"
-                          Stroke="#ff6600"
-                          Title="Charged charge (kW)"
+                          Fill="rgba(127, 209, 255, 0.45)"
+                          Stroke="#7fd1ff"
+                          Title="⟨Charged⟩ charge (kW)"
                           ValueProperty="ChargedChargePowerVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
@@ -244,9 +251,9 @@
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Fill="rgba(0, 204, 68, 0.5)"
-                          Stroke="#00cc44"
-                          Title="Charged discharge (kW)"
+                          Fill="rgba(127, 209, 255, 0.45)"
+                          Stroke="#7fd1ff"
+                          Title="⟨Charged⟩ discharge (kW)"
                           ValueProperty="ChargedDischargePowerVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
@@ -263,10 +270,10 @@
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Stroke="#ff6600"
-                          StrokeWidth="1"
+                          Stroke="#7fd1ff"
+                          StrokeWidth="2"
                           LineType="LineType.Dashed"
-                          Title="Charged plan charge (kW)"
+                          Title="⟨Charged⟩ charge (kW)"
                           ValueProperty="ChargedChargePowerVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
@@ -281,10 +288,10 @@
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Stroke="#00cc44"
-                          StrokeWidth="1"
-                          LineType="LineType.Dashed"
-                          Title="Charged plan discharge (kW)"
+                          Stroke="#7fd1ff"
+                          StrokeWidth="2"
+                          LineType="LineType.Dotted"
+                          Title="⟨Charged⟩ discharge (kW)"
                           ValueProperty="ChargedDischargePowerVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
@@ -303,7 +310,7 @@
                           Stroke="#ff6600"
                           StrokeWidth="1"
                           LineType="LineType.Dashed"
-                          Title="SessyWeb plan charge (kW)"
+                          Title="⟨SessyWeb⟩ charge (kW)"
                           ValueProperty="PlannedChargePowerVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
@@ -321,7 +328,7 @@
                           Stroke="#00cc44"
                           StrokeWidth="1"
                           LineType="LineType.Dashed"
-                          Title="SessyWeb plan discharge (kW)"
+                          Title="⟨SessyWeb⟩ discharge (kW)"
                           ValueProperty="PlannedDischargePowerVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
@@ -423,8 +430,9 @@
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Stroke="red"
-                          Title="Charge remaining, Charged (kWh)"
+                          Stroke="#7fd1ff"
+                          LineType="LineType.Dotted"
+                          Title="⟨Charged⟩ charge remaining (kWh)"
                           ValueProperty="ChargedChargeLeftVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />

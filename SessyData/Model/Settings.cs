@@ -54,8 +54,6 @@ namespace SessyData.Model
         public bool ChargedInControl { get; set; }
         public bool ManualOverride { get; set; }
 
-        public bool WeAreInControl => !(ChargedInControl || ManualOverride);
-
         [SkipCopy]
         public string? ManualChargingHours { get; set; }
 

@@ -40,6 +40,19 @@ namespace SessyData.Model
         /// <summary>State machine reason for the action taken this quarter.</summary>
         public string StateMachineReason { get; set; } = string.Empty;
 
+        // ── Who was driving ────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Control mode at the start of this quarter (SessyWeb/Manual/Charged/Provider), from
+        /// ControlModeService. Everything is recorded in every mode, but not every consumer may
+        /// treat every quarter as evidence: the throttle fit divides a planned setpoint by the
+        /// realized power, which only means something when we actually issued that setpoint.
+        ///
+        /// Empty on rows written before v1.0.51 — treat empty as "ours", so existing history keeps
+        /// counting.
+        /// </summary>
+        public string ControlMode { get; set; } = string.Empty;
+
         public void Update(ActualQuarter updateInfo)
         {
             this.Copy(updateInfo);

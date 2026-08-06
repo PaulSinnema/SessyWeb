@@ -327,15 +327,127 @@ namespace SessyController.Services
                 $"all-in={CurrentGasPriceEurPerM3:F4} EUR/m³ (TTF EGSI + taxes)");
         }
 
+        /// <summary>Which source last delivered prices — surfaced in Tips &amp; Checks.</summary>
+        public string PriceSource { get; private set; } = "none";
+
+        /// <summary>
+        /// Day-ahead prices, from the batteries with ENTSO-E as fallback.
+        ///
+        /// The batteries are the primary source because they carry Sessy's own planned power per
+        /// slot alongside the price. They are also a single point of failure on the local network,
+        /// and without prices BuildPlanAsync never runs — hence the fallback.
+        ///
+        /// Assigning only on success is the point: the previous version overwrote _prices with the
+        /// result unconditionally, so one failed fetch wiped every price it had.
+        /// </summary>
         private async Task FetchPricesFromSources(CancellationToken cancellationToken)
         {
-            var now = _timeZoneService.Now.DateFloorQuarter();
-            var lastDate = now;
+            var fromBatteries = await FetchDayAheadPricesAsync().ConfigureAwait(false);
 
-            // Fetch day-ahead market prices from Sessy
-            _prices = await FetchDayAheadPricesAsync();
+            if (fromBatteries != null && fromBatteries.Count > 0)
+            {
+                _prices = fromBatteries;
+                PricesAvailable = true;
 
+                if (PriceSource != "Sessy")
+                    _logger.LogWarning($"Day-ahead prices now come from the batteries ({fromBatteries.Count} quarters).");
+
+                PriceSource = "Sessy";
+                return;
+            }
+
+            _logger.LogWarning("No day-ahead prices from the batteries — trying ENTSO-E.");
+
+            var fromEntsoe = await FetchEntsoeQuartersAsync(cancellationToken).ConfigureAwait(false);
+
+            if (fromEntsoe != null && fromEntsoe.Count > 0)
+            {
+                _prices = fromEntsoe;
+                PricesAvailable = true;
+
+                if (PriceSource != "ENTSO-E")
+                    _logger.LogWarning($"Day-ahead prices now come from ENTSO-E ({fromEntsoe.Count} quarters). " +
+                                       "Sessy's own planned power is unavailable from this source.");
+
+                PriceSource = "ENTSO-E";
+                return;
+            }
+
+            // Both sources failed. Keep whatever we still have rather than blanking the planner.
             PricesAvailable = _prices != null && _prices.Count > 0;
+
+            if (PricesAvailable)
+                _logger.LogWarning("Both price sources failed — keeping the prices already loaded.");
+            else
+                _logger.LogError("Both price sources failed and no prices are loaded — the planner cannot run.");
+        }
+
+        /// <summary>
+        /// ENTSO-E day-ahead prices, mapped onto the same shape as the Sessy schedule and expanded
+        /// to quarters.
+        ///
+        /// Two conversions matter here. ENTSO-E publishes EUR/MWh and the parser already divides by
+        /// 1000, which lands on the EUR/kWh the Sessy path also produces. And a PT60M series has
+        /// one point per hour while the whole planner is quarter-aligned, so each point is spread
+        /// over the quarters up to the next one — a price is a rate, so it is repeated, not
+        /// divided. A PT15M series comes out unchanged.
+        /// </summary>
+        private async Task<ConcurrentDictionary<DateTime, DynamichSchedule>?> FetchEntsoeQuartersAsync(
+            CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(_securityToken) || string.IsNullOrWhiteSpace(_inDomain))
+            {
+                _logger.LogError($"ENTSO-E fallback unavailable: {ConfigSecurityTokenKey} or {ConfigInDomain} " +
+                                 "is not configured. The batteries are the only price source.");
+                return null;
+            }
+
+            try
+            {
+                var from = _timeZoneService.Now.Date.AddDays(-1);
+
+                var raw = await FetchDayAheadPricesAsync(from, 2, cancellationToken).ConfigureAwait(false);
+
+                if (raw == null || raw.Count == 0) return null;
+
+                return ExpandToQuarters(raw);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"ENTSO-E fallback failed: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Spreads a price series over quarters: each point holds until the next one, the last for
+        /// an hour. A price is a rate per kWh, so it is repeated across the quarters, never divided
+        /// — dividing would make an hourly source look four times cheaper than a quarterly one.
+        /// A series that is already quarterly comes out unchanged.
+        /// </summary>
+        internal static ConcurrentDictionary<DateTime, DynamichSchedule> ExpandToQuarters(
+            IReadOnlyDictionary<DateTime, double> pricesByTime)
+        {
+            var ordered = pricesByTime.OrderBy(p => p.Key).ToList();
+            var quarters = new ConcurrentDictionary<DateTime, DynamichSchedule>();
+
+            for (int i = 0; i < ordered.Count; i++)
+            {
+                var start = ordered[i].Key.DateFloorQuarter();
+
+                var end = i + 1 < ordered.Count
+                    ? ordered[i + 1].Key.DateFloorQuarter()
+                    : start.AddHours(1);
+
+                for (var t = start; t < end; t = t.AddMinutes(15))
+                {
+                    // Power stays 0: Sessy's own planned power does not exist in this source, and
+                    // 0 is honest where a guess would not be.
+                    quarters[t] = new DynamichSchedule { Price = ordered[i].Value, Power = 0.0 };
+                }
+            }
+
+            return quarters;
         }
 
         private SemaphoreSlim GetPricesSemaphore = new SemaphoreSlim(1);
@@ -613,31 +725,52 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Get the day-ahead-prices from ENTSO-E.
+        /// Day-ahead prices as the batteries publish them, in EUR/kWh.
+        ///
+        /// Returns an empty result instead of throwing on every failure — an unreachable battery,
+        /// a timeout, an HTTP error, no batteries configured, a response without prices. That is
+        /// the whole point: an exception here would escape past the ENTSO-E fallback in
+        /// FetchPricesFromSources, so the fallback would never run in exactly the situation it
+        /// exists for.
         /// </summary>
         private async Task<ConcurrentDictionary<DateTime, DynamichSchedule>> FetchDayAheadPricesAsync()
         {
-            var battery = _batteryContainer.Batteries!.First();
-
-            var dynamicSchedule = await battery.GetDynamicScheduleAsync();
-
             var list = new ConcurrentDictionary<DateTime, DynamichSchedule>();
 
-            if (dynamicSchedule != null)
+            var battery = _batteryContainer.Batteries?.FirstOrDefault();
+
+            if (battery == null)
             {
-                foreach (var ep in dynamicSchedule.EnergyPrices)
+                _logger.LogWarning("No batteries configured — cannot read day-ahead prices from them.");
+                return list;
+            }
+
+            SessyScheduleResponse? dynamicSchedule;
+
+            try
+            {
+                dynamicSchedule = await battery.GetScheduleAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"Could not read the schedule from battery {battery.Id}: {ex.Message}");
+                return list;
+            }
+
+            if (dynamicSchedule?.EnergyPrices == null)
+                return list;
+
+            foreach (var ep in dynamicSchedule.EnergyPrices)
+            {
+                var ds = new DynamichSchedule { Price = ep.Price / 100000.0 };
+
+                ds.Power = dynamicSchedule.DynamicSchedule?
+                    .FirstOrDefault(d => d.StartTime == ep.StartTime)?.Power ?? 0.0;
+
+                if (!list.TryAdd(ep.StartTime, ds))
                 {
-                    var ds = new DynamichSchedule { Price = ep.Price / 100000.0 };
-
-                    ds.Power = dynamicSchedule!.DynamicSchedule!.SingleOrDefault(ds => ds.StartTime == ep.StartTime)?.Power ?? 0.0;
-
-                    var priceWattHour = ep.Price / 100000.0;
-
-                    if (!list.TryAdd(ep.StartTime, ds))
-                    {
-                        list[ep.StartTime].Price = ds.Price;
-                        list[ep.StartTime].Power = ds.Power;
-                    }
+                    list[ep.StartTime].Price = ds.Price;
+                    list[ep.StartTime].Power = ds.Power;
                 }
             }
 

@@ -149,6 +149,11 @@ builder.Services.AddSingleton<ActualQuarterDataService>();
 builder.Services.AddSingleton<PlanVsActualService>();
 builder.Services.AddSingleton<SettingsDataService>();
 builder.Services.AddSingleton<SettingsService>();
+
+// Single source of truth for who drives the batteries — read by SessyService's write guards and
+// by the UI, updated once per cycle by BatteriesService.
+builder.Services.AddSingleton<ControlModeService>();
+
 builder.Services.AddSingleton<ExpectedPriceService>();
 builder.Services.AddSingleton<SessyWebControlDataService>();
 builder.Services.AddSingleton<AppVersionDataService>();

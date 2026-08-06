@@ -23,12 +23,13 @@ namespace SessyController.Services
             ReplacementCostService replacementCostService,
             ThrottleAnalysisService throttleAnalysisService,
             WeatherService weatherService,
-            BatteryEfficiencyService batteryEfficiencyService)
+            BatteryEfficiencyService batteryEfficiencyService,
+            ControlModeService controlMode)
             : base(new BalancedStrategy(), logger, settingsService, sessyBatteryConfigMonitor,
                    batteryContainer, timeZoneService, taxesDataService,
                    plannedActionDataService, plannedQuarterDataService, forecastSnapshotDataService,
                    chargeCostBasisService, replacementCostService,
-                   throttleAnalysisService, weatherService, batteryEfficiencyService)
+                   throttleAnalysisService, weatherService, batteryEfficiencyService, controlMode)
         {
         }
     }

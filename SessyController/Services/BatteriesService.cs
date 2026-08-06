@@ -56,6 +56,7 @@ namespace SessyController.Services
         private PlannerLearningService _plannerLearningService;
         private ChargedScheduleService _chargedScheduleService;
         private BatteryEfficiencyService _batteryEfficiencyService;
+        private ControlModeService _controlMode;
 
         // Curtailment: throttles the solar inverter when price is negative.
         private InverterCurtailmentService _inverterCurtailmentService;
@@ -68,9 +69,9 @@ namespace SessyController.Services
 
         private const double FullThresholdRatio = 0.995;
 
-        public bool IsManualOverride => _settingsConfig.ManualOverride;
-        public bool WeAreInControl { get; private set; } = true;
-        public bool ChargedInControl => _settingsConfig.ChargedInControl;
+        public bool IsManualOverride => _controlMode.Current == ControlMode.Manual;
+        public bool WeAreInControl => _controlMode.WeMayDriveTheBatteries;
+        public bool ChargedInControl => _controlMode.Current == ControlMode.Charged;
 
         public delegate Task DataChangedDelegate();
         public event DataChangedDelegate? DataChanged;
@@ -112,6 +113,7 @@ namespace SessyController.Services
             _plannerLearningService = _scope.ServiceProvider.GetRequiredService<PlannerLearningService>();
             _chargedScheduleService = _scope.ServiceProvider.GetRequiredService<ChargedScheduleService>();
             _batteryEfficiencyService = _scope.ServiceProvider.GetRequiredService<BatteryEfficiencyService>();
+            _controlMode = _scope.ServiceProvider.GetRequiredService<ControlModeService>();
             _systemInput = new EnergySystemInput(
                 _hardwareStatus,
                 _milpService,
@@ -237,45 +239,31 @@ namespace SessyController.Services
                 // A plain read, so unlike the handover below it also runs in a debug session.
                 await ApplyChargedScheduleAsync().ConfigureAwait(false);
 
-                if (await WeControlTheBatteries().ConfigureAwait(false))
+                var weDrive = await WeControlTheBatteries().ConfigureAwait(false);
+
+                // Evaluating runs in every control mode, executing does not. The solar inverter is
+                // our hardware whoever drives the batteries, so curtailment must keep working —
+                // InverterCurtailmentService acts on CurrentAction every 5 seconds and would
+                // otherwise stay frozen on the last action from before the handover. Writing the
+                // ActualQuarter here keeps plan-vs-actual covered over those periods too.
+                await _systemInput.LoadAsync().ConfigureAwait(false);
+
+                var action = _stateMachine.Evaluate(_systemInput);
+
+                await WriteActualQuarterIfNewAsync(_systemInput, action).ConfigureAwait(false);
+
+                if (weDrive)
                 {
-                    await _systemInput.LoadAsync().ConfigureAwait(false);
-
-                    // Evaluate state machine — all decisions made here.
-                    var action = _stateMachine.Evaluate(_systemInput);
-
-                    // Write actual quarter record once per quarter.
-                    await WriteActualQuarterIfNewAsync(_systemInput, action).ConfigureAwait(false);
-
                     // ── Execute ───────────────────────────────────────────────────────
                     await ExecuteAction(action.BatteryMode, action.BatterySetpointW).ConfigureAwait(false);
                 }
                 else
                 {
 #if !DEBUG
-                    // When "Charged" is the controller we hand the batteries to Sessy's own
-                    // built-in strategy, mapped from our optimization strategy:
-                    //   ProfitMaximization → ROI (Dynamic)
-                    //   SelfConsumption    → ECO
-                    //   anything else      → ROI (Dynamic)
-                    // For provider (supplier) control we leave the batteries fully released.
-                    if (_settingsConfig.ChargedInControl)
-                    {
-                        switch (_settingsConfig.Strategy)
-                        {
-                            case OptimizationStrategy.SelfConsumption:
-                                await _batteryContainer.StartEco().ConfigureAwait(false);
-                                break;
-                            case OptimizationStrategy.ProfitMaximization:
-                            default:
-                                await _batteryContainer.StartRoi().ConfigureAwait(false);
-                                break;
-                        }
-                    }
-                    else
-                    {
+                    // Charged sets its own strategy on the batteries, so we leave them alone; for
+                    // provider (supplier) control we release them fully.
+                    if (!ChargedInControl)
                         await _batteryContainer.StopAll().ConfigureAwait(false);
-                    }
 #endif
                 }
             }
@@ -334,7 +322,8 @@ namespace SessyController.Services
                     ActualPowerW = input.ActualBatteryPowerW,
                     ActualSocWh = input.ActualSocWh,
                     CurtailmentMode = action.CurtailmentMode.ToString(),
-                    StateMachineReason = action.Reason
+                    StateMachineReason = action.Reason,
+                    ControlMode = _controlMode.Current.ToString()
                 };
 
                 await _actualQuarterDataService
@@ -346,7 +335,7 @@ namespace SessyController.Services
                 _logger.LogInformation(
                     $"ActualQuarter written for {nowQuarter:dd-MM HH:mm} — " +
                     $"SOC={input.ActualSocWh:F0}Wh Mode={action.BatteryMode} " +
-                    $"Curtailment={action.CurtailmentMode}");
+                    $"Curtailment={action.CurtailmentMode} Control={_controlMode.Current}");
             }
             catch (Exception ex)
             {
@@ -420,21 +409,18 @@ namespace SessyController.Services
 
         private async Task<bool> WeControlTheBatteries()
         {
+            // Only this service knows whether the supplier took over; everyone else reads the mode.
             var supplierInControl = await SupplierIsControllingTheBatteries().ConfigureAwait(false);
-            var chargedInControl = _settingsConfig.ChargedInControl;
 
-            WeAreInControl = !(supplierInControl || chargedInControl);
+            var mode = _controlMode.Update(supplierInControl);
 
-            SessyWebControlStatus status = SessyWebControlStatus.SessyWeb;
-
-            if (!WeAreInControl)
+            // Manual override is still SessyWeb driving, so the history keeps its old meaning.
+            var status = mode switch
             {
-                if (_settingsConfig.ChargedInControl)
-                    status = SessyWebControlStatus.Charged;
-
-                if (supplierInControl)
-                    status = SessyWebControlStatus.Provider;
-            }
+                ControlMode.Provider => SessyWebControlStatus.Provider,
+                ControlMode.Charged => SessyWebControlStatus.Charged,
+                _ => SessyWebControlStatus.SessyWeb
+            };
 
             var last = await _sessyWebControlDataService.Get(async set =>
             {
@@ -445,7 +431,7 @@ namespace SessyController.Services
             if (last == null || last.Status != status)
                 await StoreStatus(status).ConfigureAwait(false);
 
-            return WeAreInControl;
+            return _controlMode.WeMayDriveTheBatteries;
         }
 
         private async Task StoreStatus(SessyWebControlStatus status)
@@ -565,7 +551,7 @@ namespace SessyController.Services
         {
             var now = _timeZoneService.Now.DateFloorQuarter();
 
-            if (_settingsConfig.ChargedInControl)
+            if (ChargedInControl)
             {
                 // When Charged is in control the next action comes from their schedule, not from
                 // our plan — a quarter counts when their schedule puts power on it.

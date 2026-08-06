@@ -209,20 +209,6 @@ namespace SessyController.Services.Items
             await SetActivePowerStrategy(new ActivePowerStrategy { Strategy = PowerStrategies.POWER_STRATEGY_NOM.ToString() });
         }
 
-        public async Task SetActivePowerStrategyToRoi()
-        {
-            _logger.LogInformation("Setting strategy to ROI (Dynamic)");
-
-            await SetActivePowerStrategy(new ActivePowerStrategy { Strategy = PowerStrategies.POWER_STRATEGY_ROI.ToString() });
-        }
-
-        public async Task SetActivePowerStrategyToEco()
-        {
-            _logger.LogInformation("Setting strategy to ECO");
-
-            await SetActivePowerStrategy(new ActivePowerStrategy { Strategy = PowerStrategies.POWER_STRATEGY_ECO.ToString() });
-        }
-
         public async Task SetPowerSetpointAsync(PowerSetpoint powerSetpoint)
         {
             EnsureInitialized();
@@ -267,19 +253,11 @@ namespace SessyController.Services.Items
         }
 
         /// <summary>
-        /// Get power strategy and EPEX prices from the battery
+        /// Get the schedule the battery planned for itself, plus the EPEX prices it used.
         /// </summary>
-        public async Task<SessyScheduleResponse?> GetDynamicScheduleAsync()
+        public async Task<SessyScheduleResponse?> GetScheduleAsync()
         {
-            return await _sessyService.GetDynamicScheduleAsync(Id);
-        }
-
-        /// <summary>
-        /// Get the dynamic schedule from the battery when Charged is in control.
-        /// </summary>
-        public async Task<SessyScheduleResponse?> GetChargedScheduleAsync()
-        {
-            return await _sessyService.GetChargedScheduleAsync(Id);
+            return await _sessyService.GetScheduleAsync(Id);
         }
 
         internal void Inject(string id, SessyBatteryEndpoint endpoint)

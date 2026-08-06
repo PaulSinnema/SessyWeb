@@ -108,6 +108,17 @@ namespace SessyController.Services.Optimization
             double cycleCost = Math.Max(0.0, opt.CycleCostEurPerKWh);
             double capacity = Math.Max(0.0, spec.CapacityKWh);
 
+            // Efficiency is not a constant: a large part of the conversion loss is fixed overhead,
+            // so moving the same energy in fewer, fuller quarters keeps more of it (measured:
+            // 0.80 below 1 kW against 0.92 at 4-5 kW). Without this the planner sees spreading as
+            // free and has no reason to concentrate. A null curve — or one fitted on too little
+            // data — is flat, and then every formula below reduces to the constant it used before.
+            var efficiency = spec.Efficiency ?? EfficiencyCurve.Flat(chEff, disEff);
+
+            // Efficiency at the power a quarter would run at if it held this much AC energy.
+            double chEffFor(double acKWh) => efficiency.ChargeAt(Math.Max(0.0, acKWh) / dt);
+            double disEffFor(double acKWh) => efficiency.DischargeAt(Math.Max(0.0, acKWh) / dt);
+
             // ── Per-quarter limits ───────────────────────────────────────────
             var maxChargeKWh = new double[n];      // AC-side energy that may be charged this quarter
             var maxDischargeKWh = new double[n];   // AC-side energy that may be delivered this quarter
@@ -169,14 +180,17 @@ namespace SessyController.Services.Optimization
 
                 if (surplus > Eps)
                 {
-                    // Store as much solar as the room and the charge limit allow.
+                    // Store as much solar as the room and the charge limit allow. The efficiency is
+                    // read at the power this quarter would run at, so the same surplus stores less
+                    // when it trickles in than when it arrives in bulk.
                     double roomStore = Math.Max(0.0, maxSoc[t] - soc);
-                    double absorb = Math.Min(surplus, Math.Min(roomStore / chEff, taperedChargeKWh(t, soc)));
+                    double surplusEff = chEffFor(surplus);
+                    double absorb = Math.Min(surplus, Math.Min(roomStore / surplusEff, taperedChargeKWh(t, soc)));
                     if (absorb > Eps)
                     {
                         chargeKWh[t] += absorb;
                         solarChargeKWh[t] += absorb;
-                        soc += absorb * chEff;
+                        soc += absorb * chEffFor(absorb);
                     }
                     exportKWh[t] = surplus - absorb;
                 }
@@ -184,11 +198,12 @@ namespace SessyController.Services.Optimization
                 {
                     // Cover the house from the battery, never below the reserve.
                     double availableStore = Math.Max(0.0, soc - minSoc[t]);
-                    double deliver = Math.Min(deficit, Math.Min(availableStore * disEff, maxDischargeKWh[t]));
+                    double deficitEff = disEffFor(deficit);
+                    double deliver = Math.Min(deficit, Math.Min(availableStore * deficitEff, maxDischargeKWh[t]));
                     if (deliver > Eps)
                     {
                         dischargeKWh[t] += deliver;
-                        soc -= deliver / disEff;
+                        soc -= deliver / disEffFor(deliver);
                     }
                     importKWh[t] = deficit - deliver;
                 }
@@ -198,7 +213,26 @@ namespace SessyController.Services.Optimization
             }
 
             // ── 2. Arbitrage: pair cheap charging with expensive discharging ──
-            double roundTrip = chEff * disEff;
+
+            // For DECISIONS the efficiency is read at the power a quarter can sustain, not at the
+            // sliver being placed: the question is whether this is a trickle quarter or a bulk one,
+            // and a single 0.1 kWh block looks identical in both. A quarter throttled to 1 kW keeps
+            // 0.88 of what goes in where one that takes 5 kW keeps 0.96, and half a cent of price
+            // difference does not cover that.
+            //
+            // Moving the energy uses the fill-based values further down instead, so the SOC path
+            // and the objective report what the plan really achieves. The decision is a forecast,
+            // the bookkeeping is the outcome, and they are allowed to differ.
+            double chEffAtCapacity(int i, double socStartKWh) => chEffFor(taperedChargeKWh(i, socStartKWh));
+            double disEffAtCapacity(int j) => disEffFor(maxDischargeKWh[j]);
+
+            double roundTripAtCapacity(int i, int j, double socStartKWh)
+                => chEffAtCapacity(i, socStartKWh) * disEffAtCapacity(j);
+
+            // No charge quarter is involved when energy is replaced from outside the horizon, so
+            // the replacement is priced at what a well-planned purchase would achieve: full power.
+            double replacementRoundTrip = efficiency.ChargeAt(Math.Max(0.1, spec.MaxChargeKW))
+                                        * efficiency.DischargeAt(Math.Max(0.1, spec.MaxDischargeKW));
 
             // Continuous future-value discount — see the class doc comment for why this replaced
             // a discrete near-term-hedge pass. hoursFromNow(j) = j * dt since index 0 is "now".
@@ -210,6 +244,7 @@ namespace SessyController.Services.Optimization
                 int bestI = NoSource, bestJ = -1;
                 double bestProfitPerKWh = 0.0;
                 double bestBlock = 0.0;
+                bool bestIsRebuy = false;   // Candidate D: the charge quarter comes AFTER the discharge
 
                 // j starts at 0: Candidate A discharges energy already in the battery and needs
                 // no earlier charge quarter, so index 0 is a valid discharge target. Candidate B
@@ -261,11 +296,12 @@ namespace SessyController.Services.Optimization
                     // Feasibility: draining the store at j lowers the SOC path from j onward,
                     // which must stay at or above the reserve on every later quarter.
                     {
-                        double profitPerKWh = valueJ - opt.ReplacementCostEurPerKWh / roundTrip - cycleCost;
+                        double stockDisEff = disEffAtCapacity(j);
+                        double profitPerKWh = valueJ - opt.ReplacementCostEurPerKWh / replacementRoundTrip - cycleCost;
                         if (profitPerKWh > bestProfitPerKWh + Eps)
                         {
                             double block = Math.Min(BlockKWh, Math.Min(dischargeHeadroom, valueLimit));
-                            double storeDelta = block / disEff;
+                            double storeDelta = block / stockDisEff;
                             double allowed = storeDelta;
                             for (int k = j; k < n; k++)
                             {
@@ -278,7 +314,7 @@ namespace SessyController.Services.Optimization
                                 if (allowed < storeDelta)
                                 {
                                     storeDelta = allowed;
-                                    block = storeDelta * disEff;
+                                    block = storeDelta * stockDisEff;
                                 }
                                 if (block > Eps)
                                 {
@@ -317,18 +353,24 @@ namespace SessyController.Services.Optimization
                         }
                         costI *= Discount(i);
 
-                        double profitPerKWh = valueJ - costI / roundTrip - cycleCost;
+                        // Round trip of THIS pair at the power both quarters would run at with the
+                        // block added. A quarter that already carries energy converts better, so
+                        // filling one up beats opening another — which is the whole point.
+                        double pairRoundTrip = roundTripAtCapacity(i, j, socStartI);
+                        double pairDisEff = disEffAtCapacity(j);
+
+                        double profitPerKWh = valueJ - costI / pairRoundTrip - cycleCost;
                         if (profitPerKWh <= bestProfitPerKWh + Eps) continue;
 
                         // Feasible block size, expressed in kWh delivered at j.
                         double block = BlockKWh;
                         block = Math.Min(block, dischargeHeadroom);
                         block = Math.Min(block, valueLimit);
-                        block = Math.Min(block, chargeHeadroom * roundTrip);
-                        block = Math.Min(block, costLimit * roundTrip);
+                        block = Math.Min(block, chargeHeadroom * pairRoundTrip);
+                        block = Math.Min(block, costLimit * pairRoundTrip);
 
                         // Raising the SOC by block/disEff across (i, j] must not exceed maxSoc.
-                        double storeDelta = block / disEff;
+                        double storeDelta = block / pairDisEff;
                         double allowed = storeDelta;
                         for (int k = i; k < j; k++)
                         {
@@ -341,7 +383,7 @@ namespace SessyController.Services.Optimization
                         if (allowed < storeDelta)
                         {
                             storeDelta = allowed;
-                            block = storeDelta * disEff;
+                            block = storeDelta * pairDisEff;
                         }
                         if (block <= Eps) continue;
 
@@ -349,6 +391,78 @@ namespace SessyController.Services.Optimization
                         bestI = i;
                         bestJ = j;
                         bestBlock = block;
+                        bestIsRebuy = false;
+                    }
+
+                    // ── Candidate D: discharge at j now, buy it back at a later quarter k ──
+                    // The mirror image of Candidate B, and it has to exist for a reason that only
+                    // shows up on real data: Candidate A may sell stock only while the SOC path
+                    // stays above the reserve all the way to the end of the horizon. Energy the
+                    // plan still needs tomorrow evening therefore cannot be sold tonight, however
+                    // good tonight pays — on 06-08 that left the whole evening peak at €0,305
+                    // untouched with 3,3 kWh in the battery, to be sold a day later after buying
+                    // more at €0,16. Pairing the sale with its repurchase lifts the path back up
+                    // after quarter k, so the trade becomes both visible and feasible.
+                    for (int k = j + 1; k < n; k++)
+                    {
+                        if (pricePoints[k].ReserveOnly) continue;      // no grid charging on predicted quarters
+
+                        double socStartK = k == 0 ? Clamp(spec.InitialSocKWh, 0.0, capacity) : socEnd[k - 1];
+                        double rebuyHeadroom = taperedChargeKWh(k, socStartK) - chargeKWh[k];
+                        if (rebuyHeadroom <= Eps) continue;
+
+                        double costK;
+                        double rebuyLimit;
+
+                        if (exportKWh[k] > Eps)
+                        {
+                            costK = pricePoints[k].SellEurPerKWh;      // forgone export revenue
+                            rebuyLimit = exportKWh[k];
+                        }
+                        else
+                        {
+                            costK = pricePoints[k].BuyEurPerKWh;       // imported from grid
+                            rebuyLimit = double.MaxValue;
+                        }
+                        costK *= Discount(k);
+
+                        double rebuyRoundTrip = chEffAtCapacity(k, socStartK) * disEffAtCapacity(j);
+                        double rebuyDisEff = disEffAtCapacity(j);
+
+                        double rebuyProfit = valueJ - costK / rebuyRoundTrip - cycleCost;
+                        if (rebuyProfit <= bestProfitPerKWh + Eps) continue;
+
+                        double rebuyBlock = BlockKWh;
+                        rebuyBlock = Math.Min(rebuyBlock, dischargeHeadroom);
+                        rebuyBlock = Math.Min(rebuyBlock, valueLimit);
+                        rebuyBlock = Math.Min(rebuyBlock, rebuyHeadroom * rebuyRoundTrip);
+                        rebuyBlock = Math.Min(rebuyBlock, rebuyLimit * rebuyRoundTrip);
+
+                        // The store dips between j and k and is level again afterwards, so only
+                        // that stretch has to stay above the reserve — which is exactly why this
+                        // pairing frees energy that Candidate A cannot touch.
+                        double rebuyStore = rebuyBlock / rebuyDisEff;
+                        double rebuyAllowed = rebuyStore;
+                        for (int m = j; m < k; m++)
+                        {
+                            double slack = socEnd[m] - minSoc[m];
+                            if (slack < rebuyAllowed) rebuyAllowed = slack;
+                            if (rebuyAllowed <= Eps) break;
+                        }
+                        if (rebuyAllowed <= Eps) continue;
+
+                        if (rebuyAllowed < rebuyStore)
+                        {
+                            rebuyStore = rebuyAllowed;
+                            rebuyBlock = rebuyStore * rebuyDisEff;
+                        }
+                        if (rebuyBlock <= Eps) continue;
+
+                        bestProfitPerKWh = rebuyProfit;
+                        bestI = k;
+                        bestJ = j;
+                        bestBlock = rebuyBlock;
+                        bestIsRebuy = true;
                     }
                 }
 
@@ -390,16 +504,23 @@ namespace SessyController.Services.Optimization
                             costLimit = double.MaxValue;
                         }
 
-                        double profitPerKWh = (carryValue - costI) / roundTrip;
+                        // Carry-forward has no discharge quarter inside the horizon, so the charge
+                        // side is priced at the power quarter i would run at and the discharge side
+                        // at what a well-planned future discharge would achieve.
+                        double carryRoundTrip = chEffAtCapacity(i, socStartI)
+                                              * efficiency.DischargeAt(Math.Max(0.1, spec.MaxDischargeKW));
+
+                        double profitPerKWh = (carryValue - costI) / carryRoundTrip;
                         if (profitPerKWh <= bestProfitPerKWh + Eps) continue;
 
                         double block = BlockKWh;
-                        block = Math.Min(block, chargeHeadroom * roundTrip);
-                        block = Math.Min(block, costLimit * roundTrip);
+                        block = Math.Min(block, chargeHeadroom * carryRoundTrip);
+                        block = Math.Min(block, costLimit * carryRoundTrip);
 
                         // The SOC stays raised from i to the end of the horizon — nothing gives
                         // it back — so every quarter from i onward must have room for it.
-                        double storeDelta = block / disEff;
+                        double carryDisEff = efficiency.DischargeAt(Math.Max(0.1, spec.MaxDischargeKW));
+                        double storeDelta = block / carryDisEff;
                         double allowed = storeDelta;
                         for (int k = i; k < n; k++)
                         {
@@ -412,7 +533,7 @@ namespace SessyController.Services.Optimization
                         if (allowed < storeDelta)
                         {
                             storeDelta = allowed;
-                            block = storeDelta * disEff;
+                            block = storeDelta * carryDisEff;
                         }
                         if (block <= Eps) continue;
 
@@ -425,9 +546,13 @@ namespace SessyController.Services.Optimization
 
                 if (bestI == NoSource || bestBlock <= Eps) break;   // nothing profitable left
 
-                // Allocate the block.
+                // Allocate the block, at the efficiencies of the quarters it actually lands in.
                 double deliver = bestBlock;
-                double store = deliver / disEff;            // store drained at j
+                double allocDisEff = bestJ == CarryTarget
+                    ? efficiency.DischargeAt(Math.Max(0.1, spec.MaxDischargeKW))
+                    : disEffFor(dischargeKWh[bestJ] + deliver);
+
+                double store = deliver / allocDisEff;        // store drained at j
 
                 if (bestI == StockSource)
                 {
@@ -443,7 +568,7 @@ namespace SessyController.Services.Optimization
                     continue;
                 }
 
-                double acCharge = store / chEff;            // AC energy needed at i
+                double acCharge = store / chEffFor(chargeKWh[bestI] + store);   // AC energy needed at i
 
                 chargeKWh[bestI] += acCharge;
                 if (exportKWh[bestI] > Eps)
@@ -466,6 +591,16 @@ namespace SessyController.Services.Optimization
                 if (importKWh[bestJ] > Eps)
                     importKWh[bestJ] = Math.Max(0.0, importKWh[bestJ] - deliver);
 
+                if (bestIsRebuy)
+                {
+                    // Sold at bestJ and bought back at bestI: the store dips in between and is
+                    // level again from bestI onward, which is what makes the sale feasible at all.
+                    for (int k = bestJ; k < bestI; k++)
+                        socEnd[k] -= store;
+
+                    continue;
+                }
+
                 for (int k = bestI; k < bestJ; k++)
                     socEnd[k] += store;
             }
@@ -478,7 +613,12 @@ namespace SessyController.Services.Optimization
             for (int t = 0; t < n; t++)
             {
                 double socStart = soc;
-                soc = Clamp(soc + chargeKWh[t] * chEff - dischargeKWh[t] / disEff, 0.0, capacity);
+
+                // Same efficiencies the allocation used, read at the power this quarter ended up
+                // with — otherwise the SOC path drifts away from the objective it was chosen on.
+                soc = Clamp(
+                    soc + chargeKWh[t] * chEffFor(chargeKWh[t]) - dischargeKWh[t] / disEffFor(dischargeKWh[t]),
+                    0.0, capacity);
 
                 double gridChargeKWh = Math.Max(0.0, chargeKWh[t] - solarChargeKWh[t]);
 
@@ -529,7 +669,8 @@ namespace SessyController.Services.Optimization
             // plan as worse than the one it beats. Only when carry-forward is on, so the reported
             // objective is unchanged for callers that do not use it.
             if (opt.AllowCarryForward && opt.ReplacementCostEurPerKWh > 0.0)
-                objective += soc / chEff * opt.ReplacementCostEurPerKWh;
+                objective += soc / efficiency.ChargeAt(Math.Max(0.1, spec.MaxChargeKW))
+                           * opt.ReplacementCostEurPerKWh;
 
             return new PlanResult(true, objective, plan);
         }

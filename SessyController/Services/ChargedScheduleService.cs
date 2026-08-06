@@ -27,18 +27,15 @@ namespace SessyController.Services
         private readonly LoggingService<ChargedScheduleService> _logger;
         private readonly BatteryContainer _batteryContainer;
         private readonly TimeZoneService _timeZoneService;
-        private readonly SettingsService _settingsService;
 
         public ChargedScheduleService(
             LoggingService<ChargedScheduleService> logger,
             BatteryContainer batteryContainer,
-            TimeZoneService timeZoneService,
-            SettingsService settingsService)
+            TimeZoneService timeZoneService)
         {
             _logger = logger;
             _batteryContainer = batteryContainer;
             _timeZoneService = timeZoneService;
-            _settingsService = settingsService;
         }
 
         /// <summary>
@@ -78,21 +75,13 @@ namespace SessyController.Services
 
             _lastAttempt = _timeZoneService.Now;
 
-            // Same endpoint either way; SessyService guards each method with the control mode it
-            // belongs to, so asking for the wrong one simply returns null. The batteries keep
-            // planning for themselves while we drive them, which is what makes the comparison on
-            // the chart possible in both directions.
-            bool chargedInControl = _settingsService.Current.ChargedInControl;
-
             var totals = new Dictionary<DateTime, double>();
 
             foreach (var battery in batteries)
             {
                 try
                 {
-                    var schedule = chargedInControl
-                        ? await battery.GetChargedScheduleAsync().ConfigureAwait(false)
-                        : await battery.GetDynamicScheduleAsync().ConfigureAwait(false);
+                    var schedule = await battery.GetScheduleAsync().ConfigureAwait(false);
 
                     if (schedule?.DynamicSchedule == null) continue;
 

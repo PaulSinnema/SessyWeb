@@ -47,6 +47,13 @@ namespace SessyController.Services
     /// A blind default written over a value that was tuned on measurements is a step backwards,
     /// and it would be rewritten every night for three weeks, so the field could never be
     /// corrected by hand in the meantime.
+    ///
+    /// Both fits count every quarter, whoever was driving the batteries. They compare a forecast
+    /// against what the sun and the house actually did, and neither cares who set the battery
+    /// setpoint — a period under Charged is just as valid evidence about forecast error and about
+    /// what the house draws at night. Do not add the control-mode filter that
+    /// ThrottleAnalysisService needs; that one measures our own setpoint against reality and is
+    /// meaningless when we did not send it.
     /// </summary>
     public class PlannerLearningService
     {

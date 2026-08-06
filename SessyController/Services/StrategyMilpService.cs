@@ -35,11 +35,12 @@ namespace SessyController.Services
             ReplacementCostService replacementCostService,
             ThrottleAnalysisService throttleAnalysisService,
             WeatherService weatherService,
-            BatteryEfficiencyService batteryEfficiencyService)
+            BatteryEfficiencyService batteryEfficiencyService,
+            ControlModeService controlMode)
             : base(logger, settingsService, sessyBatteryConfigMonitor, batteryContainer,
                    timeZoneService, taxesDataService, plannedActionDataService, plannedQuarterDataService,
                    forecastSnapshotDataService, chargeCostBasisService, replacementCostService,
-                   throttleAnalysisService, weatherService)
+                   throttleAnalysisService, weatherService, controlMode)
         {
             _strategy = strategy;
             _batteryEfficiencyService = batteryEfficiencyService;
@@ -64,6 +65,19 @@ namespace SessyController.Services
                 // pays. Derived from measurements, with a configured fallback.
                 var (chargeEfficiency, dischargeEfficiency) = await _batteryEfficiencyService
                     .GetEfficienciesAsync().ConfigureAwait(false);
+
+                // ... and how much of it survives depends on the power it moves at, because a large
+                // part of the conversion loss is fixed overhead. Without this the planner sees no
+                // reason to concentrate energy in fewer, fuller quarters.
+                var efficiencyCurve = await _batteryEfficiencyService
+                    .GetEfficiencyCurveAsync().ConfigureAwait(false);
+
+                if (efficiencyCurve.Samples > 0 && efficiencyCurve.ChargeOverheadKW > 0.0)
+                    _logger.LogInformation(
+                        $"Efficiency curve fitted on {efficiencyCurve.Samples} samples: " +
+                        $"charge {efficiencyCurve.ChargeCeiling:F3} - {efficiencyCurve.ChargeOverheadKW:F3}/kW " +
+                        $"({efficiencyCurve.ChargeAt(1.0):F2} at 1 kW, {efficiencyCurve.ChargeAt(5.0):F2} at 5 kW), " +
+                        $"discharge {efficiencyCurve.DischargeCeiling:F3} - {efficiencyCurve.DischargeOverheadKW:F3}/kW.");
 
                 var nowQuarter = _timeZoneService.Now.DateFloorQuarter();
 
@@ -211,7 +225,8 @@ namespace SessyController.Services
                     MaxDischargeKW: maxDischargeKW,
                     ChargeEfficiency: chargeEfficiency,
                     DischargeEfficiency: dischargeEfficiency,
-                    ChargeTaper: chargeTaper);
+                    ChargeTaper: chargeTaper,
+                    Efficiency: efficiencyCurve);
 
                 // What replacing a kWh will cost, measured over a trailing window. It prices both
                 // the floor under selling stock and the option of keeping energy past the end of

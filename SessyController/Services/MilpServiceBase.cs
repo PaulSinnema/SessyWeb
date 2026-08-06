@@ -30,6 +30,7 @@ namespace SessyController.Services
         protected readonly ReplacementCostService _replacementCostService;
         protected readonly ThrottleAnalysisService _throttleAnalysisService;
         protected readonly WeatherService _weatherService;
+        private readonly ControlModeService _controlMode;
 
         protected SettingsService _settingsService;
         protected Settings _settingsConfig;
@@ -120,9 +121,11 @@ namespace SessyController.Services
             ChargeCostBasisService chargeCostBasisService,
             ReplacementCostService replacementCostService,
             ThrottleAnalysisService throttleAnalysisService,
-            WeatherService weatherService)
+            WeatherService weatherService,
+            ControlModeService controlMode)
         {
             _logger = logger;
+            _controlMode = controlMode;
             _sessyBatteryConfigMonitor = sessyBatteryConfigMonitor;
             _batteryContainer = batteryContainer;
             _timeZoneService = timeZoneService;
@@ -433,21 +436,36 @@ namespace SessyController.Services
                 var qi = ordered[i];
 
                 // ── minSoc: reserve for the next no-solar window ─────────────
+                // Only what the sun will not deliver first. Reserving across a solar window meant
+                // that at sunrise the battery still held energy for the NEXT evening — a night and
+                // a full solar day away — so it could not be sold into the evening peak it was
+                // sitting in. On 06-08 that left 21% in the battery at first light while the
+                // evening had been paying €0,30/kWh.
                 double nightReserveWh = 0.0;
+                double solarBeforeWh = 0.0;
                 bool solarSeen = false;
+
                 for (int j = i + 1; j < ordered.Count; j++)
                 {
                     var future = ordered[j];
+
                     if (future.NetLoadWh <= 0.0)
                     {
-                        if (solarSeen)
-                            break; // Second solar window = tomorrow — stop here.
+                        if (solarSeen && nightReserveWh > 0.0)
+                            break; // Second solar window = the day after — stop here.
+
                         solarSeen = true;
+                        solarBeforeWh += -future.NetLoadWh;   // surplus that refills before then
                         continue;
                     }
+
                     nightReserveWh += future.NetLoadWh;
                 }
-                double minSocWh = Math.Min(nightReserveWh * reserveSafetyFactor, capWh * nightCapRatio);
+
+                // The forecast can be wrong, so the safety factor stays on the part that has to
+                // come out of the battery. When the sun covers it all, nothing is held back.
+                double neededWh = Math.Max(0.0, nightReserveWh - solarBeforeWh);
+                double minSocWh = Math.Min(neededWh * reserveSafetyFactor, capWh * nightCapRatio);
 
                 // maxSoc = full capacity. The grid-balance solver decides for itself
                 // whether to store solar surplus or export it, so no artificial headroom
@@ -514,8 +532,13 @@ namespace SessyController.Services
                 int newCount = currentKnownTimes.Count(t => !_lastKnownPriceTimes.Contains(t));
                 reason = $"New EPEX prices arrived ({newCount} quarters)"; forced = true;
             }
-            else if (Math.Abs(GetCurrentSocDeviationPct(_timeZoneService.Now, currentSocWh)) > SocDeviationThresholdPct)
+            else if (_controlMode.WeMayDriveTheBatteries
+                     && Math.Abs(GetCurrentSocDeviationPct(_timeZoneService.Now, currentSocWh)) > SocDeviationThresholdPct)
             {
+                // Only news while we are driving. Under Charged the SOC walks away from our plan
+                // by design — that is not a deviation to correct, it is someone else steering, and
+                // forcing a rebuild on it re-anchors the plan and writes a PlannedActions row every
+                // time the gap reopens. The plan stays fresh on the quarterly speculative solve.
                 reason = $"SOC deviation exceeded {SocDeviationThresholdPct}%"; forced = true;
             }
             else if (_lastSpeculativeSolveQuarter != nowQuarter)
