@@ -11,6 +11,29 @@
     }
 </style>
 
+@* Says whose plan is on screen. Without it the chart looks the same whether the bars are ours or
+   Charged's, which is exactly the confusion this is meant to remove. The dashed line is always the
+   plan that is NOT being executed. *@
+<div style="padding: 2px 8px; font-size: 0.85em; color: var(--rz-text-secondary-color);">
+    @if (ChargedInControl)
+    {
+        <text><b>Charged</b> is in control — the areas are the batteries' own schedule, the dashed line is SessyWeb's plan.</text>
+    }
+    else
+    {
+        <text><b>SessyWeb</b> is in control — the areas are our plan, the dashed line is what Charged would have done.</text>
+    }
+
+    @if (ChargedScheduleFetchedAt != null)
+    {
+        <text> Charged's schedule read at @ChargedScheduleFetchedAt.Value.ToString("HH:mm").</text>
+    }
+    else
+    {
+        <text> No schedule received from the batteries yet.</text>
+    }
+</div>
+
 <div class="now-chart" style="width: 100%; overflow: auto;">
     <RadzenChart Style=@GraphStyle @ref=@QuarterlyHourChart AllowSeriesHover="false">
         <RadzenLegend Position="@((ScreenInfo?.IsMobile ?? false) ? LegendPosition.Right : LegendPosition.Top)" Visible="true" />
@@ -126,7 +149,8 @@
             </ChildContent>
         </RadzenAreaSeries>
 
-        <RadzenAreaSeries Data="@QuarterlyInfos"
+        <RadzenAreaSeries Visible="@WeAreInControl"
+                          Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
                           Fill="rgba(255, 0, 0, 0.45)"
@@ -143,7 +167,8 @@
             </ChildContent>
         </RadzenAreaSeries>
 
-        <RadzenAreaSeries Data="@QuarterlyInfos"
+        <RadzenAreaSeries Visible="@WeAreInControl"
+                          Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
                           Fill="rgba(255, 0, 0, 0.45)"
@@ -160,7 +185,10 @@
             </ChildContent>
         </RadzenAreaSeries>
 
-        <RadzenAreaSeries Data="@QuarterlyInfos"
+        @* Our own plan as filled areas — only while SessyWeb is the one executing it. Under
+           Charged the same numbers come back below as a dashed shadow line. *@
+        <RadzenAreaSeries Visible="@(!ChargedInControl)"
+                          Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
                           Fill="rgba(255, 102, 0, 0.5)"
@@ -176,7 +204,8 @@
             </ChildContent>
         </RadzenAreaSeries>
 
-        <RadzenAreaSeries Data="@QuarterlyInfos"
+        <RadzenAreaSeries Visible="@(!ChargedInControl)"
+                          Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
                           Fill="rgba(0, 204, 68, 0.5)"
@@ -191,6 +220,117 @@
                 <RadzenSeriesDataLabels Visible="false" />
             </ChildContent>
         </RadzenAreaSeries>
+
+        @* Charged's own schedule. Same colours as the plan areas above so charging still reads as
+           orange below zero and discharging as green above it. *@
+        <RadzenAreaSeries Visible="@ChargedInControl"
+                          Data="@QuarterlyInfos"
+                          Smooth="true"
+                          CategoryProperty="Time"
+                          Fill="rgba(255, 102, 0, 0.5)"
+                          Stroke="#ff6600"
+                          Title="Charged charge (kW)"
+                          ValueProperty="ChargedChargePowerVisual">
+            <TooltipTemplate Context="data">
+                <ChargingHoursTooltip QuarterlyInfo=@data />
+            </TooltipTemplate>
+            <ChildContent>
+                <RadzenMarkers Visible="false" />
+                <RadzenSeriesDataLabels Visible="false" />
+            </ChildContent>
+        </RadzenAreaSeries>
+
+        <RadzenAreaSeries Visible="@ChargedInControl"
+                          Data="@QuarterlyInfos"
+                          Smooth="true"
+                          CategoryProperty="Time"
+                          Fill="rgba(0, 204, 68, 0.5)"
+                          Stroke="#00cc44"
+                          Title="Charged discharge (kW)"
+                          ValueProperty="ChargedDischargePowerVisual">
+            <TooltipTemplate Context="data">
+                <ChargingHoursTooltip QuarterlyInfo=@data />
+            </TooltipTemplate>
+            <ChildContent>
+                <RadzenMarkers Visible="false" />
+                <RadzenSeriesDataLabels Visible="false" />
+            </ChildContent>
+        </RadzenAreaSeries>
+
+        @* The mirror image: while SessyWeb executes, Charged's own schedule is the road not taken.
+           Same dashed treatment, so whichever plan is not being executed reads as a shadow. *@
+        <RadzenLineSeries Visible="@(!ChargedInControl)"
+                          Data="@QuarterlyInfos"
+                          Smooth="true"
+                          CategoryProperty="Time"
+                          Stroke="#ff6600"
+                          StrokeWidth="1"
+                          LineType="LineType.Dashed"
+                          Title="Charged plan charge (kW)"
+                          ValueProperty="ChargedChargePowerVisual">
+            <TooltipTemplate Context="data">
+                <ChargingHoursTooltip QuarterlyInfo=@data />
+            </TooltipTemplate>
+            <ChildContent>
+                <RadzenMarkers Visible="false" />
+                <RadzenSeriesDataLabels Visible="false" />
+            </ChildContent>
+        </RadzenLineSeries>
+
+        <RadzenLineSeries Visible="@(!ChargedInControl)"
+                          Data="@QuarterlyInfos"
+                          Smooth="true"
+                          CategoryProperty="Time"
+                          Stroke="#00cc44"
+                          StrokeWidth="1"
+                          LineType="LineType.Dashed"
+                          Title="Charged plan discharge (kW)"
+                          ValueProperty="ChargedDischargePowerVisual">
+            <TooltipTemplate Context="data">
+                <ChargingHoursTooltip QuarterlyInfo=@data />
+            </TooltipTemplate>
+            <ChildContent>
+                <RadzenMarkers Visible="false" />
+                <RadzenSeriesDataLabels Visible="false" />
+            </ChildContent>
+        </RadzenLineSeries>
+
+        @* What SessyWeb would have done instead — the price of handing over control, in one line. *@
+        <RadzenLineSeries Visible="@ChargedInControl"
+                          Data="@QuarterlyInfos"
+                          Smooth="true"
+                          CategoryProperty="Time"
+                          Stroke="#ff6600"
+                          StrokeWidth="1"
+                          LineType="LineType.Dashed"
+                          Title="SessyWeb plan charge (kW)"
+                          ValueProperty="PlannedChargePowerVisual">
+            <TooltipTemplate Context="data">
+                <ChargingHoursTooltip QuarterlyInfo=@data />
+            </TooltipTemplate>
+            <ChildContent>
+                <RadzenMarkers Visible="false" />
+                <RadzenSeriesDataLabels Visible="false" />
+            </ChildContent>
+        </RadzenLineSeries>
+
+        <RadzenLineSeries Visible="@ChargedInControl"
+                          Data="@QuarterlyInfos"
+                          Smooth="true"
+                          CategoryProperty="Time"
+                          Stroke="#00cc44"
+                          StrokeWidth="1"
+                          LineType="LineType.Dashed"
+                          Title="SessyWeb plan discharge (kW)"
+                          ValueProperty="PlannedDischargePowerVisual">
+            <TooltipTemplate Context="data">
+                <ChargingHoursTooltip QuarterlyInfo=@data />
+            </TooltipTemplate>
+            <ChildContent>
+                <RadzenMarkers Visible="false" />
+                <RadzenSeriesDataLabels Visible="false" />
+            </ChildContent>
+        </RadzenLineSeries>
 
         @* Actual battery power, in the same colours as the planned areas. Bound to
            ActualPowerPoints (only quarters with a real reading), so these end at "now" instead
@@ -261,12 +401,31 @@
             </ChildContent>
         </RadzenLineSeries>
 
-        <RadzenLineSeries Data="@QuarterlyInfos"
+        @* SOC. Under Charged this follows their schedule instead of our plan simulation, which
+           would otherwise draw a curve for something that is not going to happen. *@
+        <RadzenLineSeries Visible="@(!ChargedInControl)"
+                          Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
                           Stroke="red"
                           Title="Charge remaining (kWh)"
                           ValueProperty="ChargeLeftVisual">
+            <TooltipTemplate Context="data">
+                <ChargingHoursTooltip QuarterlyInfo=@data />
+            </TooltipTemplate>
+            <ChildContent>
+                <RadzenMarkers Visible="false" />
+                <RadzenSeriesDataLabels Visible="false" />
+            </ChildContent>
+        </RadzenLineSeries>
+
+        <RadzenLineSeries Visible="@ChargedInControl"
+                          Data="@QuarterlyInfos"
+                          Smooth="true"
+                          CategoryProperty="Time"
+                          Stroke="red"
+                          Title="Charge remaining, Charged (kWh)"
+                          ValueProperty="ChargedChargeLeftVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
             </TooltipTemplate>

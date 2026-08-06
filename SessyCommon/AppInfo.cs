@@ -9,6 +9,6 @@ namespace SessyCommon
     /// </summary>
     public static class AppInfo
     {
-        public const string Version = "v1.0.44";
+        public const string Version = "v1.0.46";
     }
 }

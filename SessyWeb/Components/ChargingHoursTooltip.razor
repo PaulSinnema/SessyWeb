@@ -90,6 +90,26 @@
             <span class="sw-tt-k">Planned SOC</span>
             <span class="sw-tt-v">@fmt(q?.PlannedChargeLeftWh, "0") Wh</span>
         }
+
+        @* While Charged is in control the line above is what SessyWeb would have done; this is what
+           the batteries are actually going to do. *@
+        @if (q?.HasChargedPlan ?? false)
+        {
+            <span class="sw-tt-k">Charged</span>
+            <span class="sw-tt-v">
+                @if (q!.ChargedChargePowerW > 10)
+                {
+                    <text>charging · </text><span style="color:#ffaa33;">@fmt(q.ChargedChargePowerW, "0") W</span>
+                }
+                else
+                {
+                    <text>discharging · </text><span style="color:#66ff99;">@fmt(q.ChargedDischargePowerW, "0") W</span>
+                }
+            </span>
+
+            <span class="sw-tt-k">Charged SOC</span>
+            <span class="sw-tt-v">@fmt(q?.ChargedChargeLeftWh, "0") Wh</span>
+        }
     </div>
 
     @if (hasDeviation)

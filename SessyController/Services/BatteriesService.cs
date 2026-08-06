@@ -54,6 +54,8 @@ namespace SessyController.Services
         private HardwareStatusService _hardwareStatus;
         private ActualQuarterDataService _actualQuarterDataService;
         private PlannerLearningService _plannerLearningService;
+        private ChargedScheduleService _chargedScheduleService;
+        private BatteryEfficiencyService _batteryEfficiencyService;
 
         // Curtailment: throttles the solar inverter when price is negative.
         private InverterCurtailmentService _inverterCurtailmentService;
@@ -108,6 +110,8 @@ namespace SessyController.Services
             _stateMachine = _scope.ServiceProvider.GetRequiredService<EnergySystemStateMachine>();
             _actualQuarterDataService = _scope.ServiceProvider.GetRequiredService<ActualQuarterDataService>();
             _plannerLearningService = _scope.ServiceProvider.GetRequiredService<PlannerLearningService>();
+            _chargedScheduleService = _scope.ServiceProvider.GetRequiredService<ChargedScheduleService>();
+            _batteryEfficiencyService = _scope.ServiceProvider.GetRequiredService<BatteryEfficiencyService>();
             _systemInput = new EnergySystemInput(
                 _hardwareStatus,
                 _milpService,
@@ -227,6 +231,12 @@ namespace SessyController.Services
                 // Delegate all MILP planning to MilpService.
                 await _milpService.BuildPlanAsync(_quarterlyInfos, currentSocWh).ConfigureAwait(false);
 
+                // What the batteries plan for themselves, whoever is executing: under Charged it is
+                // what will happen, under our own control it is the alternative we did not take.
+                // Runs after BuildPlanAsync, which rewrites the QuarterlyInfos every cycle.
+                // A plain read, so unlike the handover below it also runs in a debug session.
+                await ApplyChargedScheduleAsync().ConfigureAwait(false);
+
                 if (await WeControlTheBatteries().ConfigureAwait(false))
                 {
                     await _systemInput.LoadAsync().ConfigureAwait(false);
@@ -261,8 +271,6 @@ namespace SessyController.Services
                                 await _batteryContainer.StartRoi().ConfigureAwait(false);
                                 break;
                         }
-
-                        await ApplyChargedScheduleAsync().ConfigureAwait(false);
                     }
                     else
                     {
@@ -559,11 +567,11 @@ namespace SessyController.Services
 
             if (_settingsConfig.ChargedInControl)
             {
-                // When Charged is in control, find the next quarter that has a
-                // mode set from the Sessy dynamic schedule.
+                // When Charged is in control the next action comes from their schedule, not from
+                // our plan — a quarter counts when their schedule puts power on it.
                 return _quarterlyInfos
                     .OrderBy(q => q.Time)
-                    .FirstOrDefault(q => q.Time > now && q.Mode != Modes.Unknown);
+                    .FirstOrDefault(q => q.Time > now && Math.Abs(q.ChargedPlanPowerW) > 10.0);
             }
 
             return _quarterlyInfos
@@ -572,48 +580,42 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Fetches the dynamic schedule from the Sessy batteries (when Charged controls them)
-        /// and maps the planned power values onto the QuarterlyInfo objects so the chart and
-        /// mobile view can display Charged's plan.
+        /// Reads what the batteries plan for themselves and writes it onto the QuarterlyInfo
+        /// objects, next to our own plan. Whichever of the two is not executing is drawn as a
+        /// shadow on the chart, so the difference between the two strategies is visible either way.
+        ///
+        /// Our own plan fields are deliberately left alone: they feed the planner, the database and
+        /// the reporting, and overwriting them (as this method used to do) made every consumer
+        /// believe the MILP had produced Charged's numbers.
         /// </summary>
         private async Task ApplyChargedScheduleAsync()
         {
             try
             {
-                var battery = _batteryContainer.Batteries?.FirstOrDefault();
-                if (battery == null) return;
+                var powerByQuarter = await _chargedScheduleService.RefreshAsync().ConfigureAwait(false);
 
-                var schedule = await battery.GetChargedScheduleAsync().ConfigureAwait(false);
-                if (schedule?.DynamicSchedule == null || schedule.DynamicSchedule.Count == 0)
-                    return;
+                if (powerByQuarter.Count == 0) return;
 
-                foreach (var item in schedule.DynamicSchedule)
+                var nowQuarter = _timeZoneService.Now.DateFloorQuarter();
+                var socWh = await _batteryContainer.GetStateOfChargeInWatts().ConfigureAwait(false);
+                var (chargeEfficiency, dischargeEfficiency) =
+                    await _batteryEfficiencyService.GetEfficienciesAsync().ConfigureAwait(false);
+
+                var socByQuarter = ChargedScheduleService.Project(
+                    powerByQuarter,
+                    nowQuarter,
+                    socWh,
+                    _batteryContainer.GetTotalCapacity(),
+                    chargeEfficiency,
+                    dischargeEfficiency);
+
+                foreach (var qi in _quarterlyInfos)
                 {
-                    // Each schedule item may span multiple quarters (15-min slots).
-                    var start = item.StartTime;
-                    var end = item.EndTime;
+                    if (!powerByQuarter.TryGetValue(qi.Time, out var powerW)) continue;
 
-                    for (var time = start; time < end; time = time.AddMinutes(15))
-                    {
-                        var qi = _quarterlyInfos.FirstOrDefault(q => q.Time == time);
-                        if (qi == null) continue;
+                    socByQuarter.TryGetValue(qi.Time, out var chargeLeftWh);
 
-                        if (item.Power < 0)
-                        {
-                            qi.SetMode(Modes.Charging);
-                            qi.SetPlanPower(Math.Abs(item.Power), 0);
-                        }
-                        else if (item.Power > 0)
-                        {
-                            qi.SetMode(Modes.Discharging);
-                            qi.SetPlanPower(0, item.Power);
-                        }
-                        else
-                        {
-                            qi.SetMode(Modes.Disabled);
-                            qi.SetPlanPower(0, 0);
-                        }
-                    }
+                    qi.SetChargedPlan(powerW, chargeLeftWh);
                 }
             }
             catch (Exception ex)

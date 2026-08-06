@@ -152,6 +152,7 @@ builder.Services.AddSingleton<SettingsService>();
 builder.Services.AddSingleton<ExpectedPriceService>();
 builder.Services.AddSingleton<SessyWebControlDataService>();
 builder.Services.AddSingleton<AppVersionDataService>();
+builder.Services.AddSingleton<ChargedScheduleService>();
 builder.Services.AddSingleton<TaxesDataService>();
 builder.Services.AddSingleton<ConsumptionMonitorService>();
 builder.Services.AddSingleton<DatabaseBackupService>();

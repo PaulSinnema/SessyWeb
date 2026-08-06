@@ -77,6 +77,12 @@ namespace SessyWeb.Pages
 
             DisplayState = actualDisplayState ?? qi.GetDisplayMode() ?? string.Empty;
 
+            // ── Charged's own schedule ───────────────────────────────────────
+            // Sessy's sign convention: negative charges, positive discharges.
+            ChargedChargePowerW = qi.ChargedPlanPowerW < 0 ? Math.Abs(qi.ChargedPlanPowerW) : 0.0;
+            ChargedDischargePowerW = qi.ChargedPlanPowerW > 0 ? qi.ChargedPlanPowerW : 0.0;
+            ChargedChargeLeftWh = qi.ChargedChargeLeftWh;
+
             // ── Planned values (from PlannedQuarter DB record) ───────────────
             PlannedDisplayState = plannedQuarter?.PlannedMode ?? qi.GetDisplayMode() ?? string.Empty;
             PlannedChargeLeftWh = plannedQuarter?.PlannedChargeLeftWh ?? qi.ChargeLeftWh;
@@ -169,6 +175,14 @@ namespace SessyWeb.Pages
         public double PlannedUnthrottledPowerW { get; }
         public string PlanDeviationReason { get; }
 
+        // ── Charged's schedule ────────────────────────────────────────────────
+        // What the batteries plan for themselves; only filled while Charged is in control.
+        public double ChargedChargePowerW { get; }
+        public double ChargedDischargePowerW { get; }
+        public double ChargedChargeLeftWh { get; }
+
+        public bool HasChargedPlan => ChargedChargePowerW > 0.0 || ChargedDischargePowerW > 0.0;
+
         // ── Now line (mutable — set by chart component) ───────────────────────
         public double NowLineHeight { get; set; } = 0.0;
 
@@ -200,6 +214,11 @@ namespace SessyWeb.Pages
                 ? PlannedUnthrottledPowerW / 18000.0
                 : PlannedDischargePowerVisual;
         public double PlannedChargeLeftVisual => PlannedChargeLeftWh / 100000.0;
+
+        // Charged's schedule, same scale as the plan series so both overlay directly.
+        public double ChargedChargePowerVisual => -(ChargedChargePowerW / 18000.0);
+        public double ChargedDischargePowerVisual => ChargedDischargePowerW / 18000.0;
+        public double ChargedChargeLeftVisual => ChargedChargeLeftWh / 100000.0;
 
         public double ChargeNeededVisual => ChargeNeeded / 100000.0;
         public double ChargeLeftVisual => ChargeLeft / 100000.0;

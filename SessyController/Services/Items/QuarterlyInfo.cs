@@ -150,6 +150,23 @@ namespace SessyController.Services.Items
         public double PlannedUnthrottledPowerW { get; private set; }
 
         /// <summary>
+        /// What the batteries plan for themselves while Charged is in control, in Watts, in Sessy's
+        /// sign convention: negative charges, positive discharges. Kept next to our own plan rather
+        /// than overwriting it, so the chart can draw both and the planner, the database and the
+        /// reporting keep seeing the plan they were built on.
+        /// </summary>
+        public double ChargedPlanPowerW { get; private set; }
+
+        /// <summary>State of charge (Wh) this quarter ends on when Charged's schedule is followed.</summary>
+        public double ChargedChargeLeftWh { get; private set; }
+
+        public void SetChargedPlan(double powerW, double chargeLeftWh)
+        {
+            ChargedPlanPowerW = powerW;
+            ChargedChargeLeftWh = chargeLeftWh;
+        }
+
+        /// <summary>
         /// Projected FIFO cost basis (EUR per *stored* kWh) of the energy in the battery at
         /// this quarter, simulated forward through the current plan. Energy covered by solar
         /// surplus is free; the rest carries its buying price divided by the charge efficiency.

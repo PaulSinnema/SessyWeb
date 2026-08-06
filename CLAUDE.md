@@ -286,6 +286,36 @@ logt zichzelf boven 500 ms. Openstaand: die maand-loops zelf één keer laten op
 geheugen groeperen. Bijvangst: de `charge clamped`-logregel spamde tientallen identieke regels per
 kwartier en logt nu alleen nog materiële correcties (≥250 W), één keer per kwartier.
 
+## Gebouwd 06-08 (v1.0.45)
+**Grafiek toont Charged's eigen schema als Charged de controle heeft.** Er stond al machinerie
+(`ApplyChargedScheduleAsync`), maar die deugde niet: hij las één batterij en zette dat vermogen weg
+als systeemtotaal (staven ~⅓ te laag), overschreef daarmee ónze planvelden — die de planner, de DB
+en de rapportage voeden — en stond binnen `#if !DEBUG`, dus lokaal zag je nooit iets.
+1. Nieuwe `ChargedScheduleService`: haalt `/api/v2/dynamic/schedule` bij **alle** batterijen op en
+   telt per kwartier op. `ToQuarters` (blok → kwartieren; vermogen is een tempo, dus niet delen) en
+   `Project` (SOC vanaf de gemeten stand, met rendement en begrenzing) zijn statisch en puur, dus
+   testbaar zonder hardware — zelfde opzet als `ChargeCostBasisService.Project`.
+2. `QuarterlyInfo.ChargedPlanPowerW` / `ChargedChargeLeftWh` staan **naast** ons plan (Sessy's
+   tekenconventie: negatief laadt). Niets wordt meer overschreven.
+3. Grafiek: onder Charged zijn hun staven de hoofdserie, ons MILP-plan een gestippelde schaduwlijn,
+   en volgt de SOC-lijn hun schema. Series die onder Charged betekenisloos zijn (revenue, zero net
+   home, charge needed, throttle loss) staan op `WeAreInControl`. Boven de grafiek staat wie er
+   stuurt en hoe oud het schema is. Onzichtbare Radzen-series kosten geen rendertijd, dus dit werkt
+   mee met de render-gating uit v1.0.40.
+4. Het ophalen staat nu buiten `#if !DEBUG` (een schema opvragen is read-only); alleen het
+   daadwerkelijk overdragen van de aansturing blijft in de DEBUG-guard.
+Tests: `ChargedScheduleTests` (9). Let op bij tests die `DynamicScheduleItem` gebruiken:
+`TimeZoneService.FromUnixTime` leest een statisch veld dat pas gevuld is nadat er één
+`TimeZoneService` is geconstrueerd.
+
+**Vergelijking beide kanten op (v1.0.46).** De batterijen plannen door, ook als wij aansturen, dus
+het schema wordt nu altijd opgehaald: onder Charged via `GetChargedScheduleAsync`, anders via
+`GetDynamicScheduleAsync` (zelfde endpoint, de guards in `SessyService` laten per controlemodus maar
+één van de twee door). In de grafiek is de gestippelde lijn altijd het plan dat *niet* wordt
+uitgevoerd — onder Charged het onze, onder eigen aansturing dat van Charged. Ophalen is afgeknepen
+op één keer per 5 minuten (`MinRefreshInterval`), geteld vanaf de póging, anders wordt een batterij
+die een leeg schema teruggeeft elke cyclus opnieuw bevraagd.
+
 ## Openstaande punten
 1. Verifiëren op productiedata: revenue mét en zonder `CarryForwardEnabled` op teruggespeelde dagen vergelijken (niet naar SOC kijken). Faalmodus: terminal value te hoog → batterij laadt alleen nog en verkoopt nooit.
 2. **Hittegolf-validatie (vanaf 28-07, ~34°C Apeldoorn).** Model is gefit op data tot 30°C, dus 34°C is extrapolatie. Toetsen: voorspelde ratio bij 50% SOC ≈ 0,52 bij temp 34 / t48 30 (tegen ≈ 0,77 op een koele dag) — dus ~3400W i.p.v. ~5100W gevraagd laadvermogen. Narekenen of de gemeten ratio's daarbij in de buurt komen en of het residu vlak blijft.

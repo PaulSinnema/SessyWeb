@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Components;
 using Radzen.Blazor;
 using SessyCommon.Extensions;
+using SessyController.Services;
 using SessyController.Services.Items;
 using SessyData.Model;
 using SessyData.Services;
@@ -34,6 +35,12 @@ namespace SessyWeb.Components
 
         [Inject]
         private PlannedActionDataService? _plannedActionDataService { get; set; }
+
+        [Inject]
+        private ChargedScheduleService? _chargedScheduleService { get; set; }
+
+        /// <summary>When Charged's schedule was last read from the batteries; null while none arrived.</summary>
+        public DateTime? ChargedScheduleFetchedAt => _chargedScheduleService?.LastFetched;
 
         [Parameter]
         public List<QuarterlyInfoView> QuarterlyInfos { get; set; } = new();
@@ -204,6 +211,8 @@ namespace SessyWeb.Components
         private string? _renderedGraphStyle;
         private bool _renderedShowAll;
         private DateTime _renderedQuarter;
+        private bool _renderedChargedInControl;
+        private DateTime? _renderedScheduleFetchedAt;
         private bool _dirty = true;
 
         /// <summary>Marks the chart as needing a redraw; the plan-history paths call it directly.</summary>
@@ -236,7 +245,9 @@ namespace SessyWeb.Components
             bool changed = !ReferenceEquals(_renderedSeries, QuarterlyInfos)
                         || _renderedGraphStyle != GraphStyle
                         || _renderedShowAll != ShowAll
-                        || _renderedQuarter != nowQuarter;
+                        || _renderedQuarter != nowQuarter
+                        || _renderedChargedInControl != ChargedInControl
+                        || _renderedScheduleFetchedAt != ChargedScheduleFetchedAt;
 
             if (!changed) return;
 
@@ -244,6 +255,8 @@ namespace SessyWeb.Components
             _renderedGraphStyle = GraphStyle;
             _renderedShowAll = ShowAll;
             _renderedQuarter = nowQuarter;
+            _renderedChargedInControl = ChargedInControl;
+            _renderedScheduleFetchedAt = ChargedScheduleFetchedAt;
             MarkDirty();
 
             ActualPowerPoints = QuarterlyInfos.Where(q => q.HasActualPower).ToList();
