@@ -59,6 +59,7 @@ Everything runs locally. The database is a SQLite file on your own disk; the onl
 **Software**
 
 - Docker, or Docker Desktop, or Synology Container Manager. Nothing else — there is a ready-made image, so you need neither .NET nor the source code to run SessyWeb.
+- **No Docker Hub account.** The image lives in GitHub's own registry and is public, so pulling it needs no login at all. "Docker" the software and "Docker Hub" the website are two different things; you only need the first.
 - Memory to spare for the container. The example below gives it 4 GB; day to day it uses far less, but a NAS that hands out 512 MB will make it struggle.
 
 **Skill level**: you need to be able to edit a text file and run one or two commands in a terminal. No programming required.
@@ -247,7 +248,9 @@ The numbering must line up with `appsettings.json`: battery `"1"` here is batter
 
 ### Step 6 — Start the container
 
-A ready-made image is published on every change, so there is nothing to build and you do not need the source code. Create a file called **`docker-compose.yml`** next to the two folders you made in Step 3:
+A ready-made image is published on every change, so there is nothing to build and you do not need the source code. It is public, so no `docker login` is required anywhere in this guide.
+
+Create a file called **`docker-compose.yml`** next to the two folders you made in Step 3:
 
 ```yaml
 services:
@@ -281,7 +284,7 @@ The first start downloads the image, which takes a minute or two. Watch it come 
 docker compose logs -f
 ```
 
-Images are published for both `linux/amd64` and `linux/arm64`, so the same line works on an Intel NAS, an ARM NAS and a Raspberry Pi.
+Images are published for both `linux/amd64` and `linux/arm64`, so the same line works on an Intel NAS, an ARM NAS and a Raspberry Pi. Docker picks the right one for your machine by itself; to see what is on offer, run `docker buildx imagetools inspect ghcr.io/paulsinnema/sessyweb:latest`.
 
 **Updating later** is two commands, and your configuration and database are untouched because they live in the mounted folders:
 
@@ -436,6 +439,7 @@ docker compose restart          # restart after editing appsettings.json
 | Battery does not react | On **Settings → Management Settings**, check **Charged in control** — if it is ticked, SessyWeb deliberately sends no commands. Refused writes are logged as warnings, so the log tells you which mode blocked them. |
 | SOC deviation warnings | Normal. The planner corrects every quarter. |
 | Container restarts or is killed | Out of memory — raise `mem_limit` (or the NAS memory limit) and check whether anything else on the machine is competing for RAM. |
+| `denied` or `unauthorized` when pulling | You are pulling a tag that does not exist. The image itself is public and needs no login: check the spelling of `ghcr.io/paulsinnema/sessyweb` (all lowercase) and pick a tag from the [package page](https://github.com/PaulSinnema/SessyWeb/pkgs/container/sessyweb). |
 | Everything is slow | Look for `DbHelper: slow`, `ThreadPool busy` or `UI blocked` in the log and open an issue with those lines. |
 
 ---
@@ -483,7 +487,14 @@ An API browser is available at `/swagger`.
 
 ### Building and publishing the image
 
-Every push to `master` triggers `.github/workflows/docker-publish.yml`, which builds for `linux/amd64` and `linux/arm64` and pushes to `ghcr.io/paulsinnema/sessyweb`. The image tag is read straight from `SessyCommon/AppInfo.cs`, so bumping the version there is what names the release; `latest` moves along with it. No secrets are configured — the workflow authenticates with the token GitHub hands it.
+Every push to `master` triggers `.github/workflows/docker-publish.yml`, which builds for `linux/amd64` and `linux/arm64` and pushes to `ghcr.io/paulsinnema/sessyweb`. The image tag is read straight from `SessyCommon/AppInfo.cs`, so bumping the version there is what names the release; `latest` moves along with it. A cold run takes about five minutes; after that the BuildKit cache makes it noticeably quicker.
+
+Publishing therefore needs no manual step at all — no `docker build`, no `docker push`, no registry login. Some details that are easy to trip over if you fork this repository:
+
+- **No secrets to configure.** The workflow signs in to ghcr.io with the token GitHub hands the job, which is created and discarded per run. There is no Docker Hub account involved anywhere.
+- **Actions must be enabled.** A repository with Actions switched off lists the workflow as *active* but never starts a run, which looks exactly like a workflow that is being ignored. Check *Settings → Actions → General → Allow all actions*.
+- **Run it by hand** from the workflow page — the `workflow_dispatch` trigger puts a **Run workflow** button there. Useful for the first run, or after fixing the workflow itself without wanting a new commit.
+- **Package visibility is inherited from the repository.** Because this repo is public the image is public too, so no visibility switch has to be flipped after the first publish. Fork it privately and the image is private as well, and then anything pulling it must log in.
 
 To build the same image locally:
 
