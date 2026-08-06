@@ -39,7 +39,7 @@ Migrations are applied automatically at startup in `SessyWeb/Program.cs` (`dbCon
 ## Repository conventions
 
 - **Do not run git operations** (commit, push, branch) — local edits only unless explicitly asked.
-- **Bump the version on every change**: increment the patch in `SessyWeb/Shared/MainLayout.razor:9` (`string Version = "v1.0.x";`).
+- **Bump the version on every change**: increment the patch in `SessyCommon/AppInfo.cs` (`public const string Version = "v1.0.x";`). MainLayout shows it and `Program.cs` writes it into the `AppVersions` table at startup, so this is the only place to edit.
 - Comments and log messages are a mix of English and Dutch; match the surrounding file.
 - Region separators use the `// ── Name ─────` box-drawing style.
 
@@ -122,7 +122,7 @@ C#/.NET Blazor Server EMS. Stuurt 3× Sessy batterij (cap 16,2 kWh; raw charge 6
 - **Niet gissen**: eerst verifiëren in code/DB/web. Deze sessie ging herhaaldelijk mis door aannames — meerdere keren "gevonden!" geroepen en ernaast gezeten. Bij planner-analyse: DB-tabellen naast elkaar leggen en met de Python-simulator narekenen vóór conclusies.
 - Code-behind boven `@code`-blokken. Radzen Blazor overal. Radzen API's verifiëren via `raw.githubusercontent.com/radzenhq/radzen-blazor/master/...` (rendering-pad én crosshair/tooltip-pad — `CartesianSeries.DataAt/TooltipY` unwrapt `double?` hard).
 - Na codegeneratie altijd zelf reviewen op syntax/naamfouten/dubbele code/missing usings. Braces + code-parens balanceren (comments negeren bij paren-telling).
-- **Versie ophogen bij ELKE wijziging** in `SessyWeb/Shared/MainLayout.razor`, variabele bovenaan: `string Version = "v1.0.16";` (enige plek). Patch-level ophogen (1.0.16 → 1.0.17).
+- **Versie ophogen bij ELKE wijziging** in `SessyCommon/AppInfo.cs`: `public const string Version = "v1.0.39";` (enige plek sinds v1.0.39; MainLayout leest hem, Program.cs schrijft hem in de tabel `AppVersions`). Patch-level ophogen (1.0.39 → 1.0.40).
 - Output: volledige bestanden naar `/mnt/user-data/outputs/`, delen via `present_files`.
 
 ## Omgeving
@@ -191,6 +191,46 @@ FIFO-motor, met twee voedingen: gemeten historie en het lopende plan (`ProjectAs
    gemiddelde vervuilden. Alles onder `MinLayerWh` gaat er nu in zijn geheel uit.
 Geen datareparatie nodig — de FIFO wordt bij elke start uit metingen herbouwd. Tests:
 `ChargeCostBasisTests` (14).
+
+## Gebouwd 06-08 (v1.0.38)
+**Taper losgekoppeld van het gevraagde laadvermogen — zelfversterkende meetfout.** De batterijen
+kregen als setpoint `PlannedPowerW`, het al door de taper verlaagde getal, terwijl
+`ThrottleAnalysisService` de ratio mat tegen `PlannedUnthrottledPowerW`. Zodra de hardware het
+verlaagde verzoek haalde (actual/planned = 1,00) mat de fit zijn eigen verzoek: 28-07 vroeg 76% van
+nameplate en zat écht tegen de limiet (0,77), vanaf 30-07 vroeg de planner 53-59% en leverde de
+hardware daar 100% van. `Math.Min(ratio, 1.0)` knipte alleen naar boven af, dus de drift was
+eenrichtingsverkeer. Gevolg: laden op 2,5-3,5 kW terwijl 4,4-5 kW aantoonbaar haalbaar was
+(06-08 11:30 gevraagd 4240 → geleverd 4270 bij SOC 30%), goedkoop venster uitgesmeerd over 5 uur,
+eind-SOC 86%.
+1. **Planner plant twee getallen.** `PlanStep.RequestedChargeKW` naast `ChargeKW`: de taper bepaalt
+   nog steeds hoeveel energie er aankomt (SOC-pad, objective, sessieduur), maar waar de taper de
+   bindende cap was is het verzoek de nameplate. Waar de greedy-allocatie uit zichzelf onder de cap
+   stopt is verzoek = allocatie. De reconstructie `Unthrottle(planW / taperRatio)` is daarmee weg op
+   de laadkant (ontladen houdt `_throttleRatioByTime`); `_chargeThrottleRatioByTime` was daarna
+   dood en is verwijderd.
+2. **Executie stuurt het verzoek.** `GetExecutableActionAsync` klemt alleen nog op de ruimte en op
+   `SessionRemainingWh` — plan-SOC aan het einde van de laatste aaneengesloten laadkwartier minus de
+   live SOC. Voorkant van een sessie mag vol vermogen (energie naar voren schuiven binnen één
+   prijsblok is prijsneutraal), de staart koopt niet extra in. Nieuwe log `GUARD_CHARGE_TARGET_REACHED`.
+3. **Zon-guard repareerd.** `GUARD_CHARGE_SOLAR_SURPLUS` toetste `NetLoadWh < -chargeStepWh`
+   (−1650 Wh) terwijl het dak op 914 Wh/kwartier piekt: kon nooit afgaan. Vervangen door een bodem
+   in `ChargeSetpointW`: setpoint = `max(verzoek, zonoverschot)`, geklemd op wat er nog past.
+4. **Envelope-fit.** `SelectEnvelope`: per SOC-bin (10 bins) alleen wat binnen 0,10 van de beste
+   ratio ligt, minimaal 3 punten. Een bandbreedte, geen percentage — bij "de bovenste kwart" laten
+   nieuwe lage samples de fit alsnog zakken. Knip op 1,0 vervangen door samples > 1,02 weggooien.
+   `MinTaperSamples` (60) → `MinEnvelopeSamples` (30), want envelope-punten zijn minder ruizig.
+   Nagerekend op de productie-DB verandert de fit nu nauwelijks (A=0,79 B=0,60 tegen A=0,83 B=0,65):
+   *alle* historische samples zijn vervuild, de envelope kan pas herstellen zodra er eerlijke
+   samples binnenkomen. Dat gaat snel: nieuwe samples liggen hoger, dus de band laat de oude vallen.
+Tests: `ChargeRequestTests` (11).
+
+**Versie in de DB (v1.0.39).** De versie stond als literal in `MainLayout.razor` — zichtbaar, maar
+door niets anders leesbaar. Nu `SessyCommon/AppInfo.cs` als enige bron; `Program.cs` schrijft hem
+direct na `Database.Migrate()` in de nieuwe tabel `AppVersions` (migratie `AddAppVersion`): één rij
+per versie met `FirstSeen` (`[SkipCopy]`, wordt nooit overschreven), `LastSeen` en de laatst
+toegepaste migratie. Wijkt de vorige rij af, dan logt de start
+"Database last ran under vX, now vY" — zo zie je ook een oudere build op een nieuwere DB. Tests:
+`AppVersionRecordingTests` (3, tegen een echt SQLite-bestand met de echte migraties).
 
 ## Openstaande punten
 1. Verifiëren op productiedata: revenue mét en zonder `CarryForwardEnabled` op teruggespeelde dagen vergelijken (niet naar SOC kijken). Faalmodus: terminal value te hoog → batterij laadt alleen nog en verkoopt nooit.

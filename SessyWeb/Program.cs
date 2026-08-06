@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Radzen;
 using Radzen.Blazor;
+using SessyCommon;
 using SessyCommon.Configurations;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
@@ -150,6 +151,7 @@ builder.Services.AddSingleton<SettingsDataService>();
 builder.Services.AddSingleton<SettingsService>();
 builder.Services.AddSingleton<ExpectedPriceService>();
 builder.Services.AddSingleton<SessyWebControlDataService>();
+builder.Services.AddSingleton<AppVersionDataService>();
 builder.Services.AddSingleton<TaxesDataService>();
 builder.Services.AddSingleton<ConsumptionMonitorService>();
 builder.Services.AddSingleton<DatabaseBackupService>();
@@ -276,9 +278,21 @@ using (var scope = app.Services.CreateScope())
     }
 
     dbContext.Database.Migrate();
+
+    // Stamp the build into the database, so a database file always says which versions have run
+    // against it — a backup or a copy pulled off the NAS is otherwise anonymous.
+    var appVersionDataService = services.GetRequiredService<AppVersionDataService>();
+    var lastMigration = dbContext.Database.GetAppliedMigrations().LastOrDefault() ?? string.Empty;
+
+    var previousVersion = appVersionDataService
+        .RecordStartupAsync(AppInfo.Version, lastMigration, services.GetRequiredService<TimeZoneService>().Now)
+        .GetAwaiter().GetResult();
+
+    if (previousVersion != null && previousVersion.Version != AppInfo.Version)
+        Console.WriteLine($"Database last ran under {previousVersion.Version}, now {AppInfo.Version}");
 }
 
-Console.WriteLine("Database Migration complete");
+Console.WriteLine($"Database Migration complete (SessyWeb {AppInfo.Version})");
 
 app.UseExceptionHandler(errorApp =>
 {

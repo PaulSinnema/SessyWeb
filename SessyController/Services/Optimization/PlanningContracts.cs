@@ -100,14 +100,22 @@ namespace SessyController.Services.Optimization
         double? Temperature48hC = null
     );
 
-    /// <summary>The planned action for one quarter.</summary>
+    /// <summary>
+    /// The planned action for one quarter.
+    /// ChargeKW is what the plan EXPECTS to arrive, taper included — it drives the SOC path.
+    /// RequestedChargeKW is what the batteries should be ASKED for: the same number, except in
+    /// quarters where the taper was the binding cap, where it is the untapered limit. The
+    /// batteries throttle themselves; asking the tapered value only made the throttle fit measure
+    /// its own request.
+    /// </summary>
     public sealed record PlanStep(
         DateTime Start,
         ActionMode Mode,
         double ChargeKW,
         double DischargeKW,
         double SocStartKWh,
-        double SocEndKWh
+        double SocEndKWh,
+        double RequestedChargeKW = 0.0
     );
 
     /// <summary>

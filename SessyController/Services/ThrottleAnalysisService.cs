@@ -38,9 +38,16 @@ namespace SessyController.Services
         private const double MaxSocPct = 90.0;     // ignore near-full battery (not a throttle)
         private const double EmaAlpha = 0.2;       // EMA weight for newest sample
         private const int LookbackDays = 31;       // short horizon so cooling resolves within a month
-        private const int MinTaperSamples = 60;    // three regressors need more data than one
         private const int MinSocOnlySamples = 20;  // enough for the SOC-only fallback fit
         private const int Mean48hHours = 48;       // window for the heat build-up term
+
+        // The fit runs on the upper envelope of the samples, not on all of them (see
+        // SelectEnvelope), so it needs fewer — and less noisy — points than a mean fit.
+        private const int EnvelopeBins = 10;              // SOC bins, 10% wide
+        private const double EnvelopeBandRatio = 0.10;    // keep what is within this of the bin's best
+        private const int MinEnvelopePerBin = 3;          // ... but never fewer than this
+        private const int MinEnvelopeSamples = 30;        // enough envelope points for 3 regressors
+        private const double MaxPlausibleRatio = 1.02;    // above this the pair is a measurement error
 
         // The house terms (C, D) are fitted over a long window, but not an unbounded one: a
         // change to the room — air conditioning, insulation — makes all older samples wrong.
@@ -205,8 +212,12 @@ namespace SessyController.Services
             double capacity = _batteryContainer.GetTotalCapacity();
             if (capacity <= 0) return ChargeTaper.None;
 
-            var samples = await CollectSamplesAsync(now, capacity).ConfigureAwait(false);
-            if (samples.Count == 0) return ChargeTaper.None;
+            var all = await CollectSamplesAsync(now, capacity).ConfigureAwait(false);
+            if (all.Count == 0) return ChargeTaper.None;
+
+            // Only the top of each SOC bin says anything about the hardware limit — see
+            // SelectEnvelope. Everything downstream fits on that envelope.
+            var samples = SelectEnvelope(all);
 
             var recentFrom = now.AddDays(-LookbackDays);
             var recent = samples.Where(s => s.Time >= recentFrom).ToList();
@@ -216,14 +227,14 @@ namespace SessyController.Services
                 .Select(s => Math.Pow(0.5, (now - s.Time).TotalDays / TaperHalfLifeDays))
                 .ToList();
 
-            var longFit = samples.Count >= MinTaperSamples
+            var longFit = samples.Count >= MinEnvelopeSamples
                 ? SolveLeastSquares(BuildDesign(samples), samples.Select(s => s.Ratio).ToList(), weights)
                 : null;
 
             if (longFit == null || longFit[1] >= 0.0)
             {
                 // No usable long fit — fall back to fitting everything on the recent window.
-                return FitAllOnRecent(recent.Count >= MinTaperSamples ? recent : samples);
+                return FitAllOnRecent(recent.Count >= MinEnvelopeSamples ? recent : samples);
             }
 
             // Warmer meaning MORE power is not physical — drop that term rather than the whole
@@ -250,13 +261,46 @@ namespace SessyController.Services
         }
 
         /// <summary>
+        /// Upper envelope of the samples: per SOC bin only the highest ratios.
+        ///
+        /// The batteries are commanded at the power the plan asks for, so a sample only touches
+        /// the hardware limit when that request was high enough to reach it; every other sample
+        /// measures the request itself. A mean through all of them therefore drags the fit down
+        /// towards whatever was last asked for, the planner asks for less on the next solve, and
+        /// the fit sinks again — between 28-07 and 05-08 that walked the requested share of
+        /// nameplate from 76% down to 53% while the hardware delivered 100% of every request.
+        /// With an envelope a low request can no longer lower the fit, while a single sample that
+        /// did reach the limit raises it.
+        /// </summary>
+        internal static List<(DateTime Time, double Soc, double Temp, double Mean48h, double Ratio)> SelectEnvelope(
+            IReadOnlyList<(DateTime Time, double Soc, double Temp, double Mean48h, double Ratio)> samples)
+        {
+            var envelope = new List<(DateTime Time, double Soc, double Temp, double Mean48h, double Ratio)>();
+
+            foreach (var bin in samples.GroupBy(s => Math.Min((int)(s.Soc * EnvelopeBins), EnvelopeBins - 1)))
+            {
+                var ordered = bin.OrderByDescending(s => s.Ratio).ToList();
+
+                // A band below the bin's best, never fewer than MinEnvelopePerBin points. A share
+                // of the bin ("the top quarter") would not do: it lets more low samples in as they
+                // arrive, which is exactly the sinking this has to stop.
+                double floor = ordered[0].Ratio - EnvelopeBandRatio;
+                int keep = Math.Max(MinEnvelopePerBin, ordered.Count(s => s.Ratio >= floor));
+
+                envelope.AddRange(ordered.Take(Math.Min(keep, ordered.Count)));
+            }
+
+            return envelope.OrderBy(s => s.Time).ToList();
+        }
+
+        /// <summary>
         /// Fits all four coefficients on a single sample set — used when the two-window split is
         /// not available.
         /// </summary>
         private static ChargeTaper FitAllOnRecent(
             IReadOnlyList<(DateTime Time, double Soc, double Temp, double Mean48h, double Ratio)> samples)
         {
-            if (samples.Count < MinTaperSamples) return FitSocOnly(samples);
+            if (samples.Count < MinEnvelopeSamples) return FitSocOnly(samples);
 
             var coefficients = SolveLeastSquares(BuildDesign(samples), samples.Select(s => s.Ratio).ToList());
             if (coefficients == null) return FitSocOnly(samples);
@@ -340,12 +384,13 @@ namespace SessyController.Services
                 if (!TryMean48h(times, temperatures, prefix, m.Time, out double temp, out double mean48h))
                     continue;
 
-                samples.Add((
-                    m.Time,
-                    socFraction,
-                    temp,
-                    mean48h,
-                    Math.Min(Math.Abs(m.BatteryPowerWatts) / requestedW, 1.0)));
+                // Clipping to 1.0 instead of dropping made the noise one-sided: an overshoot was
+                // pulled back to 1.0 while an undershoot kept its full weight, so the fit could
+                // only ever drift downwards.
+                double ratio = Math.Abs(m.BatteryPowerWatts) / requestedW;
+                if (ratio > MaxPlausibleRatio) continue;
+
+                samples.Add((m.Time, socFraction, temp, mean48h, ratio));
             }
 
             return samples;

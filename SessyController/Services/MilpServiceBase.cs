@@ -49,19 +49,16 @@ namespace SessyController.Services
         /// </summary>
         protected Dictionary<DateTime, double> _throttleRatioByTime = new();
 
-        /// <summary>Charge throttle ratio per quarter (see _throttleRatioByTime).</summary>
-        protected Dictionary<DateTime, double> _chargeThrottleRatioByTime = new();
-
         /// <summary>
-        /// Measured CC/CV taper of the charge power. When it has samples the planner derates the
-        /// charge side from it instead of from _chargeThrottleRatioByTime, so the throttle-free
-        /// target is recovered from the taper too.
+        /// Measured CC/CV taper of the charge power. It shapes how much energy the plan expects to
+        /// arrive per quarter — never how much power is asked for, which is what made the fit
+        /// measure its own request.
         /// </summary>
         protected ChargeTaper _chargeTaper = ChargeTaper.None;
 
         /// <summary>
-        /// Outside temperature and 48-hour mean per quarter, as handed to the planner. Kept so the
-        /// throttle-free target can be recovered with the same numbers that capped the solver.
+        /// Outside temperature and 48-hour mean per quarter, as handed to the planner, so the
+        /// taper can be evaluated later with the same numbers that capped the solver.
         /// </summary>
         protected Dictionary<DateTime, (double TemperatureC, double Mean48hC)> _taperInputsByTime = new();
         // Battery SOC (Wh) at the end of each quarter, taken directly from the solver so
@@ -97,7 +94,10 @@ namespace SessyController.Services
 #endif
         private const double SocDeviationThresholdPct = 20.0;
 
-        internal sealed record PlanAction { public Modes Mode; public double PowerW; }
+        // PowerW is what the plan expects to flow (taper included, drives the SOC path);
+        // RequestedPowerW is what the batteries are asked for on the charge side. 0 means
+        // "not known" — a restored or overridden plan — and then PowerW is asked for.
+        internal sealed record PlanAction { public Modes Mode; public double PowerW; public double RequestedPowerW; }
 
         // ── Constructor ──────────────────────────────────────────────────────
 
@@ -635,12 +635,14 @@ namespace SessyController.Services
             {
                 Modes mode;
                 double powerW;
+                double requestedW = 0.0;
 
                 switch (p.Mode)
                 {
                     case ActionMode.Charge:
                         mode = Modes.Charging;
                         powerW = Math.Round(p.ChargeKW * 1000.0, 0);
+                        requestedW = Math.Round(p.RequestedChargeKW * 1000.0, 0);
                         break;
                     case ActionMode.Discharge:
                         mode = Modes.Discharging;
@@ -656,7 +658,7 @@ namespace SessyController.Services
                         break;
                 }
 
-                newPlan[p.Start] = new PlanAction { Mode = mode, PowerW = powerW };
+                newPlan[p.Start] = new PlanAction { Mode = mode, PowerW = powerW, RequestedPowerW = requestedW };
                 newSoc[p.Start] = p.SocEndKWh * 1000.0;
             }
 
@@ -695,13 +697,10 @@ namespace SessyController.Services
                 qi.SetMode(act.Mode);
 
                 if (act.Mode == Modes.Charging)
-                {
-                    double unthrottled = Unthrottle(qi.Time, act.PowerW, charging: true);
-                    qi.SetPlanPower(act.PowerW, 0, unthrottled);
-                }
+                    qi.SetPlanPower(act.PowerW, 0, RequestedChargePowerW(act));
                 else if (act.Mode == Modes.Discharging)
                 {
-                    double unthrottled = Unthrottle(qi.Time, act.PowerW, charging: false);
+                    double unthrottled = Unthrottle(qi.Time, act.PowerW);
                     qi.SetPlanPower(0, act.PowerW, unthrottled);
                 }
                 else
@@ -710,51 +709,50 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Recovers the throttle-free target power from the throttled solver output:
+        /// Charge power to ASK the batteries for. The planner emits it directly: the plan's own
+        /// power is what the taper lets through and belongs to the SOC path, not to the setpoint.
+        /// Falls back to the plan power when the request is unknown — a restored plan or a runtime
+        /// override carries no request.
+        ///
+        /// This used to be reconstructed as plannedPower / taperRatio, which fed itself: the
+        /// batteries were commanded at the tapered value, the fit measured that command against
+        /// the reported target, and so it kept measuring its own request. Between 28-07 and 05-08
+        /// that drove the requested share of nameplate from 76% down to 53% while the hardware
+        /// delivered 100% of every request.
+        /// </summary>
+        internal static double RequestedChargePowerW(PlanAction act)
+            => act.RequestedPowerW > act.PowerW ? act.RequestedPowerW : act.PowerW;
+
+        /// <summary>
+        /// Setpoint for a charging quarter: at least the solar surplus, because whatever the
+        /// setpoint leaves unabsorbed leaves the house at the midday selling price — the guard this
+        /// replaces compared the surplus with a full charge step (1650 Wh) while the roof peaks at
+        /// ~900 Wh per quarter, so it could never fire. Never more than <paramref name="limitWh"/>,
+        /// which is the smaller of the room left and what the session still wants.
+        /// </summary>
+        internal static double ChargeSetpointW(double requestedW, double netLoadWh, double limitWh)
+        {
+            double surplusW = netLoadWh < 0.0 ? -netLoadWh * 4.0 : 0.0;
+            return Math.Min(Math.Max(requestedW, surplusW), limitWh * 4.0);
+        }
+
+        /// <summary>
+        /// Recovers the throttle-free discharge target from the throttled solver output:
         /// target = throttled / ratio. Returns the throttled value unchanged when no ratio
         /// is known or the ratio is non-positive.
         ///
         /// The result is capped at nameplate power, and that cap is not cosmetic. This value is
-        /// the DENOMINATOR of the next throttle and taper fit, so a target above what the
-        /// hardware can ever deliver makes every measured ratio look worse than it is, the fitted
-        /// taper steeper, the planned power lower — and the next division by that smaller ratio
-        /// inflates the target further. Left unclamped it feeds itself: on the production plan of
-        /// 30-07 it had already reached 9850 W on a 6600 W battery.
-        ///
-        /// The overshoot has two sources, both handled here: dividing by a ratio taken at a
-        /// different SOC than the planner used, and dividing at all in a quarter the taper never
-        /// capped (the greedy allocation often stops below the cap because there is nothing
-        /// profitable left to put there — there is no throttling to undo in that case).
+        /// the DENOMINATOR of the next throttle fit, so a target above what the hardware can ever
+        /// deliver makes every measured ratio look worse than it is, and the next division by that
+        /// smaller ratio inflates the target further. Left unclamped it feeds itself: on the
+        /// production plan of 30-07 it had already reached 9850 W on a 6600 W battery.
         /// </summary>
-        private double Unthrottle(DateTime time, double throttledPowerW, bool charging)
+        private double Unthrottle(DateTime time, double throttledPowerW)
         {
-            double nameplateW = charging
-                ? _sessyBatteryConfig.TotalRawChargingCapacity
-                : _sessyBatteryConfig.TotalRawDischargingCapacity;
-
+            double nameplateW = _sessyBatteryConfig.TotalRawDischargingCapacity;
             double target = throttledPowerW;
 
-            // Charge side: the taper is what actually capped the solver, so it is also what has
-            // to be divided out. Evaluated at the SOC the planner had at the START of this
-            // quarter — the same value BatteryGreedyPlanner.taperedChargeKWh uses. Taking the
-            // end-of-quarter SOC instead reads the taper further along its slope and so divides
-            // by a ratio that is too small.
-            if (charging && _chargeTaper.Samples > 0)
-            {
-                double capWh = _batteryContainer.GetTotalCapacity();
-                if (capWh > 0.0 && TryGetPlanSocAtQuarterStart(time, out double socWh))
-                {
-                    double taperRatio = _taperInputsByTime.TryGetValue(time, out var inputs)
-                        ? _chargeTaper.Ratio(socWh / capWh, inputs.TemperatureC, inputs.Mean48hC)
-                        : _chargeTaper.Ratio(socWh / capWh);
-
-                    if (taperRatio > 0.0)
-                        return Clamp(throttledPowerW / taperRatio, nameplateW);
-                }
-            }
-
-            var map = charging ? _chargeThrottleRatioByTime : _throttleRatioByTime;
-            if (map.TryGetValue(time, out var ratio) && ratio > 0.0)
+            if (_throttleRatioByTime.TryGetValue(time, out var ratio) && ratio > 0.0)
                 target = throttledPowerW / ratio;
 
             return Clamp(target, nameplateW);
@@ -770,22 +768,31 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Planned SOC (Wh) at the start of <paramref name="quarter"/>: the end-of-quarter value
-        /// of its predecessor, or the SOC the plan was built from for the first quarter.
+        /// How much the current charging session still wants, in Wh: the planned SOC at the end of
+        /// the last consecutive charging quarter minus the live SOC. This is the ceiling that lets
+        /// the front of a session run at full power — pulling energy forward inside one price block
+        /// costs nothing — while the tail can never buy past what the plan asked for.
+        /// Falls back to <paramref name="fallbackWh"/> when the plan holds no SOC for the session.
         /// </summary>
-        private bool TryGetPlanSocAtQuarterStart(DateTime quarter, out double socWh)
+        private double SessionRemainingWh(DateTime nowQuarter, double socWh, double fallbackWh)
         {
-            if (quarter == _planStartQuarter)
+            var quarter = nowQuarter;
+            DateTime? lastChargeQuarter = null;
+
+            while (_planByTime.TryGetValue(quarter, out var act) && act.Mode == Modes.Charging)
             {
-                socWh = _planStartSocWh;
-                return true;
+                lastChargeQuarter = quarter;
+                quarter = quarter.AddMinutes(15);
             }
 
-            if (_planSocWhByTime.TryGetValue(quarter.AddMinutes(-15), out socWh))
-                return true;
+            if (lastChargeQuarter == null) return fallbackWh;
 
-            // No predecessor in the plan: the end-of-quarter value is the only figure available.
-            return _planSocWhByTime.TryGetValue(quarter, out socWh);
+            // _planSocWhByTime comes from the last solve, _plannedSocByQuarter survives a restart.
+            if (!_planSocWhByTime.TryGetValue(lastChargeQuarter.Value, out double targetWh) &&
+                !_plannedSocByQuarter.TryGetValue(lastChargeQuarter.Value, out targetWh))
+                return fallbackWh;
+
+            return Math.Max(0.0, targetWh - socWh);
         }
 
         /// <summary>
@@ -897,12 +904,12 @@ namespace SessyController.Services
                 if (act.Mode == Modes.Charging)
                 {
                     double chargeW = act.PowerW > 0 ? act.PowerW : _batteryContainer.GetChargingCapacityInWattsPerHour();
-                    qi.SetPlanPower(chargeW, 0, Unthrottle(qi.Time, chargeW, charging: true));
+                    qi.SetPlanPower(chargeW, 0, Math.Max(chargeW, RequestedChargePowerW(act)));
                 }
                 else if (act.Mode == Modes.Discharging)
                 {
                     double dischargeW = act.PowerW > 0 ? act.PowerW : _batteryContainer.GetDischargingCapacityInWattsPerHour();
-                    qi.SetPlanPower(0, dischargeW, Unthrottle(qi.Time, dischargeW, charging: false));
+                    qi.SetPlanPower(0, dischargeW, Unthrottle(qi.Time, dischargeW));
                 }
                 else
                     qi.SetPlanPower(0, 0);
@@ -918,7 +925,6 @@ namespace SessyController.Services
 
             double capWh = _batteryContainer.GetTotalCapacity();
             double socWh = await _batteryContainer.GetStateOfChargeInWatts().ConfigureAwait(false);
-            double chargeStepWh = _batteryContainer.GetChargingCapacityInWattsPerHour() / 4.0;
             double dischargeStepWh = _batteryContainer.GetDischargingCapacityInWattsPerHour() / 4.0;
             double fullThresholdWh = capWh * BatteryConstants.FullThresholdRatio;
 
@@ -930,23 +936,6 @@ namespace SessyController.Services
 
             if (planned.Mode == Modes.Charging)
             {
-                // Don't actively charge when solar surplus is already filling the battery.
-                // Deliberately not written into _planByTime: a transient trip must not stick
-                // for the rest of the quarter.
-                if (qi != null && qi.NetLoadWh < -chargeStepWh)
-                {
-                    _logger.LogWarning(
-                        $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: GUARD_CHARGE_SOLAR_SURPLUS → ZeroNetHome " +
-                        $"(NetLoadWh={qi.NetLoadWh:F0}, -chargeStepWh={-chargeStepWh:F0})");
-                    var nzh = new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
-                    qi.SetMode(Modes.ZeroNetHome);
-                    qi.SetPlanPower(0, 0);
-                    return nzh;
-                }
-
-                // Clamp to the remaining room; size from planned power, not full capacity.
-                // All-or-nothing rejection left the top of the battery unreachable.
-                double plannedChargeWh = planned.PowerW > 10 ? planned.PowerW * 0.25 : chargeStepWh;
                 double roomWh = maxSocWh - socWh;
 
                 if (roomWh <= MinimumUsefulWh)
@@ -960,19 +949,43 @@ namespace SessyController.Services
                     return nzh;
                 }
 
-                if (plannedChargeWh > roomWh)
-                {
-                    double clampedW = roomWh * 4.0;
-                    _logger.LogWarning(
-                        $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: charge clamped to remaining room " +
-                        $"({planned.PowerW:F0}W → {clampedW:F0}W, roomWh={roomWh:F0})");
+                // Ask for the plan's REQUEST, not its tapered expectation. The batteries clamp
+                // themselves; commanding the tapered value only guaranteed we stayed under their
+                // limit and made the taper fit measure its own request.
+                double requestedW = RequestedChargePowerW(planned);
 
-                    var clamped = new PlanAction { Mode = Modes.Charging, PowerW = clampedW };
-                    qi?.SetPlanPower(clampedW, 0, Unthrottle(nowQuarter, clampedW, charging: true));
-                    return clamped;
+                // Two ceilings: the room left in the battery, and what the rest of this charging
+                // session still wants. Running the front of a session at full power only pulls
+                // energy forward inside one price block, but the tail must not buy past the plan.
+                double limitWh = Math.Min(roomWh, SessionRemainingWh(nowQuarter, socWh, roomWh));
+
+                if (limitWh <= MinimumUsefulWh)
+                {
+                    _logger.LogWarning(
+                        $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: GUARD_CHARGE_TARGET_REACHED → ZeroNetHome " +
+                        $"(socWh={socWh:F0}, limitWh={limitWh:F0})");
+                    var nzh = new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
+                    qi?.SetMode(Modes.ZeroNetHome);
+                    qi?.SetPlanPower(0, 0);
+                    return nzh;
                 }
 
-                return planned;
+                double chargeW = ChargeSetpointW(requestedW, qi?.NetLoadWh ?? 0.0, limitWh);
+
+                if (chargeW > requestedW)
+                    _logger.LogWarning(
+                        $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: charge raised to solar surplus " +
+                        $"({requestedW:F0}W → {chargeW:F0}W, NetLoadWh={qi?.NetLoadWh ?? 0.0:F0})");
+                else if (chargeW < requestedW)
+                    _logger.LogWarning(
+                        $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: charge clamped to what is still wanted " +
+                        $"({requestedW:F0}W → {chargeW:F0}W, roomWh={roomWh:F0}, limitWh={limitWh:F0})");
+
+                // Expected flow stays the tapered plan power (it drives the SOC path); the
+                // unthrottled field carries what was actually commanded, so the next taper fit
+                // divides by a real setpoint.
+                qi?.SetPlanPower(Math.Min(planned.PowerW, chargeW), 0, chargeW);
+                return new PlanAction { Mode = Modes.Charging, PowerW = chargeW, RequestedPowerW = chargeW };
             }
 
             if (planned.Mode == Modes.Discharging)
@@ -1002,7 +1015,7 @@ namespace SessyController.Services
                         $"({planned.PowerW:F0}W → {clampedW:F0}W, availableWh={availableWh:F0})");
 
                     var clamped = new PlanAction { Mode = Modes.Discharging, PowerW = clampedW };
-                    qi?.SetPlanPower(0, clampedW, Unthrottle(nowQuarter, clampedW, charging: false));
+                    qi?.SetPlanPower(0, clampedW, Unthrottle(nowQuarter, clampedW));
                     return clamped;
                 }
 

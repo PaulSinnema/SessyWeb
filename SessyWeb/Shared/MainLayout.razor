@@ -6,7 +6,9 @@
 @inject IWebHostEnvironment HostEnvironment
 
 @{
-    string Version = "v1.0.37";
+    // Bump the version in SessyCommon/AppInfo.cs — Program.cs writes that same value into the
+    // AppVersions table, so the database records which build it belongs to.
+    string Version = SessyCommon.AppInfo.Version;
 }
 
 <AntiforgeryToken />

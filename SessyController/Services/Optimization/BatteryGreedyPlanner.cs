@@ -502,13 +502,26 @@ namespace SessyController.Services.Optimization
                            - totalImport * pricePoints[t].BuyEurPerKWh
                            - dischargeKWh[t] * cycleCost;
 
+                // What to ASK the batteries for. The allocation above is what the taper lets
+                // through, and that is the right number for the SOC path — but not for the
+                // setpoint: the batteries throttle themselves, so a request below their limit
+                // only guarantees we stay under it. Where the taper was the binding cap, ask for
+                // the untapered limit; where the allocation stopped on its own (nothing
+                // profitable left to place), the allocation IS the request.
+                double capKWh = taperedChargeKWh(t, socStart);
+                double nameplateKWh = Math.Max(0.0, spec.MaxChargeKW) * dt;
+                double requestedChargeKWh = chargeKWh[t] > Eps && chargeKWh[t] >= capKWh - Eps
+                    ? Math.Max(chargeKWh[t], nameplateKWh)
+                    : chargeKWh[t];
+
                 plan.Add(new PlanStep(
                     pricePoints[t].Start,
                     mode,
                     ChargeKW: chargeKWh[t] / dt,
                     DischargeKW: dischargeKWh[t] / dt,
                     SocStartKWh: socStart,
-                    SocEndKWh: soc));
+                    SocEndKWh: soc,
+                    RequestedChargeKW: requestedChargeKWh / dt));
             }
 
             // Energy left in the battery is worth what buying it again would cost. Without this

@@ -60,6 +60,8 @@ namespace SessyData.Model
 
         public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
+        public DbSet<AppVersion> AppVersions => Set<AppVersion>();
+
         protected override void OnConfiguring(DbContextOptionsBuilder options)
         {
             options

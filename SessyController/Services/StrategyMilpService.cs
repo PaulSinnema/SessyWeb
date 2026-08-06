@@ -111,7 +111,7 @@ namespace SessyController.Services
 
                 if (chargeTaper.Samples > 0)
                     _logger.LogInformation(
-                        $"Charge taper fitted on {chargeTaper.Samples} samples: " +
+                        $"Charge taper fitted on {chargeTaper.Samples} envelope points: " +
                         $"ratio = {chargeTaper.A:F3} - {chargeTaper.B:F3} * soc " +
                         $"- {chargeTaper.C:F4} * (temp - {ChargeTaper.RefTemperatureC:F0}) " +
                         $"- {chargeTaper.D:F4} * (t48 - temp) " +
@@ -124,7 +124,6 @@ namespace SessyController.Services
                     .ConfigureAwait(false);
 
                 _throttleRatioByTime.Clear();
-                _chargeThrottleRatioByTime.Clear();
                 _taperInputsByTime.Clear();
 
                 double throttleFallback = _settingsConfig.ThrottleFallbackPct > 0.0
@@ -163,7 +162,6 @@ namespace SessyController.Services
                                 chargeRatio = throttleFallback;
 
                             qMaxChargeKW = maxChargeKW * chargeRatio;
-                            _chargeThrottleRatioByTime[q.Time] = chargeRatio;
                         }
                     }
 
