@@ -1,6 +1,6 @@
 # SessyWeb
 
-**SessyWeb** is an open-source home energy management system (HEMS) for households with one or more [Sessy](https://www.sessy.nl) home batteries. It runs as a Docker container on a NAS, mini-PC or Raspberry Pi and uses a Mixed Integer Linear Program (MILP) to plan battery charging and discharging against dynamic day-ahead electricity prices, your solar forecast and your household consumption.
+**SessyWeb** is an open-source home energy management system (HEMS) for households with one or more [Sessy](https://www.sessy.nl) home batteries. It runs as a Docker container on a NAS, mini-PC or Raspberry Pi and plans battery charging and discharging against dynamic day-ahead electricity prices, your solar forecast and your household consumption.
 
 > ⚡ Charge cheap. Sell expensive. Let the sun do the rest.
 
@@ -394,7 +394,7 @@ Optional sections in `appsettings.json`:
 
 ### Planning
 
-- **MILP optimiser** — plans charge, discharge and zero-net-home windows over a 72-hour horizon on quarter-hour resolution
+- **Greedy arbitrage planner** — plans charge, discharge and zero-net-home windows over a 72-hour horizon on quarter-hour resolution, deterministically: the same inputs always give the same plan
 - **Dynamic prices** — day-ahead quarter-hour prices from your batteries, with ENTSO-E as fallback
 - **Solar and consumption forecast** — avoids buying at night what the roof will make tomorrow
 - **Netting / saldering aware** — handles both netting-on and netting-off contracts
@@ -498,9 +498,11 @@ An API browser is available at `/swagger`.
 Every minute (and on every price or settings change) SessyWeb rebuilds its picture of the next 72 hours:
 
 1. **Gather** one record per quarter-hour: price, solar forecast, consumption forecast, mode and SOC.
-2. **Solve** with Google OR-Tools, maximising discharge revenue minus charge cost minus cycle degradation cost, subject to capacity, reserve and efficiency constraints.
+2. **Plan** in two passes. First a baseline that simply covers the house from solar and battery where that is free. Then arbitrage: the planner repeatedly takes the single most profitable 0.1 kWh block it can still fit — buy cheap now and sell dear later, sell now and buy back cheaper later, or sell energy it already holds — and stops when no block is worth more than the round-trip loss plus the cycle wear it costs.
 3. **Decide** the actual battery mode and inverter setpoint in the state machine, where curtailment can override the plan.
 4. **Execute** one action per quarter through the Sessy local API.
+
+The planner is deterministic and greedy rather than a general-purpose solver: it is fast enough to rerun every minute, and every euro in the plan can be traced back to the block that earned it.
 
 The plan is only rebuilt when something material changed — a new price set, a SOC that drifted more than 20 % from plan, or a settings change.
 
