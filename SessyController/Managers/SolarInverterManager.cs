@@ -50,16 +50,21 @@ namespace SessyController.Managers
             {
                 if (service.IsAvailable)
                 {
-                    total += service.ActualSolarPowerInWatts;
+                    total += Finite(service.ActualSolarPowerInWatts);
                 }
                 else if (service.SupportsFallback)
                 {
-                    total += await service.GetFallbackACPowerInWattsAsync().ConfigureAwait(false);
+                    total += Finite(await service.GetFallbackACPowerInWattsAsync().ConfigureAwait(false));
                 }
                 // else: inverter offline and no fallback — contribute 0W
             }
 
             return total;
+
+            // A single bad reading must not poison the sum: NaN and infinity propagate through
+            // +=, and this total feeds both the state machine and the API, where a non-finite
+            // double cannot be serialised at all.
+            static double Finite(double watts) => double.IsFinite(watts) ? watts : 0.0;
         }
 
         // Health check interval in seconds.

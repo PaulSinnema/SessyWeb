@@ -162,15 +162,30 @@ namespace SessyController.Services.InverterServices
                 {
                     if (level == SolCalc.Data.SunlightLevel.Daylight)
                     {
-                        ActualSolarPowerInWatts = await GetACPowerInWatts(config.Key).ConfigureAwait(false);
+                        // NaN signals a corrupt Modbus scale factor. Read into a local and check
+                        // it BEFORE publishing: assigning it and filtering afterwards left the
+                        // public property holding NaN, and from there it reached both the state
+                        // machine (where every comparison against NaN is false) and the API, where
+                        // System.Text.Json refuses to write it and the request 500s.
+                        double reading = await GetACPowerInWatts(config.Key).ConfigureAwait(false);
                         var date = _timeZoneService.Now;
 
                         if (!CollectedPowerData.ContainsKey(config.Key))
                             CollectedPowerData.Add(config.Key, new Dictionary<DateTime, double>());
 
-                        // Only store valid readings — NaN signals a corrupt Modbus scale factor.
-                        if (!double.IsNaN(ActualSolarPowerInWatts))
-                            CollectedPowerData[config.Key].Add(date, ActualSolarPowerInWatts);
+                        if (double.IsFinite(reading))
+                        {
+                            ActualSolarPowerInWatts = reading;
+                            CollectedPowerData[config.Key].Add(date, reading);
+                        }
+                        else
+                        {
+                            // Keep the last good value rather than publishing a zero the inverter
+                            // never reported; a corrupt read is a missing sample, not darkness.
+                            _logger.LogWarning(
+                                $"SunspecInverterService: discarded a corrupt AC power reading for endpoint {config.Key}, " +
+                                $"keeping {ActualSolarPowerInWatts:F0} W.");
+                        }
 
                         await StoreData(CollectedPowerData).ConfigureAwait(false);
                     }
@@ -196,7 +211,12 @@ namespace SessyController.Services.InverterServices
             var power = 0.0;
 
             foreach (var endpoint in Endpoints)
-                power += await GetACPowerInWatts(endpoint.Key).ConfigureAwait(false);
+            {
+                // GetACPowerInWatts returns NaN for a corrupt scale factor, and NaN propagates
+                // through +=, so one bad endpoint would take the whole total with it.
+                double reading = await GetACPowerInWatts(endpoint.Key).ConfigureAwait(false);
+                if (double.IsFinite(reading)) power += reading;
+            }
 
             return power;
         }

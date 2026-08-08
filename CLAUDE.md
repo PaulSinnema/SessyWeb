@@ -541,12 +541,55 @@ en `FindRatio` hebben al vóór deze wijziging geen aanroepers — dode code, la
    **Wat het wel nodig heeft:** maanden `PlannedUnthrottledPowerW`-dekking over een breed
    temperatuurbereik, zodat C en D echt te scheiden zijn van B. Tot die tijd niets forceren — een
    tweede filter-tweak lost het niet op.
-1. Verifiëren op productiedata: revenue mét en zonder `CarryForwardEnabled` op teruggespeelde dagen vergelijken (niet naar SOC kijken). Faalmodus: terminal value te hoog → batterij laadt alleen nog en verkoopt nooit.
+1. ~~Revenue mét en zonder `CarryForwardEnabled` vergelijken.~~ **Gedaan 08-08 — carry-forward is
+   een no-op op deze data.** 75 aaneengesloten dagen (26-05 t/m 08-08) teruggespeeld door de échte
+   `BatteryGreedyPlanner` (geen Python-spiegel), rollend: 48 u-horizon, eerste 24 u afgerekend, SOC
+   doorgeschoven, twee runs die alleen in de vlag verschillen. Beide plannen afgerekend met één
+   evaluator, die als zelfcontrole exact de objective van de planner reproduceert (0,5562 = 0,5562)
+   bij carry-forward uit. Resultaat: **€ 0,00 verschil**, en identiek op import (471,1 kWh), export
+   (605,7), ontladen (999,2) en eind-SOC (3,64). De plannen wijken op **1 van de 75 dagen** af
+   (12-06, tot 3,4 kW) en die afwijking valt buiten het uitgevoerde venster.
+   **Waarom:** de replacement cost is ~€ 0,13/kWh, over 48 u verdisconteerd ~€ 0,114. De all-in
+   inkoopprijs zakt daar op maar 7 van 68 dagen onder. Juist op die dagen is Candidate B
+   (laden → ontladen bínnen de horizon, avondpiek ~€ 0,30) veel winstgevender, dus B claimt de
+   goedkope kwartieren en de batterij zit vol voor C aan bod komt.
+   **Faalmodus niet opgetreden**, ook niet geforceerd: bij een replacement cost van ×1,5/×2/×3
+   (tot € 0,39/kWh, de mediaan-cap bewust omzeild) blijft het effect −€ 0,57 op 75 dagen (−0,9 %),
+   blijft het ontladen ~998 kWh en blijven er **0** dagen zonder ontlading.
+   **Conclusie:** de vlag mag aan blijven (staat in productie op 1) — hij kost niets, maar levert
+   op dit prijsregime ook niets. Niet als winstbron rekenen.
+   **Beperkingen:** vlakke reserve (minSoc 0), geen taper/efficiency-curve/discharge-capability,
+   48 u i.p.v. 72 u horizon en álle kwartieren verhandelbaar terwijl productie `PredictedPriceMode`
+   op `Off` heeft — dat maakt verre kwartieren `ReserveOnly`, wat C nog verder onderdrukt. Dit was
+   dus carry-forwards *beste* geval. Absolute € 62,55 over 75 dagen is géén productievoorspelling;
+   alleen het verschil is het antwoord. Alleen zomerdata — winter is niet getoetst.
 2. ~~**Hittegolf-validatie (vanaf 28-07).**~~ Opgegaan in punt 0: het probleem is niet dat 34 °C
    extrapolatie is, maar dat de fit *uitsluitend* hittegolfdata ziet. Zolang dat zo is valt er niets
    te valideren — de temperatuurterm is er niet significant en de koude referentie ontbreekt.
-3. EF-migraties (user-kant): drop `SolarSystemShutsDownDuringNegativePrices`; `FutureValueDiscountPerHour` toegevoegd, `NearTermHedgeHours`/`Fraction` verwijderd.
-4. JSON `Infinity`/`NaN` crash (22-07 17:22, MVC-controller) + lege Enever gasprijs-feed.
+3. ~~EF-migraties (user-kant).~~ **Al klaar sinds 15-07, nooit handwerk nodig geweest** —
+   `20260715103547_RemoveShutDownAtNegativePrices` en `20260715131646_RemoveNearTermHedge` staan in
+   `__EFMigrationsHistory` van de productie-DB, de live `Settings`-rij mist die kolommen en heeft
+   `FutureValueDiscountPerHour`. Migraties draaien automatisch bij het opstarten (`Program.cs`).
+4. ~~JSON `Infinity`/`NaN` crash + lege Enever gasprijs-feed.~~ **Opgelost 08-08 (v1.0.74).**
+   *NaN-crash:* `SunspecInverterService.GetACPowerInWatts` geeft `double.NaN` terug bij een corrupte
+   Modbus-scale-factor (fysiek onmogelijke waarde). Die werd op regel 165 direct in de publieke
+   `ActualSolarPowerInWatts` gezet; de bestaande guard filterde alleen de *historie*, niet de
+   property. Van daar liep hij door `SolarInverterManager.GetActualSolarPowerInWatts` (`+=`
+   propageert NaN) naar `GET /BatteryManagement/Inverter/AcPowerInWatts`, waar System.Text.Json
+   weigert een niet-eindige double te schrijven → 500. Drie plekken gerepareerd: lezen in een
+   lokale variabele en pas publiceren als hij eindig is (laatste goede waarde blijft staan, met een
+   Warning), en niet-eindige bijdragen overslaan in zowel `SolarInverterManager` als
+   `SunspecInverterService.GetTotalACPowerInWatts`. Bewust géén
+   `AllowNamedFloatingPointLiterals` op de serializer: dat maakt er `"NaN"` als string van, wat
+   Loxone net zo goed breekt en de fout zou verbergen in plaats van oplossen. `QuarterlyInfo` is
+   nagelopen — alle delingen daar zijn al afgeschermd.
+   *Gasprijs:* `FetchGasPriceAsync` beloofde in haar eigen comment "leaves the previous value
+   intact on failure", maar deed dat alleen bij `status != true` en een lege data-array. Bij een
+   parse-fout, een ontbrekend `prijsEGSI`-veld of een exception viel hij dóór naar de
+   belastingberekening met `marketPrice` nog op 0,00 en publiceerde belasting-alleen als gasprijs.
+   Nu een expliciete `havePrice`-vlag; zonder bruikbare prijs blijft de vorige staan.
+   Geen tests toegevoegd: beide paden zitten achter Modbus- respectievelijk HTTP-hardware en een
+   test die `double.IsFinite` controleert voegt niets toe.
 5. Comment-opschoning was bezig toen onderbroken — meeste lange blocks al ingekort, mogelijk nog een paar razor/test-comments over.
 
 ## Diagnosed, niet-een-bug

@@ -253,6 +253,11 @@ namespace SessyController.Services
 
             double marketPrice = 0.00;
 
+            // Whether we ended up with a real price. Without this the failure paths below fall
+            // through to the tax calculation with marketPrice still 0.00 and publish taxes-only
+            // as the gas price — the opposite of what this method documents, and silent.
+            bool havePrice = false;
+
             var today = _timeZoneService.Now.Date;
 
             if (gasPrice == null)
@@ -300,6 +305,7 @@ namespace SessyController.Services
                             MarketPriceEurPerM3 = marketPrice
                         });
 
+                        havePrice = true;
                     }
                     else
                     {
@@ -308,13 +314,21 @@ namespace SessyController.Services
                 }
                 catch (Exception ex)
                 {
+                    // Also catches a missing "prijsEGSI" field: GetProperty throws rather than
+                    // returning null, so a feed that answers 200 with a different shape lands here.
                     _logger!.LogWarning($"Could not fetch gas price from Enever.nl: {ex.Message}");
                 }
             }
             else
             {
                 marketPrice = gasPrice.MarketPriceEurPerM3;
+                havePrice = true;
             }
+
+            // Keep the last known price when the feed gave nothing usable. Publishing a price
+            // built on a market price of zero would show the heat-pump comparison a gas price of
+            // taxes alone, which is worse than showing yesterday's.
+            if (!havePrice) return;
 
             // Apply gas energy tax (Energiebelasting) and VAT (BTW) from the Taxes table
             // to convert the TTF market price to the all-in consumer price.
