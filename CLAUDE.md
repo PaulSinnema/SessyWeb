@@ -584,6 +584,54 @@ charging-hours-pagina was dat twee volledige hertekeningen van een grafiek met ~
 `Console.WriteLine($"ScreenInfo: …")` per resize per circuit is weg — dat was een rauwe
 console-schrijf, dus zelfs het Warning-logniveau onderdrukte hem niet.
 
+## Gebouwd 08-08 (v1.0.77) — planner-doorlichting op efficiency
+
+**De zoektocht was kubisch in de horizon.** Per arbitrage-iteratie liep de `j`-lus (n) × Candidate B's
+`i`-lus (n) × de haalbaarheidsscan `for k = i..j` (n); Candidate D deed hetzelfde nog eens. Alles wat
+alleen van `i` of alleen van `j` afhangt is binnen één iteratie constant (`socEnd` beweegt niet
+terwijl één blok wordt gekozen), en de drie scans zijn lopende minima. Nu één keer per iteratie
+gevuld in arrays (`chargeCap`, `chEffCap`, `disCap`, `disEffCap`, `slack`, `room`) plus
+suffix-minima (`minSlackFrom`, `minRoomFrom`) en per `j` één achterwaartse pas (`roomMinTo`).
+Candidate D houdt een lopend minimum bij terwijl `k` oploopt. **`i` loopt nog steeds oplopend** —
+dalend zou gelijke winsten anders breken (de vergelijking eist strikt groter, dus bij gelijkspel
+wint de eerste `i`).
+Gemeten op 75 dagen, traagste solve: 24 u 161→34 ms, 48 u **1645→279 ms**, 72 u 3529→721 ms.
+Bewijs dat er niets aan de beslissingen veranderde: een SHA-256 over álle geplande kwartieren van
+alle 75 horizons is identiek vóór en ná (`D0C801D4C02CC4BA` bij 48 u, `7A742943E4FAA41E` bij 24 u,
+`CF804AAF5BD8F66E` bij 72 u), en de euro's tot op de cent. In productie is de winst gróter dan hier
+gemeten: de probe geeft `ChargeTaper`, `Efficiency` en `DischargeCapability` als null mee, terwijl
+juist die de gehoiste aanroepen duur maken.
+
+**`BlockKWh` 0,10 → 0,20.** Blijkt een pure snelheidsknop, geen nauwkeurigheidsknop: `profitPerKWh`
+hangt niet van de blokgrootte af en elke limiet wordt vóór toewijzing geklemd, dus een grovere stap
+bereikt dezelfde allocatie in minder iteraties. Over 75 dagen zijn de plannen **bit-identiek van
+0,05 t/m 1,00 kWh** terwijl de tijd omgekeerd schaalt (0,05 → 22 s, 0,10 → 11 s, 0,20 → 5,9 s,
+1,00 → 2,2 s). Bewust niet de snelste waarde genomen: zomerprijscurves zijn geen bewijs voor elke
+curve, dus 0,20 houdt een factor vijf marge.
+
+**Gemeten en NIET gewijzigd:**
+- *Candidate A's replacement-cost-bodem is onverdisconteerd* terwijl `valueJ` dat wél is (de bodem
+  is de tegenhanger van Candidate C's `carryValue`, die wél `Discount(n)` krijgt). Reëel in de code,
+  maar economisch inert op deze data: bij een replacement cost van 0,10 / 0,1303 / 0,16 / 0,20
+  veranderen de plannen wel (andere fingerprints) en de opbrengst niet — 0,00 / 0,00 / +0,22 / 0,00,
+  niet-monotoon, dus planherschikking en geen signaal. Niet aangeraakt zonder bewijs.
+- *De discount-sweep is met deze harnas niet te beoordelen.* 0 → +€0,45, 0,001 → +€0,35,
+  0,006 → −€0,91, 0,01 → −€3,63 lijkt te zeggen "zet hem lager", maar de replay rekent af tegen
+  dezelfde forecast waarmee gepland is: perfecte vooruitblik, en dan is een hedge tegen
+  voorspelfouten per definitie alleen maar kostenpost. Om de discount eerlijk te toetsen moet er
+  afgerekend worden tegen *gemeten* verbruik en zon (`QuarterlyMeasurements` / `EnergyHistory`).
+
+**Bijvangst — greedy-suboptimaliteit is nu meetbaar.** Met een rollende 24 u-commit levert een
+horizon van 72 u **minder** op dan 48 u (−€0,84) en 24 u nog minder (−€1,37). Onder perfecte
+vooruitblik hoort meer informatie nooit slechter te zijn; dat het hier wel zo is, is een direct
+symptoom van de heuristiek. Een DP over (kwartier, SOC-niveau) zou hier het echte optimum geven —
+naar schatting ~9M toestandsovergangen, dus sneller én beter — maar dat is een herbouw van de kern.
+
+**Stale comment weg:** bij `pairRoundTrip` stond "at the power both quarters would run at with the
+block added … filling one up beats opening another", terwijl `roundTripAtCapacity` de *cap* van het
+kwartier las. Dat de beslissing op de cap leest is bewust (v1.0.47) en staat toegelicht boven
+`chEffAtCapacity`; de tweede comment sprak de eerste tegen.
+
 ## Openstaande punten
 0. **De laadtaper wordt gefit op tien dagen hittegolf — hoogste prioriteit (bijgewerkt 08-08).**
    Hoogst gemeten laadvermogen per SOC-band (`QuarterlyMeasurements`, vanaf 15-06): 10-20% → 5310 W,
@@ -610,7 +658,15 @@ console-schrijf, dus zelfs het Warning-logniveau onderdrukte hem niet.
    De ontlaadkant, de NaN-fix en de gasprijs-fix zijn alleen lokaal getoetst.
 2. **CLAUDE.md mist v1.0.57 t/m v1.0.71** (o.a. de GHCR-overstap en de .NET 10 / Blazor-buildfix).
    Te reconstrueren uit de git-historie; verder is alles t/m v1.0.75 beschreven.
-3. **`SessyWeb.Helpers.ScreenInfo` is niet getest** omdat `SessyUnitTests` geen projectreferentie
+3. **De discount is nooit eerlijk getoetst.** `FutureValueDiscountPerHour` hedget voorspelfouten,
+   maar elke replay tot nu toe rekent af tegen dezelfde forecast waarmee gepland is. Een harnas dat
+   afrekent tegen gemeten verbruik en zon (`QuarterlyMeasurements` / `EnergyHistory`) zou de vraag
+   wél beantwoorden — en meteen die van `PredictedPriceMode` en de nachtreserve.
+4. **Greedy laat geld liggen, hoeveel is onbekend.** Een langere horizon levert minder op (zie
+   v1.0.77), wat alleen bij een suboptimale heuristiek kan. Een DP over (kwartier, SOC-niveau) geeft
+   het optimum onder dezelfde constraints en is naar schatting sneller dan de huidige zoektocht;
+   het is wel een herbouw van de kern.
+5. **`SessyWeb.Helpers.ScreenInfo` is niet getest** omdat `SessyUnitTests` geen projectreferentie
    naar `SessyWeb` heeft. Sinds v1.0.76 draagt `Update` een beslissing (wel/niet hertekenen), dus
    dat is nu testwaardig. Twee wegen: `ScreenInfo` verhuizen naar `SessyCommon` (het is een pure
    helper zonder Blazor-afhankelijkheden, en `PageBase`/`BaseComponent`/`_Imports` moeten dan mee),
