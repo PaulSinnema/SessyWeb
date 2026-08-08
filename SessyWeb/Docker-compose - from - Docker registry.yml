@@ -1,0 +1,16 @@
+services:
+    sessyweb:
+      image: ghcr.io/paulsinnema/sessyweb:latest
+      pull_policy: always          # ← altijd eerst ophalen, ook als de tag lokaal al bestaat
+      container_name: sessyweb
+      restart: unless-stopped
+      ports:
+        - "8101:80"
+      volumes:
+        - /volume1/SessyController/Config:/SessyController/Config
+        - /volume1/SessyController/Data:/SessyController/Data
+      environment:
+        - ASPNETCORE_URLS=http://+:80
+        - ASPNETCORE_HTTP_PORTS=80
+        - CONFIG_PATH=/SessyController/Config
+      mem_limit: 4g

@@ -53,7 +53,11 @@ namespace SessyController.Services
         public void ForceRebuild(string reason)
             => Current.ForceRebuild(reason);
 
-        public void Dispose()
-            => Current.Dispose();
+        /// <summary>
+        /// Deliberately empty. Resolving a strategy here means calling into the service provider
+        /// while it is being torn down, which throws ObjectDisposedException on a background
+        /// thread and kills the process. The strategies are DI-owned singletons; DI disposes them.
+        /// </summary>
+        public void Dispose() { }
     }
 }

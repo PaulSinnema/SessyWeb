@@ -666,7 +666,8 @@ namespace SessyController.Services
 
             _quarterlyInfos.Clear();
 
-            _milpService.Dispose();
+            // Not _milpService: it is a DI-owned singleton, and StopAsync already disposed the
+            // scope it was resolved from.
             _scope.Dispose();
 
             base.Dispose();
