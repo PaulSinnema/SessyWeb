@@ -31,13 +31,20 @@
         public bool IsMobile => Breakpoint <= Breakpoint.Sm;   // phone + tablet
         public bool IsLandscape => ScreenOrientation == ScreenOrientation.Landscape;
 
-        public void Update(int width, int height)
+        /// <summary>
+        /// True when the size actually changed. The caller needs that answer: a resize event that
+        /// falls inside the noise band must not trigger a re-render, and the layout re-renders
+        /// @Body with it.
+        /// </summary>
+        public bool Update(int width, int height)
         {
             if (Math.Abs(width - Width) < Noise && Math.Abs(height - Height) < Noise)
-                return; // negeer mini-wijzigingen (iOS toolbars)
+                return false; // negeer mini-wijzigingen (iOS toolbars)
 
             Width = width;
             Height = height;
+
+            return true;
         }
 
         public override string ToString()

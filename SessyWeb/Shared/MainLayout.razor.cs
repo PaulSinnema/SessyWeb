@@ -51,16 +51,20 @@ namespace SessyWeb.Shared
             return base.OnInitializedAsync();
         }
 
+        /// <summary>
+        /// Re-renders only when the viewport really changed. Rendering the layout renders @Body
+        /// with it — the same reason SetIsBusy routes through the overlay — so a resize used to
+        /// cost two full redraws of, on the charging-hours page, a chart of some 17 series over up
+        /// to 288 quarters. Twice, because the call was there twice, and even for the sub-pixel
+        /// events an iOS toolbar generates, which ScreenInfo.Update ignores anyway.
+        /// </summary>
         private async Task OnResizedAsync(BrowserWindowSize browserWindowSize)
         {
             WindowSize = browserWindowSize;
 
-            ScreenInfo.Update(WindowSize.Width, WindowSize.Height);
+            if (!ScreenInfo.Update(WindowSize.Width, WindowSize.Height))
+                return;
 
-            Console.WriteLine($"ScreenInfo: {ScreenInfo}");
-
-            await InvokeAsync(StateHasChanged);
-            
             await InvokeAsync(StateHasChanged);
         }
 

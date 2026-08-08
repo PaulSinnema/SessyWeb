@@ -519,6 +519,71 @@ Tests: `DischargeCapabilityTests` (11). Totaal 289.
 Losse bevinding: `ThrottleAnalysisService.GetDischargeRatio`/`GetChargeRatio` (de niet-`Try`-varianten)
 en `FindRatio` hebben al vóór deze wijziging geen aanroepers — dode code, laten staan.
 
+## Opgelost 08-08 (v1.0.72 t/m v1.0.75) — voormalige openstaande punten 1 t/m 5
+
+**Punt 1 — carry-forward is een no-op op deze data.** 75 aaneengesloten dagen (26-05 t/m 08-08)
+teruggespeeld door de échte `BatteryGreedyPlanner` (geen Python-spiegel), rollend: 48 u-horizon,
+eerste 24 u afgerekend, SOC doorgeschoven, twee runs die alleen in de vlag verschillen. Beide
+plannen afgerekend met één evaluator die als zelfcontrole exact de objective van de planner
+reproduceert (0,5562 = 0,5562) bij carry-forward uit. Resultaat **€ 0,00 verschil**, identiek op
+import (471,1 kWh), export (605,7), ontladen (999,2) en eind-SOC (3,64); de plannen wijken op 1 van
+de 75 dagen af (12-06) en die afwijking valt buiten het uitgevoerde venster. Oorzaak: replacement
+cost ~€ 0,13/kWh, over 48 u verdisconteerd ~€ 0,114, en de all-in inkoopprijs zakt daar op maar 7
+van 68 dagen onder — juist dan wint Candidate B (avondpiek ~€ 0,30) en is de batterij vol vóór C aan
+bod komt. Faalmodus niet opgetreden, ook niet geforceerd: bij replacement cost ×1,5/×2/×3 (tot
+€ 0,39/kWh, mediaan-cap omzeild) blijft het effect −€ 0,57 op 75 dagen en blijven er 0 dagen zonder
+ontlading. **Vlag mag aan blijven (staat in productie op 1), maar niet als winstbron rekenen.**
+Beperkingen: vlakke reserve, geen taper/efficiency-curve/discharge-capability, 48 u i.p.v. 72 u, en
+alle kwartieren verhandelbaar terwijl productie `PredictedPriceMode = Off` heeft — dit was dus
+carry-forwards *beste* geval. Alleen zomerdata.
+
+**Punt 2 — hittegolf-validatie** opgegaan in punt 0: het probleem is niet dat 34 °C extrapolatie is,
+maar dat de fit *uitsluitend* hittegolfdata ziet.
+
+**Punt 3 — EF-migraties waren al klaar sinds 15-07**, nooit handwerk nodig geweest.
+`20260715103547_RemoveShutDownAtNegativePrices` en `20260715131646_RemoveNearTermHedge` staan in
+`__EFMigrationsHistory`; migraties draaien automatisch bij het opstarten.
+
+**Punt 4 — JSON `NaN`-crash + gasprijs-feed (v1.0.74).**
+`SunspecInverterService.GetACPowerInWatts` geeft `double.NaN` bij een corrupte Modbus-scale-factor.
+Die ging direct in de publieke `ActualSolarPowerInWatts` — de bestaande guard filterde alleen de
+*historie*. Van daar via `+=` in `SolarInverterManager` naar
+`GET /BatteryManagement/Inverter/AcPowerInWatts`, waar System.Text.Json een niet-eindige double
+weigert → 500; én naar `HardwareStatusService`, waar elke vergelijking met NaN stilzwijgend false is.
+Drie plekken gerepareerd: pas publiceren als de meting eindig is (laatste goede waarde blijft staan,
+met Warning) en niet-eindige bijdragen overslaan in `SolarInverterManager` én
+`SunspecInverterService.GetTotalACPowerInWatts`. Bewust géén `AllowNamedFloatingPointLiterals`: dat
+maakt er `"NaN"` als string van, wat Loxone net zo hard breekt en de fout verbergt.
+`QuarterlyInfo` nagelopen — die delingen zijn al afgeschermd.
+*Gasprijs:* `FetchGasPriceAsync` beloofde in haar eigen comment "leaves the previous value intact on
+failure" maar deed dat alleen bij `status != true` en een lege data-array; bij een parse-fout, een
+ontbrekend `prijsEGSI`-veld of een exception viel hij dóór met `marketPrice` op 0,00 en publiceerde
+belasting-alleen als gasprijs. Nu een expliciete `havePrice`-vlag.
+
+**Punt 5 — comment-opschoning (v1.0.75).** Het restant bleek geen *te lange* maar **foute**
+documentatie: 11 verweesde `<summary>`-blokken, docs van verwijderde methodes die op de volgende
+member waren blijven plakken (`CalculationService` de gasprijs-methode boven de batch-prijsmethode,
+`EPEXPricesService` `GetPrices()` boven `GetSellingPriceForQuarter`, `BatteriesService` de
+SOC-envelopes boven `WriteActualQuarterIfNewAsync`, `EnergyStatistics` "energy charged" boven
+`StartSocKWh`). Per geval de doc gehouden die bij de member eronder hoort — in `ChargingHoursPage`
+was dat juist de éérste, dus niet mechanisch te doen. In `QuarterlyMeasurement` twee `<summary>`-tags
+op dezelfde property samengevoegd. Verder weg: 22 regels uitgecommentarieerde code in
+`SolarPowerPage.razor.cs` en het "Add these endpoints to…"-scaffoldingblok.
+**Bewust blijven staan:** de lange klasse-docs van de tests (`RealDayPlannerTests` met de
+productiecijfers van 30-07 enz.) en de Radzen-crosshair-uitleg in `ChargingHoursChartComponent` —
+dat is de vastgelegde reden waaróm die tests en guards bestaan. Ook de uitgecommentarieerde
+`.LogTo(...)` in `ModelContext.OnConfiguring`, een bewuste debug-toggle.
+
+**Resize hertekende de layout drie keer te vaak (v1.0.76).** `MainLayout.OnResizedAsync` riep twee
+keer achter elkaar `await InvokeAsync(StateHasChanged)` aan — kopieerfout — en deed dat óók voor
+resize-events die `ScreenInfo.Update` als ruis wegfiltert (iOS-adresbalk, band van 4 px). Rendering
+van de layout rendert `@Body` mee, dezelfde reden waarom `SetIsBusy` via de overlay loopt, dus op de
+charging-hours-pagina was dat twee volledige hertekeningen van een grafiek met ~17 series over
+288 kwartieren, per genegeerd event. `Update` geeft nu `bool` terug (veranderd ja/nee) en
+`OnResizedAsync` stopt als er niets veranderde; één `StateHasChanged` blijft over. De
+`Console.WriteLine($"ScreenInfo: …")` per resize per circuit is weg — dat was een rauwe
+console-schrijf, dus zelfs het Warning-logniveau onderdrukte hem niet.
+
 ## Openstaande punten
 0. **De laadtaper wordt gefit op tien dagen hittegolf — hoogste prioriteit (bijgewerkt 08-08).**
    Hoogst gemeten laadvermogen per SOC-band (`QuarterlyMeasurements`, vanaf 15-06): 10-20% → 5310 W,
@@ -541,71 +606,15 @@ en `FindRatio` hebben al vóór deze wijziging geen aanroepers — dode code, la
    **Wat het wel nodig heeft:** maanden `PlannedUnthrottledPowerW`-dekking over een breed
    temperatuurbereik, zodat C en D echt te scheiden zijn van B. Tot die tijd niets forceren — een
    tweede filter-tweak lost het niet op.
-1. ~~Revenue mét en zonder `CarryForwardEnabled` vergelijken.~~ **Gedaan 08-08 — carry-forward is
-   een no-op op deze data.** 75 aaneengesloten dagen (26-05 t/m 08-08) teruggespeeld door de échte
-   `BatteryGreedyPlanner` (geen Python-spiegel), rollend: 48 u-horizon, eerste 24 u afgerekend, SOC
-   doorgeschoven, twee runs die alleen in de vlag verschillen. Beide plannen afgerekend met één
-   evaluator, die als zelfcontrole exact de objective van de planner reproduceert (0,5562 = 0,5562)
-   bij carry-forward uit. Resultaat: **€ 0,00 verschil**, en identiek op import (471,1 kWh), export
-   (605,7), ontladen (999,2) en eind-SOC (3,64). De plannen wijken op **1 van de 75 dagen** af
-   (12-06, tot 3,4 kW) en die afwijking valt buiten het uitgevoerde venster.
-   **Waarom:** de replacement cost is ~€ 0,13/kWh, over 48 u verdisconteerd ~€ 0,114. De all-in
-   inkoopprijs zakt daar op maar 7 van 68 dagen onder. Juist op die dagen is Candidate B
-   (laden → ontladen bínnen de horizon, avondpiek ~€ 0,30) veel winstgevender, dus B claimt de
-   goedkope kwartieren en de batterij zit vol voor C aan bod komt.
-   **Faalmodus niet opgetreden**, ook niet geforceerd: bij een replacement cost van ×1,5/×2/×3
-   (tot € 0,39/kWh, de mediaan-cap bewust omzeild) blijft het effect −€ 0,57 op 75 dagen (−0,9 %),
-   blijft het ontladen ~998 kWh en blijven er **0** dagen zonder ontlading.
-   **Conclusie:** de vlag mag aan blijven (staat in productie op 1) — hij kost niets, maar levert
-   op dit prijsregime ook niets. Niet als winstbron rekenen.
-   **Beperkingen:** vlakke reserve (minSoc 0), geen taper/efficiency-curve/discharge-capability,
-   48 u i.p.v. 72 u horizon en álle kwartieren verhandelbaar terwijl productie `PredictedPriceMode`
-   op `Off` heeft — dat maakt verre kwartieren `ReserveOnly`, wat C nog verder onderdrukt. Dit was
-   dus carry-forwards *beste* geval. Absolute € 62,55 over 75 dagen is géén productievoorspelling;
-   alleen het verschil is het antwoord. Alleen zomerdata — winter is niet getoetst.
-2. ~~**Hittegolf-validatie (vanaf 28-07).**~~ Opgegaan in punt 0: het probleem is niet dat 34 °C
-   extrapolatie is, maar dat de fit *uitsluitend* hittegolfdata ziet. Zolang dat zo is valt er niets
-   te valideren — de temperatuurterm is er niet significant en de koude referentie ontbreekt.
-3. ~~EF-migraties (user-kant).~~ **Al klaar sinds 15-07, nooit handwerk nodig geweest** —
-   `20260715103547_RemoveShutDownAtNegativePrices` en `20260715131646_RemoveNearTermHedge` staan in
-   `__EFMigrationsHistory` van de productie-DB, de live `Settings`-rij mist die kolommen en heeft
-   `FutureValueDiscountPerHour`. Migraties draaien automatisch bij het opstarten (`Program.cs`).
-4. ~~JSON `Infinity`/`NaN` crash + lege Enever gasprijs-feed.~~ **Opgelost 08-08 (v1.0.74).**
-   *NaN-crash:* `SunspecInverterService.GetACPowerInWatts` geeft `double.NaN` terug bij een corrupte
-   Modbus-scale-factor (fysiek onmogelijke waarde). Die werd op regel 165 direct in de publieke
-   `ActualSolarPowerInWatts` gezet; de bestaande guard filterde alleen de *historie*, niet de
-   property. Van daar liep hij door `SolarInverterManager.GetActualSolarPowerInWatts` (`+=`
-   propageert NaN) naar `GET /BatteryManagement/Inverter/AcPowerInWatts`, waar System.Text.Json
-   weigert een niet-eindige double te schrijven → 500. Drie plekken gerepareerd: lezen in een
-   lokale variabele en pas publiceren als hij eindig is (laatste goede waarde blijft staan, met een
-   Warning), en niet-eindige bijdragen overslaan in zowel `SolarInverterManager` als
-   `SunspecInverterService.GetTotalACPowerInWatts`. Bewust géén
-   `AllowNamedFloatingPointLiterals` op de serializer: dat maakt er `"NaN"` als string van, wat
-   Loxone net zo goed breekt en de fout zou verbergen in plaats van oplossen. `QuarterlyInfo` is
-   nagelopen — alle delingen daar zijn al afgeschermd.
-   *Gasprijs:* `FetchGasPriceAsync` beloofde in haar eigen comment "leaves the previous value
-   intact on failure", maar deed dat alleen bij `status != true` en een lege data-array. Bij een
-   parse-fout, een ontbrekend `prijsEGSI`-veld of een exception viel hij dóór naar de
-   belastingberekening met `marketPrice` nog op 0,00 en publiceerde belasting-alleen als gasprijs.
-   Nu een expliciete `havePrice`-vlag; zonder bruikbare prijs blijft de vorige staan.
-   Geen tests toegevoegd: beide paden zitten achter Modbus- respectievelijk HTTP-hardware en een
-   test die `double.IsFinite` controleert voegt niets toe.
-5. ~~Comment-opschoning.~~ **Afgerond 08-08 (v1.0.75).** Het restant bleek geen *te lange* maar
-   **foute** documentatie: 11 verweesde `<summary>`-blokken, docs van verwijderde methodes die op de
-   volgende member waren blijven plakken. `CalculationService` documenteerde de gasprijs-methode
-   boven de batch-prijsmethode, `EPEXPricesService` documenteerde `GetPrices()` boven
-   `GetSellingPriceForQuarter`, `BatteriesService` de SOC-envelopes boven
-   `WriteActualQuarterIfNewAsync`, `EnergyStatistics` "energy charged" boven `StartSocKWh`. Per
-   geval de doc gehouden die bij de member eronder hoort — in `ChargingHoursPage` was dat juist de
-   éérste, dus niet mechanisch te doen. In `QuarterlyMeasurement` waren het twee `<summary>`-tags op
-   dezelfde property (ongeldige XML-doc, de compiler pakt er één); samengevoegd.
-   Verder weg: 22 regels uitgecommentarieerde code in `SolarPowerPage.razor.cs` en het achtergebleven
-   "Add these endpoints to BatteryManagementController.cs"-scaffoldingblok.
-   **Bewust blijven staan:** de lange klasse-docs van de testbestanden (`RealDayPlannerTests` met de
-   productiecijfers van 30-07, `ChargeRequestTests`, enz.) en de Radzen-crosshair-uitleg in
-   `ChargingHoursChartComponent` — dat is de vastgelegde reden waaróm die tests en guards bestaan,
-   geen breedsprakigheid. Ook blijven staan: de uitgecommentarieerde `.LogTo(...)`-schakelaar in
-   `ModelContext.OnConfiguring`, een bewuste debug-toggle.
+1. **Productie-verificatie van v1.0.72 t/m v1.0.75 staat nog open** — zie de checklist onderaan.
+   De ontlaadkant, de NaN-fix en de gasprijs-fix zijn alleen lokaal getoetst.
+2. **CLAUDE.md mist v1.0.57 t/m v1.0.71** (o.a. de GHCR-overstap en de .NET 10 / Blazor-buildfix).
+   Te reconstrueren uit de git-historie; verder is alles t/m v1.0.75 beschreven.
+3. **`SessyWeb.Helpers.ScreenInfo` is niet getest** omdat `SessyUnitTests` geen projectreferentie
+   naar `SessyWeb` heeft. Sinds v1.0.76 draagt `Update` een beslissing (wel/niet hertekenen), dus
+   dat is nu testwaardig. Twee wegen: `ScreenInfo` verhuizen naar `SessyCommon` (het is een pure
+   helper zonder Blazor-afhankelijkheden, en `PageBase`/`BaseComponent`/`_Imports` moeten dan mee),
+   of `SessyWeb` als projectreferentie toevoegen aan de testset. Nog niet gekozen.
 
 ## Diagnosed, niet-een-bug
 - Setpoint requested ≠ Setpoint: Sessy-hardware klemt/tapert zelf (CC/CV, SOC-afhankelijk). API meldt geen reden. `Battery.SetpointRequested` (ons) vs `Sessy.PowerSetpoint` (device).
@@ -620,7 +629,7 @@ als een grens gepind wordt en Information als alles goed gaat, dus je ziet er al
 Niet ophogen; toets tegen de DB, dat is sterker bewijs want het is wat er werkelijk gepland en
 gestuurd is.
 
-**Te verifiëren na de productie-run van v1.0.72 (uitgerold 08-08):**
+**Checklist bij openstaand punt 1 — te verifiëren na de productie-run van v1.0.72 t/m v1.0.75:**
 1. `PlannedQuarters` op ontlaadkwartieren: `PlannedUnthrottledPowerW` hoort **5100** te zijn (het
    echte verzoek) in plaats van `PlannedPowerW / 0,60`, en `PlannedPowerW` loopt tot ~4121 W in
    plaats van te blijven steken op ~3060 W. Onder 20% SOC zakt hij evenredig mee.
@@ -630,3 +639,8 @@ gestuurd is.
    rekenkundig vast; elke waarde was een dekpunt.
 4. Blijven `DbHelper: slow`, `ThreadPool busy` en "UI blocked: clock tick ran N ms late" stil?
    (Die staan wél op Warning en zijn dus zichtbaar.)
+5. Geeft `GET /BatteryManagement/Inverter/AcPowerInWatts` weer een getal in plaats van een 500, ook
+   als er een corrupte Modbus-scale-factor voorbijkomt? Zoek op
+   "discarded a corrupt AC power reading" (Warning, dus zichtbaar).
+6. Blijft de gasprijs op de warmtepomp-pagina op de laatst bekende waarde staan als de Enever-feed
+   niets bruikbaars teruggeeft, in plaats van op belasting-alleen te springen?
