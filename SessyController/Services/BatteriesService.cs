@@ -297,16 +297,6 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Build tariff-aware min/max SOC envelopes for each quarter.
-        ///
-        /// min SOC:
-        /// - when netting is disabled, keep enough energy for future expensive positive-load quarters
-        ///
-        /// max SOC:
-        /// - always keep enough free headroom for the strongest upcoming net solar charging excursion
-        /// </summary>
-
-        /// <summary>
         /// Writes an ActualQuarter record once per quarter at the start of each new quarter.
         /// Captures actual hardware state vs state machine decision for plan vs actual analysis.
         /// </summary>

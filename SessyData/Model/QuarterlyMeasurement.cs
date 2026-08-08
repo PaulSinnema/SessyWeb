@@ -57,13 +57,17 @@ namespace SessyData.Model
 
         // ── Prices ────────────────────────────────────────────────────────────
 
-        /// <summary>Effective buying price this quarter in EUR/kWh (incl. taxes).</summary>
-        /// <summary>Computed from EPEXPrices + Taxes — not stored in DB.</summary>
+        /// <summary>
+        /// Effective buying price this quarter in EUR/kWh (incl. taxes).
+        /// Computed from EPEXPrices + Taxes — not stored in DB.
+        /// </summary>
         [NotMapped]
         public double BuyingPriceEur { get; set; }
 
-        /// <summary>Effective selling price this quarter in EUR/kWh (incl. taxes).</summary>
-        /// <summary>Computed from EPEXPrices + Taxes — not stored in DB.</summary>
+        /// <summary>
+        /// Effective selling price this quarter in EUR/kWh (incl. taxes).
+        /// Computed from EPEXPrices + Taxes — not stored in DB.
+        /// </summary>
         [NotMapped]
         public double SellingPriceEur { get; set; }
 

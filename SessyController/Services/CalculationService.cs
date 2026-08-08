@@ -148,9 +148,6 @@ namespace SessyController.Services
         /// from the most recently applicable Taxes record.
         /// Formula: (marketPriceEurPerM3 + GasSupplierMarkupEurPerM3 + GasEnergyTaxEurPerM3)
         ///          × (1 + GasValueAddedTaxPct / 100)
-        /// Returns null when no Taxes record is available.
-        /// </summary>
-        /// <summary>
         /// Batch-calculates buying and selling prices for a list of timestamps using
         /// the EPEXPrices and Taxes caches — avoids per-item semaphore overhead.
         /// </summary>

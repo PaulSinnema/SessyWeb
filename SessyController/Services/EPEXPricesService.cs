@@ -467,12 +467,6 @@ namespace SessyController.Services
         private SemaphoreSlim GetPricesSemaphore = new SemaphoreSlim(1);
 
         /// <summary>
-        /// Get the fetched prices for yesterday, today and tomorrow (if present) as a sorted list.
-        /// When tomorrow's prices are not yet available from the day-ahead market,
-        /// fills them in with historical averages so the MILP planner can make
-        /// informed decisions about today's battery management.
-        /// </summary>
-        /// <summary>
         /// Returns the selling price for the given quarter.
         /// Returns 0.0 when not found.
         /// Note: GetPrices() is async — call this only when quarterly infos are already available

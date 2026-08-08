@@ -230,10 +230,6 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Warns when battery planning settings hold extreme values that usually indicate
-        /// a mistake. Values are shown as the user sees them in Settings (whole percentages).
-        /// </summary>
-        /// <summary>
         /// A learned value that lands on its bound is not a measurement, it is the model running
         /// out of room — worth saying out loud rather than applying silently.
         /// </summary>

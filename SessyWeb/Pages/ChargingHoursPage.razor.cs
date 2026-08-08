@@ -600,11 +600,6 @@ namespace SessyWeb.Pages
         /// Loads planned quarters from the database for the given window, keyed by time.
         /// Returns empty dictionary when the service is unavailable.
         /// </summary>
-        /// <summary>
-        /// Applies a centered moving average to EstimatedConsumptionPerQuarterHour
-        /// and stores the result in SmoothedConsumptionPerQuarterHour for display.
-        /// </summary>
-
         private async Task<Dictionary<DateTime, PlannedQuarter>> GetPlannedByQuarterAsync(DateTime from, DateTime to)
         {
             if (_plannedQuarterDataService == null)

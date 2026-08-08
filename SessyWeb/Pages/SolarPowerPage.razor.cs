@@ -155,28 +155,6 @@ namespace SessyWeb.Pages
 
                             DetermineTickDistance(result);
                         }
-                        //{
-                        //    var result = await _measurementService!.GetList(async (set) =>
-                        //    {
-                        //        var result = set
-                        //            .Where(sed => sed.Time.Date == DateChosen.Date)
-                        //            .ToList();
-
-                        //        return await Task.FromResult(result);
-                        //    });
-
-                        //    SolarDayData = result
-                        //                   .GroupBy(d => d.ProviderName)
-                        //                   .ToDictionary(sid => sid.Key,
-                        //                   sid => sid.Select(g => new SolarDisplayDayData
-                        //                   {
-                        //                       ProviderName = g.ProviderName,
-                        //                       Time = g.Time,
-                        //                       Power = g.SolarProductionKWh
-                        //                   }).ToList());
-
-                        //    DetermineTickDistance(SolarDayData);
-                        //}
 
                         break;
 

@@ -1024,13 +1024,6 @@ namespace SessyTests.Services
         }
 
         /// <summary>
-        /// Builds cumulative EnergyHistory meter readings from the desired per-quarter grid
-        /// flows and feeds them to the mock. GetMeasurementsAsync derives grid import/export
-        /// as the delta between consecutive readings, so a reading is emitted one quarter
-        /// before the first flow to seed that first delta. Each tuple is (time, importWh,
-        /// exportWh) describing the flow during the quarter that ENDS at the given time.
-        /// </summary>
-        /// <summary>
         /// Makes the calculation service return the same buy/sell price for every quarter,
         /// so tests that assert on priced values are independent of EPEX data.
         /// </summary>

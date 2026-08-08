@@ -182,13 +182,6 @@ namespace SessyWeb.Controllers
 
         #endregion
 
-        // Add these endpoints to BatteryManagementController.cs
-        // Place them in a new #region Solar Inverter block, before the #region WeerOnline block.
-        //
-        // These endpoints expose solar inverter data via HTTP so that Loxone and other
-        // external systems can retrieve it without polling Modbus directly.
-        // Direct Modbus polling from multiple clients causes transaction ID conflicts.
-
         #region Solar Inverter
 
         /// <summary>
@@ -200,7 +193,6 @@ namespace SessyWeb.Controllers
         public async Task<double> GetAcPowerInWatts()
         {
             return await _solarInverterManager.GetActualSolarPowerInWatts();
-
         }
         #endregion
     }

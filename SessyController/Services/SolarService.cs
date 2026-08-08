@@ -85,9 +85,6 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Gets the expected solar power from Now for today
-        /// </summary>
-        /// <summary>
         /// Returns the forecast solar production for the remaining quarters of today,
         /// starting from the current quarter onwards.
         /// Used together with realized production to give an accurate day total in the header.
@@ -368,12 +365,6 @@ namespace SessyController.Services
             _logger.LogInformation($"Solar extrapolation: {extrapolatedCount} quarters estimated from {ExtrapolationLookbackDays}-day average radiation.");
         }
 
-        /// <summary>
-        /// Calculates the average performance factor over the last N days by comparing
-        /// realized solar production (InverterMeasurements) to radiation-based forecast
-        /// (SolarData). Uses median over 30 days to filter outliers.
-        /// Returns 1.0 when insufficient data is available.
-        /// </summary>
         /// <summary>
         /// Calculates the historical performance factor from the last N days by comparing
         /// realized solar (InverterMeasurements) to the forecast computed from SolarData

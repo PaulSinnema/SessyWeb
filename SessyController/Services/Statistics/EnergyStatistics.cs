@@ -58,11 +58,6 @@
         /// <summary>Total energy discharged from batteries (kWh) — all periods.</summary>
         public double TotalBatteryDischargedKWh { get; set; }
 
-        /// <summary>
-        /// Energy charged over reliable periods only (kWh).
-        /// Used for round-trip efficiency to exclude periods with known data quality issues
-        /// (e.g. battery overheating causing premature shutdown mid-cycle).
-        /// </summary>
         /// <summary>SOC at the start of the period (kWh) — used for round-trip efficiency correction.</summary>
         public double StartSocKWh { get; set; }
 

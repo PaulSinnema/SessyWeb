@@ -590,7 +590,22 @@ en `FindRatio` hebben al vóór deze wijziging geen aanroepers — dode code, la
    Nu een expliciete `havePrice`-vlag; zonder bruikbare prijs blijft de vorige staan.
    Geen tests toegevoegd: beide paden zitten achter Modbus- respectievelijk HTTP-hardware en een
    test die `double.IsFinite` controleert voegt niets toe.
-5. Comment-opschoning was bezig toen onderbroken — meeste lange blocks al ingekort, mogelijk nog een paar razor/test-comments over.
+5. ~~Comment-opschoning.~~ **Afgerond 08-08 (v1.0.75).** Het restant bleek geen *te lange* maar
+   **foute** documentatie: 11 verweesde `<summary>`-blokken, docs van verwijderde methodes die op de
+   volgende member waren blijven plakken. `CalculationService` documenteerde de gasprijs-methode
+   boven de batch-prijsmethode, `EPEXPricesService` documenteerde `GetPrices()` boven
+   `GetSellingPriceForQuarter`, `BatteriesService` de SOC-envelopes boven
+   `WriteActualQuarterIfNewAsync`, `EnergyStatistics` "energy charged" boven `StartSocKWh`. Per
+   geval de doc gehouden die bij de member eronder hoort — in `ChargingHoursPage` was dat juist de
+   éérste, dus niet mechanisch te doen. In `QuarterlyMeasurement` waren het twee `<summary>`-tags op
+   dezelfde property (ongeldige XML-doc, de compiler pakt er één); samengevoegd.
+   Verder weg: 22 regels uitgecommentarieerde code in `SolarPowerPage.razor.cs` en het achtergebleven
+   "Add these endpoints to BatteryManagementController.cs"-scaffoldingblok.
+   **Bewust blijven staan:** de lange klasse-docs van de testbestanden (`RealDayPlannerTests` met de
+   productiecijfers van 30-07, `ChargeRequestTests`, enz.) en de Radzen-crosshair-uitleg in
+   `ChargingHoursChartComponent` — dat is de vastgelegde reden waaróm die tests en guards bestaan,
+   geen breedsprakigheid. Ook blijven staan: de uitgecommentarieerde `.LogTo(...)`-schakelaar in
+   `ModelContext.OnConfiguring`, een bewuste debug-toggle.
 
 ## Diagnosed, niet-een-bug
 - Setpoint requested ≠ Setpoint: Sessy-hardware klemt/tapert zelf (CC/CV, SOC-afhankelijk). API meldt geen reden. `Battery.SetpointRequested` (ons) vs `Sessy.PowerSetpoint` (device).
