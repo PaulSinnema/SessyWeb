@@ -58,11 +58,22 @@ namespace SessyController.Services
         private const int TaperHistoryDays = 730;      // hard cap: two years
         private const double TaperHalfLifeDays = 120;  // a sample this old counts for half
 
+        // Discharge capability. Modelled in watts against SOC, not as a ratio against a request,
+        // which is what lets it use the whole measurement history instead of only the quarters
+        // that carry a PlannedUnthrottledPowerW — see GetDischargeCapabilityAsync.
+        private const int DischargeBins = 20;              // SOC bins, 5% wide
+        private const int MinSamplesPerDischargeBin = 3;   // below this a bin says nothing
+        private const int MinDischargeBins = 6;            // enough bins to see a plateau at all
+        private const double KneePlateauRatio = 0.9;       // "at plateau" means within this of it
+
         /// <summary>How long a fitted taper stays valid; the long window barely moves per quarter.</summary>
         private static readonly TimeSpan TaperCacheTime = TimeSpan.FromHours(6);
 
         private ChargeTaper? _cachedTaper;
         private DateTime _cachedTaperAt = DateTime.MinValue;
+
+        private DischargeCapability? _cachedDischarge;
+        private DateTime _cachedDischargeAt = DateTime.MinValue;
 
         public ThrottleAnalysisService(
             PlannedQuarterDataService plannedQuarterDataService,
@@ -300,6 +311,151 @@ namespace SessyController.Services
                 return new ChargeTaper(longFit[0], -longFit[1], c, d, samples.Count);
 
             return new ChargeTaper(a, -socSlope, c, d, samples.Count);
+        }
+
+        // ── Discharge capability ──────────────────────────────────────────────
+
+        /// <summary>
+        /// Fits how much discharge power the bank can deliver against state of charge.
+        ///
+        /// Unlike the charge side this models WATTS, not a realized/requested ratio, and that is
+        /// the whole point. A ratio needs a denominator, so it can only use quarters that carry a
+        /// PlannedUnthrottledPowerW — on the production database that is 223 of 7135 planned
+        /// quarters, all from one ten-day window. Watts need no denominator, so every measured
+        /// discharge quarter counts.
+        ///
+        /// It also fixes the loop the discharge side was stuck in. The setpoint sent was the
+        /// already-throttled plan power and the denominator was reconstructed as plan / ratio, so
+        /// for any ratio r the next measurement returned exactly r again: every value was a fixed
+        /// point and the measured throttle could never recover. Same defect the charge side had
+        /// before the envelope fit; see SelectEnvelope.
+        ///
+        /// Cached like the charge taper — the history barely moves from one quarter to the next.
+        /// </summary>
+        /// <param name="nameplateW">Combined nameplate discharge power, the ceiling on the fit.</param>
+        public async Task<DischargeCapability> GetDischargeCapabilityAsync(double nameplateW)
+        {
+            var now = _timeZoneService.Now;
+
+            if (_cachedDischarge != null && now - _cachedDischargeAt < TaperCacheTime)
+                return _cachedDischarge;
+
+            double capacity = _batteryContainer.GetTotalCapacity();
+
+            var capability = capacity <= 0.0
+                ? DischargeCapability.None
+                : FitDischargeCapability(
+                    await CollectDischargeSamplesAsync(now, capacity).ConfigureAwait(false),
+                    nameplateW);
+
+            _cachedDischarge = capability;
+            _cachedDischargeAt = now;
+
+            return capability;
+        }
+
+        /// <summary>
+        /// Every measured discharge quarter as (SOC fraction, delivered watts).
+        ///
+        /// No MinRequestedW and no SOC window: both exist on the charge side to protect a ratio,
+        /// and the SOC window would cut away exactly the low-SOC region where the discharge
+        /// fall-off lives. Quarters someone else drove are still dropped — Charged's power at our
+        /// state of charge says nothing about what we could have asked for.
+        /// </summary>
+        private async Task<List<(double Soc, double PowerW)>> CollectDischargeSamplesAsync(
+            DateTime now, double capacity)
+        {
+            var historyStart = now.AddDays(-TaperHistoryDays);
+
+            var measurements = await _measurementDataService.GetList(async set =>
+                await Task.FromResult(set
+                    .Where(m => m.Time >= historyStart && m.Time <= now && m.BatteryMode == Modes.Discharging)
+                    .ToList()));
+
+            var foreignQuarters = await LoadForeignQuartersAsync(historyStart, now).ConfigureAwait(false);
+
+            var samples = new List<(double, double)>();
+
+            foreach (var m in measurements)
+            {
+                if (foreignQuarters.Contains(m.Time)) continue;
+
+                double socFraction = m.BatteryStateOfChargeWh / capacity;
+                if (socFraction < 0.0 || socFraction > 1.0) continue;
+
+                samples.Add((socFraction, Math.Abs(m.BatteryPowerWatts)));
+            }
+
+            return samples;
+        }
+
+        /// <summary>
+        /// Plateau and knee from the upper envelope of the samples: per SOC bin the HIGHEST power
+        /// seen, never a mean. A mean measures how hard the plan asked that quarter, which is what
+        /// froze the old ratio; a maximum can only be raised by hardware actually delivering.
+        ///
+        /// Plateau is the median of the bin maxima above half charge, so one freak bin cannot set
+        /// it. The knee is the lowest bin where that bin AND the one above it both reach the
+        /// plateau — requiring two in a row keeps a single lucky bin low down from claiming there
+        /// is no fall-off at all.
+        ///
+        /// Static and pure so it can be tested without a database.
+        /// </summary>
+        internal static DischargeCapability FitDischargeCapability(
+            IReadOnlyList<(double Soc, double PowerW)> samples, double nameplateW)
+        {
+            if (samples.Count == 0 || nameplateW <= 0.0) return DischargeCapability.None;
+
+            // Highest power per SOC bin; bins too thin to trust are dropped entirely.
+            var binMax = new SortedDictionary<int, double>();
+            var binCount = new Dictionary<int, int>();
+
+            foreach (var (soc, powerW) in samples)
+            {
+                int bin = Math.Min((int)(soc * DischargeBins), DischargeBins - 1);
+                binCount[bin] = binCount.GetValueOrDefault(bin) + 1;
+                if (!binMax.TryGetValue(bin, out var best) || powerW > best) binMax[bin] = powerW;
+            }
+
+            var bins = binMax
+                .Where(b => binCount[b.Key] >= MinSamplesPerDischargeBin)
+                .ToList();
+
+            if (bins.Count < MinDischargeBins) return DischargeCapability.None;
+
+            // Plateau from the upper half of the SOC range, where the curve is flat. Falls back to
+            // all bins when the battery has never been measured that full.
+            var upper = bins.Where(b => b.Key >= DischargeBins / 2).Select(b => b.Value).ToList();
+            if (upper.Count < 2) upper = bins.Select(b => b.Value).ToList();
+
+            double plateau = Math.Min(Median(upper), nameplateW);
+            if (plateau <= 0.0) return DischargeCapability.None;
+
+            // Lowest bin from which two consecutive bins both sit at the plateau.
+            double threshold = plateau * KneePlateauRatio;
+            double kneeSoc = -1.0;
+
+            for (int i = 0; i < bins.Count - 1; i++)
+            {
+                if (bins[i].Value < threshold || bins[i + 1].Value < threshold) continue;
+
+                kneeSoc = (double)bins[i].Key / DischargeBins;
+                break;
+            }
+
+            if (kneeSoc < 0.0) return DischargeCapability.None;
+
+            return new DischargeCapability(plateau, kneeSoc, bins.Count);
+        }
+
+        private static double Median(List<double> values)
+        {
+            var sorted = values.OrderBy(v => v).ToList();
+            int mid = sorted.Count / 2;
+
+            return sorted.Count % 2 == 1
+                ? sorted[mid]
+                : (sorted[mid - 1] + sorted[mid]) / 2.0;
         }
 
         /// <summary>

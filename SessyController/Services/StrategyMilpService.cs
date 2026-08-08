@@ -132,12 +132,25 @@ namespace SessyController.Services
                         $"({chargeTaper.Ratio(0.2):F2} at 20% SOC, {chargeTaper.Ratio(0.8):F2} at 80%, " +
                         $"{chargeTaper.Ratio(0.5, 30.0, 28.0):F2} at 50% SOC in a heatwave).");
 
+                // Discharge power depends on state of charge, not on temperature — measured on
+                // production data temperature explains nothing there (R2 0.012) while SOC does.
+                // Like the taper it replaces the bucket ratio rather than stacking on it.
+                var dischargeCapability = await _throttleAnalysisService
+                    .GetDischargeCapabilityAsync(_sessyBatteryConfig.TotalRawDischargingCapacity)
+                    .ConfigureAwait(false);
+
+                if (dischargeCapability.Samples > 0)
+                    _logger.LogInformation(
+                        $"Discharge capability fitted on {dischargeCapability.Samples} SOC bins: " +
+                        $"plateau {dischargeCapability.PlateauW:F0} W above {dischargeCapability.KneeSoc * 100.0:F0}% SOC " +
+                        $"({dischargeCapability.PowerW(0.1):F0} W at 10% SOC, " +
+                        $"{dischargeCapability.PowerW(0.5):F0} W at 50%).");
+
                 // Temperatures for the heat build-up term: measured history for the part of the
                 // 48-hour window that lies in the past, forecast for the rest.
                 var temperatureByHour = await BuildTemperatureSeriesAsync(quarters, nowQuarter)
                     .ConfigureAwait(false);
 
-                _throttleRatioByTime.Clear();
                 _taperInputsByTime.Clear();
 
                 double throttleFallback = _settingsConfig.ThrottleFallbackPct > 0.0
@@ -156,15 +169,18 @@ namespace SessyController.Services
                     var temp = _weatherService.GetTemperature(q.Time);
                     if (temp.HasValue)
                     {
-                        // Discharge keeps the temperature buckets: the SOC signal is weak there.
-                        // Fall back to the configured estimate when this temperature has no
-                        // samples — assuming no throttle at all would make the planner request
-                        // power the battery cannot deliver.
-                        if (!_throttleAnalysisService.TryGetDischargeRatio(throttleBuckets, temp.Value, out double dischargeRatio))
-                            dischargeRatio = throttleFallback;
+                        // Discharge side: with a measured capability the planner derates per
+                        // quarter from the SOC it has reached there, so no cap is imposed here.
+                        // Without one the old temperature bucket still applies — falling straight
+                        // back to nameplate would make the planner request power the battery
+                        // cannot deliver.
+                        if (dischargeCapability.Samples == 0)
+                        {
+                            if (!_throttleAnalysisService.TryGetDischargeRatio(throttleBuckets, temp.Value, out double dischargeRatio))
+                                dischargeRatio = throttleFallback;
 
-                        qMaxDischargeKW = maxDischargeKW * dischargeRatio;
-                        _throttleRatioByTime[q.Time] = dischargeRatio;
+                            qMaxDischargeKW = maxDischargeKW * dischargeRatio;
+                        }
 
                         // Charge side: with a measured taper the planner derates per quarter from
                         // the SOC and temperatures it has there, so no cap is imposed here — a
@@ -226,7 +242,8 @@ namespace SessyController.Services
                     ChargeEfficiency: chargeEfficiency,
                     DischargeEfficiency: dischargeEfficiency,
                     ChargeTaper: chargeTaper,
-                    Efficiency: efficiencyCurve);
+                    Efficiency: efficiencyCurve,
+                    DischargeCapability: dischargeCapability);
 
                 // What replacing a kWh will cost, measured over a trailing window. It prices both
                 // the floor under selling stock and the option of keeping energy past the end of

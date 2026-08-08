@@ -119,7 +119,9 @@ Blazor Server, Radzen components, `.razor` + `.razor.cs` code-behind pairs. Page
 # SessyWeb — Samenvatting voor nieuwe chat
 
 ## Wat is SessyWeb
-C#/.NET Blazor Server EMS. Stuurt 3× Sessy batterij (cap 16,2 kWh; raw charge 6600W/discharge 5100W; **aantoonbaar gehaald ~5,0-5,3 kW laden** over vrijwel het hele SOC-bereik — zie Openstaande punten, de eerdere "praktijk max ~4,4kW" was de getaperde planwaarde, niet de hardwarelimiet), SolarEdge inverter, Daikin warmtepomp. Draait op Synology NAS via Docker. Huidige versie **v1.0.56**. Locatie: Apeldoorn.
+C#/.NET Blazor Server EMS. Stuurt 3× Sessy batterij (cap 16,2 kWh; raw charge 6600W/discharge 5100W; **aantoonbaar gehaald ~5,0-5,3 kW laden** over vrijwel het hele SOC-bereik — zie Openstaande punten, de eerdere "praktijk max ~4,4kW" was de getaperde planwaarde, niet de hardwarelimiet), SolarEdge inverter, Daikin warmtepomp. Draait op Synology NAS via Docker. Huidige versie **v1.0.72**. Locatie: Apeldoorn.
+**Let op:** dit document beschrijft t/m v1.0.56 en dan weer v1.0.72; v1.0.57-v1.0.71 (o.a. de
+GHCR-overstap en de .NET 10 / Blazor-buildfix) staan er niet in.
 
 ## Werkafspraken
 - Antwoorden in het Nederlands, caveman-ultra kort. Code-commentaar in het Engels, **kort — één regel waar mogelijk** (user leest alle comments na ter controle).
@@ -475,6 +477,47 @@ de vergelijking daadwerkelijk op het scherm staat. De headertekst beweegt mee: z
 alleen wie er stuurt, met vergelijking de kleuruitleg plus de leeftijd van het schema.
 `ToggleCharged` roept `MarkDirty()` — zonder dat doet de checkbox niets, want `ShouldRender` gate
 op `_dirty` (v1.0.40).
+
+## Gebouwd 08-08 (v1.0.72)
+**Ontlaadkant liep op temperatuur en zat bevroren op 60%.** Aanleiding was de vraag of throttling
+ook met (dis)charge power correleert. Nagemeten op de productie-DB: **nee** — elke vermogensproxy
+(gemiddeld vermogen vorig 1/2/4 u, sessie-energie, kwartieren in sessie) is insignificant op de
+envelope-samples die productie gebruikt (|t| ≤ 1,66, R² 0,883 → hooguit 0,889), en het teken is
+*positief*, tegengesteld aan de warmte-hypothese: het meet "zware sessies zijn sessies waarin de
+batterij zwaar kán". Ontlaadkant idem (t = −0,28). **Geen vermogensterm in het model**; dat staat
+als reden in `DischargeCapability`, anders bouwt iemand hem later terug.
+
+Wat er wél uit kwam: de ontlaadkant miste SOC. Temperatuur alleen verklaart R² 0,012 (t = 0,93);
+mét SOC 0,225 (t = **+4,43**), teken positief — lage celspanning koopt minder vermogen bij dezelfde
+stroomlimiet. Drie fouten stapelden:
+1. **Verkeerde regressor.** Temperatuurbuckets waar SOC het signaal draagt.
+2. **Gemiddelde i.p.v. envelope.** `GetThrottleBucketsAsync` gebruikt een EMA → ratio ≈ 0,60
+   (3060 W) terwijl ~4100 W aantoonbaar haalbaar is. Dit is de meetfout die v1.0.38 op de laadkant
+   met `SelectEnvelope` oploste; de ontlaadkant was nooit meegenomen.
+3. **De lus was bevroren, niet scheef.** Het setpoint was de getaperde planwaarde en `Unthrottle()`
+   reconstrueerde de noemer als `plan / ratio`. Bij ratio r: gevraagd 5100·r, geleverd 5100·r,
+   noemer 5100, nieuwe ratio r. **Elke r is een dekpunt** — de ontlaadratio kon zich nooit
+   herstellen, wat de hardware ook kon.
+
+Nieuw: `DischargeCapability` (plateau + knik in absolute watts, géén temperatuurtermen) en
+`ThrottleAnalysisService.GetDischargeCapabilityAsync(nameplateW)`. De respons is `|BatteryPowerWatts|`
+zonder noemer, dus **de hele historie is bruikbaar** in plaats van alleen kwartieren mét
+`PlannedUnthrottledPowerW` (748 tegen 74). Envelope = max per 5%-SOC-bin; plateau = mediaan van de
+bin-maxima boven half vol, geklemd op nameplate; knik = laagste bin waar die bin **én** de volgende
+het plateau halen — twee op rij, zodat één toevallige bin laag in het bereik niet claimt dat er geen
+terugval is. Productiefit: **plateau 4121 W, knik 0,20, 19 bins**. Bin 10-15% (één losse 4104) en de
+95-100%-uitschieter (416 W) worden zo correct genegeerd.
+Doorgegeven via `BatterySpec.DischargeCapability` naar `cappedDischargeKWh(t, socStart)` in
+`BatteryGreedyPlanner`, spiegel van `taperedChargeKWh`. `PlanStep.RequestedDischargeKW` naast
+`RequestedChargeKW`; `MilpServiceBase.RequestedDischargePowerW` vervangt `Unthrottle()`, dat samen
+met `_throttleRatioByTime` is verwijderd. Bij `Samples == 0` blijft de oude bucketweg staan, zodat
+een verse DB niet ineens op nameplate plant.
+Grafiek "Battery throttle vs outside temperature": de ontlaadlijn was door de reconstructie
+zelfvervullend en wordt nu een echte meting. Onderschrift aangepast — de ontlaadlijn is nog slechts
+diagnostiek, de planner stuurt daar op SOC.
+Tests: `DischargeCapabilityTests` (11). Totaal 289.
+Losse bevinding: `ThrottleAnalysisService.GetDischargeRatio`/`GetChargeRatio` (de niet-`Try`-varianten)
+en `FindRatio` hebben al vóór deze wijziging geen aanroepers — dode code, laten staan.
 
 ## Openstaande punten
 0. **De taper is vlak, geen aflopende lijn — hoogste prioriteit (06-08).** Hoogst gemeten laadvermogen

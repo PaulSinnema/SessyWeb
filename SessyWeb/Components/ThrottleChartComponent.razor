@@ -12,8 +12,11 @@
     </RadzenStack>
 
     <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-1">
-        Ratio of realized to planned power (1.0 = no throttle). Lower at higher temperatures
-        means the battery cannot deliver the planned power when it is warm.
+        Ratio of realized to commanded power (1.0 = no throttle). <b>Charge</b> drives planning
+        through the measured taper, where temperature genuinely matters alongside state of charge.
+        <b>Discharge</b> is diagnostic only: measured on production data outside temperature
+        explains almost none of it (R&sup2; 0.01) while state of charge explains it well, so the
+        planner caps discharging on SOC instead — see the discharge capability in the log.
     </RadzenText>
 
     @if (_loading)

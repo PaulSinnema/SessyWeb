@@ -44,13 +44,6 @@ namespace SessyController.Services
         private Dictionary<DateTime, PlanAction> _planByTime = new();
 
         /// <summary>
-        /// Throttle ratio applied per quarter (realized/target). Used to recover the
-        /// throttle-free target power from the throttled solver output for reporting and for
-        /// the throttle-ratio denominator. Defaults to 1.0 (no throttle) when absent.
-        /// </summary>
-        protected Dictionary<DateTime, double> _throttleRatioByTime = new();
-
-        /// <summary>
         /// Measured CC/CV taper of the charge power. It shapes how much energy the plan expects to
         /// arrive per quarter — never how much power is asked for, which is what made the fit
         /// measure its own request.
@@ -687,6 +680,7 @@ namespace SessyController.Services
                     case ActionMode.Discharge:
                         mode = Modes.Discharging;
                         powerW = Math.Round(p.DischargeKW * 1000.0, 0);
+                        requestedW = Math.Round(p.RequestedDischargeKW * 1000.0, 0);
                         break;
                     case ActionMode.ZeroNetHome:
                         mode = Modes.ZeroNetHome;
@@ -739,10 +733,7 @@ namespace SessyController.Services
                 if (act.Mode == Modes.Charging)
                     qi.SetPlanPower(act.PowerW, 0, RequestedChargePowerW(act));
                 else if (act.Mode == Modes.Discharging)
-                {
-                    double unthrottled = Unthrottle(qi.Time, act.PowerW);
-                    qi.SetPlanPower(0, act.PowerW, unthrottled);
-                }
+                    qi.SetPlanPower(0, act.PowerW, RequestedDischargePowerW(act));
                 else
                     qi.SetPlanPower(0, 0);
             }
@@ -777,35 +768,18 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// Recovers the throttle-free discharge target from the throttled solver output:
-        /// target = throttled / ratio. Returns the throttled value unchanged when no ratio
-        /// is known or the ratio is non-positive.
+        /// Discharge power to ASK the batteries for — the same rule as RequestedChargePowerW, on
+        /// the other side. The plan's own power is what the measured capability lets through and
+        /// belongs to the SOC path; the setpoint is the request.
         ///
-        /// The result is capped at nameplate power, and that cap is not cosmetic. This value is
-        /// the DENOMINATOR of the next throttle fit, so a target above what the hardware can ever
-        /// deliver makes every measured ratio look worse than it is, and the next division by that
-        /// smaller ratio inflates the target further. Left unclamped it feeds itself: on the
-        /// production plan of 30-07 it had already reached 9850 W on a 6600 W battery.
+        /// This replaces a reconstruction, plannedPower / throttleRatio, that could never be
+        /// right: the batteries were commanded at the capped value and the fit then divided that
+        /// same command by the reconstructed target, so for any ratio r the next measurement
+        /// returned exactly r. Every value was a fixed point and the discharge throttle sat frozen
+        /// at 0.60 while ~0.80 of nameplate was demonstrably available.
         /// </summary>
-        private double Unthrottle(DateTime time, double throttledPowerW)
-        {
-            double nameplateW = _sessyBatteryConfig.TotalRawDischargingCapacity;
-            double target = throttledPowerW;
-
-            if (_throttleRatioByTime.TryGetValue(time, out var ratio) && ratio > 0.0)
-                target = throttledPowerW / ratio;
-
-            return Clamp(target, nameplateW);
-
-            // Keeps the sign the caller passed in: discharge targets are negative.
-            static double Clamp(double powerW, double nameplateW)
-            {
-                if (nameplateW <= 0.0) return powerW;
-                return Math.Abs(powerW) <= nameplateW
-                    ? powerW
-                    : Math.Sign(powerW) * nameplateW;
-            }
-        }
+        internal static double RequestedDischargePowerW(PlanAction act)
+            => act.RequestedPowerW > act.PowerW ? act.RequestedPowerW : act.PowerW;
 
         /// <summary>
         /// How much the current charging session still wants, in Wh: the planned SOC at the end of
@@ -949,7 +923,7 @@ namespace SessyController.Services
                 else if (act.Mode == Modes.Discharging)
                 {
                     double dischargeW = act.PowerW > 0 ? act.PowerW : _batteryContainer.GetDischargingCapacityInWattsPerHour();
-                    qi.SetPlanPower(0, dischargeW, Unthrottle(qi.Time, dischargeW));
+                    qi.SetPlanPower(0, dischargeW, Math.Max(dischargeW, RequestedDischargePowerW(act)));
                 }
                 else
                     qi.SetPlanPower(0, 0);
@@ -1040,7 +1014,14 @@ namespace SessyController.Services
 
             if (planned.Mode == Modes.Discharging)
             {
-                double requiredWh = planned.PowerW > 10 ? planned.PowerW * 0.25 : dischargeStepWh;
+                // What to command. The plan's own power is what the measured capability expects to
+                // come out and drives the SOC path; the batteries derate themselves, so asking for
+                // less than they can do only guarantees we stay under it.
+                double requestedW = RequestedDischargePowerW(planned);
+
+                // Energy still bound by the plan, so the clamp below judges the command, not the
+                // expectation — otherwise a request above the plan power would look unaffordable.
+                double requiredWh = requestedW > 10 ? requestedW * 0.25 : dischargeStepWh;
 
                 // Clamp to the energy available above the reserve. The planner plans down to
                 // exactly minSoc, so an extra fixed margin dropped the last discharge quarter.
@@ -1062,17 +1043,33 @@ namespace SessyController.Services
                     double clampedW = availableWh * 4.0;
                     _logger.LogWarning(
                         $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: discharge clamped to available energy " +
-                        $"({planned.PowerW:F0}W → {clampedW:F0}W, availableWh={availableWh:F0})");
+                        $"({requestedW:F0}W → {clampedW:F0}W, availableWh={availableWh:F0})");
 
-                    var clamped = new PlanAction { Mode = Modes.Discharging, PowerW = clampedW };
-                    qi?.SetPlanPower(0, clampedW, Unthrottle(nowQuarter, clampedW));
+                    // Command and expectation coincide here: the clamp is the reserve talking,
+                    // not the hardware, so this IS what should flow.
+                    var clamped = new PlanAction
+                    {
+                        Mode = Modes.Discharging,
+                        PowerW = clampedW,
+                        RequestedPowerW = clampedW
+                    };
+                    qi?.SetPlanPower(0, clampedW, clampedW);
                     return clamped;
                 }
 
                 // Former runtime FIFO guard removed: acquisition cost is handled in the planner
                 // (Candidate B real price, Candidate A via SessyOptions.StockCostEurPerKWh).
 
-                return planned;
+                // Expected flow stays the plan power (it drives the SOC path); the unthrottled
+                // field carries what is actually commanded, so the next capability fit is measured
+                // against a real setpoint.
+                qi?.SetPlanPower(0, planned.PowerW, requestedW);
+                return new PlanAction
+                {
+                    Mode = Modes.Discharging,
+                    PowerW = requestedW,
+                    RequestedPowerW = requestedW
+                };
             }
 
             // ZeroNetHome — choose between ZNH (store surplus) and Disabled (battery off).

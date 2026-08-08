@@ -17,7 +17,8 @@ namespace SessyController.Services.Optimization
     /// <summary>
     /// Physical properties and limits of the battery bank.
     /// ChargeTaper models the CC/CV fall-off of charge power with rising SOC; null means no
-    /// taper (nameplate power at any SOC).
+    /// taper (nameplate power at any SOC). DischargeCapability does the same on the way out,
+    /// where the shape is a plateau with a knee rather than a slope; null means nameplate.
     /// </summary>
     public sealed record BatterySpec(
         double CapacityKWh,
@@ -27,7 +28,8 @@ namespace SessyController.Services.Optimization
         double ChargeEfficiency,
         double DischargeEfficiency,
         ChargeTaper? ChargeTaper = null,
-        EfficiencyCurve? Efficiency = null
+        EfficiencyCurve? Efficiency = null,
+        DischargeCapability? DischargeCapability = null
     );
 
     /// <summary>Planner tuning.</summary>
@@ -103,6 +105,9 @@ namespace SessyController.Services.Optimization
 
     /// <summary>
     /// The planned action for one quarter.
+    /// RequestedDischargeKW is the same idea as RequestedChargeKW on the way out: DischargeKW is
+    /// what the plan expects to leave the battery, the request is what the batteries are asked
+    /// for, which stays at nameplate wherever the measured capability was the binding cap.
     /// ChargeKW is what the plan EXPECTS to arrive, taper included — it drives the SOC path.
     /// RequestedChargeKW is what the batteries should be ASKED for: the same number, except in
     /// quarters where the taper was the binding cap, where it is the untapered limit. The
@@ -116,7 +121,8 @@ namespace SessyController.Services.Optimization
         double DischargeKW,
         double SocStartKWh,
         double SocEndKWh,
-        double RequestedChargeKW = 0.0
+        double RequestedChargeKW = 0.0,
+        double RequestedDischargeKW = 0.0
     );
 
     /// <summary>

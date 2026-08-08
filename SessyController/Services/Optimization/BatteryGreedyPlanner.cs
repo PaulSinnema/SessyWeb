@@ -169,6 +169,23 @@ namespace SessyController.Services.Optimization
             var exportKWh = new double[n];       // grid export remaining after the battery
             var socEnd = new double[n];          // store level at the end of each quarter
 
+            // SOC the plan has reached by the start of a quarter — the last committed value.
+            double socStartAt(int t) => t == 0 ? Clamp(spec.InitialSocKWh, 0.0, capacity) : socEnd[t - 1];
+
+            // Deliverable power falls off at a low state of charge (low cell voltage buys less
+            // power at the same current limit), so the discharge cap depends on the SOC the plan
+            // has reached, exactly like the charge taper. The shape is a plateau with a knee
+            // rather than a slope — see DischargeCapability.
+            var dischargeCapability = spec.DischargeCapability ?? DischargeCapability.None;
+            double cappedDischargeKWh(int t, double socStartKWh)
+            {
+                double cap = maxDischargeKWh[t];
+                if (dischargeCapability.Samples == 0 || capacity <= 0.0) return cap;
+
+                double deliverableKWh = dischargeCapability.PowerW(socStartKWh / capacity) / 1000.0 * dt;
+                return Math.Min(cap, deliverableKWh);
+            }
+
             // ── 1. Baseline: self-consumption ────────────────────────────────
             double soc = Clamp(spec.InitialSocKWh, 0.0, capacity);
 
@@ -199,7 +216,7 @@ namespace SessyController.Services.Optimization
                     // Cover the house from the battery, never below the reserve.
                     double availableStore = Math.Max(0.0, soc - minSoc[t]);
                     double deficitEff = disEffFor(deficit);
-                    double deliver = Math.Min(deficit, Math.Min(availableStore * deficitEff, maxDischargeKWh[t]));
+                    double deliver = Math.Min(deficit, Math.Min(availableStore * deficitEff, cappedDischargeKWh(t, soc)));
                     if (deliver > Eps)
                     {
                         dischargeKWh[t] += deliver;
@@ -224,10 +241,10 @@ namespace SessyController.Services.Optimization
             // and the objective report what the plan really achieves. The decision is a forecast,
             // the bookkeeping is the outcome, and they are allowed to differ.
             double chEffAtCapacity(int i, double socStartKWh) => chEffFor(taperedChargeKWh(i, socStartKWh));
-            double disEffAtCapacity(int j) => disEffFor(maxDischargeKWh[j]);
+            double disEffAtCapacity(int j, double socStartKWh) => disEffFor(cappedDischargeKWh(j, socStartKWh));
 
-            double roundTripAtCapacity(int i, int j, double socStartKWh)
-                => chEffAtCapacity(i, socStartKWh) * disEffAtCapacity(j);
+            double roundTripAtCapacity(int i, int j, double socStartI, double socStartJ)
+                => chEffAtCapacity(i, socStartI) * disEffAtCapacity(j, socStartJ);
 
             // No charge quarter is involved when energy is replaced from outside the horizon, so
             // the replacement is priced at what a well-planned purchase would achieve: full power.
@@ -258,7 +275,8 @@ namespace SessyController.Services.Optimization
                 for (int j = 0; j < n; j++)
                 {
                     // What is one more kWh delivered at j worth?
-                    double dischargeHeadroom = maxDischargeKWh[j] - dischargeKWh[j];
+                    double socStartJ = socStartAt(j);
+                    double dischargeHeadroom = cappedDischargeKWh(j, socStartJ) - dischargeKWh[j];
                     if (dischargeHeadroom <= Eps) continue;
 
                     double valueJ;
@@ -296,7 +314,7 @@ namespace SessyController.Services.Optimization
                     // Feasibility: draining the store at j lowers the SOC path from j onward,
                     // which must stay at or above the reserve on every later quarter.
                     {
-                        double stockDisEff = disEffAtCapacity(j);
+                        double stockDisEff = disEffAtCapacity(j, socStartJ);
                         double profitPerKWh = valueJ - opt.ReplacementCostEurPerKWh / replacementRoundTrip - cycleCost;
                         if (profitPerKWh > bestProfitPerKWh + Eps)
                         {
@@ -333,7 +351,7 @@ namespace SessyController.Services.Optimization
                         if (pricePoints[i].ReserveOnly) continue;      // no grid charging on predicted quarters
 
                         // Cap at i depends on the SOC the plan has reached by the start of i.
-                        double socStartI = i == 0 ? Clamp(spec.InitialSocKWh, 0.0, capacity) : socEnd[i - 1];
+                        double socStartI = socStartAt(i);
                         double chargeHeadroom = taperedChargeKWh(i, socStartI) - chargeKWh[i];
                         if (chargeHeadroom <= Eps) continue;
 
@@ -356,8 +374,8 @@ namespace SessyController.Services.Optimization
                         // Round trip of THIS pair at the power both quarters would run at with the
                         // block added. A quarter that already carries energy converts better, so
                         // filling one up beats opening another — which is the whole point.
-                        double pairRoundTrip = roundTripAtCapacity(i, j, socStartI);
-                        double pairDisEff = disEffAtCapacity(j);
+                        double pairRoundTrip = roundTripAtCapacity(i, j, socStartI, socStartJ);
+                        double pairDisEff = disEffAtCapacity(j, socStartJ);
 
                         double profitPerKWh = valueJ - costI / pairRoundTrip - cycleCost;
                         if (profitPerKWh <= bestProfitPerKWh + Eps) continue;
@@ -407,7 +425,7 @@ namespace SessyController.Services.Optimization
                     {
                         if (pricePoints[k].ReserveOnly) continue;      // no grid charging on predicted quarters
 
-                        double socStartK = k == 0 ? Clamp(spec.InitialSocKWh, 0.0, capacity) : socEnd[k - 1];
+                        double socStartK = socStartAt(k);
                         double rebuyHeadroom = taperedChargeKWh(k, socStartK) - chargeKWh[k];
                         if (rebuyHeadroom <= Eps) continue;
 
@@ -426,8 +444,8 @@ namespace SessyController.Services.Optimization
                         }
                         costK *= Discount(k);
 
-                        double rebuyRoundTrip = chEffAtCapacity(k, socStartK) * disEffAtCapacity(j);
-                        double rebuyDisEff = disEffAtCapacity(j);
+                        double rebuyRoundTrip = chEffAtCapacity(k, socStartK) * disEffAtCapacity(j, socStartJ);
+                        double rebuyDisEff = disEffAtCapacity(j, socStartJ);
 
                         double rebuyProfit = valueJ - costK / rebuyRoundTrip - cycleCost;
                         if (rebuyProfit <= bestProfitPerKWh + Eps) continue;
@@ -486,7 +504,7 @@ namespace SessyController.Services.Optimization
                     {
                         if (pricePoints[i].ReserveOnly) continue;      // no grid charging on predicted quarters
 
-                        double socStartI = i == 0 ? Clamp(spec.InitialSocKWh, 0.0, capacity) : socEnd[i - 1];
+                        double socStartI = socStartAt(i);
                         double chargeHeadroom = taperedChargeKWh(i, socStartI) - chargeKWh[i];
                         if (chargeHeadroom <= Eps) continue;
 
@@ -654,6 +672,15 @@ namespace SessyController.Services.Optimization
                     ? Math.Max(chargeKWh[t], nameplateKWh)
                     : chargeKWh[t];
 
+                // Same on the way out. Sending the capped number was worse than merely modest:
+                // the measured capability was reconstructed as plan / ratio, so every ratio
+                // reproduced itself and the discharge throttle could never recover.
+                double disCapKWh = cappedDischargeKWh(t, socStart);
+                double disNameplateKWh = Math.Max(0.0, spec.MaxDischargeKW) * dt;
+                double requestedDischargeKWh = dischargeKWh[t] > Eps && dischargeKWh[t] >= disCapKWh - Eps
+                    ? Math.Max(dischargeKWh[t], disNameplateKWh)
+                    : dischargeKWh[t];
+
                 plan.Add(new PlanStep(
                     pricePoints[t].Start,
                     mode,
@@ -661,7 +688,8 @@ namespace SessyController.Services.Optimization
                     DischargeKW: dischargeKWh[t] / dt,
                     SocStartKWh: socStart,
                     SocEndKWh: soc,
-                    RequestedChargeKW: requestedChargeKWh / dt));
+                    RequestedChargeKW: requestedChargeKWh / dt,
+                    RequestedDischargeKW: requestedDischargeKWh / dt));
             }
 
             // Energy left in the battery is worth what buying it again would cost. Without this
