@@ -29,37 +29,6 @@
     </div>
 
     <!--
-        Error reporter. ES5 only and loaded first, so it still parses on an old
-        browser that chokes on whatever comes after it. Ships client-side errors to
-        the server log, because an iPad has no reachable console from Windows.
-    -->
-    <script>
-        window.sessyReport = function (what) {
-            try {
-                var body = what + ' | ua=' + navigator.userAgent + ' | url=' + window.location.href;
-                if (navigator.sendBeacon) {
-                    navigator.sendBeacon('/api/clientlog', new Blob([body], { type: 'text/plain' }));
-                } else {
-                    var xhr = new XMLHttpRequest();
-                    xhr.open('POST', '/api/clientlog', true);
-                    xhr.setRequestHeader('Content-Type', 'text/plain');
-                    xhr.send(body);
-                }
-            } catch (e) { /* reporting must never break the page */ }
-        };
-
-        window.onerror = function (message, source, line, column) {
-            window.sessyReport('onerror: ' + message + ' at ' + source + ':' + line + ':' + column);
-        };
-
-        window.addEventListener('unhandledrejection', function (event) {
-            window.sessyReport('unhandledrejection: ' + event.reason);
-        });
-
-        window.sessyReport('page loaded, about to start Blazor');
-    </script>
-
-    <!--
         Autostart disabled so we can configure reconnect behavior manually.
         Improves reliability on iPhone with OpenVPN: Safari suspends the WebSocket
         when the app goes to the background, causing slow or failed reconnects.
@@ -67,68 +36,33 @@
     @* Leave this path exactly as it is. A leading slash plus a cache-busting query
        stops the file being served at all — it 404s and every browser then dies on
        "Can't find variable: Blazor". *@
-    <script src="_framework/blazor.server.js"
-            autostart="false"
-            onerror="window.sessyReport('script tag failed to load blazor.server.js')"></script>
+    <script src="_framework/blazor.server.js" autostart="false"></script>
     <script>
-        if (typeof Blazor === 'undefined') {
-            // Ask the server for the same URL the script tag used and report what came
-            // back. Status, content type and the first bytes separate "never arrived"
-            // from "arrived as HTML", which no console-less device can tell us itself.
-            (function () {
-                var probe = new XMLHttpRequest();
-                probe.open('GET', '_framework/blazor.server.js', true);
-                probe.onreadystatechange = function () {
-                    if (probe.readyState !== 4) return;
-                    window.sessyReport('blazor.server.js probe: status=' + probe.status +
-                        ' type=' + probe.getResponseHeader('Content-Type') +
-                        ' encoding=' + probe.getResponseHeader('Content-Encoding') +
-                        ' declared=' + probe.getResponseHeader('Content-Length') +
-                        ' received=' + (probe.responseText || '').length +
-                        ' head=' + (probe.responseText || '').substring(0, 80));
-                };
-                probe.onerror = function () {
-                    window.sessyReport('blazor.server.js probe: request failed outright');
-                };
-                probe.send();
-            })();
-
-            window.sessyReport('blazor.server.js did not load or did not execute');
-        }
-        else
-        {
         Blazor.start({
-        configureSignalR: function (builder) {
-        // Match the server-side HubOptions values set in Program.cs
-        builder.withKeepAliveInterval(15000);  // 15 seconds
-        builder.withServerTimeout(60000);       // 60 seconds
-        },
-        reconnectionOptions: {
-        // 12 retries gives ~60 seconds of attempts, enough for a VPN reconnect
-        maxRetries: 12,
-        retryIntervalMilliseconds: function (previousAttempts) {
-        // Fast retries first, then slow down to avoid hammering the server
-        // Attempt 0=0s, 1=1s, 2=2s, 3=3s, 4+=5s
-        return previousAttempts < 4
-        ? previousAttempts * 1000
-        : 5000;
-        }
-        }
+            configureSignalR: function (builder) {
+                // Match the server-side HubOptions values set in Program.cs
+                builder.withKeepAliveInterval(15000);   // 15 seconds
+                builder.withServerTimeout(60000);       // 60 seconds
+            },
+            reconnectionOptions: {
+                // 12 retries gives ~60 seconds of attempts, enough for a VPN reconnect
+                maxRetries: 12,
+                retryIntervalMilliseconds: function (previousAttempts) {
+                    // Fast retries first, then slow down to avoid hammering the server
+                    // Attempt 0=0s, 1=1s, 2=2s, 3=3s, 4+=5s
+                    return previousAttempts < 4
+                        ? previousAttempts * 1000
+                        : 5000;
+                }
+            }
         }).then(function () {
-        window.sessyReport('Blazor.start resolved');
-        // Blazor.start() must complete before defaultReconnectionHandler is available
-        Blazor.defaultReconnectionHandler.onReconnectionFailed = function () {
-        window.sessyReport('reconnection failed, reloading');
-        // If all reconnect attempts fail, reload the page automatically.
-        // Prevents the user from being stuck on a dead screen after a VPN drop.
-        window.location.reload();
-        };
-        }).catch(function (error) {
-        // A rejected start is exactly the "screens but no data" symptom: the page is
-        // the prerendered HTML and no circuit ever runs behind it.
-        window.sessyReport('Blazor.start REJECTED: ' + error);
+            // Blazor.start() must complete before defaultReconnectionHandler is available
+            Blazor.defaultReconnectionHandler.onReconnectionFailed = function () {
+                // If all reconnect attempts fail, reload the page automatically.
+                // Prevents the user from being stuck on a dead screen after a VPN drop.
+                window.location.reload();
+            };
         });
-        }
     </script>
 </body>
 </html>

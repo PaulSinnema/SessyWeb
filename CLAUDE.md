@@ -520,20 +520,31 @@ Losse bevinding: `ThrottleAnalysisService.GetDischargeRatio`/`GetChargeRatio` (d
 en `FindRatio` hebben al vóór deze wijziging geen aanroepers — dode code, laten staan.
 
 ## Openstaande punten
-0. **De taper is vlak, geen aflopende lijn — hoogste prioriteit (06-08).** Hoogst gemeten laadvermogen
-   per SOC-band (`QuarterlyMeasurements`, vanaf 15-06): 10-20% → 5087 W, 20-30% → 5294, 30-40% → 4987,
-   40-50% → 4694, 50-60% → 4436, 60-70% → 4951, 70-80% → 5335, 80-90% → 5118, 90-100% → 3014. Dus
-   ~0,78 van de 6600 W nameplate over vrijwel het hele bereik, met de knik pas boven ~85-90% SOC —
-   terwijl het gefitte model (`1,054 − 0,535·soc`) op 50% SOC 0,53 zegt. De planner plant daardoor
-   ~4,3 kW waar ~5,0-5,3 kW kan, en dat is waarom de batterij 's avonds op ~60-80% blijft steken.
-   Twee valkuilen: de fit gooit elke sample weg waarvan `PlannedUnthrottledPowerW` 0 is (álle
-   historische rijen, precies het beste bewijs), en gewoon álles meenemen geeft een fysiek
-   onmogelijke *stijgende* fit omdat lage-SOC-kwartieren meestal traag zonladen zijn — dat meet
-   vraag, geen kunnen. Oplossing is een envelope per SOC-band (hoogst aangetoonde ratio, monotoon
-   niet-stijgend gemaakt), geen filter-tweak. Eerst de eerste eerlijke meting afwachten: een
-   middagsessie die bij ~23% SOC begint met 6600 W setpoint (v1.0.38 stuurt dat nu).
+0. **De laadtaper wordt gefit op tien dagen hittegolf — hoogste prioriteit (bijgewerkt 08-08).**
+   Hoogst gemeten laadvermogen per SOC-band (`QuarterlyMeasurements`, vanaf 15-06): 10-20% → 5310 W,
+   20-30% → 5326, 30-40% → 5263, 40-50% → 5294, 50-60% → 5318, 60-70% → 5179, 70-80% → 5335,
+   80-90% → 5118, 90-100% → 4316. Dus ~0,80 van de 6600 W nameplate over vrijwel het hele bereik,
+   knik pas boven ~90% — terwijl de envelope-fit op 50% SOC 0,50 zegt (3281 W).
+   **Diagnose 08-08, mechanisme nu bekend.** De envelope (v1.0.38) is niet de ontbrekende stap; die
+   zit er al in. Het probleem is de dekking: slechts **223 van 7135** `PlannedQuarters`-rijen hebben
+   `PlannedUnthrottledPowerW ≠ 0`, allemaal vanaf 28-07. Het fitvenster beslaat temp 20,2-32,4 °C en
+   t48 17,6-25,7 °C, tegen 1,6-36,0 °C in de historie. Daardoor is `temp-20` in de envelope-fit
+   insignificant (t = −0,54) en wordt **álle** derating op SOC geladen (B = 0,568). Alle 28
+   kwartieren boven 4800 W komen uit juni bij 15-16 °C — en hebben stuk voor stuk
+   `PlannedUnthrottledPowerW = 0`, dus ze zijn allemaal uitgesloten. Voorbeeld 05-06: 5318 W bij 57%
+   SOC, 5179 bij 65%, 5066 bij 72%, 4944 bij 79%; 15-06: 5335 W bij 72%, 5118 bij 86%.
+   **Uitgesloten oplossing:** "fit op watt in plaats van ratio" (zoals op de ontlaadkant, v1.0.72).
+   Nagerekend in elke binning — strikte max per (SOC × temp)-bin, banden, 10/20 SOC-bins — komt de
+   SOC-helling er *positief* uit (+430 tot +866 W over het volle bereik), fysiek onmogelijk. Op de
+   laadkant zijn lage-SOC-kwartieren overwegend traag zonladen; dat meet vraag, geen kunnen. Op de
+   ontlaadkant speelt dat niet, daar werkt het wél.
+   **Wat het wel nodig heeft:** maanden `PlannedUnthrottledPowerW`-dekking over een breed
+   temperatuurbereik, zodat C en D echt te scheiden zijn van B. Tot die tijd niets forceren — een
+   tweede filter-tweak lost het niet op.
 1. Verifiëren op productiedata: revenue mét en zonder `CarryForwardEnabled` op teruggespeelde dagen vergelijken (niet naar SOC kijken). Faalmodus: terminal value te hoog → batterij laadt alleen nog en verkoopt nooit.
-2. **Hittegolf-validatie (vanaf 28-07, ~34°C Apeldoorn).** Model is gefit op data tot 30°C, dus 34°C is extrapolatie. Toetsen: voorspelde ratio bij 50% SOC ≈ 0,52 bij temp 34 / t48 30 (tegen ≈ 0,77 op een koele dag) — dus ~3400W i.p.v. ~5100W gevraagd laadvermogen. Narekenen of de gemeten ratio's daarbij in de buurt komen en of het residu vlak blijft.
+2. ~~**Hittegolf-validatie (vanaf 28-07).**~~ Opgegaan in punt 0: het probleem is niet dat 34 °C
+   extrapolatie is, maar dat de fit *uitsluitend* hittegolfdata ziet. Zolang dat zo is valt er niets
+   te valideren — de temperatuurterm is er niet significant en de koude referentie ontbreekt.
 3. EF-migraties (user-kant): drop `SolarSystemShutsDownDuringNegativePrices`; `FutureValueDiscountPerHour` toegevoegd, `NearTermHedgeHours`/`Fraction` verwijderd.
 4. JSON `Infinity`/`NaN` crash (22-07 17:22, MVC-controller) + lege Enever gasprijs-feed.
 5. Comment-opschoning was bezig toen onderbroken — meeste lange blocks al ingekort, mogelijk nog een paar razor/test-comments over.
@@ -542,11 +553,22 @@ en `FindRatio` hebben al vóór deze wijziging geen aanroepers — dode code, la
 - Setpoint requested ≠ Setpoint: Sessy-hardware klemt/tapert zelf (CC/CV, SOC-afhankelijk). API meldt geen reden. `Battery.SetpointRequested` (ons) vs `Sessy.PowerSetpoint` (device).
 - 21-07 avond niet-ontladen: economisch correct (export tegen €0,30 was netto verlies vs. latere terugkoop); de niet-uitvoering die avond was de `j=1`-bug op v1.0.4.
 
-**Te verifiëren na de eerstvolgende productie-run van v1.0.48 (uitgerold 06-08 avond):**
-1. De middagsessie: setpoint 6600 W vanaf ~23% SOC — wat levert de hardware? Dat beslist over
-   Openstaand punt 0.
-2. Ontlaadt de avond dieper door Candidate D, en komt de SOC bij zonsopgang lager uit dan de 21%
-   van 06-08?
-3. Verschijnt "Efficiency curve fitted on N samples" in het log? Zo niet, dan draait de planner nog
-   op de vlakke terugval en doet het vermogensafhankelijke rendement niets.
+**Verifiëren gaat niet via het log.** Het productie-log-niveau staat **bewust** op Warning
+(`appsettings.json`, `Logging:LogLevel:Default`) en `LoggingService` is een kale passthrough. Alle
+model-fitregels staan op `LogInformation` en verschijnen dus nooit: `Efficiency curve fitted…`,
+`Charge taper fitted…`, `Discharge capability fitted…` (`StrategyMilpService`),
+`Replacement cost …` (`ReplacementCostService`) en `Planner learning: …` — die laatste logt Warning
+als een grens gepind wordt en Information als alles goed gaat, dus je ziet er alleen de storing van.
+Niet ophogen; toets tegen de DB, dat is sterker bewijs want het is wat er werkelijk gepland en
+gestuurd is.
+
+**Te verifiëren na de productie-run van v1.0.72 (uitgerold 08-08):**
+1. `PlannedQuarters` op ontlaadkwartieren: `PlannedUnthrottledPowerW` hoort **5100** te zijn (het
+   echte verzoek) in plaats van `PlannedPowerW / 0,60`, en `PlannedPowerW` loopt tot ~4121 W in
+   plaats van te blijven steken op ~3060 W. Onder 20% SOC zakt hij evenredig mee.
+2. `QuarterlyMeasurements`: haalt de avondontlading hogere vermogens, worden de sessies korter en
+   komt de eind-SOC lager uit?
+3. Beweegt de ontlaadlijn in de throttle-grafiek? Die zat door de `plan / ratio`-reconstructie
+   rekenkundig vast; elke waarde was een dekpunt.
 4. Blijven `DbHelper: slow`, `ThreadPool busy` en "UI blocked: clock tick ran N ms late" stil?
+   (Die staan wél op Warning en zijn dus zichtbaar.)

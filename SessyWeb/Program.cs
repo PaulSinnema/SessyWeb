@@ -351,37 +351,7 @@ app.UseHttpsRedirection();
 
 app.UseStaticFiles();
 
-// ── Client diagnostics ────────────────────────────────────────────────────────
-// Temporary, and deliberately at Warning so it survives the production log level.
-// A browser that renders the page but never shows data has a circuit that never
-// started; these two probes say where it stops.
-
-// 1. Does the browser even reach the hub? /_blazor/negotiate is the first call
-//    blazor.server.js makes. No line here means the script never ran.
-app.Use(async (context, next) =>
-{
-    if (context.Request.Path.StartsWithSegments("/_blazor"))
-    {
-        Console.WriteLine($"BLAZOR HUB {context.Request.Method} {context.Request.Path}{context.Request.QueryString} " +
-                          $"from {context.Connection.RemoteIpAddress} ua={context.Request.Headers.UserAgent}");
-    }
-
-    await next();
-});
-
 app.UseRouting();
-
-// 2. What did the browser itself hit? Without a Mac there is no Safari console on
-//    an iPad, so the page ships its errors here instead.
-app.MapPost("/api/clientlog", async (HttpContext context) =>
-{
-    using var reader = new StreamReader(context.Request.Body);
-    var message = await reader.ReadToEndAsync();
-
-    Console.WriteLine($"CLIENT ERROR from {context.Connection.RemoteIpAddress}: {message}");
-
-    return Results.Ok();
-});
 
 app.MapBlazorHub();
 app.MapFallbackToPage("/_Host");
