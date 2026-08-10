@@ -11,18 +11,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
-## [v1.0.87] — 2026-08-10
-
-### Changed
-- The timezone now lives only in the database, set on the **Settings** page. `Timezone` has been
-  removed from the `ManagementSettings` section of `appsettings.json`; a new database starts on
-  `Europe/Amsterdam` until you change it in the UI.
+## [v1.0.96] — 2026-08-10
 
 ### Fixed
-- Two startup timestamps — the backup taken before a migration, and the version stamp in
-  `AppVersions` — were written in the timezone from `appsettings.json` on **every** start, because
-  they run before the database settings are loaded. When the two sources disagreed, those rows were
-  hours off from the rest of the application. Startup now reads the stored timezone first.
+- The **Consumption** page stayed empty when the weather feed was not configured or could not be
+  reached. Weather is stored next to consumption but is not what is being measured, so it no longer
+  stops recording — quarters are stored without weather values until the feed returns.
+- Without weather the planner was told the house needs **0 W**. The monthly energy profile from
+  Settings is now used as the fallback it was always meant to be.
+- A quarter in which the P1 meter or a battery could not be read was recorded as 0 W instead of
+  being skipped, quietly pulling the average down. Those samples are dropped now.
+- With no P1 meter configured nothing was recorded and nothing was logged. That case now says so.
+
+## [v1.0.95] — 2026-08-10
+
+### Added
+- **Tips & Checks** now covers the things consumption recording depends on: the weather feed
+  (`WeerOnline`), the P1 meter (`Sessy:Meters`), the batteries (`Sessy:Batteries`) and the
+  consumption history itself. A missing API key or an entry without a `BaseUrl` used to break
+  recording with nothing on screen saying so — the **Consumption** page simply stayed empty. It now
+  says which part is missing and what it costs you, and flags recording that has stopped or is
+  dropping quarters.
 
 ## [v1.0.94] — 2026-08-10
 
@@ -49,6 +58,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
   reconstructed. Off by default; nothing is written without the variable.
 - `PlannedQuarters` records the two planner inputs that could not be derived afterwards: the net
   household load it planned against and the reserve floor it had to stay above.
+
+## [v1.0.87] — 2026-08-10
+
+### Changed
+- The timezone now lives only in the database, set on the **Settings** page. `Timezone` has been
+  removed from the `ManagementSettings` section of `appsettings.json`; a new database starts on
+  `Europe/Amsterdam` until you change it in the UI.
+
+### Fixed
+- Two startup timestamps — the backup taken before a migration, and the version stamp in
+  `AppVersions` — were written in the timezone from `appsettings.json` on **every** start, because
+  they run before the database settings are loaded. When the two sources disagreed, those rows were
+  hours off from the rest of the application. Startup now reads the stored timezone first.
 
 ## [v1.0.86] — 2026-08-10
 

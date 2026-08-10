@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using SessyCommon.Configurations;
 using SessyCommon.Services;
 using SessyController.Interfaces;
+using SessyController.Services.Items;
 using SessyController.Services.Statistics;
 using SessyData.Model;
 using SessyData.Services;
@@ -32,6 +33,13 @@ namespace SessyController.Services
         private readonly SystemCapabilitiesService _capabilities;
         private readonly ThrottleAnalysisService _throttleAnalysisService;
         private readonly IOptionsMonitor<SessyBatteryConfig> _batteryConfig;
+        private readonly IOptionsMonitor<WeatherExpectancyConfig> _weatherConfigMonitor;
+        private WeatherExpectancyConfig _weatherConfig => _weatherConfigMonitor.CurrentValue;
+        private readonly IOptionsMonitor<SessyP1Config> _p1ConfigMonitor;
+        private SessyP1Config _p1Config => _p1ConfigMonitor.CurrentValue;
+        private readonly WeatherService _weatherService;
+        private readonly P1MeterContainer _p1MeterContainer;
+        private readonly ConsumptionDataService _consumptionDataService;
 
         public ConfigurationCheckService(
             IConfiguration configuration,
@@ -47,8 +55,18 @@ namespace SessyController.Services
             InvestmentGroupDataService investmentGroupDataService,
             SystemCapabilitiesService capabilities,
             ThrottleAnalysisService throttleAnalysisService,
-            IOptionsMonitor<SessyBatteryConfig> batteryConfig)
+            IOptionsMonitor<SessyBatteryConfig> batteryConfig,
+            IOptionsMonitor<WeatherExpectancyConfig> weatherConfigMonitor,
+            IOptionsMonitor<SessyP1Config> p1ConfigMonitor,
+            WeatherService weatherService,
+            P1MeterContainer p1MeterContainer,
+            ConsumptionDataService consumptionDataService)
         {
+            _weatherConfigMonitor = weatherConfigMonitor;
+            _p1ConfigMonitor = p1ConfigMonitor;
+            _weatherService = weatherService;
+            _p1MeterContainer = p1MeterContainer;
+            _consumptionDataService = consumptionDataService;
             _investmentDataService = investmentDataService;
             _investmentGroupDataService = investmentGroupDataService;
             _capabilities = capabilities;
@@ -69,6 +87,10 @@ namespace SessyController.Services
         {
             var checks = new List<ConfigurationCheck>();
 
+            CheckWeatherConfiguration(checks);
+            CheckP1MeterConfiguration(checks);
+            CheckBatteryConfiguration(checks);
+            await CheckConsumptionHistory(checks);
             await CheckEneverToken(checks);
             await CheckTaxesConfiguration(checks);
             await CheckGasPricesHistory(checks);
@@ -80,6 +102,262 @@ namespace SessyController.Services
             await CheckPlanStatus(checks).ConfigureAwait(false);
 
             return checks.OrderBy(c => c.Severity).ToList();
+        }
+
+        /// <summary>
+        /// Consumption is still recorded without weather (stored as the -999 sentinel), but the
+        /// records lose the temperature, humidity and radiation the consumption estimate matches on,
+        /// so the planner falls back to the monthly profile. Worth saying out loud: until v1.0.96 a
+        /// missing feed stopped recording altogether, which is what issue #4 reported.
+        /// </summary>
+        private void CheckWeatherConfiguration(List<ConfigurationCheck> checks)
+        {
+            var config = _weatherConfig;
+
+            var missing = new List<string>();
+            if (string.IsNullOrWhiteSpace(config.BaseUrl)) missing.Add("BaseUrl");
+            if (string.IsNullOrWhiteSpace(config.APIKey)) missing.Add("APIKey");
+            if (string.IsNullOrWhiteSpace(config.Location)) missing.Add("Location");
+
+            if (missing.Count > 0)
+            {
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Error,
+                    Title = "Weather service not configured",
+                    Description = $"The WeerOnline section of appsettings.json is missing {string.Join(", ", missing)}. " +
+                                  "Consumption is still recorded, but without temperature, humidity and radiation, " +
+                                  "so the consumption estimate has nothing to match on and the planner falls back to " +
+                                  "the monthly energy profile from Settings. The solar forecast is unavailable too. " +
+                                  "Add APIKey, BaseUrl and Location.",
+                    ActionUrl = "https://weerlive.nl/delen.php",
+                    ActionLabel = "Get free API key"
+                });
+                return;
+            }
+
+            if (!_weatherService.IsInitialized())
+            {
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Warning,
+                    Title = "Weather service configured but no data received",
+                    Description = $"No weather data has been fetched for location '{config.Location}'. " +
+                                  "Right after a start this is normal — the first fetch takes a moment. If it " +
+                                  "persists, check the API key, the location name and whether the API day limit " +
+                                  "was reached. Consumption keeps being recorded, without weather values.",
+                });
+                return;
+            }
+
+            checks.Add(new ConfigurationCheck
+            {
+                Severity = CheckSeverity.Info,
+                Title = "Weather service active",
+                Description = $"Weather data is being fetched for '{config.Location}'."
+            });
+        }
+
+        /// <summary>
+        /// No meter means no consumption at all, and it fails silently: the recording loop iterates
+        /// over an empty meter list and logs nothing.
+        /// </summary>
+        private void CheckP1MeterConfiguration(List<ConfigurationCheck> checks)
+        {
+            var endpoints = _p1Config.Endpoints;
+            var skipped = endpoints.Where(ep => !ep.Value.IsConfigured).Select(ep => ep.Key).ToList();
+            int configured = endpoints.Count - skipped.Count;
+
+            if (endpoints.Count == 0)
+            {
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Error,
+                    Title = "No P1 meter configured",
+                    Description = "The Sessy:Meters section of appsettings.json is empty or absent. Household " +
+                                  "consumption is measured through the P1 meter, so nothing is recorded and the " +
+                                  "Consumption page stays empty. Add a meter with Name, BaseUrl, UserId and Password."
+                });
+                return;
+            }
+
+            if (configured == 0)
+            {
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Error,
+                    Title = "P1 meter has no address",
+                    Description = $"The Sessy:Meters entries ({string.Join(", ", skipped)}) have no BaseUrl, so they " +
+                                  "are skipped. This happens when credentials are left behind in secrets.json for a " +
+                                  "meter that appsettings.json no longer declares — secrets augment a device, they do " +
+                                  "not declare one. No consumption is recorded."
+                });
+                return;
+            }
+
+            if (skipped.Count > 0)
+            {
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Warning,
+                    Title = $"{skipped.Count} P1 meter entry without an address",
+                    Description = $"Entries {string.Join(", ", skipped)} have no BaseUrl and are skipped. Usually a " +
+                                  "leftover in secrets.json for a meter that was removed from appsettings.json."
+                });
+            }
+
+            // The container rebuilds its list on a config change; a mismatch means it did not take.
+            int live = _p1MeterContainer.P1Meters?.Count ?? 0;
+
+            if (live < configured)
+            {
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Warning,
+                    Title = "Configured P1 meters are not all in use",
+                    Description = $"{configured} meter(s) are configured but {live} are active. Restart the " +
+                                  "application if the configuration was changed while it was running."
+                });
+                return;
+            }
+
+            checks.Add(new ConfigurationCheck
+            {
+                Severity = CheckSeverity.Info,
+                Title = $"P1 meter active ({live})",
+                Description = "Household consumption is measured through the P1 meter."
+            });
+        }
+
+        /// <summary>
+        /// Consumption is computed as solar + grid + battery, and a battery that cannot be reached
+        /// makes the whole quarter fall back to zero — so a missing battery costs consumption data
+        /// as well as planning.
+        /// </summary>
+        private void CheckBatteryConfiguration(List<ConfigurationCheck> checks)
+        {
+            var config = _batteryConfig.CurrentValue;
+            var skipped = config.Batteries.Where(bat => !bat.Value.IsConfigured).Select(bat => bat.Key).ToList();
+            int configured = config.ConfiguredBatteries.Count();
+
+            if (config.Batteries.Count == 0)
+            {
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Error,
+                    Title = "No battery configured",
+                    Description = "The Sessy:Batteries section of appsettings.json is empty or absent. Without a " +
+                                  "battery there is nothing to plan and nothing to steer."
+                });
+                return;
+            }
+
+            if (configured == 0)
+            {
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Error,
+                    Title = "Batteries have no address",
+                    Description = $"The Sessy:Batteries entries ({string.Join(", ", skipped)}) have no BaseUrl and " +
+                                  "are skipped — usually credentials left behind in secrets.json for a battery that " +
+                                  "appsettings.json no longer declares."
+                });
+                return;
+            }
+
+            if (skipped.Count > 0)
+            {
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Warning,
+                    Title = $"{skipped.Count} battery entry without an address",
+                    Description = $"Entries {string.Join(", ", skipped)} have no BaseUrl and are skipped, so they add " +
+                                  "no capacity. Remove them from secrets.json, or declare them in appsettings.json."
+                });
+            }
+
+            checks.Add(new ConfigurationCheck
+            {
+                Severity = CheckSeverity.Info,
+                Title = $"Batteries configured ({configured})",
+                Description = $"Total capacity {config.TotalCapacity / 1000.0:F1} kWh, " +
+                              $"charge {config.TotalRawChargingCapacity:F0} W, " +
+                              $"discharge {config.TotalRawDischargingCapacity:F0} W."
+            });
+        }
+
+        /// <summary>
+        /// The Consumption page reads the table and shows whatever is there, so an empty table looks
+        /// exactly like a working page with no data. This says which of the two it is.
+        /// </summary>
+        private async Task CheckConsumptionHistory(List<ConfigurationCheck> checks)
+        {
+            var now = _timeZoneService.Now;
+            var dayAgo = now.AddDays(-1);
+
+            var latest = await _consumptionDataService.Query(async set =>
+                await Task.FromResult(set.Max(c => (DateTime?)c.Time)));
+
+            if (latest == null)
+            {
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Error,
+                    Title = "No consumption recorded",
+                    Description = "The consumption table is empty, so the Consumption page has nothing to show and " +
+                                  "the planner uses the monthly energy profile from Settings instead of measured " +
+                                  "history. Recording needs all three of: a working weather feed, a P1 meter and " +
+                                  "reachable batteries — check those first.",
+                    ActionUrl = "/consumption",
+                    ActionLabel = "Open consumption"
+                });
+                return;
+            }
+
+            var age = now - latest.Value;
+
+            if (age > TimeSpan.FromHours(1))
+            {
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Error,
+                    Title = "Consumption recording has stopped",
+                    Description = $"The last consumption record is from {latest.Value:dd-MM-yyyy HH:mm} " +
+                                  $"({age.TotalHours:F0} hours ago); a record is expected every 15 minutes. The " +
+                                  "weather feed, the P1 meter or a battery is unreachable — a failure in any of " +
+                                  "them stops recording.",
+                    ActionUrl = "/consumption",
+                    ActionLabel = "Open consumption"
+                });
+                return;
+            }
+
+            int recent = await _consumptionDataService.Query(async set =>
+                await Task.FromResult(set.Count(c => c.Time >= dayAgo)));
+
+            // 96 quarters a day; well under that means the loop is dropping quarters.
+            if (recent < 72)
+            {
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Warning,
+                    Title = $"Consumption history has gaps ({recent} of 96 quarters)",
+                    Description = "Fewer records were stored over the last 24 hours than the 96 expected. A quarter " +
+                                  "is skipped whenever the P1 meter or a battery cannot be read, or when the " +
+                                  "computed consumption comes out at zero.",
+                    ActionUrl = "/consumption",
+                    ActionLabel = "Open consumption"
+                });
+                return;
+            }
+
+            checks.Add(new ConfigurationCheck
+            {
+                Severity = CheckSeverity.Info,
+                Title = "Consumption recording active",
+                Description = $"{recent} quarters stored over the last 24 hours, most recent " +
+                              $"{latest.Value:dd-MM-yyyy HH:mm}."
+            });
         }
 
         private Task CheckEneverToken(List<ConfigurationCheck> checks)

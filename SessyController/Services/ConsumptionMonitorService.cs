@@ -142,9 +142,26 @@ namespace SessyController.Services
 
             try
             {
-                await EnsureServicesAreInitialized(cancelationToken);
+                await WaitForWeatherAsync(cancelationToken);
 
-                foreach (P1Meter? p1Meter in _p1MeterContainer.P1Meters!.ToList())
+                var meters = _p1MeterContainer.P1Meters?.ToList() ?? new List<P1Meter>();
+
+                if (meters.Count == 0)
+                {
+                    // Without this the loop simply iterates nothing and says nothing — the silent
+                    // failure behind issue #4.
+                    if (!_noMetersLogged)
+                    {
+                        _logger.LogWarning("No P1 meter is configured; no consumption is being recorded.");
+                        _noMetersLogged = true;
+                    }
+
+                    return;
+                }
+
+                _noMetersLogged = false;
+
+                foreach (P1Meter? p1Meter in meters)
                 {
                     await StoreConsumption(p1Meter);
                 }
@@ -155,17 +172,41 @@ namespace SessyController.Services
             }
         }
 
-        public async Task EnsureServicesAreInitialized(CancellationToken cancelationToken)
-        {
-            var tries = 0;
+        private bool _noMetersLogged = false;
+        private bool _weatherWasAvailable = true;
+        private bool _weatherGracePeriodDone = false;
 
-            while (!_weatherService.IsInitialized() && tries++ < 10)
+        /// <summary>
+        /// Weather is stored alongside consumption but is not what is being measured, so a missing
+        /// feed must not stop recording. This used to throw, which aborted the whole cycle before a
+        /// single quarter was stored — an empty Consumption page and no explanation (issue #4).
+        /// Absent weather is written as the -999 sentinel the columns already use.
+        ///
+        /// The wait runs once, at startup, to give the feed a chance to arrive; afterwards a broken
+        /// feed must not stall the one-second sampling loop.
+        /// </summary>
+        public async Task<bool> WaitForWeatherAsync(CancellationToken cancelationToken)
+        {
+            if (!_weatherGracePeriodDone)
             {
-                await Task.Delay(TimeSpan.FromSeconds(1), cancelationToken);
+                var tries = 0;
+
+                while (!_weatherService.IsInitialized() && tries++ < 10)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(1), cancelationToken);
+                }
+
+                _weatherGracePeriodDone = true;
             }
 
-            if (!_weatherService.IsInitialized())
-                throw new InvalidOperationException("Weather service not initialized");
+            var available = _weatherService.IsInitialized();
+
+            if (!available && _weatherWasAvailable)
+                _logger.LogWarning("No weather data available; consumption is stored without weather values.");
+
+            _weatherWasAvailable = available;
+
+            return available;
         }
 
         private class ConsumptionData
@@ -194,7 +235,6 @@ namespace SessyController.Services
 
             if (_timeZoneService.Now >= nextQuarter)
             {
-                var test = nextQuarter;
                 nextQuarter = _timeZoneService.Now.DateCeilingQuarter();
 
                 if (_consumptionData.Count > 0)
@@ -206,7 +246,6 @@ namespace SessyController.Services
 
                     if (averageConsumptionWh > 0)
                     {
-                        var p1Details = await _p1MeterContainer.GetDetails(p1Meter.Id!);
                         var weatherData = await _weatherService.GetWeatherData();
 
                         var liveWeer = weatherData?.LiveWeer?.FirstOrDefault();
@@ -241,15 +280,27 @@ namespace SessyController.Services
             }
             else
             {
-                _consumptionData.Add(new ConsumptionData
+                var consumptionWh = await CalculateConsumption();
+
+                // Null means a term could not be read. Recording it as 0.0 would drag the quarter
+                // average down and store a number that is simply wrong, so the sample is dropped.
+                if (consumptionWh.HasValue)
                 {
-                    Time = startQuarter,
-                    ConsumptionWh = await CalculateConsumption()
-                });
+                    _consumptionData.Add(new ConsumptionData
+                    {
+                        Time = startQuarter,
+                        ConsumptionWh = consumptionWh.Value
+                    });
+                }
             }
         }
 
-        public async Task<double> CalculateConsumption()
+        /// <summary>
+        /// Household consumption is solar production + grid draw + battery discharge. Every term is
+        /// needed: a battery that cannot be read while it discharges 3 kW would understate the
+        /// quarter by exactly that. Returns null rather than a partial sum.
+        /// </summary>
+        public async Task<double?> CalculateConsumption()
         {
             double solarPower = 0.0;
             double netPower = 0.0;
@@ -288,7 +339,7 @@ namespace SessyController.Services
 
             if (error)
             {
-                return 0.0; // Some value(s) missing. Return 0.0.
+                return null; // Some value(s) missing; a partial sum is not a measurement.
             }
 
             return solarPower + netPower + batteryPower;
@@ -338,16 +389,22 @@ namespace SessyController.Services
                 .ToDictionary(p => p.Time, p => p.Price!.Value);
 
             var taskList = quarterlyInfos
-                .Select(qi => CalculateEstimatedConsumptionForAQuarterHour(consumptions, priceLookup, currentWeather!, qi))
+                .Select(qi => CalculateEstimatedConsumptionForAQuarterHour(consumptions, priceLookup, currentWeather, qi))
                 .ToList();
 
             await Task.WhenAll(taskList);
         }
 
+        /// <summary>
+        /// Estimates one quarter from comparable historical quarters. Without weather there is
+        /// nothing to compare on, so the monthly profile from Settings is used — that fallback used
+        /// to sit inside the weather branch, which left the estimate at 0 W exactly when no weather
+        /// was available and told the planner the house needs nothing.
+        /// </summary>
         public async Task CalculateEstimatedConsumptionForAQuarterHour(
             List<Consumption> consumptions,
             Dictionary<DateTime, double> priceLookup,
-            WeerData currentWeather,
+            WeerData? currentWeather,
             QuarterlyInfo quarterlyInfo)
         {
             var minHour = quarterlyInfo.Time.Hour - _hourDelta;
@@ -443,9 +500,9 @@ namespace SessyController.Services
                         }
                     }
                 }
-
-                quarterlyInfo.EstimatedConsumptionPerQuarterInWatts = _settingConfig.EnergyNeedsForCurrentMonth(_timeZoneService.Now.Month - 1) / 24.0; // Wh/day ÷ 24 hours = average Watts
             }
+
+            quarterlyInfo.EstimatedConsumptionPerQuarterInWatts = _settingConfig.EnergyNeedsForCurrentMonth(_timeZoneService.Now.Month - 1) / 24.0; // Wh/day ÷ 24 hours = average Watts
         }
 
         private async Task<List<Consumption>> GetDataForAYear()
