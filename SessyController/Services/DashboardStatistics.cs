@@ -82,6 +82,13 @@ namespace SessyController.Services.Statistics
         /// <summary>Total energy savings vs baseline in the selected period (EUR).</summary>
         public double PeriodSavingsEur { get; set; }
 
+        /// <summary>
+        /// True when an inverter is configured. Everything solar below is hidden without one:
+        /// production, self-consumption and the performance ratio can then only read zero, and
+        /// self-sufficiency measures what solar covers, which is nothing.
+        /// </summary>
+        public bool SolarIsConfigured { get; set; }
+
         /// <summary>Total solar production in the selected period (kWh).</summary>
         public double TotalSolarProductionKWh { get; set; }
 

@@ -116,6 +116,9 @@ builder.Services.AddHttpClient();
 builder.Services.AddTransient(typeof(LoggingService<>));
 builder.Services.AddTransient<Battery>();
 
+// What this installation has (solar, …) so the UI can leave out what does not apply.
+builder.Services.AddSingleton<SystemCapabilitiesService>();
+
 builder.Services.AddScoped<ConfigurationService>();
 builder.Services.AddScoped<SessyService>();
 builder.Services.AddScoped<SolarService>();

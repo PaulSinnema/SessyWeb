@@ -1485,6 +1485,7 @@ namespace SessyController.Services
                 PeriodEnd = periodStats.PeriodEnd,
                 PeriodDays = periodStats.PeriodDays,
                 PeriodSavingsEur = periodStats.TotalSavingsEur,
+                SolarIsConfigured = _powerSystemsConfig.HasSolar,
                 TotalSolarProductionKWh = periodStats.TotalSolarProductionKWh,
                 SelfSufficiencyPct = periodStats.SelfSufficiencyPct,
                 SelfConsumptionPct = periodStats.SelfConsumptionPct,

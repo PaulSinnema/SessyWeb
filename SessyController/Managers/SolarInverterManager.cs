@@ -98,9 +98,15 @@ namespace SessyController.Managers
 
         private void FillActiveInverterServices(IEnumerable<ISolarInverterService> inverterServices)
         {
-            _activeInverterServices = inverterServices
-                .Where(inverterService => _powerSystemsConfig.Endpoints.ContainsKey(inverterService.ProviderName))
-                .ToList();
+            // No PowerSystems section at all is a valid configuration — a household without solar
+            // panels. That leaves the list empty, which every member here already handles.
+            var endpoints = _powerSystemsConfig?.Endpoints;
+
+            _activeInverterServices = endpoints == null
+                ? new List<ISolarInverterService>()
+                : inverterServices
+                    .Where(inverterService => endpoints.ContainsKey(inverterService.ProviderName))
+                    .ToList();
         }
 
         public async Task<double> GetTotalACPowerInWatts()
@@ -204,6 +210,10 @@ namespace SessyController.Managers
 
         public async Task ThrottleInverterToWatts(double watts)
         {
+            // Nothing to throttle is not a configuration error — it is a house without panels.
+            if (_activeInverterServices.Count == 0)
+                return;
+
             if (TotalCapacity <= 0.0)
                 throw new InvalidOperationException($"InverterMaxCapacity not set or wrong in config for one or more endpoints");
 

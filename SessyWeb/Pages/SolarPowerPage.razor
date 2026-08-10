@@ -12,6 +12,19 @@
     bool ShowMarkers = true;
 }
 
+@* The menu item is hidden without an inverter, but a bookmark or a typed URL still lands here. *@
+@if (!HasSolar)
+{
+    <RadzenCard>
+        <RadzenText TextStyle="TextStyle.H6">☀️ No solar inverter configured</RadzenText>
+        <RadzenText TextStyle="TextStyle.Body1">
+            This page shows measurements read from a solar inverter. Add a <b>PowerSystems</b> section
+            to appsettings.json to enable it.
+        </RadzenText>
+    </RadzenCard>
+}
+else
+{
 <RadzenLayout Style="height: 80vh;">
     <RadzenHeader Style="height: 100%;margin: 0px; padding: 0px;">
         <RadzenStack Orientation=Orientation.Horizontal AlignItems="AlignItems.Center" Style="height:100%;margin: 0px; padding: 0px;">
@@ -212,4 +225,5 @@
         <b>@String.Format(GetFormatProvider(), "Total solar power: {0:N2} kWh", SolarPower)</b>
     </RadzenFooter>
 </RadzenLayout>
+}
 

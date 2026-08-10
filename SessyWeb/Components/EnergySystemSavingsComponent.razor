@@ -31,28 +31,33 @@
             <StatCardComponent Title="Buy / sell price (avg)"
                                Value="@($"€ {Dashboard!.WeightedAvgBuyPriceEurPerKWh:F4} / € {Dashboard.WeightedAvgSellPriceEurPerKWh:F4}/kWh")" />
         </RadzenColumn>
-        <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Solar production"
-                               Value="@($"{Dashboard!.TotalSolarProductionKWh:F1} kWh")" />
-        </RadzenColumn>
-        <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Self-sufficiency"
-                               Value="@($"{Dashboard!.SelfSufficiencyPct:F1} %")"
-                               Highlight="true" />
-        </RadzenColumn>
-        <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Self-consumption"
-                               Value="@($"{Dashboard!.SelfConsumptionPct:F1} %")"
-                               Highlight="true" />
-        </RadzenColumn>
-        <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Performance ratio"
-                               Value="@($"{Dashboard!.SolarPerformanceRatio * 100:F1} %")" />
-        </RadzenColumn>
-        <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Avg / peak daily solar"
-                               Value="@($"{Dashboard!.AvgDailySolarProductionKWh:F1} / {Dashboard.PeakDailySolarProductionKWh:F1} kWh")" />
-        </RadzenColumn>
+        @* Five solar figures. Without an inverter they can only read zero, and self-sufficiency
+           measures the share of consumption covered by own production — see DashboardStatistics. *@
+        @if (Dashboard!.SolarIsConfigured)
+        {
+            <RadzenColumn Size="6" SizeMD="3">
+                <StatCardComponent Title="Solar production"
+                                   Value="@($"{Dashboard!.TotalSolarProductionKWh:F1} kWh")" />
+            </RadzenColumn>
+            <RadzenColumn Size="6" SizeMD="3">
+                <StatCardComponent Title="Self-sufficiency"
+                                   Value="@($"{Dashboard!.SelfSufficiencyPct:F1} %")"
+                                   Highlight="true" />
+            </RadzenColumn>
+            <RadzenColumn Size="6" SizeMD="3">
+                <StatCardComponent Title="Self-consumption"
+                                   Value="@($"{Dashboard!.SelfConsumptionPct:F1} %")"
+                                   Highlight="true" />
+            </RadzenColumn>
+            <RadzenColumn Size="6" SizeMD="3">
+                <StatCardComponent Title="Performance ratio"
+                                   Value="@($"{Dashboard!.SolarPerformanceRatio * 100:F1} %")" />
+            </RadzenColumn>
+            <RadzenColumn Size="6" SizeMD="3">
+                <StatCardComponent Title="Avg / peak daily solar"
+                                   Value="@($"{Dashboard!.AvgDailySolarProductionKWh:F1} / {Dashboard.PeakDailySolarProductionKWh:F1} kWh")" />
+            </RadzenColumn>
+        }
         <RadzenColumn Size="6" SizeMD="3">
             <StatCardComponent Title="Charged / discharged"
                                Value="@($"{Dashboard!.TotalBatteryChargedKWh:F1} / {Dashboard.TotalBatteryDischargedKWh:F1} kWh")" />
@@ -78,7 +83,10 @@
     </RadzenRow>
     <RadzenText TextStyle="TextStyle.Caption" Style="margin-top: 0.75rem; opacity: 0.7;">
         Annual savings = seasonal monthly averages (all historical data). Period savings = actual measured savings in the selected period (@($"{Dashboard!.PeriodDays:F0}") days).
-        Solar and battery are treated as one integrated system.
+        @if (Dashboard!.SolarIsConfigured)
+        {
+            <text>Solar and battery are treated as one integrated system.</text>
+        }
     </RadzenText>
 </RadzenCard>
 

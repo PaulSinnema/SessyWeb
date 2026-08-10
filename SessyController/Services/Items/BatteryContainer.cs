@@ -12,13 +12,16 @@ namespace SessyController.Services.Items
         private IOptionsMonitor<SessyBatteryConfig> _sessyBatteryConfigMonitor;
         private SessyBatteryConfig _sessyBatteryConfig;
         private SolarEdgeInverterService _solarEdgeService;
+        private readonly LoggingService<BatteryContainer> _logger;
 
         public List<Battery>? Batteries { get; set; }
 
         public BatteryContainer(IServiceScopeFactory serviceScopeFactory,
                                 IOptionsMonitor<SessyBatteryConfig> sessyBatteryConfigMonitor,
-                                SolarEdgeInverterService solarEdgeService)
+                                SolarEdgeInverterService solarEdgeService,
+                                LoggingService<BatteryContainer> logger)
         {
+            _logger = logger;
             _sessyBatteryConfigMonitor = sessyBatteryConfigMonitor;
 
             _sessyBatteryConfigMonitor.OnChange(config =>
@@ -42,7 +45,15 @@ namespace SessyController.Services.Items
         {
             var batteries = new List<Battery>();
 
-            foreach (var batteryConfig in _sessyBatteryConfig.Batteries)
+            foreach (var orphan in _sessyBatteryConfig.Batteries.Where(bat => !bat.Value.IsConfigured))
+            {
+                _logger.LogWarning(
+                    $"Battery '{orphan.Key}' has no BaseUrl and is ignored. Configuration merges per key, " +
+                    $"so this is usually a credentials-only leftover in secrets.json for a battery that was " +
+                    $"removed from appsettings.json.");
+            }
+
+            foreach (var batteryConfig in _sessyBatteryConfig.ConfiguredBatteries)
             {
                 using (var scope = serviceProvider.CreateScope())
                 {

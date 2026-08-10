@@ -38,12 +38,19 @@ namespace SessyController.Services.Items
         /// </summary>
         private void AddMeters()
         {
+            // Cleared once, not per meter: inside the loop only the last endpoint survived, and a
+            // config reload with an empty section appended to the old list instead of emptying it.
+            P1Meters.Clear();
+
             foreach (var endpoint in _sessyP1Config.Endpoints)
             {
                 var p1MeterId = endpoint.Key;
                 var p1MeterConfig = endpoint.Value;
 
-                P1Meters.Clear();
+                // Credentials in secrets.json for a meter that appsettings.json no longer declares
+                // merge into a device with no address — see SessyBatteryEndpoint.IsConfigured.
+                if (!p1MeterConfig.IsConfigured)
+                    continue;
 
                 var p1Meter = new P1Meter()
                 {

@@ -26,6 +26,15 @@
         public string? BaseUrl { get; set; }
 
         /// <summary>
+        /// True when this entry describes a real device. Configuration merges per key across
+        /// appsettings.json and secrets.json, so credentials left behind in secrets.json for a
+        /// battery that was removed from appsettings.json otherwise conjure up a battery with no
+        /// address at all — which then fails on every poll with "Value cannot be null (BaseUrl)".
+        /// Secrets augment a declared device; they do not declare one.
+        /// </summary>
+        public bool IsConfigured => !string.IsNullOrWhiteSpace(BaseUrl);
+
+        /// <summary>
         /// The maximum charging capacity in Watts.
         /// Default: 1400W. Falls back to 1400W when not configured or invalid.
         /// </summary>

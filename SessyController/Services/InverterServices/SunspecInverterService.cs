@@ -32,7 +32,15 @@ namespace SessyController.Services.InverterServices
         /// </summary>
         public double ActualSolarPowerInWatts { get; private set; }
 
-        public Dictionary<string, Endpoint> Endpoints => _powerSystemConfig!.Endpoints[ProviderName];
+        /// <summary>
+        /// This provider's endpoints, empty when it is not configured. SolarInverterManager only
+        /// activates services that appear in the config, but the DI container still constructs
+        /// every one of them, so an indexer here throws for providers nobody uses.
+        /// </summary>
+        public Dictionary<string, Endpoint> Endpoints =>
+            _powerSystemConfig?.Endpoints != null && _powerSystemConfig.Endpoints.TryGetValue(ProviderName, out var endpoints)
+                ? endpoints
+                : new Dictionary<string, Endpoint>();
         public double TotalCapacity => Endpoints.Sum(ep => ep.Value.InverterMaxCapacity);
 
         private bool _IsRunning { get; set; } = false;

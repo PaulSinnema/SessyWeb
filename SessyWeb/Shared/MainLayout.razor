@@ -4,6 +4,7 @@
 @inject RadzenTheme RadzenTheme
 @inject IJSRuntime JSRuntime
 @inject IWebHostEnvironment HostEnvironment
+@inject SystemCapabilitiesService Capabilities
 
 @{
     // Bump the version in SessyCommon/AppInfo.cs — Program.cs writes that same value into the
@@ -77,10 +78,14 @@
                                      Path="charginghours"
                                      Click="@CollapseMenu"
                                      Icon="bolt" />
-                <RadzenPanelMenuItem Text="Solar power"
-                                     Click="@CollapseMenu"
-                                     Path="solarpower"
-                                     Icon="wb_sunny" />
+                @* No inverter configured means no measurements to show — see SystemCapabilitiesService. *@
+                @if (Capabilities.HasSolar)
+                {
+                    <RadzenPanelMenuItem Text="Solar power"
+                                         Click="@CollapseMenu"
+                                         Path="solarpower"
+                                         Icon="wb_sunny" />
+                }
                 <RadzenPanelMenuItem Text="Consumption"
                                      Click="@CollapseMenu"
                                      Path="consumption"

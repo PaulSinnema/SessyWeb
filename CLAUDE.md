@@ -643,8 +643,9 @@ Oorzaak: de SDK publiceert `SessyWeb/appsettings.json` (mijn eigen werkende conf
 automatisch vóór `Program.cs` de `CONFIG_PATH`-versie toevoegt. .NET-configuratie merget **per
 sleutel**, het vervangt geen secties: sleutel "1" werd overschreven, "2" en "3" bleven staan. Zelfde
 mechanisme gold voor `Sessy:Meters` (P1 op .240), `PowerSystems` (SolarEdge op .217 met mijn twee
-panelengroepen), `WeerOnline:Location`, `HeatPumpConfig`, `ManagementSettings` (timezone,
-`ChargedInControl: true`) en `ConnectionStrings`. De regel in dit document dat de config "uit
+panelengroepen), `WeerOnline:Location`, `HeatPumpConfig`, `ManagementSettings` (timezone) en
+`ConnectionStrings`. (De `"ChargedInControl": true` die daar ook stond bond nergens op — zie
+v1.0.81.) De regel in dit document dat de config "uit
 `$CONFIG_PATH` komt, **niet** uit de eigen appsettings" was dus niet waar in de image.
 Twee remmen: (1) `RemoveBuiltInAppSettings` haalt vóór het toevoegen elke `JsonConfigurationSource`
 met bestandsnaam `appsettings.json` uit `builder.Configuration.Sources` — env-overlays
@@ -652,6 +653,54 @@ met bestandsnaam `appsettings.json` uit `builder.Configuration.Sources` — env-
 container (Production) niet geladen; (2) `<CopyToPublishDirectory>Never` op `appsettings.json` in
 `SessyWeb.csproj`, geverifieerd op een echte publish. **Gedragsverandering:** ontbreekt de
 config-volume, dan draait de app niet meer stil door op mijn IP-adressen maar faalt hij zichtbaar.
+
+**Nasleep: een ontbrekende sectie bestond nooit eerder (v1.0.80).** Zodra de template niet meer
+meegaat, is "sectie afwezig" een echt geval. Bij een gebruiker met één batterij en géén zonnepanelen
+crashte de host meteen: `SolarInverterManager.FillActiveInverterServices` deed
+`_powerSystemsConfig.Endpoints.ContainsKey(...)` in de constructor → `NullReferenceException` vóór
+er één service draaide. Bron aangepakt in plaats van die ene regel: `PowerSystemsConfig.Endpoints`,
+`SessyP1Config.Endpoints` en `SessyBatteryConfig.Batteries` zijn nu niet-nullable met een lege
+dictionary als default, want elke consument itereert of doet een lookup. Verder in dezelfde sweep:
+`SunspecInverterService.Endpoints` gebruikte een indexer op de providernaam (DI construeert álle
+inverterservices, ook die niemand configureert) → `TryGetValue`; `ThrottleInverterToWatts` gooide
+"InverterMaxCapacity not set or wrong in config" bij nul inverters → geen fout, gewoon niets te
+regelen. Nagelopen en al goed: curtailment (`IsAvailable` is `false`, en `CurrentInverterSetpointW`
+blijft `MaxValue` dus `ReleaseAsync` keert vroeg terug), `SolarService` (0-guards),
+`EnergyStatisticsService` (`kWp <= 0` → terugval), `SolarEdgeCloudConfig` en `HeatPumpConfig` (beide
+melden netjes "niet geconfigureerd"). Bijvangst: `P1MeterContainer.AddMeters` riep `P1Meters.Clear()`
+**binnen** de lus — bij twee meters overleefde alleen de laatste, en bij een config-reload naar een
+lege sectie werd er aangevuld in plaats van geleegd. Tests: `NoSolarConfigurationTests` (6).
+Totaal 295.
+
+**UI laat weg wat je niet hebt (v1.0.83).** Zonder zonnepanelen heeft de Solar-pagina geen inhoud en
+staan er in Statistics vijf kaarten die alleen nul kunnen zijn. Eén definitie: `PowerSystemsConfig.HasSolar`
+(minstens één omvormer geconfigureerd), uitgeserveerd door `SystemCapabilitiesService` (singleton, leest
+elke keer `CurrentValue` zodat een config-wijziging zonder herstart aankomt) en als
+`PageBase.HasSolar` / `DashboardStatistics.SolarIsConfigured`. Verborgen: het menu-item Solar power,
+en in Statistics "Solar production", "Self-sufficiency", "Self-consumption", "Performance ratio",
+"Avg / peak daily solar" plus de "self sufficiency"-kaart in Energy Flows en de zinsnede "Solar and
+battery are treated as one integrated system". *Self-sufficiency* gaat mee omdat het
+`(verbruik − netinvoer)/verbruik` is: zonder zon komt alles uiteindelijk van het net en klemt het op 0.
+De Solar-pagina zelf toont een uitleg in plaats van grafieken (een bladwijzer komt er nog steeds op uit)
+en slaat het laden van metingen over. Precedent gevolgd van `HeatPumpIsConfigured`, dat dit al zo deed.
+Tests: +1 in `NoSolarConfigurationTests` (9). Totaal 298.
+
+**`secrets.json` verzon batterijen (v1.0.82).** Lokaal bleven er drie batterijen gevonden worden
+nadat `appsettings.json` naar één was gestript, nu met `ArgumentNullException (Parameter 'BaseUrl')`
+in plaats van een timeout. Niet de template — het log meldde netjes "Ignoring the built-in
+appsettings.json". `SessyWeb/secrets.json` droeg nog `Batteries: 1, 2, 3` met alleen
+`UserId`/`Password`, en die wordt ná appsettings toegevoegd, dus de sleutels "2" en "3" ontstonden
+daar. Dezelfde klasse als v1.0.78, één laag dieper: **secrets vullen een gedeclareerd apparaat aan,
+ze declareren er geen.** Nu `SessyBatteryEndpoint.IsConfigured` / `SessyP1Endpoint.IsConfigured`
+(= `BaseUrl` gevuld); `SessyBatteryConfig.ConfiguredBatteries` draagt alle `Total*`-sommen zodat een
+restant geen capaciteit toevoegt, en `BatteryContainer` slaat zulke entries over mét een
+Warning-regel die de oorzaak noemt — stil overslaan zou de volgende keer weer een halve dag zoeken
+kosten. `P1MeterContainer` idem. Tests: +2 in `NoSolarConfigurationTests` (8). Totaal 297.
+
+**Dode `ChargedInControl` uit `ManagementSettings` (v1.0.81).** Stond in de template maar bond
+nergens op: `SettingsConfig` kent alleen `Timezone` en `DatabaseBackupDirectory`. De echte vlag is
+`Settings.ChargedInControl` in de DB-rij — checkbox op de Settings-pagina, gelezen door
+`ControlModeService`. Regel verwijderd; README noemde hem al niet.
 
 **Vergelijkingstoggle werkt nu beide kanten op (v1.0.79).** `ShowCharged` toonde alleen Charged;
 onder Charged stond de checkbox uit dan het *uitvoerende* plan niet op het scherm en het onze wél,

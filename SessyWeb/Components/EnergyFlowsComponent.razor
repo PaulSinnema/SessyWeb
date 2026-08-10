@@ -15,9 +15,14 @@
         <RadzenColumn Size="6">
             <StatCardComponent Title="Grid export" Value="@($"{Dashboard!.TotalGridExportKWh:F1} kWh")" />
         </RadzenColumn>
-        <RadzenColumn Size="6">
-            <StatCardComponent Title="Self sufficiency" Value="@($"{Dashboard!.SelfSufficiencyPct:F1} %")" />
-        </RadzenColumn>
+        @* Own production versus consumption — meaningless without an inverter, where every kWh
+           comes from the grid whether the battery is in between or not. *@
+        @if (Dashboard!.SolarIsConfigured)
+        {
+            <RadzenColumn Size="6">
+                <StatCardComponent Title="Self sufficiency" Value="@($"{Dashboard!.SelfSufficiencyPct:F1} %")" />
+            </RadzenColumn>
+        }
     </RadzenRow>
     <RadzenText TextStyle="TextStyle.H6" Style="margin-top: 12px;">🏠 Consumption</RadzenText>
     <RadzenRow>

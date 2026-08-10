@@ -52,6 +52,14 @@ namespace SessyWeb.Pages
 
         protected override async Task OnAfterRenderAsync(bool firstRender)
         {
+            // Without an inverter the page renders an explanation instead of charts; loading the
+            // measurements anyway would query the database for series nobody is going to see.
+            if (!HasSolar)
+            {
+                await base.OnAfterRenderAsync(firstRender);
+                return;
+            }
+
             if (firstRender || _screenInfoChanged)
             {
                 await SelectionChanged();

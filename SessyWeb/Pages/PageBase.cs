@@ -13,6 +13,12 @@ namespace SessyWeb.Pages
         [Inject]
         public BatteriesService? _batteriesService { get; set; }
 
+        [Inject]
+        public SystemCapabilitiesService? _capabilities { get; set; }
+
+        /// <summary>True when an inverter is configured — pages hide solar figures without one.</summary>
+        public bool HasSolar => _capabilities!.HasSolar;
+
 #if DEBUG
         public bool HideId = false;
 #else
