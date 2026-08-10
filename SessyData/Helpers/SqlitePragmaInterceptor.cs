@@ -101,5 +101,33 @@ namespace SessyData.Helpers
                 return "unknown";
             }
         }
+
+        /// <summary>
+        /// Reads the configured timezone straight out of the Settings row, or null when it cannot
+        /// be read. Startup needs it before the hosted services run — the pre-migration backup and
+        /// the AppVersions stamp are both timestamped — while EF cannot be trusted here: this runs
+        /// before Migrate, so the table may be missing entirely or still on an older schema. Raw
+        /// SQL over one column survives both, and null simply leaves the default in place.
+        /// </summary>
+        public static string? TryReadTimeZone(DbConnection connection)
+        {
+            try
+            {
+                if (connection.State != ConnectionState.Open)
+                    connection.Open();
+
+                using var command = connection.CreateCommand();
+
+                command.CommandText = "SELECT TimeZone FROM Settings LIMIT 1;";
+
+                return command.ExecuteScalar() as string;
+            }
+            catch (Exception)
+            {
+                // A fresh database has no Settings table yet — that is the normal first-run path,
+                // not a failure worth reporting.
+                return null;
+            }
+        }
     }
 }

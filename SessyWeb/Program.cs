@@ -307,6 +307,20 @@ using (var scope = app.Services.CreateScope())
     // writers, which is what made the UI stall on every page. Reports and continues on failure.
     SqliteSetup.EnableWriteAheadLogging(dbContext.Database.GetDbConnection());
 
+    // The timezone lives in the Settings row, but SettingsService only loads it once the hosted
+    // services run — after this block. Both the pre-migration backup and the AppVersions stamp
+    // below are timestamped, so without this they would use the default while the rest of the
+    // application uses the configured zone. Read it straight from the file; a database without a
+    // Settings row simply keeps the default.
+    var storedTimeZone = SqliteSetup.TryReadTimeZone(dbContext.Database.GetDbConnection());
+
+    if (!string.IsNullOrWhiteSpace(storedTimeZone))
+    {
+        services.GetRequiredService<TimeZoneService>().UpdateTimezone(storedTimeZone);
+
+        Console.WriteLine($"Timezone from the database: {storedTimeZone}");
+    }
+
     var pendingMigrations = dbContext.Database.GetPendingMigrations();
 
     if (pendingMigrations.Any())

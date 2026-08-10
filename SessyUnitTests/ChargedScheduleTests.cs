@@ -22,7 +22,7 @@ namespace SessyTests.Services
         {
             // DynamicScheduleItem converts its unix timestamps through TimeZoneService, which keeps
             // the zone in a static field. Constructing one instance is what fills it.
-            _ = new TimeZoneService(Options.Create(new SettingsConfig { Timezone = "Europe/Amsterdam" }));
+            _ = new TimeZoneService();
         }
 
         private static long Unix(DateTime time) =>

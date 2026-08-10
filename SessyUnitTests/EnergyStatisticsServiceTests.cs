@@ -56,8 +56,7 @@ namespace SessyTests.Services
             _groupMock.Setup(s => s.GetList(It.IsAny<Func<IQueryable<InvestmentGroup>, Task<List<InvestmentGroup>>>>()))
                       .ReturnsAsync(new List<InvestmentGroup>());
 
-            var timeZoneSettings = Options.Create(new SettingsConfig { Timezone = "Europe/Amsterdam" });
-            _timeZoneMock = new Mock<TimeZoneService>(MockBehavior.Loose, timeZoneSettings);
+            _timeZoneMock = new Mock<TimeZoneService>(MockBehavior.Loose);
             _timeZoneMock.Setup(t => t.Now).Returns(new DateTime(2026, 5, 31, 12, 0, 0));
 
             var heatPumpConfig = Monitor(new HeatPumpConfig
@@ -67,7 +66,7 @@ namespace SessyTests.Services
                 GasStandingChargeEurPerYear = 185.0,
                 InstallationDate = new DateTime(2024, 3, 1)
             });
-            var settingsServiceMock = new Mock<SettingsService>(MockBehavior.Loose, null!, null!, null!, null!, Options.Create(new SettingsConfig()));
+            var settingsServiceMock = new Mock<SettingsService>(MockBehavior.Loose, null!, null!, null!, null!);
             settingsServiceMock.SetupGet(s => s.Current).Returns(new Settings());
             var powerSystemsConfig = Monitor(new PowerSystemsConfig());
 
@@ -452,7 +451,7 @@ namespace SessyTests.Services
                 .Setup(s => s.GetList(It.IsAny<Func<IQueryable<Investment>, Task<List<Investment>>>>()))
                 .ReturnsAsync(new List<Investment>());
 
-            var settingsServiceMock2 = new Mock<SettingsService>(MockBehavior.Loose, null!, null!, null!, null!, Options.Create(new SettingsConfig()));
+            var settingsServiceMock2 = new Mock<SettingsService>(MockBehavior.Loose, null!, null!, null!, null!);
             settingsServiceMock2.SetupGet(s => s.Current).Returns(new Settings { StatisticsFromDate = fromDate });
             var heatPumpConfig = Monitor(new HeatPumpConfig());
             var energyHistoryMock = new Mock<EnergyHistoryDataService>(MockBehavior.Loose, scopeFactoryMock.Object);

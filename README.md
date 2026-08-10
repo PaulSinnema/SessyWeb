@@ -194,7 +194,6 @@ Start from this example and replace every `<...>` placeholder:
   },
 
   "ManagementSettings": {
-    "Timezone": "Europe/Amsterdam",
     "DatabaseBackupDirectory": "/SessyController/Data/Backups"
   }
 }
@@ -377,10 +376,12 @@ Two separate systems, and it helps to know which is which:
 
 | | Where | Contains | Changing it |
 |---|---|---|---|
-| **Infrastructure** | `appsettings.json` + `secrets.json` in `CONFIG_PATH` | Device addresses, credentials, API keys, timezone, database path | Edit the file; most keys are re-read live, a restart is always safe |
-| **Operation** | The `Settings` row in the database | Strategy, cycle cost, reserve %, efficiency, consumption profile, manual override | The **Settings** page in the UI; takes effect immediately, no restart |
+| **Infrastructure** | `appsettings.json` + `secrets.json` in `CONFIG_PATH` | Device addresses, credentials, API keys, database path | Edit the file; most keys are re-read live, a restart is always safe |
+| **Operation** | The `Settings` row in the database | Timezone, location, strategy, cycle cost, reserve %, efficiency, consumption profile, manual override | The **Settings** page in the UI; takes effect immediately, no restart |
 
-`CONFIG_PATH` tells SessyWeb which folder to read; it defaults to the working directory. Every key can also be supplied as an environment variable by replacing `:` with `__`, e.g. `ManagementSettings__Timezone=Europe/Amsterdam`.
+The timezone is part of the second group: a new database starts on `Europe/Amsterdam` and you set your own on the **Settings** page. It is not in `appsettings.json`, so there is no second place it can disagree with.
+
+`CONFIG_PATH` tells SessyWeb which folder to read; it defaults to the working directory. Every key can also be supplied as an environment variable by replacing `:` with `__`, e.g. `ManagementSettings__DatabaseBackupDirectory=/SessyController/Data/Backups`.
 
 Optional sections in `appsettings.json`:
 

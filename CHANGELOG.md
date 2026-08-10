@@ -11,6 +11,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.87] — 2026-08-10
+
+### Changed
+- The timezone now lives only in the database, set on the **Settings** page. `Timezone` has been
+  removed from the `ManagementSettings` section of `appsettings.json`; a new database starts on
+  `Europe/Amsterdam` until you change it in the UI.
+
+### Fixed
+- Two startup timestamps — the backup taken before a migration, and the version stamp in
+  `AppVersions` — were written in the timezone from `appsettings.json` on **every** start, because
+  they run before the database settings are loaded. When the two sources disagreed, those rows were
+  hours off from the rest of the application. Startup now reads the stored timezone first.
+
 ## [v1.0.86] — 2026-08-10
 
 ### Fixed

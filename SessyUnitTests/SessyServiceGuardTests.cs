@@ -66,8 +66,7 @@ namespace SessyTests.Services
 
             var settings = new Settings { ChargedInControl = charged, ManualOverride = manual };
 
-            var settingsService = new Mock<SettingsService>(
-                null!, null!, null!, null!, Options.Create(new SettingsConfig()));
+            var settingsService = new Mock<SettingsService>(null!, null!, null!, null!);
             settingsService.Setup(s => s.Current).Returns(settings);
 
             var controlMode = new ControlModeService(
@@ -80,7 +79,7 @@ namespace SessyTests.Services
                 new LoggingService<SessyService>(new Mock<ILogger<SessyService>>().Object),
                 factory.Object,
                 batteryConfig,
-                new TimeZoneService(Options.Create(new SettingsConfig { Timezone = "Europe/Amsterdam" })),
+                new TimeZoneService(),
                 controlMode);
 
             return (service, handler);

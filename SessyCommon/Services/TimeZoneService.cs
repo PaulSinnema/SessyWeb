@@ -1,7 +1,5 @@
-using Microsoft.Extensions.Options;
 using NodaTime;
 using NodaTime.Extensions;
-using SessyCommon.Configurations;
 using SolCalc;
 using SolCalc.Data;
 
@@ -9,14 +7,21 @@ namespace SessyCommon.Services
 {
     public class TimeZoneService
     {
+        /// <summary>
+        /// Used until the Settings row has been read. The timezone lives in the database — this is
+        /// only what the first moments of startup run on, and what a database without a Settings
+        /// row is seeded with.
+        /// </summary>
+        public const string DefaultTimeZone = "Europe/Amsterdam";
+
         private string _currentTimezone;
         private static TimeZoneInfo? _timeZone;
 
         public TimeZoneInfo TimeZone => _timeZone!;
 
-        public TimeZoneService(IOptions<SettingsConfig> settingsConfig)
+        public TimeZoneService()
         {
-            _currentTimezone = settingsConfig.Value?.Timezone ?? "Europe/Amsterdam";
+            _currentTimezone = DefaultTimeZone;
             _timeZone = TimeZoneInfo.FindSystemTimeZoneById(_currentTimezone);
         }
 

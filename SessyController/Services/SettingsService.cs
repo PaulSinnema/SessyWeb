@@ -25,7 +25,6 @@ namespace SessyController.Services
         private readonly InvestmentDataService _investmentDataService;
         private readonly InvestmentGroupDataService _investmentGroupDataService;
         private readonly LoggingService<SettingsService> _logger;
-        private readonly SettingsConfig _appsettings;
         private readonly TaskCompletionSource _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         private volatile Settings _current = new Settings();
@@ -58,14 +57,12 @@ namespace SessyController.Services
             SettingsDataService settingsDataService,
             InvestmentDataService investmentDataService,
             InvestmentGroupDataService investmentGroupDataService,
-            LoggingService<SettingsService> logger,
-            IOptions<SettingsConfig> appsettings)
+            LoggingService<SettingsService> logger)
         {
             _settingsDataService = settingsDataService;
             _investmentDataService = investmentDataService;
             _investmentGroupDataService = investmentGroupDataService;
             _logger = logger;
-            _appsettings = appsettings.Value;
         }
 
         public async Task StartAsync(CancellationToken cancellationToken)
@@ -153,7 +150,7 @@ namespace SessyController.Services
 
             if (string.IsNullOrWhiteSpace(record.TimeZone))
             {
-                record.TimeZone = _appsettings.Timezone ?? "Europe/Amsterdam";
+                record.TimeZone = TimeZoneService.DefaultTimeZone;
                 dirty = true;
             }
 
@@ -195,12 +192,10 @@ namespace SessyController.Services
 
             var defaults = new Settings
             {
-                // Timezone comes from appsettings; all other values are read
-                // from the ManagementSettings section via the old SettingsConfig.
-                // Since SettingsConfig now only carries Timezone and DatabaseBackupDirectory,
-                // the remaining fields fall back to sensible neutral values.
-                // The user should configure them via the Management Settings UI after first boot.
-                TimeZone = _appsettings.Timezone ?? "Europe/Amsterdam",
+                // Neutral starting values; the user sets the real ones on the Settings page after
+                // the first boot. The timezone included — it is no longer configurable through
+                // appsettings.json, so a database starts on the default until it is changed there.
+                TimeZone = TimeZoneService.DefaultTimeZone,
                 Latitude = 52.1,
                 Longitude = 5.1,
                 ChargedInControl = false,

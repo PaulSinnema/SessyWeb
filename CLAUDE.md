@@ -673,6 +673,19 @@ melden netjes "niet geconfigureerd"). Bijvangst: `P1MeterContainer.AddMeters` ri
 lege sectie werd er aangevuld in plaats van geleegd. Tests: `NoSolarConfigurationTests` (6).
 Totaal 295.
 
+**Tijdzone alleen nog in de DB (v1.0.87).** Hij stond op twee plekken: `ManagementSettings:Timezone`
+en `Settings.TimeZone`. `TimeZoneService` startte op de config-waarde en schakelde pas naar de
+DB-waarde zodra `SettingsService.SettingsChanged` vuurde — maar dat is een hosted service, dus ná het
+migratieblok in `Program.cs`, en dáár staan twee tijdstempels: de back-up vóór een migratie
+(`DbHelper.cs:77-80`) en het `AppVersions`-stempel. Bij verschillende waarden schreven die rijen
+**elke start** in de verkeerde zone. Nu: `SettingsConfig.Timezone` weg, `TimeZoneService` heeft een
+parameterloze constructor met `DefaultTimeZone`, en `Program.cs` leest de zone vóór de back-up uit
+het bestand via `SqliteSetup.TryReadTimeZone` — **rauwe SQL, geen EF**, want dit draait vóór
+`Migrate()` en het schema kan ouder zijn of de tabel kan ontbreken; faalt hij, dan blijft de default
+staan. Bijvangst uit de tests: migratie `AddSettingsTable` **insert de Settings-rij zelf**, dus na
+`Migrate()` is er altijd een zone; `SettingsService.EnsureDefaultsSeededAsync` vuurt alleen op een
+echt lege tabel. Tests: `StartupTimeZoneTests` (4, tegen een echt SQLite-bestand). Totaal 302.
+
 **`IOptions` bevriest, `IOptionsMonitor` niet (v1.0.86).** `EnergyStatisticsService` nam
 `IOptions<HeatPumpConfig>` en `IOptions<PowerSystemsConfig>`. `IOptions<T>` is een singleton met een
 waarde die bij de eerste resolutie wordt vastgezet — óók voor nieuwe scopes — dus een sectie die je

@@ -24,8 +24,7 @@ namespace SessyTests.Services
         private static SolarInverterManager NewManager(
             PowerSystemsConfig config, params ISolarInverterService[] inverterServices)
         {
-            var settingsService = new Mock<SettingsService>(
-                null!, null!, null!, null!, Options.Create(new SettingsConfig()));
+            var settingsService = new Mock<SettingsService>(null!, null!, null!, null!);
 
             settingsService.Setup(s => s.Current).Returns(new SessyData.Model.Settings());
 
