@@ -55,6 +55,15 @@
 
 
 	<ItemGroup>
+		<!-- Keep the template out of the image: it is a working config with real IP addresses,
+		     and configuration merges per key, so anything it defines that the mounted config
+		     does not override stays alive. -->
+		<Content Update="appsettings.json">
+			<CopyToPublishDirectory>Never</CopyToPublishDirectory>
+		</Content>
+	</ItemGroup>
+
+	<ItemGroup>
 		<Content Update="wwwroot\favicon.ico">
 			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</Content>

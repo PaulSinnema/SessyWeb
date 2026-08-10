@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration.Json;
 using Radzen;
 using Radzen.Blazor;
 using SessyCommon;
@@ -49,11 +50,33 @@ string appSettingsPath = Path.Combine(configDirectory, "appsettings.json");
 
 if (File.Exists(appSettingsPath))
 {
+    // CreateBuilder already loaded the appsettings.json next to the binary. Configuration merges
+    // per key instead of replacing whole sections, so the template batteries "2" and "3" in that
+    // file survive a config that defines only "1" — the app then polls hardware that is not there
+    // and dies on "Could not get power status ... for battery 2". The file under CONFIG_PATH is
+    // the only source of truth; drop the built-in one. Environment overlays
+    // (appsettings.Development.json) stay, they are not shipped as configuration templates.
+    RemoveBuiltInAppSettings(builder.Configuration);
+
     builder.Configuration.AddJsonFile(appSettingsPath, optional: false, reloadOnChange: true);
 }
 else
 {
     Console.WriteLine("⚠️ Warning: appsettings.json missing!");
+}
+
+static void RemoveBuiltInAppSettings(IConfigurationBuilder configuration)
+{
+    for (var i = configuration.Sources.Count - 1; i >= 0; i--)
+    {
+        if (configuration.Sources[i] is JsonConfigurationSource json &&
+            string.Equals(Path.GetFileName(json.Path), "appsettings.json", StringComparison.OrdinalIgnoreCase))
+        {
+            Console.WriteLine($"Ignoring the built-in {json.Path}; the file under CONFIG_PATH is authoritative.");
+
+            configuration.Sources.RemoveAt(i);
+        }
+    }
 }
 
 string secretsPath = Path.Combine(configDirectory, "secrets.json");
