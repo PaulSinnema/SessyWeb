@@ -146,6 +146,22 @@ namespace SessyController.Services
                         $"({dischargeCapability.PowerW(0.1):F0} W at 10% SOC, " +
                         $"{dischargeCapability.PowerW(0.5):F0} W at 50%).");
 
+                // The taper is fitted on a ratio, so it only sees quarters that recorded an
+                // untapered request — a narrow, one-sided slice. The floor is measured in watts on
+                // every charging quarter, and stops the plan from assuming less than the bank has
+                // already been seen to accept.
+                var chargeFloor = await _throttleAnalysisService
+                    .GetChargeCapabilityFloorAsync(_sessyBatteryConfig.TotalRawChargingCapacity)
+                    .ConfigureAwait(false);
+
+                if (chargeFloor.Samples > 0)
+                    _logger.LogInformation(
+                        $"Charge floor measured on {chargeFloor.Samples} quarters in " +
+                        $"{chargeFloor.CoveredBins} SOC bins: " +
+                        $"{chargeFloor.PowerW(0.5):F0} W at 50% SOC, {chargeFloor.PowerW(0.8):F0} W at 80% " +
+                        $"(taper says {chargeTaper.Ratio(0.5) * maxChargeKW * 1000.0:F0} W and " +
+                        $"{chargeTaper.Ratio(0.8) * maxChargeKW * 1000.0:F0} W).");
+
                 // Temperatures for the heat build-up term: measured history for the part of the
                 // 48-hour window that lies in the past, forecast for the rest.
                 var temperatureByHour = await BuildTemperatureSeriesAsync(quarters, nowQuarter)
@@ -243,7 +259,8 @@ namespace SessyController.Services
                     DischargeEfficiency: dischargeEfficiency,
                     ChargeTaper: chargeTaper,
                     Efficiency: efficiencyCurve,
-                    DischargeCapability: dischargeCapability);
+                    DischargeCapability: dischargeCapability,
+                    ChargeFloor: chargeFloor);
 
                 // What replacing a kWh will cost, measured over a trailing window. It prices both
                 // the floor under selling stock and the option of keeping energy past the end of
@@ -267,6 +284,13 @@ namespace SessyController.Services
                     AllowCarryForward: _settingsConfig.CarryForwardEnabled);
 
                 var context = new SolveContext(pricePoints, spec, opt, socBounds);
+
+                // Diagnostic, off unless SESSY_RECORD_SOLVE_INPUTS is set: the four things that
+                // decide a plan, written out so a suspect plan can be replayed exactly instead of
+                // reconstructed from the columns that happen to be persisted.
+                SolveInputRecorder.TryWrite(
+                    _settingsConfig.ExportDirectory, pricePoints, spec, opt, socBounds,
+                    _timeZoneService.Now, message => _logger.LogWarning(message));
 
                 var sw = System.Diagnostics.Stopwatch.StartNew();
                 var result = await _strategy.SolveAsync(context).ConfigureAwait(false);

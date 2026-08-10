@@ -102,11 +102,17 @@ namespace SessyController.Services.Optimization
         /// <summary>Sentinel target: the energy is kept past the end of the horizon, not discharged.</summary>
         private const int CarryTarget = -3;
 
+        /// <param name="trace">
+        /// Diagnostic sink, normally null. When set, the planner reports per quarter why it did not
+        /// sell there — see the block after the arbitrage loop. Null costs nothing: the block is
+        /// skipped entirely.
+        /// </param>
         public static PlanResult? Solve(
             IReadOnlyList<PricePoint> pricePoints,
             BatterySpec spec,
             SessyOptions opt,
-            IReadOnlyList<SocBound> socBounds)
+            IReadOnlyList<SocBound> socBounds,
+            Action<string>? trace = null)
         {
             if (pricePoints == null || pricePoints.Count == 0) return null;
 
@@ -157,17 +163,35 @@ namespace SessyController.Services.Optimization
             // the SOC at the START of the quarter, which is the last committed value and does not
             // change while the block being considered is allocated.
             var taper = spec.ChargeTaper ?? ChargeTaper.None;
+
+            // The taper is fitted on a ratio and can only use quarters that recorded an untapered
+            // request, which is a small and one-sided slice of the history. The floor is what the
+            // bank has actually accepted at that state of charge, so the plan never assumes less
+            // than the hardware has already shown — see ChargeCapabilityFloor.
+            var chargeFloor = spec.ChargeFloor ?? ChargeCapabilityFloor.None;
+
             double taperedChargeKWh(int t, double socStartKWh)
             {
                 double cap = maxChargeKWh[t];
-                if (taper.Samples == 0 || capacity <= 0.0) return cap;
+                if (capacity <= 0.0) return cap;
 
-                // Unknown temperature → the taper's reference, so the SOC term still applies.
-                double temp = pricePoints[t].TemperatureC ?? ChargeTaper.RefTemperatureC;
-                double mean48h = pricePoints[t].Temperature48hC ?? temp;
+                double socFraction = socStartKWh / capacity;
 
-                double ratio = taper.Ratio(socStartKWh / capacity, temp, mean48h);
-                return Math.Min(cap, Math.Max(0.0, spec.MaxChargeKW) * ratio * dt);
+                double tapered = cap;
+                if (taper.Samples > 0)
+                {
+                    // Unknown temperature → the taper's reference, so the SOC term still applies.
+                    double temp = pricePoints[t].TemperatureC ?? ChargeTaper.RefTemperatureC;
+                    double mean48h = pricePoints[t].Temperature48hC ?? temp;
+
+                    double ratio = taper.Ratio(socFraction, temp, mean48h);
+                    tapered = Math.Min(cap, Math.Max(0.0, spec.MaxChargeKW) * ratio * dt);
+                }
+
+                double floorKWh = chargeFloor.PowerW(socFraction) / 1000.0 * dt;
+
+                // The floor lifts the prediction, never past what this quarter may take anyway.
+                return Math.Min(cap, Math.Max(tapered, floorKWh));
             }
 
             // ── State per quarter ────────────────────────────────────────────
@@ -644,6 +668,49 @@ namespace SessyController.Services.Optimization
 
                 for (int k = bestI; k < bestJ; k++)
                     socEnd[k] += store;
+            }
+
+            // ── 2b. Why the search stopped ───────────────────────────────────
+            // Only when asked for. "The battery ends the horizon with energy left while prices were
+            // high" is not answerable from the plan alone: the reason is per quarter, and it is one
+            // of three — the sale was not profitable, there was no room left to deliver it, or the
+            // SOC path could not go any lower without breaking the reserve. Reconstructing that
+            // afterwards is guesswork; here every term is still in scope.
+            if (trace != null)
+            {
+                for (int j = 0; j < n; j++)
+                {
+                    if (dischargeKWh[j] >= disCap[j] - Eps) continue;   // quarter is already full
+
+                    bool avoidsImport = importKWh[j] > Eps;
+                    double rawValue = avoidsImport
+                        ? pricePoints[j].BuyEurPerKWh
+                        : pricePoints[j].SellEurPerKWh;
+
+                    if (!avoidsImport && (!opt.AllowExport || pricePoints[j].ReserveOnly))
+                    {
+                        trace($"{pricePoints[j].Start:dd-MM HH:mm} not sold: export not allowed here");
+                        continue;
+                    }
+
+                    double value = rawValue * discountAt[j];
+                    double floor = opt.ReplacementCostEurPerKWh / replacementRoundTrip + cycleCost;
+                    double profit = value - floor;
+
+                    // Anything under this cannot carry a block worth allocating, so "profitable but
+                    // not taken" would be misleading — the store simply has nothing left to give
+                    // between here and the end of the horizon.
+                    const double UsefulSlackKWh = 0.01;
+
+                    string reason =
+                        profit <= Eps ? $"value {value:F4} <= floor {floor:F4}"
+                        : minSlackFrom[j] < UsefulSlackKWh ? "SOC path has no room left above the reserve"
+                        : $"PROFITABLE at {profit:F4} EUR/kWh but not taken";
+
+                    trace($"{pricePoints[j].Start:dd-MM HH:mm} not sold: {reason} " +
+                          $"(value {value:F4}, floor {floor:F4}, slack {minSlackFrom[j]:F4} kWh, " +
+                          $"headroom {disCap[j] - dischargeKWh[j]:F2} kWh)");
+                }
             }
 
             // ── 3. Rebuild the SOC path and classify ─────────────────────────

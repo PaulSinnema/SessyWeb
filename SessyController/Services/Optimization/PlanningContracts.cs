@@ -29,7 +29,8 @@ namespace SessyController.Services.Optimization
         double DischargeEfficiency,
         ChargeTaper? ChargeTaper = null,
         EfficiencyCurve? Efficiency = null,
-        DischargeCapability? DischargeCapability = null
+        DischargeCapability? DischargeCapability = null,
+        ChargeCapabilityFloor? ChargeFloor = null
     );
 
     /// <summary>Planner tuning.</summary>

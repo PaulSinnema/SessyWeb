@@ -64,11 +64,30 @@ namespace SessyData.Model
 
         // ── Forecast ───────────────────────────────────────────────────────────
 
-        /// <summary>Solar production forecast for this quarter (W).</summary>
+        /// <summary>
+        /// Solar production forecast for this quarter. Despite the name this is **Wh for the
+        /// quarter**, not Watts: it is written from QuarterlyInfo.SolarPowerPerQuarterInWatts,
+        /// which is SolarPowerPerQuarterHour × 1000. ConsumptionForecastW next to it really is
+        /// Watts. Use NetLoadWh below rather than combining these two by hand.
+        /// </summary>
         public double SolarForecastW { get; set; }
 
-        /// <summary>Estimated consumption for this quarter (W).</summary>
+        /// <summary>Estimated consumption for this quarter (W — average power).</summary>
         public double ConsumptionForecastW { get; set; }
+
+        /// <summary>
+        /// Household load minus solar for this quarter (Wh), exactly as the planner received it.
+        /// Stored because the two forecast columns above are in different units, so anyone
+        /// reconstructing this afterwards gets it wrong — which is what happened.
+        /// </summary>
+        public double NetLoadWh { get; set; }
+
+        /// <summary>
+        /// The reserve floor the planner had to stay above at this quarter (Wh) — the SOC bound
+        /// from MilpServiceBase.ComputeSocBounds. Not derivable from anything else in the
+        /// database, and it decides how much the planner is allowed to sell.
+        /// </summary>
+        public double MinSocWh { get; set; }
 
         public void Update(PlannedQuarter updateInfo)
         {

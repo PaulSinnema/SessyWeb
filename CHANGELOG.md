@@ -24,6 +24,32 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
   they run before the database settings are loaded. When the two sources disagreed, those rows were
   hours off from the rest of the application. Startup now reads the stored timezone first.
 
+## [v1.0.94] — 2026-08-10
+
+### Fixed
+- The planner assumed the batteries charge far slower than they do, and left energy unsold in the
+  evening because of it. The charge taper is fitted on the few quarters that recorded an untapered
+  request — on this database 223 of 7135, all from one hot spell — and predicted 2.3 kW at 80%
+  state of charge. Measured on every charging quarter the bank accepts far more. The planner now
+  also reads a floor measured straight in watts and never plans below what the batteries have been
+  seen to accept. Replayed on a recorded plan this moves the evening from **6.6 kWh sold to
+  14.2 kWh**, with the battery ending at its reserve instead of 8.3 kWh above it.
+
+### Added
+- **Tips & Checks** reports what the planner believes about charging: the taper, the measured
+  floor, and how much of the state-of-charge range the measurements cover. It warns when the two
+  disagree materially, so a taper drifting away from reality is visible instead of silent.
+
+## [v1.0.91] — 2026-08-10
+
+### Added
+- Planner diagnostics. Set `SESSY_RECORD_SOLVE_INPUTS=1` and every plan rebuild writes the exact
+  input it solved on — prices, battery spec, options and SOC bounds — as a JSON file in the export
+  directory (the last 20 are kept). A plan that looks wrong can then be replayed exactly instead of
+  reconstructed. Off by default; nothing is written without the variable.
+- `PlannedQuarters` records the two planner inputs that could not be derived afterwards: the net
+  household load it planned against and the reserve floor it had to stay above.
+
 ## [v1.0.86] — 2026-08-10
 
 ### Fixed

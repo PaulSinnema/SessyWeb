@@ -196,7 +196,9 @@ namespace SessyController.Services
                         BuyingPriceEurKWh = qi.BuyingPrice,
                         ProjectedCostBasisEurKWh = qi.ProjectedCostBasisEur,
                         SolarForecastW = qi.SolarPowerPerQuarterInWatts,
-                        ConsumptionForecastW = qi.EstimatedConsumptionPerQuarterInWatts
+                        ConsumptionForecastW = qi.EstimatedConsumptionPerQuarterInWatts,
+                        NetLoadWh = qi.NetLoadWh,
+                        MinSocWh = _minSocWhByTime.TryGetValue(qi.Time, out var minSoc) ? minSoc : 0.0
                     }).ToList();
 
                 if (plannedQuarters.Count > 0)

@@ -702,6 +702,49 @@ batterij-endpoints terwijl `BatteryContainer` zijn lijst wél herbouwt), `SolarS
 en `DbHelper` — die lezen bootstrap-waarden (tijdzone, connection string, backupmap) die pas bij een
 herstart betekenis hebben.
 
+## Gebouwd 10-08 (v1.0.94) — openstaand punt 0 opgelost, en de diagnoseketen die het opleverde
+
+**De laadtaper hongerde de batterij uit.** Klacht: 's avonds blijft er lading staan terwijl de piek
+€0,33-0,38 betaalt. Vier verkeerde diagnoses later (reserve, replacement cost, discount, horizon —
+allemaal aantoonbaar níet de oorzaak) bleek de enige werkbare route: **de echte planner op de echte
+invoer draaien**. Daarvoor is `SolveInputRecorder` gebouwd (v1.0.91, achter
+`SESSY_RECORD_SOLVE_INPUTS`): schrijft `pricePoints`, `spec`, `opt` en `socBounds` per rebuild als
+JSON weg. De replay reproduceerde productie tot op de cent (objective 2,0249 = 2,0249), en pas dáár
+was bisectie zinvol.
+
+Uitkomst: de taper bindt. Hij voorspelde **2,3 kW bij 80% SOC** waar de metingen ~5,3 kW laten zien,
+omdat hij op een ratio (realized/requested) gefit wordt en dus alleen kwartieren met een
+`PlannedUnthrottledPowerW` kan gebruiken — 223 van 7135, allemaal uit één hittegolf. De planner
+geloofde dat, plande een trager laadvenster, en verkocht 6,61 kWh in plaats van 14,20.
+
+**Oplossing: een bodem in watt, geen betere fit.** `ChargeCapabilityFloor` — per SOC-bin van 5% het
+P90 van de gemeten laadvermogens × 0,9, geklemd op nameplate, uit *elk* laadkwartier (geen noemer
+nodig, dus 917 in plaats van 223 samples; vreemde kwartieren eruit). `taperedChargeKWh` neemt
+`max(taper, bodem)`. Waarom een bodem geldig is waar een fit dat niet is: een hoge meting bewíjst dat
+de bank het kan, een lage bewijst niets (dat kan traag zonladen of een klein verzoek zijn) — precies
+waarom "fit op watt" in openstaand punt 0 verworpen werd. Het haalt de taper ook uit zijn eigen lus:
+een onderdrukt verzoek levert lage metingen die een nóg lagere taper fitten, maar over het
+730-daagse venster onthoudt een percentiel van de bovenkant de goede samples die een gemiddelde
+vergeet. Gemeten resultaat op de opgenomen invoer: **6,61 → 14,19 kWh**, eind-SOC 8,30 → 0,47, tegen
+14,20 als je de taper hélemaal uitzet. De bodem haalt dus vrijwel het volledige gat dicht mét behoud
+van het model.
+
+**Diagnose die blijft staan.** `BatteryGreedyPlanner.Solve` heeft nu een optionele `trace`-callback
+(null = geen enkele extra berekening) die per kwartier meldt waaróm er niet verkocht is: waarde
+tegen bodem, slack, headroom. Daarmee kwam er meteen een tweede bevinding boven die niet van de
+taper is: op de oude invoer blijven **16 kwartieren over die de planner zélf als winstgevend scoort
+(tot €0,042/kWh) met 7,7 kWh slack en ~1 kWh headroom, en die hij toch niet neemt.** Dat is
+openstaand punt 4 (greedy laat geld liggen), nu meetbaar in plaats van vermoed. Met de bodem erbij
+is dat aantal 0 — het probleem verdwijnt in dit geval, maar de zwakte zit er nog.
+
+Tips & Checks meldt nu wat de planner over laden gelooft (taper, gemeten bodem, gedekte SOC-bins) en
+waarschuwt als die twee materieel uiteenlopen. Tests: `ChargeCapabilityFloorTests` (7),
+`SolveInputRecorderTests` (2). Totaal 315.
+
+**Les:** vier diagnoses op rij zaten ernaast omdat ze op gereconstrueerde invoer rustten. Twee keer
+was de reconstructie zelf fout (de eenheden van `SolarForecastW` versus `ConsumptionForecastW`
+verschillen). Bij planner-onderzoek: eerst de invoer opnemen, dan pas redeneren.
+
 **UI laat weg wat je niet hebt (v1.0.83).** Zonder zonnepanelen heeft de Solar-pagina geen inhoud en
 staan er in Statistics vijf kaarten die alleen nul kunnen zijn. Eén definitie: `PowerSystemsConfig.HasSolar`
 (minstens één omvormer geconfigureerd), uitgeserveerd door `SystemCapabilitiesService` (singleton, leest
@@ -744,7 +787,12 @@ vlakken — anders staat er niets. Beide SOC-lijnen kregen een `Visible` (die va
 dus er staat nooit meer één rode doorgetrokken SOC-lijn te veel op de grafiek.
 
 ## Openstaande punten
-0. **De laadtaper wordt gefit op tien dagen hittegolf — hoogste prioriteit (bijgewerkt 08-08).**
+0. **OPGELOST 10-08 (v1.0.94)** — niet door de fit te repareren maar door er een gemeten bodem
+   onder te leggen; zie de sectie "Gebouwd 10-08 (v1.0.94)". De fit zelf blijft scheef tot er
+   maanden `PlannedUnthrottledPowerW`-dekking over een breed temperatuurbereik is; Tips & Checks
+   laat nu zien hoe ver hij ernaast zit. Oorspronkelijke analyse hieronder bewaard.
+
+   **De laadtaper wordt gefit op tien dagen hittegolf — hoogste prioriteit (bijgewerkt 08-08).**
    Hoogst gemeten laadvermogen per SOC-band (`QuarterlyMeasurements`, vanaf 15-06): 10-20% → 5310 W,
    20-30% → 5326, 30-40% → 5263, 40-50% → 5294, 50-60% → 5318, 60-70% → 5179, 70-80% → 5335,
    80-90% → 5118, 90-100% → 4316. Dus ~0,80 van de 6600 W nameplate over vrijwel het hele bereik,

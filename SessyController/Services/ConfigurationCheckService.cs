@@ -30,6 +30,8 @@ namespace SessyController.Services
         private readonly InvestmentDataService _investmentDataService;
         private readonly InvestmentGroupDataService _investmentGroupDataService;
         private readonly SystemCapabilitiesService _capabilities;
+        private readonly ThrottleAnalysisService _throttleAnalysisService;
+        private readonly IOptionsMonitor<SessyBatteryConfig> _batteryConfig;
 
         public ConfigurationCheckService(
             IConfiguration configuration,
@@ -43,11 +45,15 @@ namespace SessyController.Services
             PlannerLearningService plannerLearningService,
             InvestmentDataService investmentDataService,
             InvestmentGroupDataService investmentGroupDataService,
-            SystemCapabilitiesService capabilities)
+            SystemCapabilitiesService capabilities,
+            ThrottleAnalysisService throttleAnalysisService,
+            IOptionsMonitor<SessyBatteryConfig> batteryConfig)
         {
             _investmentDataService = investmentDataService;
             _investmentGroupDataService = investmentGroupDataService;
             _capabilities = capabilities;
+            _throttleAnalysisService = throttleAnalysisService;
+            _batteryConfig = batteryConfig;
             _configuration = configuration;
             _taxesDataService = taxesDataService;
             _gasPricesDataService = gasPricesDataService;
@@ -67,6 +73,7 @@ namespace SessyController.Services
             await CheckTaxesConfiguration(checks);
             await CheckGasPricesHistory(checks);
             CheckHeatPumpConfiguration(checks);
+            await CheckChargeTaper(checks);
             await CheckInvestmentsHaveTheirSavingsSource(checks);
             CheckSettingsExtremes(checks);
             CheckPlannerLearning(checks);
@@ -240,6 +247,55 @@ namespace SessyController.Services
                 Title = "Heat pump configured",
                 Description = $"Annual gas consumption: {_heatPumpConfig.AnnualGasConsumptionM3:F0} m³/year, " +
                               $"installed: {_heatPumpConfig.InstallationDate:dd-MM-yyyy}."
+            });
+        }
+
+        /// <summary>
+        /// How much the planner believes the battery can charge, and on how much evidence.
+        ///
+        /// The taper is fitted on realized/requested, so it can only use quarters that recorded an
+        /// untapered request — a narrow slice, and on 10-08-2026 one that came entirely from a
+        /// single heatwave. It predicted 2.3 kW at 80% SOC where the measurements show far more,
+        /// and the planner acted on it: 6.6 kWh sold that evening instead of 14.2. The floor now
+        /// catches that, but a taper this far off its own measurements is worth saying out loud.
+        /// </summary>
+        private async Task CheckChargeTaper(List<ConfigurationCheck> checks)
+        {
+            double nameplateW = _batteryConfig.CurrentValue.TotalRawChargingCapacity;
+            if (nameplateW <= 0.0) return;
+
+            var taper = await _throttleAnalysisService.GetChargeTaperAsync().ConfigureAwait(false);
+            var floor = await _throttleAnalysisService.GetChargeCapabilityFloorAsync(nameplateW).ConfigureAwait(false);
+
+            if (floor.Samples == 0 && taper.Samples == 0) return;
+
+            const double referenceSoc = 0.8;
+
+            double taperW = taper.Samples > 0 ? taper.Ratio(referenceSoc) * nameplateW : nameplateW;
+            double floorW = floor.PowerW(referenceSoc);
+
+            if (floorW > taperW * 1.25)
+            {
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Warning,
+                    Title = "Charge taper is well below what the batteries have delivered",
+                    Description =
+                        $"At 80% state of charge the taper predicts {taperW:F0} W while the batteries have " +
+                        $"been measured accepting {floorW:F0} W. The measured floor is used instead, so plans " +
+                        $"are not affected, but the taper is fitted on only {taper.Samples} points and will " +
+                        "stay off until more quarters with a recorded untapered request accumulate."
+                });
+            }
+
+            checks.Add(new ConfigurationCheck
+            {
+                Severity = CheckSeverity.Info,
+                Title = "Charge model",
+                Description =
+                    $"Taper fitted on {taper.Samples} envelope points ({taperW:F0} W at 80% SOC). " +
+                    $"Measured floor from {floor.Samples} charging quarters covering {floor.CoveredBins} " +
+                    $"of 20 SOC bins ({floorW:F0} W at 80% SOC). The planner uses whichever is higher."
             });
         }
 

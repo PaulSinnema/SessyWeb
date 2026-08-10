@@ -448,6 +448,130 @@ namespace SessyController.Services
             return new DischargeCapability(plateau, kneeSoc, bins.Count);
         }
 
+        // ── Charge capability floor ───────────────────────────────────────────
+
+        /// <summary>SOC bins for the charge floor — 5% wide, same resolution as the discharge fit.</summary>
+        private const int ChargeFloorBins = 20;
+
+        /// <summary>Below this a bin says nothing about what the bank can take there.</summary>
+        private const int MinSamplesPerChargeFloorBin = 3;
+
+        /// <summary>Percentile of the measured powers in a bin: the top of the cloud, minus one outlier.</summary>
+        private const double ChargeFloorPercentile = 90.0;
+
+        /// <summary>Margin held back from the measurement, in case those quarters were the kind ones.</summary>
+        private const double ChargeFloorMargin = 0.9;
+
+        private ChargeCapabilityFloor? _cachedChargeFloor;
+        private DateTime _cachedChargeFloorAt = DateTime.MinValue;
+
+        /// <summary>
+        /// What the bank has actually accepted per state of charge, as a floor under the taper.
+        /// See <see cref="ChargeCapabilityFloor"/> for why a floor is sound where a fit is not.
+        /// Cached like the taper — a two-year window barely moves between quarters.
+        /// </summary>
+        /// <param name="nameplateW">Combined nameplate charge power, the ceiling on the floor.</param>
+        public async Task<ChargeCapabilityFloor> GetChargeCapabilityFloorAsync(double nameplateW)
+        {
+            var now = _timeZoneService.Now;
+
+            if (_cachedChargeFloor != null && now - _cachedChargeFloorAt < TaperCacheTime)
+                return _cachedChargeFloor;
+
+            double capacity = _batteryContainer.GetTotalCapacity();
+
+            var floor = capacity <= 0.0
+                ? ChargeCapabilityFloor.None
+                : FitChargeCapabilityFloor(
+                    await CollectChargeSamplesAsync(now, capacity).ConfigureAwait(false),
+                    nameplateW);
+
+            _cachedChargeFloor = floor;
+            _cachedChargeFloorAt = now;
+
+            return floor;
+        }
+
+        /// <summary>
+        /// Every measured charging quarter as (SOC fraction, accepted watts).
+        ///
+        /// Mirrors CollectDischargeSamplesAsync: no MinRequestedW and no SOC window, because both
+        /// exist to protect a ratio and there is no ratio here. Quarters someone else drove are
+        /// still dropped — Charged's power says nothing about what our request would have got.
+        /// Only quarters the plan actually charged in count; ZeroNetHome trickle from solar is a
+        /// different question and would drag the bins down.
+        /// </summary>
+        private async Task<List<(double Soc, double PowerW)>> CollectChargeSamplesAsync(
+            DateTime now, double capacity)
+        {
+            var historyStart = now.AddDays(-TaperHistoryDays);
+
+            var measurements = await _measurementDataService.GetList(async set =>
+                await Task.FromResult(set
+                    .Where(m => m.Time >= historyStart && m.Time <= now && m.BatteryMode == Modes.Charging)
+                    .ToList()));
+
+            var foreignQuarters = await LoadForeignQuartersAsync(historyStart, now).ConfigureAwait(false);
+
+            var samples = new List<(double, double)>();
+
+            foreach (var m in measurements)
+            {
+                if (foreignQuarters.Contains(m.Time)) continue;
+
+                double socFraction = m.BatteryStateOfChargeWh / capacity;
+                if (socFraction < 0.0 || socFraction > 1.0) continue;
+
+                samples.Add((socFraction, Math.Abs(m.BatteryPowerWatts)));
+            }
+
+            return samples;
+        }
+
+        /// <summary>
+        /// Per SOC bin the 90th percentile of the measured charge powers, times a margin, capped at
+        /// nameplate. The percentile rather than the maximum so a single bad SOC reading cannot set
+        /// the floor on its own; the margin because the conditions during those quarters may have
+        /// been kinder than the ones being planned for.
+        ///
+        /// Static and pure so it can be tested without a database.
+        /// </summary>
+        internal static ChargeCapabilityFloor FitChargeCapabilityFloor(
+            IReadOnlyList<(double Soc, double PowerW)> samples, double nameplateW)
+        {
+            if (samples == null || samples.Count == 0 || nameplateW <= 0.0)
+                return ChargeCapabilityFloor.None;
+
+            var perBin = new List<double>[ChargeFloorBins];
+
+            foreach (var (soc, powerW) in samples)
+            {
+                if (powerW <= 0.0) continue;
+
+                int bin = Math.Min((int)(soc * ChargeFloorBins), ChargeFloorBins - 1);
+
+                (perBin[bin] ??= []).Add(powerW);
+            }
+
+            var floors = new double[ChargeFloorBins];
+            int used = 0;
+
+            for (int bin = 0; bin < ChargeFloorBins; bin++)
+            {
+                var values = perBin[bin];
+                if (values == null || values.Count < MinSamplesPerChargeFloorBin) continue;
+
+                values.Sort();
+
+                double floor = Percentiles.Percentile(values, ChargeFloorPercentile) * ChargeFloorMargin;
+
+                floors[bin] = Math.Min(floor, nameplateW);
+                used += values.Count;
+            }
+
+            return used == 0 ? ChargeCapabilityFloor.None : new ChargeCapabilityFloor(floors, used);
+        }
+
         private static double Median(List<double> values)
         {
             var sorted = values.OrderBy(v => v).ToList();
