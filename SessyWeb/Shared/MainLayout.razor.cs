@@ -1,6 +1,7 @@
 ﻿using BlazorPro.BlazorSize;
 using Microsoft.AspNetCore.Components;
 using Radzen;
+using SessyData.Model;
 using SessyWeb.Components;
 using SessyWeb.Helpers;
 
@@ -8,7 +9,7 @@ namespace SessyWeb.Shared
 {
     public partial class MainLayout
     {
-        [Inject] 
+        [Inject]
         private IResizeListener ResizeListener { get; set; } = default!;
 
         public BrowserWindowSize? WindowSize { get; private set; }
@@ -48,7 +49,25 @@ namespace SessyWeb.Shared
         {
             ResizeListener.OnResized += OnResized;
 
+            _keepMenuExpanded = SettingsService.Current.KeepMenuExpanded;
+            SettingsService.SettingsChanged += OnSettingsChanged;
+
             return base.OnInitializedAsync();
+        }
+
+        /// <summary>Whether a menu click leaves the menu open. Mirrors Settings.KeepMenuExpanded.</summary>
+        private bool _keepMenuExpanded = true;
+
+        /// <summary>
+        /// SettingsService is a singleton, so this runs on a background thread and outside the
+        /// circuit — hence InvokeAsync. Unsubscribing in Dispose is what keeps a closed circuit
+        /// from being held alive by that singleton.
+        /// </summary>
+        private void OnSettingsChanged(Settings settings, bool isStartup)
+        {
+            _keepMenuExpanded = settings.KeepMenuExpanded;
+
+            _ = InvokeAsync(StateHasChanged);
         }
 
         /// <summary>
@@ -91,8 +110,16 @@ namespace SessyWeb.Shared
             }
         }
 
+        /// <summary>
+        /// Runs on every menu item click. With KeepMenuExpanded on it does nothing, so the menu
+        /// keeps whatever the toggle above it was set to (issue #2); off is the original
+        /// behaviour, where each click folded the menu back to icons.
+        /// </summary>
         public void CollapseMenu()
         {
+            if (_keepMenuExpanded)
+                return;
+
             MenuIcon();
         }
 
@@ -116,8 +143,9 @@ namespace SessyWeb.Shared
                 return;
 
             _isDisposed = true;
-            
+
             ResizeListener.OnResized -= OnResized;
+            SettingsService.SettingsChanged -= OnSettingsChanged;
         }
     }
 }

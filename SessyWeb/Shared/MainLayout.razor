@@ -1,10 +1,12 @@
 ﻿@inherits LayoutComponentBase
+@implements IDisposable
 @inject CookieThemeService CookieThemeService
 @inject ThemeService ThemeService
 @inject RadzenTheme RadzenTheme
 @inject IJSRuntime JSRuntime
 @inject IWebHostEnvironment HostEnvironment
 @inject SystemCapabilitiesService Capabilities
+@inject SettingsService SettingsService
 
 @{
     // Bump the version in SessyCommon/AppInfo.cs — Program.cs writes that same value into the

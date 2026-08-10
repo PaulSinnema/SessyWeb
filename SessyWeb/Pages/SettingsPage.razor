@@ -301,6 +301,50 @@
                     </RadzenStack>
                 </RadzenTabsItem>
 
+                @* ── User interface ────────────────────────────────────────── *@
+                <RadzenTabsItem Text="User interface" Icon="display_settings">
+                    <RadzenStack Orientation="Orientation.Vertical" Gap="1rem" Style="padding: 1rem; max-width: 900px;">
+
+                        @if (_settings == null)
+                        {
+                            <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+                        }
+                        else
+                        {
+                            <RadzenFieldset Text="Navigation menu">
+                                <RadzenRow Gap="1rem">
+                                    <RadzenColumn Size="12" SizeMD="8">
+                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
+                                            <RadzenCheckBox @bind-Value="_settings.KeepMenuExpanded" />
+                                            <RadzenLabel Text="Keep the menu expanded after clicking an item" />
+                                            <InfoTipComponent Text="With this on, the menu stays as you left it with the toggle above it: expanded menus keep showing their labels while you move from page to page. With it off, every click folds the menu back to icons only, which is how it worked before. On a phone the expanded menu covers part of the page, so switch it off there if the icons suit you better." />
+                                        </RadzenStack>
+                                        <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">
+                                            Default: on. Applies to every browser that opens this application.
+                                        </RadzenText>
+                                    </RadzenColumn>
+                                </RadzenRow>
+                            </RadzenFieldset>
+
+                            <RadzenRow>
+                                <RadzenColumn>
+                                    <RadzenButton Text="Save" Icon="save"
+                                                  ButtonStyle="ButtonStyle.Success"
+                                                  Click="@SaveSettingsAsync"
+                                                  IsBusy="@_settingsSaving" />
+                                    @if (_settingsSaved)
+                                    {
+                                        <RadzenText TextStyle="TextStyle.Caption" Style="margin-left:1rem; color:var(--rz-success);">
+                                            ✓ Saved
+                                        </RadzenText>
+                                    }
+                                </RadzenColumn>
+                            </RadzenRow>
+                        }
+
+                    </RadzenStack>
+                </RadzenTabsItem>
+
                 <RadzenTabsItem Text="Investment Groups" Icon="category">
                     <RadzenDataGrid @ref="groupsGrid"
                                     Data="@GroupList"

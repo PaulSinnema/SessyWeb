@@ -4,9 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-SessyWeb is a home energy management system (HEMS) for households with [Sessy](https://www.sessy.nl) home batteries. It runs as a Docker container on a NAS and uses a MILP (Google OR-Tools) to plan battery charge/discharge over a 72-hour horizon against day-ahead EPEX prices, solar forecast and consumption forecast. Everything is local — SQLite, no cloud beyond the ENTSO-E and WeerLive API calls.
+SessyWeb is a home energy management system (HEMS) for households with [Sessy](https://www.sessy.nl) home batteries. It runs as a Docker container on a NAS and plans battery charge/discharge over a 72-hour horizon against day-ahead EPEX prices, solar forecast and consumption forecast. Everything is local — SQLite, no cloud beyond the ENTSO-E and WeerLive API calls.
 
-Target framework is **net10.0** across all projects (the README's ".NET 9" and the Dockerfile comments are stale; the Dockerfile itself uses `mcr.microsoft.com/dotnet/aspnet:10.0`).
+The planner is a **deterministic greedy search** (`BatteryGreedyPlanner`), not a MILP — there is no OR-Tools reference anywhere in the solution. The `Milp*` class names and the "solver" wording in `MilpServiceBase` are leftovers from the original design; see "Openstaande punten" 4 for the DP that would replace the heuristic.
+
+Target framework is **net10.0** across all projects; the Dockerfile uses `mcr.microsoft.com/dotnet/aspnet:10.0`.
 
 ## Commands
 
@@ -49,7 +51,7 @@ Migrations are applied automatically at startup in `SessyWeb/Program.cs` (`dbCon
 | Project | Role |
 |---|---|
 | `SessyWeb` | Blazor Server UI (Radzen), `Program.cs` (all DI wiring), API controllers, EF migrations run here |
-| `SessyController` | Domain + background services: MILP planner, hardware polling, state machine, inverter drivers |
+| `SessyController` | Domain + background services: the planner, hardware polling, state machine, inverter drivers |
 | `SessyData` | EF Core / SQLite: `ModelContext`, entity models, one `*DataService` per entity |
 | `SessyCommon` | Config POCOs, extensions, `TimeZoneService`, `ServiceLocator`, `DockerService` |
 | `Djohnnie.SolarEdge.ModBus.TCP` | Vendored SolarEdge Modbus library |
@@ -61,14 +63,14 @@ Migrations are applied automatically at startup in `SessyWeb/Program.cs` (`dbCon
 
 Every service is registered here — this file is the map of the system. Key points:
 
-- Config is loaded from `$CONFIG_PATH/appsettings.json` (+ optional `secrets.json`), **not** the project's own appsettings. `CONFIG_PATH` defaults to the working directory. Sections bind to `SessyBatteryConfig`, `SessyP1Config`, `PowerSystemsConfig`, `SettingsConfig`, `WeatherExpectancyConfig`, `SolarEdgeCloudConfig`, `HeatPumpConfig`.
+- Config is loaded from `$CONFIG_PATH/appsettings.json` (+ optional `secrets.json`), **not** the project's own appsettings — true only since v1.0.78, which removes the built-in `appsettings.json` from the sources and stops publishing it. `CONFIG_PATH` defaults to the working directory. Sections bind to `SessyBatteryConfig`, `SessyP1Config`, `PowerSystemsConfig`, `SettingsConfig`, `WeatherExpectancyConfig`, `SolarEdgeCloudConfig`, `HeatPumpConfig`.
 - **`SettingsService` must remain the first `AddHostedService`.** All other background services `await _settingsService.WaitForReadyAsync()` before their first cycle.
 - Most services are singletons registered *both* as themselves and as their interface via a `sp => sp.GetRequiredService<T>()` factory — never add a second `AddSingleton<IFoo, Foo>()` alongside, that creates a duplicate instance.
 - `ServiceLocator.ServiceProvider` is set post-build for the few places that resolve outside DI.
 
 ### Settings: two separate config systems
 
-1. **`appsettings.json`** — infrastructure only: timezone, connection string, backup dir, battery/meter/inverter IPs. Read via `IOptionsMonitor<T>`; changes fire `OnChange`.
+1. **`appsettings.json`** — infrastructure only: connection string, backup dir, battery/meter/inverter IPs. (Timezone moved to the DB row in v1.0.87; `SettingsConfig` holds only `DatabaseBackupDirectory`.) Read via `IOptionsMonitor<T>`; changes fire `OnChange`.
 2. **The `Settings` DB row** — all operational tuning (strategy, cycle cost, reserve %, efficiency, consumption profile, manual override). Owned by `SettingsService`; read via `_settingsService.Current`; after the UI saves, call `SettingsService.RefreshAsync()` which fires `SettingsChanged(Settings, bool isStartup)`.
 
 Services cache `Settings` in a field and refresh it in the `SettingsChanged` handler. When adding a setting that must trigger a plan rebuild, set a rebuild reason in that handler (see `MilpServiceBase._configChangedReason`).
@@ -82,15 +84,15 @@ Services cache `Settings` in a field and refresh it in the `SettingsChanged` han
 3. `EnergySystemStateMachine.Evaluate(EnergySystemInput)` decides the actual mode.
 4. Execute one action per quarter via the Sessy Open API (`SessyService` / `BatteryContainer` / `Battery`).
 
-**Strategy selection**: `IMilpService` is registered as `MilpServiceProxy`, which dispatches per call to `ProfitMaximizationMilpService`, `SelfConsumptionMilpService`, `BalancedMilpService` or `BatterySavingMilpService` based on `Settings.Strategy` — so a strategy change in the UI takes effect without a restart. All four derive from `MilpServiceBase` (~1000 lines: OR-Tools model, SOC bookkeeping, throttle ratios, plan persistence); the per-strategy deltas live in `Services/Optimization/Strategies/`. Put shared solver changes in `MilpServiceBase`, objective/constraint differences in the strategy.
+**Strategy selection**: `IMilpService` is registered as `MilpServiceProxy`, which dispatches per call to `ProfitMaximizationMilpService`, `SelfConsumptionMilpService`, `BalancedMilpService` or `BatterySavingMilpService` based on `Settings.Strategy` — so a strategy change in the UI takes effect without a restart. All four derive from `MilpServiceBase` (~990 lines: input gathering, SOC bookkeeping, plan persistence — the search itself is `BatteryGreedyPlanner`); the per-strategy deltas live in `Services/Optimization/Strategies/`. Put shared planner changes in `MilpServiceBase`, objective/constraint differences in the strategy.
 
 ### State machine
 
-`EnergySystemStateMachine` is the single place where battery mode and inverter setpoint are decided — "all transition logic lives here, nowhere else". Curtailment (negative selling price) overrides the MILP plan; modes are `ZeroExport`, `Throttle`, `Shutdown`, `None`. `InverterCurtailmentService` polls `CurrentAction` every 5s. It has no DI dependencies beyond a logger, which is why it is the most heavily unit-tested class — extend `EnergySystemStateMachineTests`' input matrix when adding a transition.
+`EnergySystemStateMachine` is the single place where battery mode and inverter setpoint are decided — "all transition logic lives here, nowhere else". Curtailment (negative selling price) overrides the plan. Two separate enums, do not conflate them: the battery mode is `Modes` (`Unknown`, `Charging`, `Discharging`, `ZeroNetHome`, `Disabled`), the curtailment action is `CurtailmentMode` (`None`, `ZeroExport`, `Throttle`, `Shutdown`). `InverterCurtailmentService` polls `CurrentAction` every 5s. It has no DI dependencies beyond a logger, which is why it is the most heavily unit-tested class — extend `EnergySystemStateMachineTests`' input matrix when adding a transition.
 
 ### Data access
 
-`DataService` classes derive from `ServiceBase<T>` (`Add`, `AddOrUpdate`, `Update`, `Remove`, `Get`, `GetList`, `Query`, `RemoveWhere`) and go through `DbHelper`, dat per aanroep een verse scope + `ModelContext` maakt. Sinds v1.0.40:
+`DataService` classes derive from `ServiceBase<T>` (`Add`, `AddOrUpdate`, `Update`, `Remove`, `Get`, `GetList`, `Query`, `RemoveWhere`) and go through `DbHelper`, which creates a fresh scope + `ModelContext` per call. Sinds v1.0.40:
 
 - **Schrijven** loopt door één **statische** `SemaphoreSlim` — proces-breed, want SQLite laat maar één schrijver toe. (Vóór v1.0.40 stond hier "één proces-brede semafoor voor álle toegang"; dat klopte niet: `DbHelper` is `AddScoped` en `ServiceBase` maakt een eigen scope, dus het slot gold per data-service. Het enige echt globale slot zat in SQLite zelf.)
 - **Lezen** loopt via `ExecuteQueryAsync` (max 4 tegelijk per data-service) en blokkeert geen thread meer. De oude synchrone `ExecuteQuery` met `Wait()` parkeerde een thread-pool thread per query — de directe oorzaak van seconden-lange GUI-haperingen.
@@ -99,7 +101,7 @@ Services cache `Settings` in a field and refresh it in the `SettingsChanged` han
 - `AddOrUpdate`/`Update`/`Remove` require `T : IUpdatable<T>` and use that `Update()` implementation to copy fields.
 - `ExecuteTransaction` throws if `SaveChangesAsync` writes 0 rows. `RemoveWhere` (bulk delete) draait daarom via `ExecuteWriteAsync` zónder transactie — `ExecuteDelete` gaat buiten de change-tracker om en zou anders teruggerold worden.
 - Grote upserts: geef `ServiceBase.MatchOn(key, window)` mee aan `AddOrUpdate` in plaats van een `contains`-lambda die per rij een query doet.
-- Verbindingen krijgen `journal_mode=WAL`, `synchronous=NORMAL` en `busy_timeout=5000` via `SqlitePragmaInterceptor`.
+- Verbindingen krijgen `synchronous=NORMAL` en `busy_timeout=5000` via `SqlitePragmaInterceptor`; `journal_mode=WAL` staat **niet** daar maar wordt één keer bij het opstarten gezet via `SqliteSetup.EnableWriteAheadLogging` (het is een schrijfactie — zie v1.0.41).
 
 ### Background services
 
@@ -120,28 +122,36 @@ Blazor Server, Radzen components, `.razor` + `.razor.cs` code-behind pairs. Page
 # SessyWeb — Samenvatting voor nieuwe chat
 
 ## Wat is SessyWeb
-C#/.NET Blazor Server EMS. Stuurt 3× Sessy batterij (cap 16,2 kWh; raw charge 6600W/discharge 5100W; **aantoonbaar gehaald ~5,0-5,3 kW laden** over vrijwel het hele SOC-bereik — zie Openstaande punten, de eerdere "praktijk max ~4,4kW" was de getaperde planwaarde, niet de hardwarelimiet), SolarEdge inverter, Daikin warmtepomp. Draait op Synology NAS via Docker. Huidige versie **v1.0.72**. Locatie: Apeldoorn.
-**Let op:** dit document beschrijft t/m v1.0.56 en dan weer v1.0.72; v1.0.57-v1.0.71 (o.a. de
+C#/.NET Blazor Server EMS. Stuurt 3× Sessy batterij (cap 16,2 kWh; raw charge 6600W/discharge 5100W; **aantoonbaar gehaald ~5,0-5,3 kW laden** over vrijwel het hele SOC-bereik — zie Openstaande punten, de eerdere "praktijk max ~4,4kW" was de getaperde planwaarde, niet de hardwarelimiet), SolarEdge inverter, Daikin warmtepomp. Draait op Synology NAS via Docker. Huidige versie **v1.0.97**. Locatie: Apeldoorn.
+**Let op:** dit document beschrijft t/m v1.0.56 en dan weer vanaf v1.0.72; v1.0.57-v1.0.71 (o.a. de
 GHCR-overstap en de .NET 10 / Blazor-buildfix) staan er niet in.
+Sinds v1.0.78 draaien er ook instanties bij anderen — meldingen komen als GitHub-issues binnen op
+`PaulSinnema/SessyWeb`. Configuraties daar wijken af (één batterij, geen zon, geen warmtepomp); dat
+is de bron van de hele v1.0.78-97-reeks.
 
 ## Werkafspraken
 - Antwoorden in het Nederlands, caveman-ultra kort. Code-commentaar in het Engels, **kort — één regel waar mogelijk** (user leest alle comments na ter controle).
-- **Niet gissen**: eerst verifiëren in code/DB/web. Deze sessie ging herhaaldelijk mis door aannames — meerdere keren "gevonden!" geroepen en ernaast gezeten. Bij planner-analyse: DB-tabellen naast elkaar leggen en met de Python-simulator narekenen vóór conclusies.
+- **Niet gissen**: eerst verifiëren in code/DB/web. Meerdere sessies gingen mis door aannames — meerdere keren "gevonden!" geroepen en ernaast gezeten. Bij planner-analyse: DB-tabellen naast elkaar leggen en de opgenomen solve-invoer door de échte planner terugspelen vóór conclusies (zie Omgeving en v1.0.94).
 - Code-behind boven `@code`-blokken. Radzen Blazor overal. Radzen API's verifiëren via `raw.githubusercontent.com/radzenhq/radzen-blazor/master/...` (rendering-pad én crosshair/tooltip-pad — `CartesianSeries.DataAt/TooltipY` unwrapt `double?` hard).
 - Na codegeneratie altijd zelf reviewen op syntax/naamfouten/dubbele code/missing usings. Braces + code-parens balanceren (comments negeren bij paren-telling).
-- **Versie ophogen bij ELKE wijziging** in `SessyCommon/AppInfo.cs`: `public const string Version = "v1.0.39";` (enige plek sinds v1.0.39; MainLayout leest hem, Program.cs schrijft hem in de tabel `AppVersions`). Patch-level ophogen (1.0.39 → 1.0.40).
-- Output: volledige bestanden naar `/mnt/user-data/outputs/`, delen via `present_files`.
+- **Versie ophogen bij ELKE wijziging, plus een CHANGELOG-regel** — één afspraak, hierboven onder "Repository conventions". Niet hier herhalen; twee kopieën lopen uit elkaar.
 
 ## Omgeving
-- Broncode: `/tmp/prod/SessyWeb-master/`. DB-uploads → `/tmp/prod_db.db`, geanalyseerd met Python `apsw` (`pip install --break-system-packages`). Geen dotnet in container.
-- Simulators: `/tmp/sim_planner3.py` spiegelt `BatteryGreedyPlanner` (continue discount + stock-cost). **Kritiek**: sim en C# moeten identieke loop-grenzen houden — een `j=1` vs `range(0,n)` discrepantie liet tests ten onrechte "opgelost" melden.
+- Broncode én werkkopie: `C:\Projects\Sessy` (Windows, PowerShell, dotnet aanwezig — bouwen en testen kan direct).
+- Productie-DB staat lokaal: `SessyWeb/SessyController/Data/Sessy.db` (+ WAL/shm). Read-only openen voor analyse.
+- Planner-onderzoek gaat via de **échte** planner, niet via een spiegel: `SolveInputRecorder`
+  (`SESSY_RECORD_SOLVE_INPUTS`) neemt de solve-invoer op, en de opgenomen JSON speelt terug door
+  `BatteryGreedyPlanner` zelf (zie v1.0.94 en `RealDayPlannerTests` / `EveningDischargeProbeTests`).
+  De oude Python-spiegel is weg — die liet door een afwijkende lusgrens (`j=1` vs `range(0,n)`) een
+  bug ten onrechte als "opgelost" melden.
 
 ## Planner-architectuur (BatteryGreedyPlanner.cs)
-Deterministisch, greedy, twee passes: (1) ZeroNetHome-baseline, (2) arbitrage in 0,1 kWh-blokken. Candidate A = ontladen van al-aanwezige energie (geen gekoppeld laadmoment); Candidate B = laden-i → ontladen-j met `i<j`.
+Deterministisch, greedy, twee passes: (1) ZeroNetHome-baseline, (2) arbitrage in blokken van `BlockKWh` — 0,20 kWh sinds v1.0.77 (was 0,10; puur een snelheidsknop, de plannen zijn bit-identiek van 0,05 t/m 1,00 kWh). Candidate A = ontladen van al-aanwezige energie (geen gekoppeld laadmoment); Candidate B = laden-i → ontladen-j met `i<j`.
 - **FutureValueDiscountPerHour** (default 0,003 — UI toont procenten, dus 0,3): continue korting op waarde[j]/kosten[i], vervangt de oude discrete "near-term hedge" die drie keer op randgevallen stukliep. Rapportage/objective gebruiken echte prijzen. Default afgeleid uit gemeten planstabiliteit in `PlannedActions` (94-97% tot 18 u lead → 0,002-0,006/u). Hoort samen met `PredictedPriceMode`: bij `Off` is >24 u toch `reserveOnly`; zet je die op `SoftMargin`, dan moet de discount omhoog want daar houdt maar 23-63% stand.
-- **StockCostEurPerKWh**: FIFO-gemiddelde als bodemprijs (reservatieprijs) voor Candidate A — voorkomt dumpen van doorschuif-energie. Zon-voorraad = 0.
+- **ReplacementCostEurPerKWh**: bodemprijs (reservatieprijs) voor Candidate A — voorkomt dumpen van doorschuif-energie. Kwam als `StockCostEurPerKWh` uit het FIFO-gemiddelde; sinds v1.0.30 levert `ReplacementCostService` het getal en is FIFO alleen nog terugval. Zon-voorraad = 0.
+- Candidate C (carry-forward voorbij de horizon, v1.0.30) en Candidate D (nu verkopen, later terugkopen, v1.0.48) staan bij hun eigen versies beschreven.
 
-## Grote bugs deze sessie opgelost
+## Grote bugs opgelost (v1.0.4 t/m v1.0.16)
 1. **`j=1` → `j=0`** (BatteryGreedyPlanner): arbitrage-loop sloeg index 0 (= huidig kwartier) over. Sinds horizon bij `nowQuarter` begint, schoof elke ontlading eeuwig één kwartier vooruit → nooit uitgevoerd. Kernbug.
 2. **Speculative-solve rollback** (MilpServiceBase v1.0.14): `ApplySolveResult` installeerde plan vóór accept/reject; een afgewezen solve bleef de batterij aansturen zonder spoor in DB. Nu snapshot `_planByTime`/`_planSocWhByTime` vóór solve + herstel + `WriteBackSocSimulationAsync` bij reject.
 3. **SOC-deviatie meetfout** (v1.0.13→1.0.16): vergeleek live mid-kwartier SOC met END-of-quarter plan-SOC → spookafwijking ~7-13% tijdens (dis)charge → onnodige forced replans. v1.0.13 interpoleerde maar was gebroken (horizon start bij nowQuarter → geen voorganger, altijd fallback). v1.0.16 fix: `_planStartSocWh`/`_planStartQuarter` bijgehouden in ApplySolveResult (let op: param `socKWh` is kWh, ×1000 → Wh), meegenomen in rollback-snapshot en ClearPlanAsync.
@@ -152,15 +162,16 @@ Deterministisch, greedy, twee passes: (1) ZeroNetHome-baseline, (2) arbitrage in
 Laadkant waardeerde overal álle lading tegen inkoopprijs, ook gratis zon → verzonnen negatieve "revenue"-labels. Gefixt: `QuarterlyInfo.Profit` (beide kanten gesplitst via NetLoadWh), `MeasurementView.GridChargeCostEur` (= `min(GridImport,Charged)×buy`, spiegelt DischargeValueEur), `EnergyStatisticsService` twee plekken op één conventie, dode `CalculateAveragePriceOfChargeInBatteries` (65 regels) verwijderd. `Profit` wordt als `QuarterlyMeasurement.PlannedRevenueEur` in DB geschreven — historische rijen houden oude waarden (user koos niet-herberekenen).
 
 ## Overige features
-- **Charged handoff** (v1.0.6): bij `ChargedInControl` → Sessy native strategie (ProfitMax→ROI, SelfConsumption→ECO, anders ROI). `Battery.SetActivePowerStrategyToRoi/Eco`, `BatteryContainer.StartRoi/Eco`. Binnen `#if !DEBUG`.
+- **Charged handoff** (v1.0.6, geschrapt in v1.0.51, teruggebouwd in v1.0.55): bij `ChargedInControl` → Sessy native strategie. Mapping en guard staan bij v1.0.55; de mapping uit v1.0.6 (SelfConsumption→ECO, anders ROI) geldt niet meer.
 - **Plan history overlay** in ChargingHoursChartComponent: valt samen met "Show all", dropdown toont plannen binnen hetzelfde `[from,to)`-venster. Solide magenta lijn, bovenste serie.
 - **Actual power series**: areas in plan-kleuren, gebonden aan gefilterde `ActualPowerPoints` (`HasActualPower`) zodat ze bij "nu" stoppen i.p.v. plan dubbel te tekenen.
 - **Last-plan reason** zichtbaar in header onder SOC dev.
 - **Curtailment unit tests** (`CurtailmentPricingTests.cs`): netting on/off × pos/neg marktprijs × belasting/vergoeding/BTW.
 - Obsolete "Shut down at negative prices" verwijderd (superseded door InverterCurtailmentService).
 
-## Zelf-lerende planner (interview afgerond, NOG NIET gebouwd)
-User's doel: investering z.s.m. terugverdienen, winst leidend. Terugvalpunt-spec: open horizon (geen harde cap), minimale reserve, zelf-lerende discount-rate én nacht-reserve uit 21-daagse voorspelfouten (zon+verbruik samen), nachtelijk herberekend, bounds ~0,5-3%/uur (ondergrens boven 0% houden), alert bij grens-pinning, log van geleerde waarde, geleerd overschrijft handmatig. Fallback 1% tot 21 dagen data. Op bestaande Settings-pagina.
+## Doel van de gebruiker
+Investering z.s.m. terugverdienen, winst leidend. (De zelf-lerende planner die hieruit volgde is
+gebouwd in v1.0.30 — zie die sectie.)
 
 ## Opgelost 27-07 (v1.0.19 / v1.0.20)
 1. **`PlannedUnthrottledPowerW` = 0 in alle rijen — OPGELOST (v1.0.19).** `WriteBackSocSimulationAsync` en de twee clamp-takken in `GetExecutableActionAsync` riepen `SetPlanPower` met 2 args aan → default unthrottled=0 overschreef wat `WritePlanIntoQuarterlyInfos` net had gezet. Alle vier callsites geven nu `Unthrottle(...)` mee. Historische rijen blijven 0; vult zich vanaf de eerstvolgende rebuild.
@@ -300,7 +311,7 @@ en de rapportage voeden — en stond binnen `#if !DEBUG`, dus lokaal zag je nooi
    testbaar zonder hardware — zelfde opzet als `ChargeCostBasisService.Project`.
 2. `QuarterlyInfo.ChargedPlanPowerW` / `ChargedChargeLeftWh` staan **naast** ons plan (Sessy's
    tekenconventie: negatief laadt). Niets wordt meer overschreven.
-3. Grafiek: onder Charged zijn hun staven de hoofdserie, ons MILP-plan een gestippelde schaduwlijn,
+3. Grafiek: onder Charged zijn hun staven de hoofdserie, ons plan een gestippelde schaduwlijn,
    en volgt de SOC-lijn hun schema. Series die onder Charged betekenisloos zijn (revenue, zero net
    home, charge needed, throttle loss) staan op `WeAreInControl`. Boven de grafiek staat wie er
    stuurt en hoe oud het schema is. Onzichtbare Radzen-series kosten geen rendertijd, dus dit werkt
@@ -337,8 +348,8 @@ constante efficiëntie lijkt uitsmeren gratis.
 4. **Bevinding uit de tests:** bij gelijke prijzen concentreerde de greedy al vanzelf (vult één
    kwartier tot de cap voor hij de volgende opent). Het uitsmeren in productie komt dus níet uit de
    doelfunctie maar uit de taper-cap op geplande energie — vastgelegd in
-   `On_equal_prices_the_planner_already_fills_quarter_by_quarter`. Die cap staat op de lijst maar is
-   bewust nog niet aangeraakt (zie Openstaande punten).
+   `On_equal_prices_the_planner_already_fills_quarter_by_quarter`. Die cap is in v1.0.94 aangepakt
+   met `ChargeCapabilityFloor`; toen stond hij nog open.
 Tests: `EfficiencyCurveTests` (10), waaronder de discriminerende: een kwartier van 5 kW à €0,105
 hoort te winnen van 1 kW à €0,100.
 
@@ -633,7 +644,7 @@ block added … filling one up beats opening another", terwijl `roundTripAtCapac
 kwartier las. Dat de beslissing op de cap leest is bewust (v1.0.47) en staat toegelicht boven
 `chEffAtCapacity`; de tweede comment sprak de eerste tegen.
 
-## Gebouwd 10-08 (v1.0.78 / v1.0.79)
+## Gebouwd 10-08 (v1.0.78 / v1.0.80 / v1.0.86 / v1.0.87) — config en opstartvolgorde
 
 **Ingebakken appsettings.json overschreef de gemonteerde config niet — hij vulde hem aan (v1.0.78).**
 Melding van buiten: met één batterij geconfigureerd bleef de app naar batterij 2 verbinden
@@ -722,7 +733,8 @@ P90 van de gemeten laadvermogens × 0,9, geklemd op nameplate, uit *elk* laadkwa
 nodig, dus 917 in plaats van 223 samples; vreemde kwartieren eruit). `taperedChargeKWh` neemt
 `max(taper, bodem)`. Waarom een bodem geldig is waar een fit dat niet is: een hoge meting bewíjst dat
 de bank het kan, een lage bewijst niets (dat kan traag zonladen of een klein verzoek zijn) — precies
-waarom "fit op watt" in openstaand punt 0 verworpen werd. Het haalt de taper ook uit zijn eigen lus:
+waarom "fit op watt" verworpen werd (analyse verderop in deze sectie). Het haalt de taper ook uit
+zijn eigen lus:
 een onderdrukt verzoek levert lage metingen die een nóg lagere taper fitten, maar over het
 730-daagse venster onthoudt een percentiel van de bovenkant de goede samples die een gemiddelde
 vergeet. Gemeten resultaat op de opgenomen invoer: **6,61 → 14,19 kWh**, eind-SOC 8,30 → 0,47, tegen
@@ -744,6 +756,32 @@ waarschuwt als die twee materieel uiteenlopen. Tests: `ChargeCapabilityFloorTest
 **Les:** vier diagnoses op rij zaten ernaast omdat ze op gereconstrueerde invoer rustten. Twee keer
 was de reconstructie zelf fout (de eenheden van `SolarForecastW` versus `ConsumptionForecastW`
 verschillen). Bij planner-onderzoek: eerst de invoer opnemen, dan pas redeneren.
+
+**Waarom de fit zelf niet gerepareerd is — analyse van 08-08, bewaard.** Dit stond tot v1.0.96 als
+openstaand punt 0; het is de onderbouwing bij de bodem hierboven en bij wat er nog open staat.
+Hoogst gemeten laadvermogen per SOC-band (`QuarterlyMeasurements`, vanaf 15-06): 10-20% → 5310 W,
+20-30% → 5326, 30-40% → 5263, 40-50% → 5294, 50-60% → 5318, 60-70% → 5179, 70-80% → 5335,
+80-90% → 5118, 90-100% → 4316. Dus ~0,80 van de 6600 W nameplate over vrijwel het hele bereik,
+knik pas boven ~90% — terwijl de envelope-fit op 50% SOC 0,50 zegt (3281 W).
+De envelope (v1.0.38) is niet de ontbrekende stap; die zit er al in. Het probleem is de dekking:
+slechts **223 van 7135** `PlannedQuarters`-rijen hebben `PlannedUnthrottledPowerW ≠ 0`, allemaal
+vanaf 28-07. Het fitvenster beslaat temp 20,2-32,4 °C en t48 17,6-25,7 °C, tegen 1,6-36,0 °C in de
+historie. Daardoor is `temp-20` in de envelope-fit insignificant (t = −0,54) en wordt **álle**
+derating op SOC geladen (B = 0,568). Alle 28 kwartieren boven 4800 W komen uit juni bij 15-16 °C —
+en hebben stuk voor stuk `PlannedUnthrottledPowerW = 0`, dus ze zijn allemaal uitgesloten.
+Voorbeeld 05-06: 5318 W bij 57% SOC, 5179 bij 65%, 5066 bij 72%, 4944 bij 79%; 15-06: 5335 W bij
+72%, 5118 bij 86%.
+**Uitgesloten oplossing:** "fit op watt in plaats van ratio" (zoals op de ontlaadkant, v1.0.72).
+Nagerekend in elke binning — strikte max per (SOC × temp)-bin, banden, 10/20 SOC-bins — komt de
+SOC-helling er *positief* uit (+430 tot +866 W over het volle bereik), fysiek onmogelijk. Op de
+laadkant zijn lage-SOC-kwartieren overwegend traag zonladen; dat meet vraag, geen kunnen. Op de
+ontlaadkant speelt dat niet, daar werkt het wél. Dat is precies waarom de bodem een percentiel van
+de bovenkant is en geen fit: een hoge meting bewíjst wat de bank kan, een lage bewijst niets.
+**Wat de fit wel nodig heeft:** maanden `PlannedUnthrottledPowerW`-dekking over een breed
+temperatuurbereik, zodat C en D echt te scheiden zijn van B. Tot die tijd niets forceren — een
+tweede filter-tweak lost het niet op.
+
+## Gebouwd 10-08 (v1.0.79 / v1.0.81 / v1.0.82 / v1.0.83) — losse fixes
 
 **UI laat weg wat je niet hebt (v1.0.83).** Zonder zonnepanelen heeft de Solar-pagina geen inhoud en
 staan er in Statistics vijf kaarten die alleen nul kunnen zijn. Eén definitie: `PowerSystemsConfig.HasSolar`
@@ -786,37 +824,101 @@ bestaan als precies dát: stuurt Charged maar kwam er geen schema binnen, dan ho
 vlakken — anders staat er niets. Beide SOC-lijnen kregen een `Visible` (die van ons had er geen),
 dus er staat nooit meer één rode doorgetrokken SOC-lijn te veel op de grafiek.
 
-## Openstaande punten
-0. **OPGELOST 10-08 (v1.0.94)** — niet door de fit te repareren maar door er een gemeten bodem
-   onder te leggen; zie de sectie "Gebouwd 10-08 (v1.0.94)". De fit zelf blijft scheef tot er
-   maanden `PlannedUnthrottledPowerW`-dekking over een breed temperatuurbereik is; Tips & Checks
-   laat nu zien hoe ver hij ernaast zit. Oorspronkelijke analyse hieronder bewaard.
+## Gebouwd 10-08 (v1.0.95 / v1.0.96) — issue #4: Consumption blijft leeg
 
-   **De laadtaper wordt gefit op tien dagen hittegolf — hoogste prioriteit (bijgewerkt 08-08).**
-   Hoogst gemeten laadvermogen per SOC-band (`QuarterlyMeasurements`, vanaf 15-06): 10-20% → 5310 W,
-   20-30% → 5326, 30-40% → 5263, 40-50% → 5294, 50-60% → 5318, 60-70% → 5179, 70-80% → 5335,
-   80-90% → 5118, 90-100% → 4316. Dus ~0,80 van de 6600 W nameplate over vrijwel het hele bereik,
-   knik pas boven ~90% — terwijl de envelope-fit op 50% SOC 0,50 zegt (3281 W).
-   **Diagnose 08-08, mechanisme nu bekend.** De envelope (v1.0.38) is niet de ontbrekende stap; die
-   zit er al in. Het probleem is de dekking: slechts **223 van 7135** `PlannedQuarters`-rijen hebben
-   `PlannedUnthrottledPowerW ≠ 0`, allemaal vanaf 28-07. Het fitvenster beslaat temp 20,2-32,4 °C en
-   t48 17,6-25,7 °C, tegen 1,6-36,0 °C in de historie. Daardoor is `temp-20` in de envelope-fit
-   insignificant (t = −0,54) en wordt **álle** derating op SOC geladen (B = 0,568). Alle 28
-   kwartieren boven 4800 W komen uit juni bij 15-16 °C — en hebben stuk voor stuk
-   `PlannedUnthrottledPowerW = 0`, dus ze zijn allemaal uitgesloten. Voorbeeld 05-06: 5318 W bij 57%
-   SOC, 5179 bij 65%, 5066 bij 72%, 4944 bij 79%; 15-06: 5335 W bij 72%, 5118 bij 86%.
-   **Uitgesloten oplossing:** "fit op watt in plaats van ratio" (zoals op de ontlaadkant, v1.0.72).
-   Nagerekend in elke binning — strikte max per (SOC × temp)-bin, banden, 10/20 SOC-bins — komt de
-   SOC-helling er *positief* uit (+430 tot +866 W over het volle bereik), fysiek onmogelijk. Op de
-   laadkant zijn lage-SOC-kwartieren overwegend traag zonladen; dat meet vraag, geen kunnen. Op de
-   ontlaadkant speelt dat niet, daar werkt het wél.
-   **Wat het wel nodig heeft:** maanden `PlannedUnthrottledPowerW`-dekking over een breed
-   temperatuurbereik, zodat C en D echt te scheiden zijn van B. Tot die tijd niets forceren — een
-   tweede filter-tweak lost het niet op.
+Melding van buiten (GitHub issue #4, HindrikDeelstra): "Het menu Consumption laadt wel een site,
+zonder foutmeldingen, maar ook zonder data. **Geen logs om te plakken.**" Die laatste zin is het
+bewijsmateriaal, niet een gebrek eraan: het productie-logniveau staat op Warning, dus een pad dat
+níets meldt is een pad dat helemaal niet logt. Dat sluit meteen de voor de hand liggende diagnose
+uit — een falende weer-fetch spamt elke seconde `An error occurred while monitoring p1 meters.`
+
+**Vier faalpaden gevonden, drie ervan volledig stil.**
+1. **Weer was een harde afhankelijkheid.** `EnsureServicesAreInitialized` **gooide**
+   `InvalidOperationException("Weather service not initialized")`, en stond vóór de opslaglus in
+   `Process()`. `WeatherService._initialized` wordt alleen `true` na een geslaagde HTTP-fetch, en
+   `WeatherExpectancyConfig.BaseUrl` heeft `string.Empty` als default → `new Uri("")` gooit →
+   nooit initialized. Ontbrekende `WeerOnline`-sectie = nul consumption-rijen, voor altijd. Dit is
+   dezelfde klasse als v1.0.78/80/82: sinds de ingebakken `appsettings.json` niet meer meegaat is
+   "sectie afwezig" een echt geval, en dit was de laatste dienst die daar nog op stukliep.
+   Nu `WaitForWeatherAsync` (geeft `bool`, gooit niet). De 10-seconden wachtlus draait **alleen op
+   de eerste cyclus** — een opstart-gratie; daarna zou hij de 1-seconde-sampling stallen zolang de
+   feed weg is. Ontbrekend weer logt één regel op de overgang, niet elke seconde. Opslaan gaat door
+   met de `-999`-sentinels die `Consumption.Humidity/Temperature/GlobalRadiation` al kenden.
+2. **Zonder weer plande de planner op 0 W verbruik.** De maandprofiel-terugval in
+   `CalculateEstimatedConsumptionForAQuarterHour` stond *binnen* de `if (currentWeather != null)`-tak:
+   precies in het geval waarvoor hij bestaat was hij onbereikbaar, en bleef
+   `EstimatedConsumptionPerQuarterInWatts` op 0. Zonder de fix onder punt 1 was dit onbereikbaar
+   (het gooide eerder), dus het is er samen mee opgelost, niet los.
+3. **Een mislukte term werd als 0,0 opgeslagen.** `CalculateConsumption` gaf bij élke exception
+   `0.0` terug; die samples gingen mee in het kwartiergemiddelde. Consumption = zon + net + batterij,
+   dus één onbereikbare batterij die 3 kW ontlaadt maakt het kwartier precies 3 kW te laag — stil
+   fout opgeslagen data, en dat voedt de verbruiksvoorspelling. Waren *alle* samples 0, dan verdween
+   het kwartier via de tak `"Consumption is negative 0. Cleared data"`. Nu `Task<double?>` met `null`
+   bij een kapotte term, en `StoreConsumption` slaat zo'n sample over. Bewust géén partiële som.
+4. **Lege metersectie was volledig stil.** `Process()` liep `foreach` over een lege `P1Meters` en
+   logde niets — het pad dat het beste bij "geen logs om te plakken" past. Nu één Warning-regel.
+
+**Tips & Checks dekt nu de invoerkant (v1.0.95).** `ConfigurationCheckService` controleerde de
+warmtepomp en (indirect) de zon, maar niets van wat consumption voedt. Vier checks erbij: weer
+(`WeerOnline`), P1 (`Sessy:Meters`), batterijen (`Sessy:Batteries`) en de consumption-historie zelf
+(leeg / laatste rij > 1 u oud / < 72 van 96 kwartieren in 24 u). De config-checks tellen
+gedeclareerd tegen `IsConfigured` en noemen de overgeslagen sleutels bij naam, want de
+secrets.json-restanten uit v1.0.82 zijn de terugkerende oorzaak. Historie via `ServiceBase.Query`
+met `Max`/`Count`, zodat het SQL-side blijft. Alle nieuwe config wordt via `IOptionsMonitor` gelezen
+(v1.0.86), niet `IOptions`.
+
+Bijvangst opgeruimd in hetzelfde pad: een `GetDetails`-aanroep per kwartier waarvan het resultaat
+nooit werd gebruikt (een HTTP-rondje voor niets) en een ongebruikte `var test = nextQuarter`.
+
+**Niet getest.** `ConsumptionMonitorService` hangt aan `P1MeterService`, `SolarInverterManager` en
+`BatteryContainer` — concrete klassen zonder interface, dus niet te mocken zonder refactor.
+`CalculateConsumption` en `WaitForWeatherAsync` zijn de testwaardige stukken zodra die drie achter
+een klein interface zitten. Staat als openstaand punt 6.
+
+**Les:** "geen logs" is een aanwijzing, geen dood spoor. Op een Warning-logniveau selecteert het
+precies de takken die niets zeggen — hier de lege meterlijst — en verwerpt het de takken die wél
+zouden schreeuwen. Zoek bij zo'n melding eerst naar de stille paden.
+
+## Gebouwd 11-08 (v1.0.97) — issue #2: menu klapt bij elke klik dicht
+
+Melding van buiten (GitHub issue #2, HindrikDeelstra): het menu uitklappen met het icoon boven het
+menu houdt geen stand, elke volgende menuklik vouwt het weer terug naar iconen. Cosmetisch, en
+precies één regel: elk `RadzenPanelMenuItem` in `MainLayout.razor` draagt `Click="@CollapseMenu"`,
+en die methode zette `DisplayStyle` onvoorwaardelijk terug op `Icon`.
+
+Niet zomaar weggehaald maar instelbaar gemaakt, want op een telefoon dekt het uitgeklapte menu
+(200 px tegen 50 px) een deel van de pagina af — dichtklappen ná de klik is daar het betere gedrag.
+`Settings.KeepMenuExpanded` (migratie `AddKeepMenuExpanded`), default **aan**. `CollapseMenu` keert
+vroeg terug als de vlag aan staat; verder is er niets aan de menulogica veranderd.
+Het staat op een eigen tab **User interface** op de Settings-pagina — de eerste van wat er verder
+aan schermvoorkeuren komt, gescheiden van de operationele tuning op "Management Settings". De tab
+bindt aan dezelfde `_settings` en hergebruikt `SaveSettingsAsync`.
+
+Drie dingen die niet vanzelf goed gaan:
+1. **De migratie is met de hand op `defaultValue: true` gezet**; EF scaffoldt `false` en de
+   C#-initializer is geen DB-default. Zonder die aanpassing zou een bestaande installatie na de
+   upgrade stil het oude gedrag houden terwijl een verse DB het nieuwe krijgt.
+2. **`MainLayout` implementeerde `IDisposable` niet.** Er stónd een `Dispose()` met
+   `ResizeListener.OnResized -= …`, maar zonder `@implements IDisposable` roept Blazor die nooit
+   aan. Voor de resize-listener was dat een lek per circuit; met een abonnement op de **singleton**
+   `SettingsService` erbij zou elk gesloten circuit blijven leven. `@implements IDisposable`
+   toegevoegd — dat repareert meteen het bestaande lek.
+3. **`SettingsChanged` vuurt buiten het circuit**, dus de handler gaat via `InvokeAsync`. Zo komt
+   een wijziging zonder herladen aan, net als bij de andere `IOptionsMonitor`-abonnementen (v1.0.86).
+
+Niet getest: `MainLayout` valt onder openstaand punt 5 (geen projectreferentie van `SessyUnitTests`
+naar `SessyWeb`). Totaal blijft 315.
+
+## Openstaande punten
+*De nummering heeft een gat (2 is vervallen). Niet hernummeren — elders in dit document wordt naar
+"Openstaande punten 4" verwezen.*
+
+0. **De taper-fit zelf blijft scheef.** De gemeten bodem uit v1.0.94 dekt het praktische probleem af,
+   maar de fit herstelt pas met maanden `PlannedUnthrottledPowerW`-dekking over een breed
+   temperatuurbereik; Tips & Checks laat zien hoe ver hij ernaast zit. De volledige analyse en de
+   verworpen oplossing ("fit op watt") staan bij v1.0.94 — niets forceren tot die dekking er is.
 1. **Productie-verificatie van v1.0.72 t/m v1.0.75 staat nog open** — zie de checklist onderaan.
    De ontlaadkant, de NaN-fix en de gasprijs-fix zijn alleen lokaal getoetst.
-2. **CLAUDE.md mist v1.0.57 t/m v1.0.71** (o.a. de GHCR-overstap en de .NET 10 / Blazor-buildfix).
-   Te reconstrueren uit de git-historie; verder is alles t/m v1.0.75 beschreven.
 3. **De discount is nooit eerlijk getoetst.** `FutureValueDiscountPerHour` hedget voorspelfouten,
    maar elke replay tot nu toe rekent af tegen dezelfde forecast waarmee gepland is. Een harnas dat
    afrekent tegen gemeten verbruik en zon (`QuarterlyMeasurements` / `EnergyHistory`) zou de vraag
@@ -830,6 +932,15 @@ dus er staat nooit meer één rode doorgetrokken SOC-lijn te veel op de grafiek.
    dat is nu testwaardig. Twee wegen: `ScreenInfo` verhuizen naar `SessyCommon` (het is een pure
    helper zonder Blazor-afhankelijkheden, en `PageBase`/`BaseComponent`/`_Imports` moeten dan mee),
    of `SessyWeb` als projectreferentie toevoegen aan de testset. Nog niet gekozen.
+6. **`ConsumptionMonitorService` is niet getest** (v1.0.96). Hangt aan `P1MeterService`,
+   `SolarInverterManager` en `BatteryContainer` — concrete klassen zonder interface, dus niet te
+   mocken. `CalculateConsumption` (partiële som → `null`) en `WaitForWeatherAsync` (opstart-gratie,
+   daarna niet blokkeren) zijn de stukken die een test verdienen zodra die drie een interface
+   krijgen. Zelfde patroon als `ChargeCostBasisService.Project` en `ChargedScheduleService.ToQuarters`:
+   de pure kern eruit trekken, dan pas testen.
+7. **Issue #4 is nog niet bevestigd bij de melder.** v1.0.95/96 draaien alleen lokaal; welke van de
+   vier faalpaden het bij hem was is niet vastgesteld. Tips & Checks noemt ze nu alle vier bij naam
+   — vraag om die tab voordat je verder zoekt.
 
 ## Diagnosed, niet-een-bug
 - Setpoint requested ≠ Setpoint: Sessy-hardware klemt/tapert zelf (CC/CV, SOC-afhankelijk). API meldt geen reden. `Battery.SetpointRequested` (ons) vs `Sessy.PowerSetpoint` (device).

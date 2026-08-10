@@ -155,6 +155,15 @@ namespace SessyData.Model
         /// <summary>What the learner concluded last time, for the UI and the Tips tab.</summary>
         public string? LastLearnedSummary { get; set; }
 
+        // ── User interface ────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Whether the navigation menu stays expanded after a menu item is clicked. Off restores
+        /// the original behaviour, where every click collapsed it back to icons. On a phone the
+        /// expanded menu covers part of the page, which is why this is a choice and not a fix.
+        /// </summary>
+        public bool KeepMenuExpanded { get; set; } = true;
+
         // ── Statistics ────────────────────────────────────────────────────────
         public DateTime? StatisticsFromDate { get; set; }
 

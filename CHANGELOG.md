@@ -11,6 +11,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.97] — 2026-08-11
+
+### Fixed
+- The navigation menu folded back to icons on every click, so expanding it never lasted longer than
+  one page (issue #2). It now stays as you left it.
+
+### Added
+- A **User interface** tab under Settings, with the switch for that menu behaviour. Turn it off to
+  get the old click-to-collapse back — useful on a phone, where the expanded menu covers the page.
+
 ## [v1.0.96] — 2026-08-10
 
 ### Fixed
