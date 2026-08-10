@@ -476,7 +476,7 @@ niets meer. Om dezelfde reden krijgt onze SOC-lijn alleen de schaduwopmaak (blau
 de vergelijking daadwerkelijk op het scherm staat. De headertekst beweegt mee: zonder vergelijking
 alleen wie er stuurt, met vergelijking de kleuruitleg plus de leeftijd van het schema.
 `ToggleCharged` roept `MarkDirty()` — zonder dat doet de checkbox niets, want `ShouldRender` gate
-op `_dirty` (v1.0.40).
+op `_dirty` (v1.0.40). **Vervangen in v1.0.79** — zie onderaan.
 
 ## Gebouwd 08-08 (v1.0.72)
 **Ontlaadkant liep op temperatuur en zat bevroren op 60%.** Aanleiding was de vraag of throttling
@@ -631,6 +631,38 @@ naar schatting ~9M toestandsovergangen, dus sneller én beter — maar dat is ee
 block added … filling one up beats opening another", terwijl `roundTripAtCapacity` de *cap* van het
 kwartier las. Dat de beslissing op de cap leest is bewust (v1.0.47) en staat toegelicht boven
 `chEffAtCapacity`; de tweede comment sprak de eerste tegen.
+
+## Gebouwd 10-08 (v1.0.78 / v1.0.79)
+
+**Ingebakken appsettings.json overschreef de gemonteerde config niet — hij vulde hem aan (v1.0.78).**
+Melding van buiten: met één batterij geconfigureerd bleef de app naar batterij 2 verbinden
+(`Could not get power status after 3 tries for battery 2`, HttpClient-timeout van 5 s). Geen
+hardgecodeerde 3 — `BatteryContainer` loopt gewoon `foreach` over `Sessy:Batteries:Batteries`.
+Oorzaak: de SDK publiceert `SessyWeb/appsettings.json` (mijn eigen werkende config, batterijen
+"1","2","3" op 192.168.1.241-243) mee naar `/app` = content root, en `CreateBuilder` laadt die
+automatisch vóór `Program.cs` de `CONFIG_PATH`-versie toevoegt. .NET-configuratie merget **per
+sleutel**, het vervangt geen secties: sleutel "1" werd overschreven, "2" en "3" bleven staan. Zelfde
+mechanisme gold voor `Sessy:Meters` (P1 op .240), `PowerSystems` (SolarEdge op .217 met mijn twee
+panelengroepen), `WeerOnline:Location`, `HeatPumpConfig`, `ManagementSettings` (timezone,
+`ChargedInControl: true`) en `ConnectionStrings`. De regel in dit document dat de config "uit
+`$CONFIG_PATH` komt, **niet** uit de eigen appsettings" was dus niet waar in de image.
+Twee remmen: (1) `RemoveBuiltInAppSettings` haalt vóór het toevoegen elke `JsonConfigurationSource`
+met bestandsnaam `appsettings.json` uit `builder.Configuration.Sources` — env-overlays
+(`appsettings.Development.json`) blijven, die zijn geen configuratietemplate en worden in de
+container (Production) niet geladen; (2) `<CopyToPublishDirectory>Never` op `appsettings.json` in
+`SessyWeb.csproj`, geverifieerd op een echte publish. **Gedragsverandering:** ontbreekt de
+config-volume, dan draait de app niet meer stil door op mijn IP-adressen maar faalt hij zichtbaar.
+
+**Vergelijkingstoggle werkt nu beide kanten op (v1.0.79).** `ShowCharged` toonde alleen Charged;
+onder Charged stond de checkbox uit dan het *uitvoerende* plan niet op het scherm en het onze wél,
+als vlakken. Nu heet de vlag `ShowOther` en voegt hij altijd degene toe die **niet** uitvoert:
+label "Show Charged" als wij sturen, "Show SessyWeb" als Charged stuurt (`OtherName`). Vier afgeleide
+properties dragen de zichtbaarheid, zodat de markup geen samengestelde condities meer bevat:
+`ChargedHasTheAreas` (= `ChargedInControl && HasChargedSchedule`), `WeHaveTheAreas`,
+`ShowChargedShadow`, `ShowOurShadow`. De uitzondering die eerder het hele gedrag stuurde blijft
+bestaan als precies dát: stuurt Charged maar kwam er geen schema binnen, dan houdt ons plan de
+vlakken — anders staat er niets. Beide SOC-lijnen kregen een `Visible` (die van ons had er geen),
+dus er staat nooit meer één rode doorgetrokken SOC-lijn te veel op de grafiek.
 
 ## Openstaande punten
 0. **De laadtaper wordt gefit op tien dagen hittegolf — hoogste prioriteit (bijgewerkt 08-08).**

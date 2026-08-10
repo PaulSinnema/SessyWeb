@@ -79,22 +79,41 @@ namespace SessyWeb.Components
         public bool HasChargedSchedule { get; private set; }
 
         /// <summary>
-        /// Whether Charged's series are drawn at all. Off by default: the comparison is something
-        /// you ask for, and six extra series make the chart hard to read the rest of the time.
-        /// With it off the chart shows our own plan as filled areas whoever is executing, so it
-        /// never falls back to nothing but faint dashed lines.
+        /// Whether the plan of whoever is NOT executing is drawn as well. Off by default: the
+        /// comparison is something you ask for, and six extra series make the chart hard to read
+        /// the rest of the time. The toggle always adds the other party — Charged's schedule while
+        /// SessyWeb drives, our plan while Charged drives.
         /// </summary>
-        public bool ShowCharged { get; private set; }
+        public bool ShowOther { get; private set; }
 
-        public void ToggleCharged(bool value)
+        /// <summary>Whose plan the toggle adds, so the label can say what it actually does.</summary>
+        public string OtherName => ChargedInControl ? "SessyWeb" : "Charged";
+
+        public void ToggleOther(bool value)
         {
-            if (ShowCharged == value) return;
+            if (ShowOther == value) return;
 
-            ShowCharged = value;
+            ShowOther = value;
 
             // ShouldRender gates on _dirty, so without this the checkbox does nothing visible.
             MarkDirty();
         }
+
+        /// <summary>
+        /// Whoever executes gets the filled areas. Under Charged with no schedule read from the
+        /// batteries there is nothing to fill, so our own plan keeps them rather than leaving the
+        /// chart empty.
+        /// </summary>
+        public bool ChargedHasTheAreas => ChargedInControl && HasChargedSchedule;
+
+        /// <summary>True while our plan is the one drawn as filled areas.</summary>
+        public bool WeHaveTheAreas => !ChargedHasTheAreas;
+
+        /// <summary>Charged's schedule as the road not taken — a dashed shadow, only when asked for.</summary>
+        public bool ShowChargedShadow => ShowOther && !ChargedHasTheAreas && HasChargedSchedule;
+
+        /// <summary>The mirror image: our plan as the shadow while Charged is executing.</summary>
+        public bool ShowOurShadow => ShowOther && ChargedHasTheAreas;
 
         public double ChartMin => -ChartMinMax;
         public double ChartMax => ChartMinMax;

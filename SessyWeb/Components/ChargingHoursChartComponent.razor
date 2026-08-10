@@ -13,32 +13,52 @@
 
 @* Says whose plan is on screen. Colour tells you WHOSE plan a series is — orange and green are
    SessyWeb's, blue is Charged's — and the sign tells you what it does: charging is drawn below
-   zero, discharging above. Whichever plan is not being executed is drawn as a line rather than a
-   filled area.
+   zero, discharging above. The plan being executed is drawn as filled areas, the other one as a
+   dashed line.
 
-   Charged's series are behind "Show Charged" and off by default: six extra series make the chart
-   hard to read when you are not comparing. With the toggle off, our own plan is drawn as filled
-   areas whoever is executing — otherwise switching it off under Charged would leave nothing but
-   faint dashed lines. *@
+   The toggle adds whoever is NOT executing, so it flips with control: "Show Charged" while
+   SessyWeb drives, "Show SessyWeb" while Charged drives. Off by default — six extra series make
+   the chart hard to read when you are not comparing. The one exception is Charged in control with
+   no schedule read from the batteries: then our plan keeps the areas, otherwise there would be
+   nothing on the chart at all. *@
 <div style="padding: 2px 8px; font-size: 0.85em; color: var(--rz-text-secondary-color); display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center;">
     <span>
-        @if (ShowCharged)
+        @if (ChargedHasTheAreas)
         {
-            @if (ChargedInControl)
-            {
-                <text>
-                    <b>Charged</b> is in control — the <span style="color:#7fd1ff;">blue areas</span> are
-                    the batteries' own schedule; SessyWeb's plan is the dashed orange/green line.
-                </text>
-            }
-            else
-            {
-                <text>
-                    <b>SessyWeb</b> is in control — the orange/green areas are our plan; the dashed
-                    <span style="color:#7fd1ff;">blue line</span> is what Charged would have done.
-                </text>
-            }
+            <text>
+                <b>Charged</b> is in control — the <span style="color:#7fd1ff;">blue areas</span> are
+                the batteries' own schedule.
+            </text>
+        }
+        else if (ChargedInControl)
+        {
+            <text>
+                <b>Charged</b> is in control — the orange/green areas are the SessyWeb plan.
+            </text>
+        }
+        else
+        {
+            <text>
+                <b>SessyWeb</b> is in control — the orange/green areas are our plan.
+            </text>
+        }
 
+        @if (ShowOurShadow)
+        {
+            <text> SessyWeb's plan is the dashed orange/green line.</text>
+        }
+
+        @if (ShowChargedShadow)
+        {
+            <text>
+                The dashed <span style="color:#7fd1ff;">blue line</span> is what Charged would have done.
+            </text>
+        }
+
+        @* Under Charged the freshness of their schedule explains what is on screen, so it is shown
+           there whether or not the comparison is switched on. *@
+        @if (ShowOther || ChargedInControl)
+        {
             @if (ChargedScheduleFetchedAt != null)
             {
                 <text> Charged's schedule read at @ChargedScheduleFetchedAt.Value.ToString("HH:mm").</text>
@@ -48,21 +68,14 @@
                 <text> No schedule received from the batteries yet.</text>
             }
         }
-        else
-        {
-            <text>
-                <b>@(ChargedInControl ? "Charged" : "SessyWeb")</b> is in control. The orange/green
-                areas are the SessyWeb plan.
-            </text>
-        }
     </span>
 
     @* Off by default — the comparison is something you ask for. *@
-    <RadzenCheckBox Value="@ShowCharged"
+    <RadzenCheckBox Value="@ShowOther"
                     TValue="bool"
-                    Change="@((bool value) => ToggleCharged(value))"
-                    Name="showCharged" />
-    <RadzenLabel Text="Show Charged" Component="showCharged" Style="font-size: 0.85em;" />
+                    Change="@((bool value) => ToggleOther(value))"
+                    Name="showOther" />
+    <RadzenLabel Text="@($"Show {OtherName}")" Component="showOther" Style="font-size: 0.85em;" />
 </div>
 
 <div class="now-chart" style="width: 100%; overflow: auto;">
@@ -216,9 +229,10 @@
             </ChildContent>
         </RadzenAreaSeries>
 
-        @* Our own plan as filled areas — only while SessyWeb is the one executing it. Under
-           Charged the same numbers come back below as a dashed shadow line. *@
-        <RadzenAreaSeries Visible="@(!ShowCharged || !ChargedInControl)"
+        @* Our own plan as filled areas — while SessyWeb is the one executing it, and as the
+           fallback when Charged drives but sent us no schedule. Otherwise the same numbers come
+           back below as a dashed shadow line. *@
+        <RadzenAreaSeries Visible="@WeHaveTheAreas"
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
@@ -235,7 +249,7 @@
             </ChildContent>
         </RadzenAreaSeries>
 
-        <RadzenAreaSeries Visible="@(!ShowCharged || !ChargedInControl)"
+        <RadzenAreaSeries Visible="@WeHaveTheAreas"
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
@@ -252,9 +266,9 @@
             </ChildContent>
         </RadzenAreaSeries>
 
-        @* Charged's own schedule. Same colours as the plan areas above so charging still reads as
-           orange below zero and discharging as green above it. *@
-        <RadzenAreaSeries Visible="@(ShowCharged && ChargedInControl)"
+        @* Charged's own schedule as filled areas whenever they are the ones executing it — the
+           sign convention is the same, so charging still reads below zero and discharging above. *@
+        <RadzenAreaSeries Visible="@ChargedHasTheAreas"
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
@@ -271,7 +285,7 @@
             </ChildContent>
         </RadzenAreaSeries>
 
-        <RadzenAreaSeries Visible="@(ShowCharged && ChargedInControl)"
+        <RadzenAreaSeries Visible="@ChargedHasTheAreas"
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
@@ -290,7 +304,7 @@
 
         @* The mirror image: while SessyWeb executes, Charged's own schedule is the road not taken.
            Same dashed treatment, so whichever plan is not being executed reads as a shadow. *@
-        <RadzenLineSeries Visible="@(ShowCharged && !ChargedInControl)"
+        <RadzenLineSeries Visible="@ShowChargedShadow"
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
@@ -308,7 +322,7 @@
             </ChildContent>
         </RadzenLineSeries>
 
-        <RadzenLineSeries Visible="@(ShowCharged && !ChargedInControl)"
+        <RadzenLineSeries Visible="@ShowChargedShadow"
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
@@ -327,7 +341,7 @@
         </RadzenLineSeries>
 
         @* What SessyWeb would have done instead — the price of handing over control, in one line. *@
-        <RadzenLineSeries Visible="@(ShowCharged && ChargedInControl)"
+        <RadzenLineSeries Visible="@ShowOurShadow"
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
@@ -345,7 +359,7 @@
             </ChildContent>
         </RadzenLineSeries>
 
-        <RadzenLineSeries Visible="@(ShowCharged && ChargedInControl)"
+        <RadzenLineSeries Visible="@ShowOurShadow"
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
@@ -434,14 +448,16 @@
 
         @* Both SOC forecasts, so the two strategies can be compared on the same axis. Red is the
            SOC that is actually going to happen, blue the shadow, and solid/dotted says the same
-           thing again — so exactly one red line is on the chart whoever is driving.
+           thing again — so exactly one red line is on the chart whoever is driving, and the shadow
+           only appears with the comparison switched on.
            Ours stays meaningful under Charged: it is re-anchored on the measured SOC every rebuild,
            so it reads as "what we would do from here", not as a prediction of what will happen. *@
-        <RadzenLineSeries Data="@QuarterlyInfos"
+        <RadzenLineSeries Visible="@(WeHaveTheAreas || ShowOurShadow)"
+                          Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Stroke="@(ShowCharged && !WeAreInControl ? "#7fd1ff" : "red")"
-                          LineType="@(ShowCharged && !WeAreInControl ? LineType.Dotted : LineType.Solid)"
+                          Stroke="@(ShowOurShadow ? "#7fd1ff" : "red")"
+                          LineType="@(ShowOurShadow ? LineType.Dotted : LineType.Solid)"
                           Title="⟨SessyWeb⟩ charge remaining (kWh)"
                           ValueProperty="ChargeLeftVisual">
             <TooltipTemplate Context="data">
@@ -453,12 +469,12 @@
             </ChildContent>
         </RadzenLineSeries>
 
-        <RadzenLineSeries Visible="@(ShowCharged && HasChargedSchedule)"
+        <RadzenLineSeries Visible="@(ChargedHasTheAreas || ShowChargedShadow)"
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Stroke="@(ChargedInControl ? "red" : "#7fd1ff")"
-                          LineType="@(ChargedInControl ? LineType.Solid : LineType.Dotted)"
+                          Stroke="@(ChargedHasTheAreas ? "red" : "#7fd1ff")"
+                          LineType="@(ChargedHasTheAreas ? LineType.Solid : LineType.Dotted)"
                           Title="⟨Charged⟩ charge remaining (kWh)"
                           ValueProperty="ChargedChargeLeftVisual">
             <TooltipTemplate Context="data">
