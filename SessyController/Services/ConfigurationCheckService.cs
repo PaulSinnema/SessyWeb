@@ -4,6 +4,7 @@ using SessyCommon.Configurations;
 using SessyCommon.Services;
 using SessyController.Interfaces;
 using SessyController.Services.Statistics;
+using SessyData.Model;
 using SessyData.Services;
 
 namespace SessyController.Services
@@ -23,6 +24,9 @@ namespace SessyController.Services
         private readonly IMilpService _milpService;
         private readonly SettingsService _settingsService;
         private readonly PlannerLearningService _plannerLearningService;
+        private readonly InvestmentDataService _investmentDataService;
+        private readonly InvestmentGroupDataService _investmentGroupDataService;
+        private readonly SystemCapabilitiesService _capabilities;
 
         public ConfigurationCheckService(
             IConfiguration configuration,
@@ -33,8 +37,14 @@ namespace SessyController.Services
             IOptions<HeatPumpConfig> heatPumpConfig,
             IMilpService milpService,
             SettingsService settingsService,
-            PlannerLearningService plannerLearningService)
+            PlannerLearningService plannerLearningService,
+            InvestmentDataService investmentDataService,
+            InvestmentGroupDataService investmentGroupDataService,
+            SystemCapabilitiesService capabilities)
         {
+            _investmentDataService = investmentDataService;
+            _investmentGroupDataService = investmentGroupDataService;
+            _capabilities = capabilities;
             _configuration = configuration;
             _taxesDataService = taxesDataService;
             _gasPricesDataService = gasPricesDataService;
@@ -54,6 +64,7 @@ namespace SessyController.Services
             await CheckTaxesConfiguration(checks);
             await CheckGasPricesHistory(checks);
             CheckHeatPumpConfiguration(checks);
+            await CheckInvestmentsHaveTheirSavingsSource(checks);
             CheckSettingsExtremes(checks);
             CheckPlannerLearning(checks);
             await CheckPlanStatus(checks).ConfigureAwait(false);
@@ -227,6 +238,71 @@ namespace SessyController.Services
                 Description = $"Annual gas consumption: {_heatPumpConfig.AnnualGasConsumptionM3:F0} m³/year, " +
                               $"installed: {_heatPumpConfig.InstallationDate:dd-MM-yyyy}."
             });
+        }
+
+        /// <summary>
+        /// An investment counts its cost in the payback period whether or not the thing that
+        /// produces its savings is configured. Drop HeatPumpConfig and a heat pump worth thousands
+        /// keeps its cost and loses its savings, so the payback period on the Statistics page grows
+        /// with nothing on screen saying why. Same for a solar investment with no inverter.
+        /// </summary>
+        private async Task CheckInvestmentsHaveTheirSavingsSource(List<ConfigurationCheck> checks)
+        {
+            if (!_heatPumpConfig.IsConfigured)
+            {
+                double heatPumpEur = await NetInvestmentInCategoryAsync(InvestmentCategory.HeatPump);
+
+                if (heatPumpEur > 0)
+                {
+                    checks.Add(new ConfigurationCheck
+                    {
+                        Severity = CheckSeverity.Warning,
+                        Title = "Heat pump investment counted without its savings",
+                        Description = $"€ {heatPumpEur:F0} of heat pump investment is included in the payback " +
+                                      "period, but without a HeatPumpConfig section in appsettings.json its " +
+                                      "savings count as € 0/year — the payback period shown is too long. " +
+                                      "Add HeatPumpConfig, or remove the investment.",
+                        ActionLabel = "Go to Investments"
+                    });
+                }
+            }
+
+            if (!_capabilities.HasSolar)
+            {
+                double solarEur = await NetInvestmentInCategoryAsync(InvestmentCategory.Solar);
+
+                if (solarEur > 0)
+                {
+                    checks.Add(new ConfigurationCheck
+                    {
+                        Severity = CheckSeverity.Warning,
+                        Title = "Solar investment counted without an inverter",
+                        Description = $"€ {solarEur:F0} of solar investment is included in the payback period, " +
+                                      "but no inverter is configured in the PowerSystems section of " +
+                                      "appsettings.json, so no new production is recorded. Savings stop " +
+                                      "accruing while the cost keeps counting.",
+                        ActionLabel = "Go to Investments"
+                    });
+                }
+            }
+        }
+
+        /// <summary>Net (after subsidy) investment booked to groups of the given category.</summary>
+        private async Task<double> NetInvestmentInCategoryAsync(InvestmentCategory category)
+        {
+            var groups = await _investmentGroupDataService.GetList(async set =>
+                await Task.FromResult(set.ToList()));
+
+            var groupIds = groups.Where(g => g.Category == category).Select(g => g.Id).ToHashSet();
+
+            if (groupIds.Count == 0) return 0.0;
+
+            var investments = await _investmentDataService.GetList(async set =>
+                await Task.FromResult(set.ToList()));
+
+            return investments
+                .Where(i => i.InvestmentGroupId.HasValue && groupIds.Contains(i.InvestmentGroupId.Value))
+                .Sum(i => i.AmountEur - i.SubsidyEur);
         }
 
         /// <summary>

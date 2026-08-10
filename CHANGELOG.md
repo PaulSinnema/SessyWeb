@@ -11,6 +11,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.85] — 2026-08-10
+
+### Added
+- **Tips & Checks** now warns when an investment is counted in the payback period while the thing
+  that produces its savings is not configured: a heat pump investment without a `HeatPumpConfig`
+  section, or a solar investment without an inverter under `PowerSystems`. The cost keeps counting
+  and the savings read €0/year, which stretches the payback period with nothing on screen saying
+  why.
+
 ## [v1.0.84] — 2026-08-10
 
 ### Added
