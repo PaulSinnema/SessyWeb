@@ -60,7 +60,7 @@ namespace SessyTests.Services
             _timeZoneMock = new Mock<TimeZoneService>(MockBehavior.Loose, timeZoneSettings);
             _timeZoneMock.Setup(t => t.Now).Returns(new DateTime(2026, 5, 31, 12, 0, 0));
 
-            var heatPumpConfig = Options.Create(new HeatPumpConfig
+            var heatPumpConfig = Monitor(new HeatPumpConfig
             {
                 AnnualGasConsumptionM3 = 950,
                 GasPriceEurPerM3 = 1.45,
@@ -69,7 +69,7 @@ namespace SessyTests.Services
             });
             var settingsServiceMock = new Mock<SettingsService>(MockBehavior.Loose, null!, null!, null!, null!, Options.Create(new SettingsConfig()));
             settingsServiceMock.SetupGet(s => s.Current).Returns(new Settings());
-            var powerSystemsConfig = Options.Create(new PowerSystemsConfig());
+            var powerSystemsConfig = Monitor(new PowerSystemsConfig());
 
             // Mock via interfaces — avoids constructor issues with complex service dependencies.
             var epexPricesServiceMock = new Mock<IEPEXPricesService>();
@@ -128,6 +128,14 @@ namespace SessyTests.Services
                 _solarDataMock.Object,
                 NewLogger());
         }
+
+        /// <summary>
+        /// The service takes IOptionsMonitor so an edit to appsettings.json reaches it without a
+        /// restart; a test only needs a fixed value back. OnChange returns null on this mock, which
+        /// the service tolerates.
+        /// </summary>
+        private static IOptionsMonitor<T> Monitor<T>(T value) where T : class =>
+            Mock.Of<IOptionsMonitor<T>>(m => m.CurrentValue == value);
 
         /// <summary>Logger for the timing line the service writes; nothing under test reads it.</summary>
         private static LoggingService<EnergyStatisticsService> NewLogger() =>
@@ -446,7 +454,7 @@ namespace SessyTests.Services
 
             var settingsServiceMock2 = new Mock<SettingsService>(MockBehavior.Loose, null!, null!, null!, null!, Options.Create(new SettingsConfig()));
             settingsServiceMock2.SetupGet(s => s.Current).Returns(new Settings { StatisticsFromDate = fromDate });
-            var heatPumpConfig = Options.Create(new HeatPumpConfig());
+            var heatPumpConfig = Monitor(new HeatPumpConfig());
             var energyHistoryMock = new Mock<EnergyHistoryDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
             // Cumulative meter readings whose deltas give 150/150/100/100 Wh import per quarter.
             // A seed reading 15 min before the first flow makes the first delta correct.
@@ -462,7 +470,7 @@ namespace SessyTests.Services
                 });
             var epexMock = new Mock<EPEXPricesDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
             var groupMock2 = new Mock<InvestmentGroupDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
-            var powerSystemsConfig = Options.Create(new PowerSystemsConfig());
+            var powerSystemsConfig = Monitor(new PowerSystemsConfig());
 
             var epexPricesServiceMock2 = new Mock<IEPEXPricesService>();
             epexPricesServiceMock2.Setup(s => s.CurrentGasPriceEurPerM3).Returns((double?)null);

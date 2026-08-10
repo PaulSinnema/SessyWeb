@@ -24,7 +24,7 @@ namespace SessyController.Services
     ///   QuarterlyMeasurement.BatteryPowerWatts           — Watts; negative=charging, positive=discharging
     ///   QuarterlyMeasurement.BatteryStateOfChargeWh      — Wh
     /// </summary>
-    public class EnergyStatisticsService
+    public class EnergyStatisticsService : IDisposable
     {
         private readonly QuarterlyMeasurementDataService _measurementDataService;
         private readonly InvestmentDataService _investmentDataService;
@@ -32,10 +32,10 @@ namespace SessyController.Services
         private readonly EPEXPricesDataService _epexDataService;
         private readonly InvestmentGroupDataService _groupService;
         private readonly TimeZoneService _timeZoneService;
-        private readonly HeatPumpConfig _heatPumpConfig;
+        private HeatPumpConfig _heatPumpConfig;
         private Settings _settingsConfig;
         private readonly SettingsService _settingsService;
-        private readonly PowerSystemsConfig _powerSystemsConfig;
+        private PowerSystemsConfig _powerSystemsConfig;
         private readonly IEPEXPricesService _epexPricesService;
         private readonly IGasPricesDataService _gasPricesDataService;
         private readonly ConsumptionDataService _consumptionDataService;
@@ -58,9 +58,9 @@ namespace SessyController.Services
                                        EPEXPricesDataService epexDataService,
                                        InvestmentGroupDataService groupService,
                                        TimeZoneService timeZoneService,
-                                       IOptions<HeatPumpConfig> heatPumpConfig,
+                                       IOptionsMonitor<HeatPumpConfig> heatPumpConfigMonitor,
                                        SettingsService settingsService,
-                                       IOptions<PowerSystemsConfig> powerSystemsConfig,
+                                       IOptionsMonitor<PowerSystemsConfig> powerSystemsConfigMonitor,
                                        IEPEXPricesService epexPricesService,
                                        IGasPricesDataService gasPricesDataService,
                                        ConsumptionDataService consumptionDataService,
@@ -80,11 +80,35 @@ namespace SessyController.Services
             _epexDataService = epexDataService;
             _groupService = groupService;
             _timeZoneService = timeZoneService;
-            _heatPumpConfig = heatPumpConfig.Value;
             _settingsConfig = settingsService.Current;
             _settingsService = settingsService;
             settingsService.SettingsChanged += (s, _) => _settingsConfig = s;
-            _powerSystemsConfig = powerSystemsConfig.Value;
+
+            // IOptionsMonitor, not IOptions: appsettings.json is watched and re-read while the app
+            // runs, and IOptions hands out a value frozen at first resolution. A HeatPumpConfig
+            // section added or removed then reached every other service but not the figures here,
+            // where it silently changes the payback period until the next restart.
+            _heatPumpConfig = heatPumpConfigMonitor.CurrentValue;
+            _powerSystemsConfig = powerSystemsConfigMonitor.CurrentValue;
+
+            // OnChange returns null when the source cannot be watched (and on a mock in tests).
+            Subscribe(heatPumpConfigMonitor.OnChange(config =>
+            {
+                _heatPumpConfig = config;
+                OnConfigurationChanged();
+            }));
+
+            Subscribe(powerSystemsConfigMonitor.OnChange(config =>
+            {
+                _powerSystemsConfig = config;
+                OnConfigurationChanged();
+            }));
+
+            void Subscribe(IDisposable? subscription)
+            {
+                if (subscription != null)
+                    _configSubscriptions.Add(subscription);
+            }
             _epexPricesService = epexPricesService;
             _gasPricesDataService = gasPricesDataService;
             _consumptionDataService = consumptionDataService;
@@ -95,6 +119,48 @@ namespace SessyController.Services
             _planVsActualService = planVsActualService;
             _inverterMeasurementDataService = inverterMeasurementDataService;
             _solarDataDataService = solarDataDataService;
+        }
+
+        // ── Configuration reload ─────────────────────────────────────────────
+
+        private readonly List<IDisposable> _configSubscriptions = new();
+
+        /// <summary>
+        /// Raised after appsettings.json changed and the cached averages were dropped, so an open
+        /// Statistics page can rebuild instead of showing figures from the previous configuration.
+        /// </summary>
+        public event Action? ConfigurationChanged;
+
+        private DateTime _lastConfigChange = DateTime.MinValue;
+
+        /// <summary>
+        /// File watchers report a single save more than once, and a rebuild here walks the history
+        /// month by month, so changes closer together than this are treated as one.
+        /// </summary>
+        private static readonly TimeSpan ConfigChangeDebounce = TimeSpan.FromSeconds(2);
+
+        private void OnConfigurationChanged()
+        {
+            var now = _timeZoneService.Now;
+
+            if (now - _lastConfigChange < ConfigChangeDebounce) return;
+
+            _lastConfigChange = now;
+
+            // The seasonal averages are scaled by the forecast annual production, which reads the
+            // panel configuration — keeping them would answer with the old sections.
+            lock (_seasonalCache)
+                _seasonalCache.Clear();
+
+            ConfigurationChanged?.Invoke();
+        }
+
+        public void Dispose()
+        {
+            foreach (var subscription in _configSubscriptions)
+                subscription.Dispose();
+
+            _configSubscriptions.Clear();
         }
 
         /// <summary>

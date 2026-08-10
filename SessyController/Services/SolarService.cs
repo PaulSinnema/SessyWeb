@@ -36,7 +36,11 @@ namespace SessyController.Services
 
         private IServiceScopeFactory _serviceScopeFactory { get; set; }
 
-        private PowerSystemsConfig _powerSystemsConfig { get; set; }
+        // Monitor rather than IOptions, so panels added to appsettings.json reach the forecast
+        // without a restart.
+        private IOptionsMonitor<PowerSystemsConfig> _powerSystemsConfigMonitor { get; set; }
+        private PowerSystemsConfig _powerSystemsConfig => _powerSystemsConfigMonitor.CurrentValue;
+
         private TimeZoneService _timeZoneService { get; set; }
 
         // Exponentially smoothed performance factor — avoids wild swings from
@@ -57,7 +61,7 @@ namespace SessyController.Services
         public SolarService(IConfiguration configuration,
                             TimeZoneService timeZoneService,
                             LoggingService<SolarEdgeInverterService> logger,
-                            IOptions<PowerSystemsConfig> powerSystemsConfig,
+                            IOptionsMonitor<PowerSystemsConfig> powerSystemsConfigMonitor,
                             BatteryContainer batteryContainer,
                             WeatherService weatherService,
                             EPEXPricesService epexPricesService,
@@ -70,7 +74,7 @@ namespace SessyController.Services
             _configuration = configuration;
             _timeZoneService = timeZoneService;
             _logger = logger;
-            _powerSystemsConfig = powerSystemsConfig.Value;
+            _powerSystemsConfigMonitor = powerSystemsConfigMonitor;
             _weatherService = weatherService;
             _batteryContainer = batteryContainer;
             _epexPricesService = epexPricesService;

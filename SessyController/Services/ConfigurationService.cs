@@ -5,11 +5,14 @@ namespace SessyController.Services
 {
     public class ConfigurationService
     {
-        private PowerSystemsConfig? _powerSystemConfig { get; set; }
+        // Monitor rather than IOptions, so an edit to appsettings.json lands without a restart.
+        private readonly IOptionsMonitor<PowerSystemsConfig> _powerSystemConfigMonitor;
 
-        public ConfigurationService(IOptions<PowerSystemsConfig> powerSystemsConfig)
+        private PowerSystemsConfig _powerSystemConfig => _powerSystemConfigMonitor.CurrentValue;
+
+        public ConfigurationService(IOptionsMonitor<PowerSystemsConfig> powerSystemsConfigMonitor)
         {
-            _powerSystemConfig = powerSystemsConfig.Value;
+            _powerSystemConfigMonitor = powerSystemsConfigMonitor;
         }
 
         public Dictionary<string, SessyCommon.Configurations.Endpoint> GetPowerSystemEndpoints(string endpointName)

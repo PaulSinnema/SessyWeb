@@ -13,19 +13,24 @@ namespace SessyController.Services
     public class SessyService
     {
         private readonly IHttpClientFactory _httpClientFactory;
-        private readonly SessyBatteryConfig _batteryConfig;
+
+        // Monitor rather than IOptions: BatteryContainer rebuilds its list on every config change,
+        // so a frozen copy here would look up endpoints that no longer match those batteries.
+        private readonly IOptionsMonitor<SessyBatteryConfig> _batteryConfigMonitor;
+        private SessyBatteryConfig _batteryConfig => _batteryConfigMonitor.CurrentValue;
+
         private readonly TimeZoneService _timeZoneService;
         private readonly ControlModeService _controlMode;
         private readonly LoggingService<SessyService> _logger;
 
         public SessyService(LoggingService<SessyService> logger,
                             IHttpClientFactory httpClientFactory,
-                            IOptions<SessyBatteryConfig> batteryConfig,
+                            IOptionsMonitor<SessyBatteryConfig> batteryConfigMonitor,
                             TimeZoneService timeZoneService,
                             ControlModeService controlMode)
         {
             _httpClientFactory = httpClientFactory;
-            _batteryConfig = batteryConfig.Value;
+            _batteryConfigMonitor = batteryConfigMonitor;
             _timeZoneService = timeZoneService;
             _controlMode = controlMode;
 

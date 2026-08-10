@@ -673,6 +673,22 @@ melden netjes "niet geconfigureerd"). Bijvangst: `P1MeterContainer.AddMeters` ri
 lege sectie werd er aangevuld in plaats van geleegd. Tests: `NoSolarConfigurationTests` (6).
 Totaal 295.
 
+**`IOptions` bevriest, `IOptionsMonitor` niet (v1.0.86).** `EnergyStatisticsService` nam
+`IOptions<HeatPumpConfig>` en `IOptions<PowerSystemsConfig>`. `IOptions<T>` is een singleton met een
+waarde die bij de eerste resolutie wordt vastgezet — óók voor nieuwe scopes — dus een sectie die je
+tijdens bedrijf toevoegt of weghaalt bereikte elke andere dienst wél en de statistiek niet, terwijl
+het daar stilletjes de terugverdientijd verandert. Nu monitor + `OnChange`, met drie dingen die niet
+vanzelf goed gaan: de seizoenscache (6 u) wordt geleegd, want die schaalt op de paneelconfiguratie;
+`OnChange` vuurt twee keer per save (filewatcher), dus een debounce van 2 s; en de service is
+`AddScoped` — in Blazor Server leeft een scope zolang het circuit — dus de abonnementen moeten weg
+via `IDisposable`, anders houdt elke gesloten tab een dood object in leven. De pagina luistert op
+`ConfigurationChanged` en herbouwt met de periode die hij toont. Meegenomen in dezelfde sweep, zelfde
+patroon: `ConfigurationCheckService`, `ConfigurationService`, `SessyService` (bevroren
+batterij-endpoints terwijl `BatteryContainer` zijn lijst wél herbouwt), `SolarService`,
+`SolarEdgeInverterService` en `WeatherService`. Bewust *niet*: `TimeZoneService`, `SettingsService`
+en `DbHelper` — die lezen bootstrap-waarden (tijdzone, connection string, backupmap) die pas bij een
+herstart betekenis hebben.
+
 **UI laat weg wat je niet hebt (v1.0.83).** Zonder zonnepanelen heeft de Solar-pagina geen inhoud en
 staan er in Statistics vijf kaarten die alleen nul kunnen zijn. Eén definitie: `PowerSystemsConfig.HasSolar`
 (minstens één omvormer geconfigureerd), uitgeserveerd door `SystemCapabilitiesService` (singleton, leest

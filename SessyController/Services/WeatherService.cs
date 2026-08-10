@@ -16,7 +16,11 @@ namespace SessyController.Services
         private SolarDataService _solarDataService { get; set; }
         private LoggingService<SessyService> _logger { get; set; }
         private TimeZoneService _timeZoneService { get; set; }
-        private WeatherExpectancyConfig _WeatherExpectancyConfig { get; set; }
+
+        // Monitor rather than IOptions, so a corrected location or API key applies on the next
+        // fetch instead of at the next restart.
+        private IOptionsMonitor<WeatherExpectancyConfig> _weatherExpectancyConfigMonitor { get; set; }
+        private WeatherExpectancyConfig _WeatherExpectancyConfig => _weatherExpectancyConfigMonitor.CurrentValue;
 
         private WeerData? WeatherData { get; set; }
 
@@ -26,13 +30,13 @@ namespace SessyController.Services
                               TimeZoneService timeZoneService,
                               IHttpClientFactory httpClientFactory,
                               SolarDataService solarDataService,
-                              IOptions<WeatherExpectancyConfig> sunExpectancyConfig)
+                              IOptionsMonitor<WeatherExpectancyConfig> sunExpectancyConfigMonitor)
         {
             _logger = logger;
             _timeZoneService = timeZoneService;
             _httpClientFactory = httpClientFactory;
             _solarDataService = solarDataService;
-            _WeatherExpectancyConfig = sunExpectancyConfig.Value;
+            _weatherExpectancyConfigMonitor = sunExpectancyConfigMonitor;
         }
 
         private SemaphoreSlim WeatherDataSemaphore = new SemaphoreSlim(1);

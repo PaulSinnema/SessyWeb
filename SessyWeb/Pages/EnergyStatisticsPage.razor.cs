@@ -28,11 +28,42 @@ namespace SessyWeb.Pages
 
         protected override async Task OnInitializedAsync()
         {
+            _statisticsService!.ConfigurationChanged += OnConfigurationChanged;
+
             await LoadStatisticsAsync(null);
         }
 
+        /// <summary>
+        /// Editing appsettings.json changes what the figures mean — a removed HeatPumpConfig turns
+        /// its investment into pure cost, which stretches the payback period. Rebuild rather than
+        /// leave the previous configuration's numbers on screen.
+        /// </summary>
+        private void OnConfigurationChanged()
+        {
+            // Fired from the configuration file watcher's thread, so hop to the circuit first.
+            _ = InvokeAsync(async () =>
+            {
+                if (!IsComponentActive) return;
+
+                await LoadStatisticsAsync(_lastArgs);
+            });
+        }
+
+        public override void Dispose()
+        {
+            if (_statisticsService != null)
+                _statisticsService.ConfigurationChanged -= OnConfigurationChanged;
+
+            base.Dispose();
+        }
+
+        /// <summary>The period the page is showing, so a rebuild keeps it.</summary>
+        private DateArgs? _lastArgs;
+
         private async Task LoadStatisticsAsync(DateArgs? args)
         {
+            _lastArgs = args;
+
             IsLoading = true;
             StateHasChanged();
 

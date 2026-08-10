@@ -20,7 +20,11 @@ namespace SessyController.Services.InverterServices
     public class SolarEdgeInverterService : SunspecInverterService
     {
         private readonly IHttpClientFactory _httpClientFactory;
-        private readonly SolarEdgeCloudConfig _cloudConfig;
+
+        // Monitor rather than IOptions: filling in SiteId/ApiKey turns the cloud fallback on, and
+        // that should not wait for a restart.
+        private readonly IOptionsMonitor<SolarEdgeCloudConfig> _cloudConfigMonitor;
+        private SolarEdgeCloudConfig _cloudConfig => _cloudConfigMonitor.CurrentValue;
         private readonly LoggingService<SolarEdgeInverterService> _logger;
         private readonly TimeZoneService _timezoneService;
 
@@ -36,14 +40,14 @@ namespace SessyController.Services.InverterServices
                                         IHttpClientFactory httpClientFactory,
                                         SettingsService settingsService,
                                         IOptionsMonitor<PowerSystemsConfig> powerSystemsConfig,
-                                        IOptions<SolarEdgeCloudConfig> cloudConfig,
+                                        IOptionsMonitor<SolarEdgeCloudConfig> cloudConfigMonitor,
                                         IServiceScopeFactory serviceScopeFactory)
             : base(logger, "SolarEdge", httpClientFactory, settingsService, powerSystemsConfig, serviceScopeFactory)
         {
             _logger = logger;
             _timezoneService = timezoneService;
             _httpClientFactory = httpClientFactory;
-            _cloudConfig = cloudConfig.Value;
+            _cloudConfigMonitor = cloudConfigMonitor;
         }
 
         /// <summary>

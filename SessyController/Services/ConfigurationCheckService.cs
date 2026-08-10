@@ -20,7 +20,10 @@ namespace SessyController.Services
         private readonly IGasPricesDataService _gasPricesDataService;
         private readonly IEPEXPricesService _epexPricesService;
         private readonly TimeZoneService _timeZoneService;
-        private readonly HeatPumpConfig _heatPumpConfig;
+        // Monitor rather than IOptions: the checks must reflect appsettings.json as it is now, not
+        // as it was when this service was first resolved.
+        private readonly IOptionsMonitor<HeatPumpConfig> _heatPumpConfigMonitor;
+        private HeatPumpConfig _heatPumpConfig => _heatPumpConfigMonitor.CurrentValue;
         private readonly IMilpService _milpService;
         private readonly SettingsService _settingsService;
         private readonly PlannerLearningService _plannerLearningService;
@@ -34,7 +37,7 @@ namespace SessyController.Services
             IGasPricesDataService gasPricesDataService,
             IEPEXPricesService epexPricesService,
             TimeZoneService timeZoneService,
-            IOptions<HeatPumpConfig> heatPumpConfig,
+            IOptionsMonitor<HeatPumpConfig> heatPumpConfigMonitor,
             IMilpService milpService,
             SettingsService settingsService,
             PlannerLearningService plannerLearningService,
@@ -50,7 +53,7 @@ namespace SessyController.Services
             _gasPricesDataService = gasPricesDataService;
             _epexPricesService = epexPricesService;
             _timeZoneService = timeZoneService;
-            _heatPumpConfig = heatPumpConfig.Value;
+            _heatPumpConfigMonitor = heatPumpConfigMonitor;
             _milpService = milpService;
             _settingsService = settingsService;
             _plannerLearningService = plannerLearningService;

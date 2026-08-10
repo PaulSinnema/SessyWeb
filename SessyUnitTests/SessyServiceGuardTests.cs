@@ -47,7 +47,7 @@ namespace SessyTests.Services
             factory.Setup(f => f.CreateClient(It.IsAny<string>()))
                    .Returns(() => new HttpClient(handler, disposeHandler: false));
 
-            var batteryConfig = Options.Create(new SessyBatteryConfig
+            var config = new SessyBatteryConfig
             {
                 Batteries = new Dictionary<string, SessyBatteryEndpoint>
                 {
@@ -58,7 +58,11 @@ namespace SessyTests.Services
                         Password = "password"
                     }
                 }
-            });
+            };
+
+            // IOptionsMonitor, not IOptions: the service re-reads it so a config edit lands without
+            // a restart. A fixed value back is all a test needs.
+            var batteryConfig = Mock.Of<IOptionsMonitor<SessyBatteryConfig>>(m => m.CurrentValue == config);
 
             var settings = new Settings { ChargedInControl = charged, ManualOverride = manual };
 

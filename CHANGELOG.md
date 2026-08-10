@@ -11,6 +11,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.86] — 2026-08-10
+
+### Fixed
+- Editing `appsettings.json` while the app runs did not reach the **Statistics** page: it read the
+  configuration once at startup and kept that copy, so adding or removing a section (a heat pump,
+  an inverter) only showed up after a restart. The page now rebuilds itself when the file changes,
+  and the cached seasonal averages are dropped with it. The same freeze is gone from Tips & Checks,
+  the battery API client, the solar forecast, the SolarEdge cloud fallback and the weather service.
+
 ## [v1.0.85] — 2026-08-10
 
 ### Added
