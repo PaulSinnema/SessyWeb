@@ -8,6 +8,8 @@
 
 Everything runs locally. The database is a SQLite file on your own disk; the only outbound calls are for prices and weather.
 
+What changed per version is in [CHANGELOG.md](CHANGELOG.md).
+
 > [!IMPORTANT]
 > SessyWeb actively controls your batteries and can throttle or shut down your solar inverter. Run it at your own risk. Start with **Charged in control** ticked — SessyWeb then only watches and records while your batteries keep running on their own schedule — and hand control over once the charts look right.
 >

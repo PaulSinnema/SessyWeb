@@ -40,6 +40,7 @@ Migrations are applied automatically at startup in `SessyWeb/Program.cs` (`dbCon
 
 - **Do not run git operations** (commit, push, branch) — local edits only unless explicitly asked.
 - **Bump the version on every change**: increment the patch in `SessyCommon/AppInfo.cs` (`public const string Version = "v1.0.x";`). MainLayout shows it and `Program.cs` writes it into the `AppVersions` table at startup, so this is the only place to edit.
+- **Add a `CHANGELOG.md` entry with that same bump**, newest version at the top, grouped as Added/Changed/Fixed/Removed. Keep it to what a user notices, in English, a few lines per version — the reasoning, the measurements and the rejected alternatives belong in this file instead. A change with nothing observable (a refactor, a test) still gets its version bump but needs no changelog entry.
 - Comments and log messages are a mix of English and Dutch; match the surrounding file.
 - Region separators use the `// ── Name ─────` box-drawing style.
 
