@@ -74,6 +74,22 @@ namespace SessyController.Services.StateMachine
 
         private EnergySystemAction EvaluateCurtailment(EnergySystemInput input)
         {
+            // Nothing here can be executed without an inverter that accepts a setpoint. Not merely a
+            // missed throttle: FORCE_CHARGE below draws maximum power from the grid precisely because
+            // it assumes the inverter has been shut down, so pretending would be worse than the
+            // negative price. Same fallback the offline branch already uses.
+            if (!input.CurtailmentIsPossible)
+            {
+                return new EnergySystemAction
+                {
+                    BatteryMode = input.PlannedMode,
+                    BatterySetpointW = input.PlannedSetpointW,
+                    CurtailmentMode = CurtailmentMode.None,
+                    Reason = "Selling price negative but the solar source cannot be throttled — following the MILP plan",
+                    IsOverride = false
+                };
+            }
+
             // ZERO_EXPORT: battery is actually charging (includes NZH autonomous charging).
             // Keep the battery in its planned mode (Charging or NZH).
             // Inverter is P1-throttled — InverterCurtailmentService handles the control loop.

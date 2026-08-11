@@ -202,6 +202,9 @@ builder.Services.AddSingleton<ISolarInverterService, GoodWeInverterService>();
 builder.Services.AddSingleton<ISolarInverterService, HuaweiInverterService>();
 builder.Services.AddSingleton<ISolarInverterService, SungrowInverterService>();
 builder.Services.AddSingleton<ISolarInverterService, VictronInverterService>();
+// Reads PV from the Sessy batteries themselves — for households whose inverter cannot be read.
+builder.Services.AddSingleton<SessyInverterService>();
+builder.Services.AddSingleton<ISolarInverterService>(provider => provider.GetRequiredService<SessyInverterService>());
 
 // SettingsService must start first — all other background services depend on Settings.Current.
 builder.Services.AddHostedService(provider => provider.GetRequiredService<SettingsService>());

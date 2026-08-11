@@ -11,6 +11,45 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.101] — 2026-08-11
+
+### Fixed
+- The solar source was reported as unreachable every night. Nothing reads the panels after sunset, so
+  the health check saw a stale timestamp and called it an outage — **Tips & Checks** warned about a
+  failure that was simply nightfall. Availability is no longer judged outside daylight.
+- That warning also said "inverter" when solar is measured through the Sessy batteries, sending you
+  off to check hardware that is not part of the setup. It now names the source you actually use.
+
+## [v1.0.100] — 2026-08-11
+
+### Added
+- The Sessy solar source can be told **which batteries** carry the CT clamps, with an optional
+  `Batteries` field on the endpoint. Leave it out and every battery is read and added up, which is
+  right when only one has clamps. Name a subset when several Sessys see the *same* clamps, otherwise
+  that production is counted twice. It takes battery keys from `Sessy:Batteries`, not addresses.
+- **Tips & Checks** names any battery in that field that does not exist. A selection matching nothing
+  reads no solar at all rather than quietly falling back to every battery.
+
+## [v1.0.99] — 2026-08-11
+
+### Added
+- **Solar can now be measured through the Sessy batteries** instead of an inverter. Every Sessy
+  already reports what it sees on its CT clamps; that reading was only ever displayed. Configure it
+  with the provider key `Sessy` under `PowerSystems` and the Solar page, the statistics, the forecast
+  and — the point of the exercise — the daytime consumption figures all start working without a
+  readable inverter (issue #4). See the README for the configuration.
+- **Tips & Checks** covers the new source: both sources configured at once, no curtailment while the
+  Sessy is the source, no production seen for over an hour of daylight (the CT clamps are not around
+  the PV group), and readings above the configured array capacity.
+
+### Changed
+- Configuring both `Sessy` and an inverter now uses only the Sessy. They measure the same panels, so
+  running both would count every Watt twice.
+- At negative prices the battery now simply follows the plan when the solar source cannot be
+  throttled. Previously the same branch charged at full power from the grid *because* it assumed the
+  inverter had been switched off — an assumption that does not hold for a read-only source. Nothing
+  changes for an inverter, including an unreachable one.
+
 ## [v1.0.98] — 2026-08-11
 
 ### Fixed

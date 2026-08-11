@@ -95,6 +95,13 @@ namespace SessyController.Services.StateMachine
         /// <summary>True when the solar inverter is reachable via Modbus.</summary>
         public virtual bool InverterIsAvailable { get; protected set; }
 
+        /// <summary>
+        /// True when the solar source can be throttled at all. A read-only source (the Sessy CT
+        /// clamps) measures production but cannot reduce it, so every curtailment branch has to fall
+        /// back to the plan instead of commanding an inverter that will never hear it.
+        /// </summary>
+        public virtual bool CurtailmentIsPossible { get; protected set; }
+
         /// <summary>True after LoadAsync() completes successfully.</summary>
         public virtual bool IsLoaded { get; protected set; }
 
@@ -133,6 +140,7 @@ namespace SessyController.Services.StateMachine
             MaxChargeSetpointW = _hardwareStatus.MaxChargeSetpointW;
             ActualBatteryPowerW = _hardwareStatus.ActualBatteryPowerW;
             InverterIsAvailable = _hardwareStatus.InverterIsAvailable;
+            CurtailmentIsPossible = _hardwareStatus.CurtailmentIsPossible;
 
             IsLoaded = true;
         }

@@ -69,6 +69,9 @@ namespace SessyTests.Services
                 double plannedSetpointW,
                 double maxChargeSetpointW) : base(null!, null!, null!, null!)
             {
+                // These tests are about pricing, not about the solar source — a throttleable
+                // inverter is the situation they were written for.
+                CurtailmentIsPossible = true;
                 SellingPriceEurPerKWh = sellingPriceEurPerKWh;
                 ActualBatteryPowerW = actualBatteryPowerW;
                 CurrentSocWh = currentSocWh;

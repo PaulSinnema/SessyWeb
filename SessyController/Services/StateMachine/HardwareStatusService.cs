@@ -82,6 +82,12 @@ namespace SessyController.Services.StateMachine
         public bool InverterIsAvailable { get; private set; }
 
         /// <summary>
+        /// True when the active solar source can actually be throttled. False for a read-only source
+        /// such as the Sessy CT clamps — a capability, not a reachability check.
+        /// </summary>
+        public bool CurtailmentIsPossible { get; private set; }
+
+        /// <summary>
         /// Current inverter setpoint in Watts as last commanded.
         /// double.MaxValue = full output (no curtailment).
         /// Derived from SolarInverterManager._lastWattsSet — survives across
@@ -156,6 +162,7 @@ namespace SessyController.Services.StateMachine
             try
             {
                 InverterIsAvailable = _solarInverterManager.IsAvailable;
+                CurtailmentIsPossible = _solarInverterManager.CurtailmentIsPossible;
                 TotalInverterCapacityW = _solarInverterManager.TotalCapacity;
                 ActualSolarPowerW = await _solarInverterManager.GetActualSolarPowerInWatts().ConfigureAwait(false);
                 CurrentInverterSetpointW = _solarInverterManager.LastSetpointW ?? double.MaxValue;

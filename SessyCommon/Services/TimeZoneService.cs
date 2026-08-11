@@ -49,7 +49,8 @@ namespace SessyCommon.Services
 #endif
 
         /// <summary>Gets the sunlight level for the given coordinates.</summary>
-        public SunlightLevel GetSunlightLevel(double latitude, double longitude)
+        // Virtual for the same reason as Now: tests need to place the sun where they want it.
+        public virtual SunlightLevel GetSunlightLevel(double latitude, double longitude)
         {
             DateTimeZone zone = DateTimeZoneProviders.Tzdb[_currentTimezone];
             ZonedDateTime now = SystemClock.Instance.InZone(zone).GetCurrentZonedDateTime();

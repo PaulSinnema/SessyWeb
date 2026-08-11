@@ -3,6 +3,7 @@ using SessyCommon.Configurations;
 using SessyCommon.Services;
 using SessyController.Interfaces;
 using SessyController.Services;
+using SessyController.Services.InverterServices;
 using SessyData.Model;
 
 namespace SessyController.Managers
@@ -45,6 +46,15 @@ namespace SessyController.Managers
         /// where 0 W is the right answer; outside daylight it is the right answer regardless.
         /// AllAvailable, not IsAvailable: this backs a sum, so one missing inverter is enough.
         /// </summary>
+        /// <summary>
+        /// True when at least one active inverter can actually be throttled. False for a read-only
+        /// source such as the Sessy CT clamps, and everything that curtails must then fall back
+        /// instead of commanding into the void.
+        ///
+        /// No inverter at all also yields false, which is correct: there is nothing to curtail.
+        /// </summary>
+        public bool CurtailmentIsPossible => _activeInverterServices.Any(s => s.SupportsCurtailment);
+
         public bool SolarIsMeasurable =>
             AllAvailable ||
             _timeZoneService.GetSunlightLevel(_settingsConfig.Latitude, _settingsConfig.Longitude)
@@ -115,11 +125,30 @@ namespace SessyController.Managers
             // panels. That leaves the list empty, which every member here already handles.
             var endpoints = _powerSystemsConfig?.Endpoints;
 
-            _activeInverterServices = endpoints == null
+            var active = endpoints == null
                 ? new List<ISolarInverterService>()
                 : inverterServices
                     .Where(inverterService => endpoints.ContainsKey(inverterService.ProviderName))
                     .ToList();
+
+            // One source or the other, never both: the Sessy CT clamps and an inverter measure the
+            // same panels, so running them together would double every reading. Sessy wins because
+            // it is the deliberate choice — nobody configures it by accident.
+            var sessy = active.FirstOrDefault(s => s.ProviderName == SessyInverterService.SessyProviderName);
+
+            if (sessy != null && active.Count > 1)
+            {
+                var dropped = active.Where(s => s != sessy).Select(s => s.ProviderName);
+
+                _logger.LogWarning($"PowerSystems configures both '{SessyInverterService.SessyProviderName}' and " +
+                                   $"{string.Join(", ", dropped)}. They measure the same panels, so only " +
+                                   $"'{SessyInverterService.SessyProviderName}' is used. Note that curtailment at " +
+                                   "negative prices needs an inverter and is therefore unavailable.");
+
+                active = new List<ISolarInverterService> { sessy };
+            }
+
+            _activeInverterServices = active;
         }
 
         public async Task<double> GetTotalACPowerInWatts()
@@ -183,9 +212,18 @@ namespace SessyController.Managers
         /// last successful Modbus read. This avoids making a new Modbus connection
         /// that would conflict with the Process() loop reading every second and
         /// cause "Connection reset by peer" flip-flop behavior.
+        ///
+        /// Outside daylight nothing is judged: every source stops reading when the sun is down, so a
+        /// stale timestamp proves darkness, not a fault. Without this the source is marked offline
+        /// every night and back online every morning, and Tips & Checks reports an outage that is
+        /// simply nightfall.
         /// </summary>
-        private Task CheckAvailabilityAsync()
+        public Task CheckAvailabilityAsync()
         {
+            if (_timeZoneService.GetSunlightLevel(_settingsConfig.Latitude, _settingsConfig.Longitude)
+                != SolCalc.Data.SunlightLevel.Daylight)
+                return Task.CompletedTask;
+
             foreach (var service in _activeInverterServices)
             {
                 bool wasAvailable = service.IsAvailable;
@@ -223,8 +261,10 @@ namespace SessyController.Managers
 
         public async Task ThrottleInverterToWatts(double watts)
         {
-            // Nothing to throttle is not a configuration error — it is a house without panels.
-            if (_activeInverterServices.Count == 0)
+            // Nothing to throttle is not a configuration error — it is a house without panels, or a
+            // read-only source. Return before LastSetpointW is touched, otherwise the UI would show
+            // a throttle percentage for a command that never left the building.
+            if (_activeInverterServices.Count == 0 || !CurtailmentIsPossible)
                 return;
 
             if (TotalCapacity <= 0.0)
@@ -234,6 +274,9 @@ namespace SessyController.Managers
             {
                 foreach (var service in _activeInverterServices)
                 {
+                    if (!service.SupportsCurtailment)
+                        continue; // Read-only source — nothing to write to.
+
                     if (!service.IsAvailable)
                     {
                         // Skip unavailable inverters — cannot throttle via Modbus.

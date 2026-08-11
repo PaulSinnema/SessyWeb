@@ -879,6 +879,124 @@ een klein interface zitten. Staat als openstaand punt 6.
 precies de takken die niets zeggen — hier de lege meterlijst — en verwerpt het de takken die wél
 zouden schreeuwen. Zoek bij zo'n melding eerst naar de stille paden.
 
+## Gebouwd 11-08 (v1.0.101) — health-check verklaarde de nacht tot storing
+
+Eerste echte draai met de Sessy-bron, om 22:21: Tips & Checks meldde *"Inverter configured but
+unreachable"*. Config was goed; de melding was fout, en hij legt openstaand punt 8 meteen bloot.
+
+**Waarom hij nu pas vuurt.** `SunspecInverterService.Start` draait zijn lus inline, dus
+`SolarInverterManager.ExecuteAsync` kwam nooit voorbij de `foreach` aan `RunHealthCheckLoopAsync` —
+punt 8. `SessyInverterService.Start` keert wél meteen terug (`Task.Run`), dus met de Sessy-bron draait
+de health-check voor het eerst in de geschiedenis van dit project.
+
+**En dan blijkt hij stuk.** `CheckAvailabilityAsync` toetst `Now - LastSuccessfulReadUtc < 60s`, maar
+élke bron stopt met lezen buiten daglicht (`Process()` gaat dan vroeg terug). Na zonsondergang
+veroudert die stempel dus vanzelf en wordt de bron na 30 s offline verklaard — 's ochtends weer
+online. Bij `LastSuccessfulReadUtc = DateTime.MinValue` (nog nooit gelezen) is het meteen raak.
+Nu: buiten daglicht wordt er niets beoordeeld. Een verouderde stempel bewijst duisternis, geen
+storing.
+
+Twee dingen die hieruit volgen:
+- **De melding noemde het verkeerde apparaat.** "Inverter" terwijl er geen omvormer in de opstelling
+  zit stuurt de lezer hardware controleren die er niet is. De tekst kiest nu op
+  `ActiveInverterServices` welke bron hij noemt.
+- **`TimeZoneService.GetSunlightLevel` is `virtual`** geworden, zelfde reden als `Now`: anders is dit
+  alleen met de echte klok te testen en dus tijdsafhankelijk flaky. `CheckAvailabilityAsync` is
+  `public` — precedent `SumRenewablePhases`/`ClampToCapacity`/`ChargeCostBasisService.Project`.
+
+Let op de asymmetrie die blijft staan: met een Modbus-bron draait de health-check nog steeds niet
+(punt 8 is niet opgelost), met de Sessy-bron wel. Tests: 2 erbij in `SessySolarTests` (20, de nacht-
+en de daglichtkant). Totaal 340.
+
+## Gebouwd 11-08 (v1.0.100) — welke Sessy's de zon meten
+
+`Endpoint.Batteries` (`List<string>?`, optioneel): welke batterijen de CT-klemmen dragen, met de
+sleutels uit `Sessy:Batteries:Batteries`. **Geen adressen** — die blijven op één plek staan.
+De defaultsituatie verandert niet: afwezig of leeg = alle batterijen optellen, wat klopt zolang
+alleen één Sessy klemmen heeft (een Sessy zonder klemmen rapporteert 0 W). Het veld is er voor het
+enige geval waarin optellen fout is: meerdere Sessy's die dezelfde klemmen zien. De `InverterMaxCapacity`-
+klem betrapt dat alleen dicht bij piek (zie v1.0.99, punt 2), dus dit is de expliciete uitweg.
+
+Twee beslissingen die niet vanzelf goed gaan:
+1. **Leeg ≠ niets.** Een afwezig of leeg filter betekent *alle* batterijen; een filter dat op niets
+   matcht betekent *geen enkele*. `SelectBatteryIds` (statisch, puur, `out HashSet<string>? selectedIds`)
+   drukt dat verschil uit met `null` tegen een lege set. Vier tests dekken de vier gevallen.
+2. **Een typefout valt niet terug op "alles".** Matcht het filter niets, dan leest de bron niets en
+   zet hij `IsAvailable = false` — dus de consumption-sample wordt overgeslagen (v1.0.98) in plaats
+   van als 0 W opgeslagen. Terugvallen op alle batterijen zou precies de reden negeren waarom iemand
+   een subset opschrijft. Onbekende sleutels staan bij naam in Tips & Checks; stil overslaan is de
+   fout van v1.0.82 die een halve dag zoeken kostte.
+
+Tests: 5 erbij in `SessySolarTests` (18). Totaal 338.
+
+## Gebouwd 11-08 (v1.0.99) — zon meten via de Sessy's
+
+Vervolg op v1.0.98: dat verklaarde waarom consumption overdag leegblijft (geen PV-bron), maar loste
+niets op. De Sessy meet zelf: `PowerStatus.RenewableEnergyPhase1/2/3` (`SessyService.cs:282-295`),
+CT-klemmen om de PV-groep. Dat veld bestond al en werd **alleen getoond**
+(`BatteryInfoComponent.razor:73-79`), nergens gebruikt.
+
+`SessyInverterService : ISolarInverterService` maakt er een volwaardige bron van. De interface was de
+juiste plek: consumption, `HardwareStatusService`, de statistiek, SolarPowerPage en de
+performance-factor hoeven geen van alle te weten waar het getal vandaan komt.
+
+**Configuratie is de provider-key `"Sessy"` binnen `PowerSystems:Endpoints`**, niet een nieuwe sectie.
+Dat erft `HasSolar` (de UI-gating van v1.0.83), de `SolarPanels`-geometrie die `SolarService` voor de
+forecast nodig heeft — die is nodig ongeacht hóé je meet — `InverterMeasurements` per provider, en
+`InverterMaxCapacity` als cap. `IpAddress`/`Port`/`SlaveId` blijven leeg.
+
+**Er komt geen IP-adres bij.** De bron leest `BatteryContainer.Batteries`, dus de adressen en
+credentials uit `Sessy:Batteries` — een tweede plek zou een tweede waarheid zijn. Hij neemt ze
+**allemaal** en telt op. Let op de valkuil in de configvorm: de binnenste sleutel (`"1"`) onder
+`Endpoints:Sessy` is **geen batterijnummer** maar alleen het label dat als `InverterId` in
+`InverterMeasurements` belandt. Dat het er precies uitziet als een batterij-id is een neveneffect van
+het hergebruiken van `Endpoint`; het is bij het eerste lezen al misgegaan. Aanwijzen wélke Sessy kan
+sinds v1.0.100 met `Endpoint.Batteries` — zie hieronder.
+
+Vier dingen die niet vanzelf goed gaan:
+1. **Optellen over batterijen mag, dankzij een meting.** Om 21:38 (donker) rapporteerde batterij 1
+   stroom op de renewable-CT's (166/119/144 mA) en batterij 2 en 3 exact 0 mA — spanning meten alle
+   drie, die komt van de netaansluiting. Een Sessy zónder klemmen draagt dus exact 0 bij en de som
+   klopt. **Nog te bevestigen bij daglicht**; tot dan is dit een aanwijzing, geen bewijs.
+2. **De cap is eenzijdig bewijs.** `InverterMaxCapacity` klemt de som en telt de overschrijdingen
+   (`ClampToCapacity`, statisch en puur). Boven de cap bewíjst dubbeltelling — fysiek onmogelijk —
+   maar eronder bewijst niets: drie batterijen die elk een echte 1500 W zien halen 4500 W en blijven
+   onder 5000. Daarom klemmen én melden, en de cap níet gebruiken om de combinatieregel te kiezen.
+   Vastgelegd in `Double_counting_below_the_cap_is_not_detected`.
+3. **Curtailment zit volledig aan de Modbus-kant** — `InverterCurtailmentService` →
+   `ThrottleInverterToWatts` → `ThrottleInverterToPercentage`. Nieuw:
+   `ISolarInverterService.SupportsCurtailment` → `SolarInverterManager.CurtailmentIsPossible` →
+   `HardwareStatusService` → `EnergySystemInput` → een terugval bovenaan `EvaluateCurtailment`.
+   Niet alleen een gemiste throttle: **FORCE_CHARGE laadt vol uit het net omdát het aanneemt dat de
+   omvormer op 0 W staat** (`EnergySystemStateMachine.cs:127-135`). Bewust een **capaciteits**-check
+   en geen bereikbaarheidscheck, zodat een offline Modbus-omvormer exact het oude gedrag houdt —
+   `PriceNegative_CurtailmentPossible_ButInverterOffline_KeepsTheOldFallback` legt dat vast.
+   `ThrottleInverterToWatts` keert vroeg terug vóór `LastSetpointW` wordt gezet, anders toont de UI
+   een throttlepercentage voor een opdracht die nooit verstuurd is.
+4. **Óf-óf, niet allebei.** `FillActiveInverterServices` laat bij `"Sessy"` + een Modbus-provider
+   alleen Sessy staan, met één Warning die beide noemt. Niet gooien — config wijzigt tijdens bedrijf
+   (`OnChange`, v1.0.86).
+
+`StoreData` is uit `SunspecInverterService` getrokken naar `InverterMeasurementWriter`
+(`Services/Items/`, gewone klasse, geen DI). Zonder dat schrijft de Sessy-bron wél een goed live
+getal en een lege historie: SolarPowerPage, de statistiek en
+`SolarService.CalculateHistoricalPerformanceFactorAsync` lezen allemaal die tabel.
+
+Tips & Checks: beide bronnen tegelijk (Error), geen curtailment zolang Sessy de bron is (Warning),
+een uur daglicht op 0 W (Error — klemmen zitten niet om de PV-groep; **consecutief** geteld, want
+dageraad en schemer lezen legitiem nul), en cap-overschrijdingen (Error).
+
+**Nog niet gemeten, en dat is de kern van wat open staat:** `renewable_energy_phase*` wordt nergens
+bewaard, dus er is geen historie om achteraf op te toetsen — alleen live bemonsteren. Deze
+installatie heeft *beide* bronnen, dus de ijking is de Sessy-som per kwartier naast de
+SolarEdge-waarde in `InverterMeasurements`. Zie openstaand punt 9. Tests: `SessySolarTests` (13) en
+5 nieuwe in `EnergySystemStateMachineTests`. Totaal 333.
+
+Bijvangst, niet aangeraakt: `SmaInverterService` en `SolisInverterService` staan **niet** in
+`Program.cs` (alleen SolarEdge, Enphase, GoodWe, Huawei, Sungrow, Victron). Wie `"SMA"` of `"Solis"`
+configureert krijgt stil niets — `FillActiveInverterServices` filtert op wat DI aanlevert, dus die
+provider bestaat simpelweg niet. Zelfde klasse als issue #4: geen fout, geen log, geen data.
+
 ## Gebouwd 11-08 (v1.0.98) — issue #4 heropend: consumption alleen bij netto import
 
 Melder (HindrikDeelstra) na v1.0.96/97: consumption-rijen bestaan **exact** in het venster waarin er
@@ -980,12 +1098,31 @@ naar `SessyWeb`). Totaal blijft 315.
    daarna niet blokkeren) zijn de stukken die een test verdienen zodra die drie een interface
    krijgen. Zelfde patroon als `ChargeCostBasisService.Project` en `ChargedScheduleService.ToQuarters`:
    de pure kern eruit trekken, dan pas testen.
-7. **Issue #4 loopt nog: de melder heeft geen PV-bron in SessyWeb.** v1.0.98 verklaart en meldt het,
-   maar lost het niet op — overdag blijft zijn verbruik onmeetbaar zolang de zonproductie nergens
-   vandaan komt. Twee wegen: zijn omvormer onder `PowerSystems` (welk merk is niet bekend; er zijn
-   negen `InverterServices`), of PV via de Sessy uitlezen. Dat laatste stond al open als "PV via
-   Sessy is in onderzoek" en is niet nagekeken — de P1-respons (`P1Details`) heeft géén PV-veld,
-   alleen `power_consumed`/`power_produced` van het net.
+7. **Issue #4: de Sessy-bron is gebouwd (v1.0.99) maar bij de melder niet bevestigd.** Vraag hem de
+   provider-key `"Sessy"` te configureren en dan Tips & Checks; die noemt alle faalgevallen bij naam.
+   Werkt het niet, dan is de vraag of zijn Sessy's CT-klemmen om de PV-groep hebben — zonder die
+   bedrading meet ook de Sessy niets en is er geen tweede weg (de P1-respues `P1Details` heeft géén
+   PV-veld, alleen `power_consumed`/`power_produced` van het net).
+8. **`SolarInverterManager.ExecuteAsync` bereikt zijn health-check nooit.** `SunspecInverterService.Start`
+   draait zijn eigen lus *inline* (regel 113-141, `while` binnen `Start`), en `ExecuteAsync` doet
+   `foreach { await service.Start(...) }` gevolgd door `RunHealthCheckLoopAsync`. Met één omvormer
+   geconfigureerd komt die tweede regel dus nooit aan de beurt. Gevolg: `CheckAvailabilityAsync` is de
+   enige plek die `ISolarInverterService.IsAvailable` zet, dus die blijft eeuwig op zijn default
+   `true`. Daarmee is **v1.0.98's `SolarIsMeasurable`-guard in de praktijk dood** voor Modbus-bronnen
+   — de bedoelde bescherming (een onbereikbare omvormer levert stil 0 W) treedt niet op, en
+   `SolarService.ApplyPerformanceFactor` en `InverterCurtailmentService` denken ook altijd dat de
+   omvormer online is. `SessyInverterService.Start` keert wél meteen terug (`Task.Run`), dus met de
+   Sessy-bron loopt de health-check wel. Fix is één regel, maar hij zet een keten aan die nog nooit
+   gedraaid heeft (omvormers die ineens als offline gemarkeerd worden) — eerst meten wat
+   `LastSuccessfulReadUtc` in productie doet, dan pas aanzetten. **Wat die keten doet is inmiddels
+   deels bekend**: bij de Sessy-bron vuurde hij meteen vals (v1.0.101, de nacht als storing). Reken
+   erop dat er meer boven komt zodra hij ook voor Modbus gaat draaien.
+9. **De Sessy-zonmeting is nooit tegen een referentie gelegd.** `renewable_energy_phase*` wordt
+   nergens bewaard, dus er valt niets retroactief te toetsen. Twee open vragen: (a) meet alleen
+   batterij 1 (aanwijzing uit de 21:38-meting) of meten meerdere dezelfde klemmen, en (b) hoe
+   verhoudt de Sessy-som zich tot de echte productie. Deze installatie heeft *beide* bronnen, dus de
+   ijking is de Sessy-som per kwartier naast de SolarEdge-waarde in `InverterMeasurements` — één
+   zonnige dag is genoeg. Doen vóórdat iemand anders erop gaat draaien.
 
 ## Diagnosed, niet-een-bug
 - Setpoint requested ≠ Setpoint: Sessy-hardware klemt/tapert zelf (CC/CV, SOC-afhankelijk). API meldt geen reden. `Battery.SetpointRequested` (ons) vs `Sessy.PowerSetpoint` (device).

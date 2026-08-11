@@ -14,6 +14,7 @@ namespace SessyTests.Services
     ///   BatteryIsActuallyCharging: true / false (hardware measurement, threshold -50W)
     ///   BatteryIsFull:             true / false (threshold 99.5% of capacity)
     ///   InverterIsAvailable:       true / false
+    ///   CurtailmentIsPossible:     true / false (false = read-only source, e.g. the Sessy CT clamps)
     ///   PlannedMode:               Charging / Discharging / ZeroNetHome / Disabled / Unknown
     ///
     /// InverterSetpointW semantics verified:
@@ -44,7 +45,8 @@ namespace SessyTests.Services
             bool inverterAvailable,
             Modes plannedMode,
             double plannedSetpointW = 4000.0,
-            double maxChargeSetpointW = 5000.0) =>
+            double maxChargeSetpointW = 5000.0,
+            bool curtailmentIsPossible = true) =>
             new TestInput(
                 priceNegative,
                 actualBatteryPowerW,
@@ -53,7 +55,8 @@ namespace SessyTests.Services
                 inverterAvailable,
                 plannedMode,
                 plannedSetpointW,
-                maxChargeSetpointW);
+                maxChargeSetpointW,
+                curtailmentIsPossible);
 
         /// <summary>
         /// Concrete test subclass of EnergySystemInput.
@@ -74,8 +77,12 @@ namespace SessyTests.Services
                 bool inverterIsAvailable,
                 Modes plannedMode,
                 double plannedSetpointW,
-                double maxChargeSetpointW = 5000.0) : base(null!, null!, null!, null!)
+                double maxChargeSetpointW = 5000.0,
+                bool curtailmentIsPossible = true) : base(null!, null!, null!, null!)
             {
+                // Default true: every existing case describes a household with a throttleable
+                // inverter, which is what the curtailment branches were written for.
+                CurtailmentIsPossible = curtailmentIsPossible;
                 _sellingPriceIsNegative = sellingPriceIsNegative;
                 ActualBatteryPowerW = actualBatteryPowerW;
                 _batteryIsActuallyCharging = actualBatteryPowerW < -50.0;
@@ -333,6 +340,76 @@ namespace SessyTests.Services
             _sut.Evaluate(Input(true, 0, HalfSoc, Capacity, true, Modes.ZeroNetHome));
             Assert.Equal(CurtailmentMode.Shutdown, _sut.CurrentAction.CurtailmentMode);
             Assert.Equal(Modes.Charging, _sut.CurrentAction.BatteryMode);
+        }
+
+        // ══════════════════════════════════════════════════════════════════════
+        // Curtailment is not possible at all — a read-only solar source such as the
+        // Sessy CT clamps. Every branch must fall back to the plan rather than command
+        // an inverter that will never hear it. FORCE_CHARGE is the dangerous one: it
+        // draws maximum power from the grid precisely because it assumes the inverter
+        // has been shut down.
+        // ══════════════════════════════════════════════════════════════════════
+
+        [Fact]
+        public void PriceNegative_NoCurtailmentPossible_Charging_FallsBackToPlan()
+        {
+            var action = _sut.Evaluate(Input(true, -3000, HalfSoc, Capacity, true, Modes.Charging, 4000,
+                                             curtailmentIsPossible: false));
+
+            Assert.Equal(Modes.Charging, action.BatteryMode);
+            Assert.Equal(4000, action.BatterySetpointW);
+            Assert.Equal(CurtailmentMode.None, action.CurtailmentMode);
+            Assert.False(action.IsOverride);
+        }
+
+        [Fact]
+        public void PriceNegative_NoCurtailmentPossible_BatteryFull_FallsBackToPlan()
+        {
+            var action = _sut.Evaluate(Input(true, 0, FullSoc, Capacity, true, Modes.ZeroNetHome,
+                                             curtailmentIsPossible: false));
+
+            Assert.Equal(Modes.ZeroNetHome, action.BatteryMode);
+            Assert.Equal(CurtailmentMode.None, action.CurtailmentMode);
+            Assert.False(action.IsOverride);
+        }
+
+        [Fact]
+        public void PriceNegative_NoCurtailmentPossible_NotFull_DoesNotForceChargeFromGrid()
+        {
+            var action = _sut.Evaluate(Input(true, 0, HalfSoc, Capacity, true, Modes.Discharging, 3000,
+                                             maxChargeSetpointW: 5000, curtailmentIsPossible: false));
+
+            Assert.Equal(Modes.Discharging, action.BatteryMode);
+            Assert.Equal(3000, action.BatterySetpointW);
+            Assert.NotEqual(CurtailmentMode.Shutdown, action.CurtailmentMode);
+            Assert.Equal(CurtailmentMode.None, action.CurtailmentMode);
+            Assert.False(action.IsOverride);
+        }
+
+        /// <summary>
+        /// Capability, not reachability: an offline Modbus inverter keeps exactly the behaviour it
+        /// had before CurtailmentIsPossible existed.
+        /// </summary>
+        [Fact]
+        public void PriceNegative_CurtailmentPossible_ButInverterOffline_KeepsTheOldFallback()
+        {
+            var action = _sut.Evaluate(Input(true, 0, HalfSoc, Capacity, false, Modes.ZeroNetHome,
+                                             curtailmentIsPossible: true));
+
+            Assert.Equal(Modes.ZeroNetHome, action.BatteryMode);
+            Assert.Equal(CurtailmentMode.None, action.CurtailmentMode);
+            Assert.False(action.IsOverride);
+        }
+
+        [Fact]
+        public void PriceNegative_CurtailmentPossible_NotFull_StillForcesCharge()
+        {
+            var action = _sut.Evaluate(Input(true, 0, HalfSoc, Capacity, true, Modes.ZeroNetHome,
+                                             curtailmentIsPossible: true));
+
+            Assert.Equal(Modes.Charging, action.BatteryMode);
+            Assert.Equal(CurtailmentMode.Shutdown, action.CurtailmentMode);
+            Assert.True(action.IsOverride);
         }
 
         [Fact]

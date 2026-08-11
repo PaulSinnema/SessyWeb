@@ -37,6 +37,17 @@ namespace SessyController.Interfaces
         bool SupportsFallback { get; }
 
         /// <summary>
+        /// True when ThrottleInverterToPercentage actually reaches the hardware. A read-only source
+        /// measures production but cannot reduce it, and curtailment at negative prices must not
+        /// silently do nothing — worse, FORCE_CHARGE charges from the grid at full power precisely
+        /// because it assumes the inverter has been shut down.
+        ///
+        /// This is a capability, not a reachability check: an offline Modbus inverter still reports
+        /// true, so nothing about the existing behaviour changes.
+        /// </summary>
+        bool SupportsCurtailment { get; }
+
+        /// <summary>
         /// Returns the current AC power output in Watts via the cloud API fallback.
         /// Only called when IsAvailable is false and SupportsFallback is true.
         /// Implementations should cache the result to avoid exceeding API rate limits.

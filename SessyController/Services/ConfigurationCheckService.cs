@@ -4,6 +4,7 @@ using SessyCommon.Configurations;
 using SessyCommon.Services;
 using SessyController.Interfaces;
 using SessyController.Managers;
+using SessyController.Services.InverterServices;
 using SessyController.Services.Items;
 using SessyController.Services.Statistics;
 using SessyData.Model;
@@ -43,6 +44,9 @@ namespace SessyController.Services
         private readonly ConsumptionDataService _consumptionDataService;
         private readonly SolarInverterManager _solarInverterManager;
         private readonly ConsumptionMonitorService _consumptionMonitorService;
+        private readonly SessyInverterService _sessyInverterService;
+        private readonly IOptionsMonitor<PowerSystemsConfig> _powerSystemsConfigMonitor;
+        private PowerSystemsConfig _powerSystemsConfig => _powerSystemsConfigMonitor.CurrentValue;
 
         public ConfigurationCheckService(
             IConfiguration configuration,
@@ -65,10 +69,14 @@ namespace SessyController.Services
             P1MeterContainer p1MeterContainer,
             ConsumptionDataService consumptionDataService,
             SolarInverterManager solarInverterManager,
-            ConsumptionMonitorService consumptionMonitorService)
+            ConsumptionMonitorService consumptionMonitorService,
+            SessyInverterService sessyInverterService,
+            IOptionsMonitor<PowerSystemsConfig> powerSystemsConfigMonitor)
         {
             _solarInverterManager = solarInverterManager;
             _consumptionMonitorService = consumptionMonitorService;
+            _sessyInverterService = sessyInverterService;
+            _powerSystemsConfigMonitor = powerSystemsConfigMonitor;
             _weatherConfigMonitor = weatherConfigMonitor;
             _p1ConfigMonitor = p1ConfigMonitor;
             _weatherService = weatherService;
@@ -97,6 +105,7 @@ namespace SessyController.Services
             CheckWeatherConfiguration(checks);
             CheckP1MeterConfiguration(checks);
             CheckBatteryConfiguration(checks);
+            CheckSolarSource(checks);
             CheckSolarMeasurement(checks);
             await CheckConsumptionHistory(checks);
             await CheckEneverToken(checks);
@@ -295,6 +304,92 @@ namespace SessyController.Services
         }
 
         /// <summary>
+        /// Which source measures the panels, and what that choice costs. The Sessy CT clamps and an
+        /// inverter see the same panels, so they are an either/or; and the Sessy can only measure,
+        /// which means curtailment at negative prices is gone. Both are worth saying out loud rather
+        /// than leaving in a log line nobody reads.
+        /// </summary>
+        private void CheckSolarSource(List<ConfigurationCheck> checks)
+        {
+            var providers = _powerSystemsConfig.Endpoints
+                .Where(ep => ep.Value.Count > 0)
+                .Select(ep => ep.Key)
+                .ToList();
+
+            bool sessyConfigured = providers.Contains(SessyInverterService.SessyProviderName);
+
+            if (!sessyConfigured)
+                return;
+
+            var others = providers.Where(p => p != SessyInverterService.SessyProviderName).ToList();
+
+            if (others.Count > 0)
+            {
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Error,
+                    Title = "Two solar sources configured",
+                    Description = $"PowerSystems declares both '{SessyInverterService.SessyProviderName}' and " +
+                                  $"{string.Join(", ", others)}. They measure the same panels, so counting both " +
+                                  "would double every reading — only the Sessy is used and the rest is ignored. " +
+                                  "Remove whichever you do not want, and note that curtailment needs the inverter."
+                });
+            }
+
+            checks.Add(new ConfigurationCheck
+            {
+                Severity = CheckSeverity.Warning,
+                Title = "Solar is measured through the Sessy — no curtailment",
+                Description = "The Sessy reports production from its CT clamps but cannot reduce it. At negative " +
+                              "prices the inverter is therefore not throttled: the battery absorbs what it can, " +
+                              "and anything above that is exported at the negative price. Configure the inverter " +
+                              "under PowerSystems if you want curtailment back."
+            });
+
+            if (_sessyInverterService.UnknownBatteryIds.Count > 0)
+            {
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Error,
+                    Title = "Solar reads from batteries that do not exist",
+                    Description = $"The Batteries field under PowerSystems:Endpoints:Sessy names " +
+                                  $"{string.Join(", ", _sessyInverterService.UnknownBatteryIds)}, which is not a key in " +
+                                  "Sessy:Batteries. Those entries select nothing. If none of the named batteries " +
+                                  "exists, no solar is read at all — deliberately, because quietly falling back to " +
+                                  "every battery would ignore the very reason for naming a subset. Remove the field " +
+                                  "to use all batteries."
+                });
+            }
+
+            if (_sessyInverterService.ConsecutiveDaylightZeroSamples >= SessyInverterService.DaylightZeroAlarmSamples)
+            {
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Error,
+                    Title = "Sessy reports no solar production",
+                    Description = $"Every battery has reported 0 W for over an hour of daylight, most recently " +
+                                  $"{_sessyInverterService.LastDaylightZeroAt:dd-MM-yyyy HH:mm}. The CT clamps are " +
+                                  "not around the PV group, so nothing is being measured and consumption looks " +
+                                  "exactly like a house without panels. Check the clamps on at least one Sessy."
+                });
+            }
+
+            if (_sessyInverterService.CapExceededSamples > 0)
+            {
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Error,
+                    Title = "Sessy solar exceeds the configured array capacity",
+                    Description = $"{_sessyInverterService.CapExceededSamples} reading(s) came out above " +
+                                  $"InverterMaxCapacity, most recently {_sessyInverterService.LastCapExceededAt:dd-MM-yyyy HH:mm}; " +
+                                  "they were clamped. More than the array can physically produce means either several " +
+                                  "Sessys are measuring the same CT clamps, or InverterMaxCapacity is set too low. " +
+                                  "Note that the reverse proves nothing: double counting below the cap is invisible."
+                });
+            }
+        }
+
+        /// <summary>
         /// Consumption is solar + grid + battery. Panels that SessyWeb cannot read leave the solar
         /// term at 0, which is invisible until the house exports: the sum then goes negative and the
         /// quarter is discarded, so consumption is recorded at night and missing all day (issue #4).
@@ -331,11 +426,19 @@ namespace SessyController.Services
 
             if (!_solarInverterManager.AllAvailable)
             {
+                // Name what is actually unreachable. "Inverter" is wrong for the Sessy source and
+                // sends the reader off to check an inverter that is not part of the setup.
+                bool viaSessy = _solarInverterManager.ActiveInverterServices
+                    .Any(s => s.ProviderName == SessyInverterService.SessyProviderName);
+
                 checks.Add(new ConfigurationCheck
                 {
                     Severity = CheckSeverity.Warning,
-                    Title = "Inverter configured but unreachable",
-                    Description = "An inverter is configured and is not answering. It reports 0 W while offline, so " +
+                    Title = viaSessy ? "Batteries not answering, so solar is not measured"
+                                     : "Inverter configured but unreachable",
+                    Description = (viaSessy
+                                      ? "Solar is measured through the Sessy batteries and none of them answered. "
+                                      : "An inverter is configured and is not answering. It reports 0 W while offline, so ") +
                                   "consumption samples are skipped during daylight rather than stored short by the " +
                                   "whole solar production. Expect gaps in the consumption history until it is back."
                 });

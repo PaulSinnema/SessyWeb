@@ -6,6 +6,7 @@ using SessyCommon.Extensions;
 using SessyCommon.Services;
 using SessyController.Interfaces;
 using SessyController.Providers;
+using SessyController.Services.Items;
 using SessyData.Model;
 using SessyData.Services;
 using Endpoint = SessyCommon.Configurations.Endpoint;
@@ -47,6 +48,7 @@ namespace SessyController.Services.InverterServices
 
         protected TimeZoneService _timeZoneService;
         private InverterMeasurementDataService _inverterMeasurementService;
+        private InverterMeasurementWriter _measurementWriter;
 
         // Serializes all Modbus operations to prevent transaction ID mismatches
         // when multiple callers (curtailment loop, power read loop) access the
@@ -80,6 +82,9 @@ namespace SessyController.Services.InverterServices
         public virtual Task<double> GetFallbackACPowerInWattsAsync()
             => Task.FromResult(0.0);
 
+        /// <summary>Modbus can write the active power limit, so curtailment reaches the hardware.</summary>
+        public virtual bool SupportsCurtailment => true;
+
         public SunspecInverterService(LoggingService<SolarEdgeInverterService> logger,
                                       string providerName,
                                       IHttpClientFactory httpClientFactory,
@@ -102,6 +107,7 @@ namespace SessyController.Services.InverterServices
             _tcpClientProvider = _scope.ServiceProvider.GetRequiredService<TcpClientProvider>();
             _timeZoneService = _scope.ServiceProvider.GetRequiredService<TimeZoneService>();
             _inverterMeasurementService = _scope.ServiceProvider.GetRequiredService<InverterMeasurementDataService>();
+            _measurementWriter = new InverterMeasurementWriter(_inverterMeasurementService, _timeZoneService);
         }
 
         public async Task Start(CancellationToken cancelationToken)
@@ -562,56 +568,7 @@ namespace SessyController.Services.InverterServices
         /// </summary>
         private async Task StoreData(Dictionary<string, Dictionary<DateTime, double>> collectedPowerData)
         {
-            var now = _timeZoneService.Now;
-
-            foreach (var collectionKeyValue in collectedPowerData)
-            {
-                var id = collectionKeyValue.Key;
-                var collection = collectionKeyValue.Value;
-
-                // Group all samples by their quarter-hour timestamp
-                var quarterGroups = collection
-                    .GroupBy(c => c.Key.DateFloorQuarter())
-                    .OrderBy(g => g.Key)
-                    .ToList();
-
-                foreach (var quarterGroup in quarterGroups)
-                {
-                    var quarter = quarterGroup.Key;
-
-                    var nextQuarter = quarter.AddMinutes(15);
-
-                    // Only store completed quarters
-                    if (now < nextQuarter)
-                        continue;
-
-                    var values = quarterGroup
-                            .Select(g => g.Value)
-                            .Where(v => !double.IsNaN(v) && !double.IsInfinity(v))
-                            .ToList();
-
-                    if (values.Count < 1)
-                        continue;
-
-                    var averagePower = values.Average() / 4000; // kWh per kwartier
-
-                    var entry = new InverterMeasurement
-                    {
-                        ProviderName = ProviderName,
-                        InverterId = id,
-                        Time = quarter,
-                        SolarProductionKWh = averagePower
-                    };
-
-                    await _inverterMeasurementService.Add(new List<InverterMeasurement> { entry });
-
-                    // Remove processed items from memory
-                    foreach (var item in quarterGroup)
-                    {
-                        collection.Remove(item.Key);
-                    }
-                }
-            }
+            await _measurementWriter.StoreAsync(ProviderName, collectedPowerData).ConfigureAwait(false);
         }
     }
 }

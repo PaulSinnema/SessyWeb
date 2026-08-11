@@ -209,9 +209,78 @@ Notes on the values:
 - `//` comments are allowed in these files; the loader ignores them.
 
 > [!NOTE]
-> **Only SolarEdge is supported.** The key under `PowerSystems:Endpoints` must be spelled exactly `SolarEdge`, or the inverter is silently skipped.
+> **Of the inverter brands, only SolarEdge is supported.** The key under `PowerSystems:Endpoints` must be spelled exactly `SolarEdge`, or the inverter is silently skipped. If you have another brand, read [Measuring solar through the Sessy](#measuring-solar-through-the-sessy-instead-of-an-inverter) below first — it needs no inverter at all.
 >
 > The source also contains skeleton drivers named `Sma`, `Enphase`, `Victron`, `Huawei`, `Sungrow`, `Solis` and `GoodWe`. They are thin subclasses of a generic SunSpec reader, have never been tested against real hardware, and are not supported. Use them only if you are prepared to debug them yourself — see [For developers](#for-developers).
+
+#### Measuring solar through the Sessy instead of an inverter
+
+**Why this exists.** Household consumption is not measured directly — it is calculated as `solar + grid + battery`. Leave the solar term out and the sum is not merely incomplete, it goes *negative* the moment the house exports, and those quarters are thrown away. The symptom is unmistakable: the **Consumption** page fills up at night and stays empty all day, exactly matching the hours your panels produce. That is what [issue #4](https://github.com/PaulSinnema/SessyWeb/issues/4) turned out to be.
+
+Every Sessy already measures PV on its own CT clamps, so if your inverter cannot be read over Modbus, the battery can supply the missing term.
+
+**Replace the inverter key with `Sessy`.** Nothing else about the section changes — the panel geometry stays, because that is what the solar forecast is built from, not the meter:
+
+```jsonc
+"PowerSystems": {
+  "Endpoints": {
+    // The key must be exactly "Sessy". The inner key ("1") is free; it only
+    // labels the source in the per-inverter production charts.
+    "Sessy": {
+      "1": {
+        "InverterMaxCapacity": 5000,
+        // Optional. Leave it out to read every battery and add them up.
+        // "Batteries": [ "1" ],
+        "SolarPanels": {
+          "1": {
+            "PanelCount": 10,
+            "Tilt": 35,
+            "PeakPowerPerPanel": 340,
+            "Efficiency": 0.82,
+            "TotalArea": 17,
+            "Orientation": 78,
+            "HighestDailySolarProduction": 15500
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+| Field | Needed? | What it does here |
+|---|---|---|
+| the inner key (`"1"`) | **yes** | A label, **not a battery number**. It only names the source in the per-inverter production charts. You do not select batteries here — see below. |
+| `InverterMaxCapacity` | **yes** | The most your array can produce, in Watts. Doubles as a sanity limit on the reading — see below. |
+| `Batteries` | no | Which batteries carry the CT clamps, by their key in `Sessy:Batteries`. Leave it out to read them all. |
+| `SolarPanels` | **yes** | Feeds the solar forecast. Same numbers as for an inverter; one numbered entry per roof face. |
+| `Interface`, `IpAddress`, `Port`, `SlaveId` | no | Modbus-only. Leave them out; they are never read. |
+
+**No IP address anywhere in this section.** The source reads the batteries you already declared under `Sessy:Batteries` — addresses and credentials stay in the one place they belong. It reads *every* configured battery and adds the readings together; there is nothing here that picks one.
+
+**Three things to know before you switch.**
+
+- **It is one or the other.** `Sessy` and an inverter key measure the same panels, so having both would count every Watt twice. When both are present, `Sessy` is used and the rest is ignored — with a warning in the log and on **Tips & Checks**, never silently.
+- **Curtailment is gone.** The Sessy reports production but cannot reduce it. At negative prices the inverter is therefore not throttled: the battery absorbs what it can, and anything beyond that is exported at the negative price. Only an inverter on Modbus can be turned down. **Tips & Checks** keeps a standing warning about this while the Sessy is the source.
+- **Check your CT clamps.** This only works if at least one Sessy has its clamps around the PV group. If none has, everything reads 0 W and the installation looks exactly like a house without panels — **Tips & Checks** flags it after an hour of daylight at zero. You can see the raw figures per battery on the battery card in the UI before you change anything.
+
+**On multiple Sessys**, the readings are added up. A Sessy without clamps reports exactly 0 W and adds nothing, so the default is right for the usual wiring where one battery carries the clamps.
+
+It goes wrong only when several Sessys see the *same* clamps: then the same production is counted twice. `InverterMaxCapacity` catches that — a total above it is clamped and reported on **Tips & Checks** — but only near peak production. Three batteries each reporting a real 1500 W add up to 4500 W and stay under a 5000 W cap unnoticed. So if your figures look consistently too high, name the battery that actually has the clamps:
+
+```jsonc
+"Sessy": {
+  "1": {
+    "InverterMaxCapacity": 5000,
+    "Batteries": [ "1" ],   // keys from Sessy:Batteries — still no addresses here
+    "SolarPanels": { /* ... */ }
+  }
+}
+```
+
+A key that does not exist under `Sessy:Batteries` is reported by name on **Tips & Checks**. If *none* of the named batteries exists, no solar is read at all — deliberately, because falling back to every battery would ignore the reason you named a subset in the first place.
+
+**Switching back** is symmetric: replace the `Sessy` key with `SolarEdge` and put `Interface`, `IpAddress`, `Port` and `SlaveId` back. Production already recorded under the other name stays in the database and keeps showing up in the charts, labelled by source.
 
 ### Step 5 — Write `secrets.json`
 
@@ -450,6 +519,8 @@ docker compose restart          # restart after editing appsettings.json
 | No prices, empty chart | Batteries unreachable **and** no ENTSO-E token. Check the log for `Day-ahead prices now come from ENTSO-E`, verify the token, and confirm the container can reach your batteries (`docker exec sessyweb curl -u <user>:<password> http://<battery-ip>/api/v1/power/status`). |
 | Prices look wrong / profit makes no sense | The **Taxes** page has not been filled in. The planner works on the all-in price, not the market price. |
 | Inverter not found | The key under `PowerSystems:Endpoints` must be exactly `SolarEdge` (case-sensitive), the IP must be right, and Modbus TCP must be enabled in the inverter itself. |
+| **Consumption** page fills at night, empty all day | Solar is not being measured, so `solar + grid + battery` goes negative whenever the house exports and those quarters are discarded. Configure a solar source — see [Measuring solar through the Sessy](#measuring-solar-through-the-sessy-instead-of-an-inverter) if your inverter cannot be read. **Tips & Checks** names the exact cause. |
+| Solar shows 0 W all day with the `Sessy` source | No Sessy has its CT clamps around the PV group; the battery is measuring nothing. Check the raw per-phase figures on the battery card. |
 | Battery does not react | On **Settings → Management Settings**, check **Charged in control** — if it is ticked, SessyWeb deliberately sends no commands. Refused writes are logged as warnings, so the log tells you which mode blocked them. |
 | SOC deviation warnings | Normal. The planner corrects every quarter. |
 | Container restarts or is killed | Out of memory — raise `mem_limit` (or the NAS memory limit) and check whether anything else on the machine is competing for RAM. |
@@ -521,6 +592,8 @@ The Dockerfile copies the five `.csproj` files before restoring, so that layer s
 ### Adding another inverter brand
 
 `SessyController/Services/InverterServices/` holds `SunspecInverterService`, a generic SunSpec Modbus reader, plus one small subclass per brand that does nothing but pass its provider name. Only `SolarEdgeInverterService` has brand-specific code and real-world mileage; the others are placeholders. Making one of them work means checking that brand's register map against the SunSpec base and overriding what differs. Pull requests welcome — say which inverter you tested against.
+
+A source does not have to be Modbus, or even an inverter: `SessyInverterService` implements the same `ISolarInverterService` from the batteries' own CT readings, and everything downstream — consumption, the statistics, the forecast, the production charts — works unchanged because none of it knows where the number came from. Two things such a source must get right: report `IsAvailable = false` rather than 0 W when it cannot read (0 W is indistinguishable from darkness in the consumption sum), and set `SupportsCurtailment = false` if it cannot throttle, so the state machine falls back to the plan instead of commanding hardware that will never hear it.
 
 ---
 
