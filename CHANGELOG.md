@@ -11,6 +11,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.98] — 2026-08-11
+
+### Fixed
+- An inverter that is configured but unreachable reports **0 W**, and consumption counted that as
+  darkness — so the household figure was short by the entire solar production without a single
+  error. Those samples are now skipped instead of stored wrong, with one log line when it starts.
+
+### Added
+- **Tips & Checks** now explains why the Consumption page is empty during the day while it fills up
+  at night (issue #4). Consumption is solar + grid + battery; with no inverter configured the solar
+  term is 0, so every quarter in which the house exports comes out negative and is discarded. The
+  check counts the discarded quarters and names the cause.
+- The log line for a discarded quarter now says *why* it was discarded instead of only that it was.
+
 ## [v1.0.97] — 2026-08-11
 
 ### Fixed

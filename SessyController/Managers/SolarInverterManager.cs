@@ -38,6 +38,19 @@ namespace SessyController.Managers
         public bool IsAvailable => _activeInverterServices.Any(s => s.IsAvailable);
 
         /// <summary>
+        /// True when a 0 W total means "not producing" instead of "not read". An unreachable
+        /// inverter reports 0 W while the roof keeps producing, and anything adding that up as a
+        /// measurement understates it silently — consumption is solar + grid + battery, so the
+        /// error lands entirely on the household. No inverter at all is a house without panels,
+        /// where 0 W is the right answer; outside daylight it is the right answer regardless.
+        /// AllAvailable, not IsAvailable: this backs a sum, so one missing inverter is enough.
+        /// </summary>
+        public bool SolarIsMeasurable =>
+            AllAvailable ||
+            _timeZoneService.GetSunlightLevel(_settingsConfig.Latitude, _settingsConfig.Longitude)
+                != SolCalc.Data.SunlightLevel.Daylight;
+
+        /// <summary>
         /// Returns the total current AC power in Watts across all inverters.
         /// Uses the primary (Modbus) value when available, falls back to cloud API
         /// per inverter when the primary channel is down and the inverter supports it.

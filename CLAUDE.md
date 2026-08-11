@@ -879,6 +879,48 @@ een klein interface zitten. Staat als openstaand punt 6.
 precies de takken die niets zeggen — hier de lege meterlijst — en verwerpt het de takken die wél
 zouden schreeuwen. Zoek bij zo'n melding eerst naar de stille paden.
 
+## Gebouwd 11-08 (v1.0.98) — issue #4 heropend: consumption alleen bij netto import
+
+Melder (HindrikDeelstra) na v1.0.96/97: consumption-rijen bestaan **exact** in het venster waarin er
+geen netto export is (20:30-06:45, plus één losse meting om 17:45 tijdens het koken). Zijn conclusie
+— "iets met een negatief getal uit de P1" — klopt, maar de oorzaak zit een stap eerder.
+
+`ConsumptionMonitorService.CalculateConsumption` rekent `solar + net + battery`. Zijn PV zit **niet**
+in SessyWeb (geen `PowerSystems`-sectie; "PV via Sessy" is nog onderzoek), dus
+`SolarInverterManager.GetTotalACPowerInWatts()` geeft 0 — geen exception, geen log. Zodra het huis
+exporteert is `net` negatief en groter dan de rest, komt de som onder nul, en gooit
+`StoreConsumption` het kwartier weg via de guard `averageConsumptionWh > 0`. 's Nachts is PV echt 0
+en klopt de som wél. Dat is precies het waargenomen patroon.
+**Dit is geen rekenfout maar een ontbrekende meting**: zonder PV-bron is het verbruik overdag
+onmeetbaar. Erger dan de lege rijen zijn de rijen die het wél haalden: bij netto import mét
+zonproductie wordt het kwartier **te laag** opgeslagen, en dat voedt de verbruiksvoorspelling. Daarom
+niet geklemd op 0 en niet alsnog opgeslagen — dat zou opzettelijk foute historie schrijven, dezelfde
+afweging als de `null`-in-plaats-van-partiële-som van v1.0.96.
+
+Wat er wél gerepareerd is, dezelfde klasse maar bij mij thuis óók actief:
+1. **Een onbereikbare omvormer levert stil 0 W.** `SunspecInverterService.GetTotalACPowerInWatts`
+   geeft `0.0` bij `!IsAvailable` (regel 216) en de manager telt dat op. In `CalculateConsumption`
+   was dat niet te onderscheiden van duisternis, dus het verbruik werd stilzwijgend de hele
+   zonproductie te laag opgeslagen — geen exception om te vangen. Nieuw:
+   `SolarInverterManager.SolarIsMeasurable` (= `AllAvailable`, of geen daglicht). `AllAvailable` en
+   niet `IsAvailable`, want dit schraagt een som: één ontbrekende omvormer is al genoeg. Nul
+   omvormers is een huis zonder panelen en blijft meetbaar (`All` op een lege lijst is `true`).
+   Onmeetbaar → `error = true` → sample overgeslagen, met één logregel op de overgang (de lus tikt
+   elke seconde). `IsAvailable` staat op de services default `true`, dus geen gat bij het opstarten.
+2. **De weggooi-regel noemt de oorzaak.** Was `Consumption is negative {x}. Cleared data`; noemt nu
+   het onderscheid tussen "geen omvormer geconfigureerd" en "alle drie gelezen maar tellen niet op".
+3. **Tips & Checks: `CheckSolarMeasurement`.** `ConsumptionMonitorService` telt de weggegooide
+   kwartieren (`NegativeConsumptionQuarters` / `LastNegativeConsumptionAt`) — dat is het enige
+   directe bewijs dat er een term ontbreekt, en op log-niveau Warning ziet de melder het wel maar
+   staat het niet in de UI. Drie takken: geen zon geconfigureerd + weggegooide kwartieren = Error
+   met de volledige uitleg; zon geconfigureerd maar onbereikbaar = Warning; alles gelezen en tóch
+   negatief = Warning die naar een niet-geconfigureerd apparaat wijst.
+
+Bewust niet gedaan: een check op basis van gemeten export uit `EnergyHistory`. De teller is directer
+bewijs (hij telt precies de kwartieren die de gebruiker mist) en kost geen query.
+Niet getest — `ConsumptionMonitorService` is nog steeds niet mockbaar, openstaand punt 6. Totaal
+blijft 315.
+
 ## Gebouwd 11-08 (v1.0.97) — issue #2: menu klapt bij elke klik dicht
 
 Melding van buiten (GitHub issue #2, HindrikDeelstra): het menu uitklappen met het icoon boven het
@@ -938,9 +980,12 @@ naar `SessyWeb`). Totaal blijft 315.
    daarna niet blokkeren) zijn de stukken die een test verdienen zodra die drie een interface
    krijgen. Zelfde patroon als `ChargeCostBasisService.Project` en `ChargedScheduleService.ToQuarters`:
    de pure kern eruit trekken, dan pas testen.
-7. **Issue #4 is nog niet bevestigd bij de melder.** v1.0.95/96 draaien alleen lokaal; welke van de
-   vier faalpaden het bij hem was is niet vastgesteld. Tips & Checks noemt ze nu alle vier bij naam
-   — vraag om die tab voordat je verder zoekt.
+7. **Issue #4 loopt nog: de melder heeft geen PV-bron in SessyWeb.** v1.0.98 verklaart en meldt het,
+   maar lost het niet op — overdag blijft zijn verbruik onmeetbaar zolang de zonproductie nergens
+   vandaan komt. Twee wegen: zijn omvormer onder `PowerSystems` (welk merk is niet bekend; er zijn
+   negen `InverterServices`), of PV via de Sessy uitlezen. Dat laatste stond al open als "PV via
+   Sessy is in onderzoek" en is niet nagekeken — de P1-respons (`P1Details`) heeft géén PV-veld,
+   alleen `power_consumed`/`power_produced` van het net.
 
 ## Diagnosed, niet-een-bug
 - Setpoint requested ≠ Setpoint: Sessy-hardware klemt/tapert zelf (CC/CV, SOC-afhankelijk). API meldt geen reden. `Battery.SetpointRequested` (ons) vs `Sessy.PowerSetpoint` (device).

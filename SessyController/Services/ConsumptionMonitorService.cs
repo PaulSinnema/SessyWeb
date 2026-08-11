@@ -31,6 +31,7 @@ namespace SessyController.Services
 
         private SolarInverterManager _solarInverterManager { get; set; }
         private BatteryContainer _batteryContainer { get; set; }
+        private SystemCapabilitiesService _capabilities { get; set; }
 
         private LoggingService<ConsumptionMonitorService> _logger { get; set; }
         private TimeZoneService _timeZoneService { get; set; }
@@ -49,11 +50,13 @@ namespace SessyController.Services
                                          TimeZoneService timeZoneService,
                                          P1MeterContainer p1MeterContainer,
                                          SettingsService settingsService,
+                                         SystemCapabilitiesService capabilities,
                                          IServiceScopeFactory serviceScopeFactory)
         {
             _logger = logger;
             _weatherService = weatherService;
             _timeZoneService = timeZoneService;
+            _capabilities = capabilities;
 
             _settingsService = settingsService;
             _settingConfig = _settingsService.Current;
@@ -173,6 +176,7 @@ namespace SessyController.Services
         }
 
         private bool _noMetersLogged = false;
+        private bool _solarWasMeasurable = true;
         private bool _weatherWasAvailable = true;
         private bool _weatherGracePeriodDone = false;
 
@@ -222,6 +226,15 @@ namespace SessyController.Services
 
         private List<ConsumptionData> _consumptionData = new List<ConsumptionData>();
         private DateTime? nextQuarter = null;
+
+        /// <summary>
+        /// Quarters discarded since start because the computed consumption was not positive, and the
+        /// last one. Read by ConfigurationCheckService: a dropped quarter is the only direct evidence
+        /// that a term is missing from solar + grid + battery, and the log alone is not visible in
+        /// the UI.
+        /// </summary>
+        public int NegativeConsumptionQuarters { get; private set; }
+        public DateTime? LastNegativeConsumptionAt { get; private set; }
 
         private async Task StoreConsumption(P1Meter p1Meter)
         {
@@ -274,7 +287,18 @@ namespace SessyController.Services
                     {
                         _consumptionData.Clear();
 
-                        _logger.LogWarning($"Consumption is negative {averageConsumptionWh}. Cleared data");
+                        NegativeConsumptionQuarters++;
+                        LastNegativeConsumptionAt = startQuarter;
+
+                        // Naming the cause matters: without an inverter the solar term is 0, so the
+                        // sum goes negative in every quarter with net export and the Consumption page
+                        // is empty exactly while the panels produce (issue #4).
+                        var cause = _capabilities.HasSolar
+                            ? "solar, grid and battery do not add up to a household load — check that all three are being read"
+                            : "no inverter is configured, so solar production is missing from the sum and any net export to the grid makes it negative";
+
+                        _logger.LogWarning($"Consumption for {startQuarter} came out at {averageConsumptionWh:F0} W; " +
+                                           $"nothing stored. Cause: {cause}.");
                     }
                 }
             }
@@ -310,6 +334,22 @@ namespace SessyController.Services
             try
             {
                 solarPower = await _solarInverterManager.GetTotalACPowerInWatts();
+
+                // An unreachable inverter answers 0 W, which reads as darkness in the sum and takes
+                // the whole PV production out of the household load without any exception to catch.
+                if (!_solarInverterManager.SolarIsMeasurable)
+                {
+                    if (_solarWasMeasurable)
+                        _logger.LogWarning("Inverter is unreachable in daylight; its 0 W is not a measurement, " +
+                                           "so consumption is not recorded until it answers again.");
+
+                    _solarWasMeasurable = false;
+                    error = true;
+                }
+                else
+                {
+                    _solarWasMeasurable = true;
+                }
             }
             catch (Exception ex)
             {

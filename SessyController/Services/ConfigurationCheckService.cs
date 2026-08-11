@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using SessyCommon.Configurations;
 using SessyCommon.Services;
 using SessyController.Interfaces;
+using SessyController.Managers;
 using SessyController.Services.Items;
 using SessyController.Services.Statistics;
 using SessyData.Model;
@@ -40,6 +41,8 @@ namespace SessyController.Services
         private readonly WeatherService _weatherService;
         private readonly P1MeterContainer _p1MeterContainer;
         private readonly ConsumptionDataService _consumptionDataService;
+        private readonly SolarInverterManager _solarInverterManager;
+        private readonly ConsumptionMonitorService _consumptionMonitorService;
 
         public ConfigurationCheckService(
             IConfiguration configuration,
@@ -60,8 +63,12 @@ namespace SessyController.Services
             IOptionsMonitor<SessyP1Config> p1ConfigMonitor,
             WeatherService weatherService,
             P1MeterContainer p1MeterContainer,
-            ConsumptionDataService consumptionDataService)
+            ConsumptionDataService consumptionDataService,
+            SolarInverterManager solarInverterManager,
+            ConsumptionMonitorService consumptionMonitorService)
         {
+            _solarInverterManager = solarInverterManager;
+            _consumptionMonitorService = consumptionMonitorService;
             _weatherConfigMonitor = weatherConfigMonitor;
             _p1ConfigMonitor = p1ConfigMonitor;
             _weatherService = weatherService;
@@ -90,6 +97,7 @@ namespace SessyController.Services
             CheckWeatherConfiguration(checks);
             CheckP1MeterConfiguration(checks);
             CheckBatteryConfiguration(checks);
+            CheckSolarMeasurement(checks);
             await CheckConsumptionHistory(checks);
             await CheckEneverToken(checks);
             await CheckTaxesConfiguration(checks);
@@ -284,6 +292,71 @@ namespace SessyController.Services
                               $"charge {config.TotalRawChargingCapacity:F0} W, " +
                               $"discharge {config.TotalRawDischargingCapacity:F0} W."
             });
+        }
+
+        /// <summary>
+        /// Consumption is solar + grid + battery. Panels that SessyWeb cannot read leave the solar
+        /// term at 0, which is invisible until the house exports: the sum then goes negative and the
+        /// quarter is discarded, so consumption is recorded at night and missing all day (issue #4).
+        /// A discarded quarter is the evidence, which is why it is counted rather than only logged.
+        /// </summary>
+        private void CheckSolarMeasurement(List<ConfigurationCheck> checks)
+        {
+            int dropped = _consumptionMonitorService.NegativeConsumptionQuarters;
+            var last = _consumptionMonitorService.LastNegativeConsumptionAt;
+
+            if (!_capabilities.HasSolar)
+            {
+                if (dropped > 0)
+                {
+                    checks.Add(new ConfigurationCheck
+                    {
+                        Severity = CheckSeverity.Error,
+                        Title = "Solar production is not being measured",
+                        Description = $"{dropped} quarter(s) were discarded because the computed consumption was not " +
+                                      $"positive, most recently {last:dd-MM-yyyy HH:mm}. Consumption is solar + grid + " +
+                                      "battery, and no inverter is configured in PowerSystems, so the solar term is 0. " +
+                                      "Every quarter in which the house exports to the grid then comes out negative and " +
+                                      "is thrown away — consumption is recorded at night and missing while the panels " +
+                                      "produce. Configure the inverter under PowerSystems in appsettings.json. Until " +
+                                      "then the daytime figures cannot be measured at all: they are short by exactly " +
+                                      "the production that is never read.",
+                        ActionUrl = "/consumption",
+                        ActionLabel = "Open consumption"
+                    });
+                }
+
+                return;
+            }
+
+            if (!_solarInverterManager.AllAvailable)
+            {
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Warning,
+                    Title = "Inverter configured but unreachable",
+                    Description = "An inverter is configured and is not answering. It reports 0 W while offline, so " +
+                                  "consumption samples are skipped during daylight rather than stored short by the " +
+                                  "whole solar production. Expect gaps in the consumption history until it is back."
+                });
+
+                return;
+            }
+
+            if (dropped > 0)
+            {
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Warning,
+                    Title = $"Consumption came out negative ({dropped} quarters)",
+                    Description = $"Most recently {last:dd-MM-yyyy HH:mm}. Solar, grid and battery are all being read " +
+                                  "but do not add up to a household load, so those quarters were discarded. Check " +
+                                  "that every inverter, every P1 meter and every battery in the house is configured — " +
+                                  "a device that is producing or exporting outside SessyWeb's view lands in this sum.",
+                    ActionUrl = "/consumption",
+                    ActionLabel = "Open consumption"
+                });
+            }
         }
 
         /// <summary>
