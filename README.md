@@ -6,7 +6,14 @@
 
 > ⚡ Charge cheap. Sell expensive. Let the sun do the rest.
 
-Everything runs locally. The database is a SQLite file on your own disk; the only outbound calls are for prices and weather.
+Everything runs locally. The database is a SQLite file on your own disk, your batteries, meter and inverter are read over your own network, and nothing about your household is ever sent anywhere. Four outbound calls exist, all read-only, and each one only fetches a public forecast or price:
+
+| Host | What for | When |
+|---|---|---|
+| `weerlive.nl` | Radiation and temperature forecast | Every cycle. Without it there is no solar forecast — see [Step 1](#step-1--get-your-api-keys) |
+| `web-api.tp.entsoe.eu` | Day-ahead electricity prices | Only when your batteries cannot be reached; they are the primary price source |
+| `enever.nl` | Daily gas price | Only with an `Enever:Token`, and only for the heat-pump savings figures |
+| `monitoringapi.solaredge.com` | Solar production | Only with a `SolarEdgeCloud` section, as a fallback when the inverter is unreachable over Modbus |
 
 What changed per version is in [CHANGELOG.md](CHANGELOG.md).
 
@@ -46,9 +53,9 @@ What changed per version is in [CHANGELOG.md](CHANGELOG.md).
 
 | | Required? | Notes |
 |---|---|---|
-| Sessy home battery (1–3) | Yes | Must be on your local network with the **Open API / local API enabled** in the Sessy app |
+| Sessy home battery | Yes | Must be on your local network with the **Open API / local API enabled** in the Sessy app. Nothing caps the number; 1 to 3 is what has actually been run |
 | Sessy P1 dongle (or another networked DSMR P1 reader) | Yes | SessyWeb refuses to start the meter service without one |
-| SolarEdge solar inverter | Optional | Only if you have solar panels. **SolarEdge over Modbus TCP is the only inverter that is actually supported.** |
+| SolarEdge solar inverter | Optional | Only if you have solar panels. **SolarEdge over Modbus TCP is the only inverter that is actually supported.** Another brand, or none that can be read? The Sessy's own CT clamps can measure the panels instead — see [Measuring solar through the Sessy](#measuring-solar-through-the-sessy-instead-of-an-inverter) |
 
 **Accounts (all free)**
 
@@ -57,6 +64,7 @@ What changed per version is in [CHANGELOG.md](CHANGELOG.md).
 | [WeerLive](https://weerlive.nl/delen.php) API key | Yes | Solar radiation and temperature forecast |
 | [ENTSO-E Transparency Platform](https://transparency.entsoe.eu/) token | Recommended | Fallback source for day-ahead prices |
 | [Enever](https://enever.nl/token-aanmaken/) token | Optional | Daily gas price, used only for heat-pump savings figures |
+| [SolarEdge monitoring](https://monitoring.solaredge.com/) API key | Optional | Cloud fallback for solar production when the inverter cannot be reached over Modbus |
 
 **Software**
 
@@ -202,7 +210,7 @@ Start from this example and replace every `<...>` placeholder:
 Notes on the values:
 
 - **`MaxCharge` / `MaxDischarge` / `Capacity`** are **per battery**, in Watts and Watt-hours. A Sessy 5.2 is roughly `2200` / `1700` / `5400`. SessyWeb adds them up itself — do not enter system totals.
-- **`Location`** is `latitude,longitude` for the weather forecast, e.g. `52.2185,5.947`. Look yours up on any map site.
+- **`Location`** is `latitude,longitude` for the weather forecast, e.g. `52.2185,5.947`. Look yours up on any map site. You will type your coordinates a second time on the **Settings** page in Step 8, and that is not a mistake: this one is the query WeerLive is asked, the other computes your sunrise and sunset. Keep them the same.
 - **`Tilt`** is the roof angle in degrees, **`Orientation`** is the compass bearing the panels face (180 = due south). Add one numbered entry under `SolarPanels` per group of panels with a different roof face.
 - **`HighestDailySolarProduction`** is the most Wh your array has ever made in a day. A rough guess is fine — it is a scaling hint for the forecast, and you can refine it later.
 - **`Interface`, `Port`, `SlaveId`** stay as shown.
@@ -256,7 +264,7 @@ Every Sessy already measures PV on its own CT clamps, so if your inverter cannot
 | `SolarPanels` | **yes** | Feeds the solar forecast. Same numbers as for an inverter; one numbered entry per roof face. |
 | `Interface`, `IpAddress`, `Port`, `SlaveId` | no | Modbus-only. Leave them out; they are never read. |
 
-**No IP address anywhere in this section.** The source reads the batteries you already declared under `Sessy:Batteries` — addresses and credentials stay in the one place they belong. It reads *every* configured battery and adds the readings together; there is nothing here that picks one.
+**No IP address anywhere in this section.** The source reads the batteries you already declared under `Sessy:Batteries` — addresses and credentials stay in the one place they belong. By default it reads *every* configured battery and adds the readings together; the optional `Batteries` field narrows that to the ones that actually carry the clamps.
 
 **Three things to know before you switch.**
 
@@ -312,6 +320,9 @@ Passwords and API keys go in a **separate** file called **`secrets.json`**, in t
 ```
 
 The numbering must line up with `appsettings.json`: battery `"1"` here is battery `"1"` there. The two files are merged, so credentials land on the right device.
+
+> [!WARNING]
+> **Do not leave entries here for devices you removed from `appsettings.json`.** The merge is per key, not per section, so a battery `"3"` that exists only in `secrets.json` still creates a battery `"3"` — one without an address. SessyWeb skips it and says so in the log, but until you notice you are looking at a device that does not exist. If you cut down from three batteries to one, cut down both files.
 
 > [!WARNING]
 > The P1 username and password are **not optional**. Leave them out and the meter service throws `Password for P1 configuration with id P1 is empty` at startup.
@@ -474,33 +485,39 @@ Optional sections in `appsettings.json`:
 
 ### Planning
 
-- **Greedy arbitrage planner** — plans charge, discharge and zero-net-home windows over a 72-hour horizon on quarter-hour resolution, deterministically: the same inputs always give the same plan
+- **Greedy arbitrage planner** — plans charge, discharge and zero-net-home windows on quarter-hour resolution for as far as prices are known, deterministically: the same inputs always give the same plan
 - **Dynamic prices** — day-ahead quarter-hour prices from your batteries, with ENTSO-E as fallback
 - **Solar and consumption forecast** — avoids buying at night what the roof will make tomorrow
 - **Netting / saldering aware** — handles both netting-on and netting-off contracts
-- **Curtailment** — throttles or shuts down the inverter when the selling price goes negative
-- **Self-measuring** — learns your batteries' real charging taper, efficiency curve and forecast error from your own history instead of assuming datasheet numbers
+- **Curtailment** — throttles or shuts down the inverter when the selling price goes negative. Needs an inverter on Modbus: the Sessy source can measure production but not reduce it
+- **Self-measuring** — learns your batteries' real charging taper, efficiency curve, night reserve and forecast error from your own history instead of assuming datasheet numbers
 - **Automatic re-planning** — rebuilds on price updates, large SOC deviations or settings changes
+- **Charged hand-over** — tick *Charged in control* and SessyWeb stops commanding, keeps recording, and shows Charged's schedule next to the plan it would have run itself
 
 ### Hardware
 
 | Category | Supported |
 |---|---|
-| Batteries | Sessy (1–3 units, local Open API) |
+| Batteries | Sessy over the local Open API — no limit on the count, 1 to 3 tested |
 | Smart meters | P1 / DSMR (Sessy P1 dongle and compatible readers) |
-| Solar inverters | SolarEdge over Modbus TCP — the only supported inverter, and the only one running in production |
+| Solar inverters | SolarEdge over Modbus TCP — the only supported inverter, with the SolarEdge cloud API as a fallback when it cannot be reached |
+| Solar without an inverter | The Sessy's own CT clamps, as a full replacement for a readable inverter — see [Measuring solar through the Sessy](#measuring-solar-through-the-sessy-instead-of-an-inverter) |
 | Weather | WeerLive |
 
 ### Monitoring
 
+The menu, top to bottom:
+
 - **Charging hours** — plan versus actual, with charge, discharge, solar, prices and SOC over three days
-- **Solar power** — realised versus forecast production
+- **Solar power** — realised versus forecast production. Hidden when no solar source is configured
 - **Consumption** — estimated household use per quarter
-- **EPEX prices** — day-ahead prices with the full buy/sell breakdown
-- **Energy statistics** — daily, monthly and yearly totals
-- **Financial results** — realised savings and revenue
-- **Investments** — track what you spent and what the payback looks like
 - **Batteries** — live SOC, power and state per unit
+- **Status history** — what each battery reported over time
+- **Sessy energy history** — raw meter readings as they came off the P1
+- **Epex prices** — day-ahead prices with the full buy/sell breakdown
+- **Sessy financial results** — realised savings and revenue
+- **Statistics** — daily, monthly and yearly totals, return on investment, what the planner currently believes, and the heat-pump comparison when one is configured
+- **Data Editor** — direct access to the underlying tables
 - **Plan history** — every rebuild with its reason and expected profit
 
 ---
@@ -521,7 +538,9 @@ docker compose restart          # restart after editing appsettings.json
 | Inverter not found | The key under `PowerSystems:Endpoints` must be exactly `SolarEdge` (case-sensitive), the IP must be right, and Modbus TCP must be enabled in the inverter itself. |
 | **Consumption** page fills at night, empty all day | Solar is not being measured, so `solar + grid + battery` goes negative whenever the house exports and those quarters are discarded. Configure a solar source — see [Measuring solar through the Sessy](#measuring-solar-through-the-sessy-instead-of-an-inverter) if your inverter cannot be read. **Tips & Checks** names the exact cause. |
 | Solar shows 0 W all day with the `Sessy` source | No Sessy has its CT clamps around the PV group; the battery is measuring nothing. Check the raw per-phase figures on the battery card. |
+| A battery you removed keeps being contacted | It is still declared in `secrets.json`. Credentials there create the device even without an address in `appsettings.json` — see the warning in [Step 5](#step-5--write-secretsjson). |
 | Battery does not react | On **Settings → Management Settings**, check **Charged in control** — if it is ticked, SessyWeb deliberately sends no commands. Refused writes are logged as warnings, so the log tells you which mode blocked them. |
+| Battery ends the last planned day nearly empty | Not a fault. The plan reaches only as far as prices are published, and the last evening holds back the **night reserve** for the night beyond it. That figure is on **Statistics → Current Plan**. |
 | SOC deviation warnings | Normal. The planner corrects every quarter. |
 | Container restarts or is killed | Out of memory — raise `mem_limit` (or the NAS memory limit) and check whether anything else on the machine is competing for RAM. |
 | `denied` or `unauthorized` when pulling | You are pulling a tag that does not exist. The image itself is public and needs no login: check the spelling of `ghcr.io/paulsinnema/sessyweb` (all lowercase) and pick a tag from the [package page](https://github.com/PaulSinnema/SessyWeb/pkgs/container/sessyweb). |
@@ -599,12 +618,16 @@ A source does not have to be Modbus, or even an inverter: `SessyInverterService`
 
 ## How the planner works
 
-Every minute (and on every price or settings change) SessyWeb rebuilds its picture of the next 72 hours:
+Every minute (and on every price or settings change) SessyWeb rebuilds its picture of the hours ahead:
 
 1. **Gather** one record per quarter-hour: price, solar forecast, consumption forecast, mode and SOC.
-2. **Plan** in two passes. First a baseline that simply covers the house from solar and battery where that is free. Then arbitrage: the planner repeatedly takes the single most profitable 0.1 kWh block it can still fit — buy cheap now and sell dear later, sell now and buy back cheaper later, or sell energy it already holds — and stops when no block is worth more than the round-trip loss plus the cycle wear it costs.
+2. **Plan** in two passes. First a baseline that simply covers the house from solar and battery where that is free. Then arbitrage: the planner repeatedly takes the single most profitable 0.2 kWh block it can still fit — buy cheap now and sell dear later, sell now and buy back cheaper later, or sell energy it already holds — and stops when no block is worth more than the round-trip loss plus the cycle wear it costs.
 3. **Decide** the actual battery mode and inverter setpoint in the state machine, where curtailment can override the plan.
 4. **Execute** one action per quarter through the Sessy local API.
+
+**How far ahead it can see.** Day-ahead prices exist only up to the end of tomorrow, and the plan stops where the prices stop: the horizon is 24 to 48 hours depending on the time of day, and it is shortest just before the next day is published around 13:00. Tomorrow's prices are filled in with a historical average until then, so the evening is never planned as if the world ends at midnight.
+
+One consequence is worth knowing, because it looks like a bug and is not: the last evening in the plan holds energy back for a night that falls *outside* the horizon. The floor is the **night reserve**, shown on the Statistics page under *Current Plan*, and it is measured from your own nights rather than guessed.
 
 The planner is deterministic and greedy rather than a general-purpose solver: it is fast enough to rerun every minute, and every euro in the plan can be traced back to the block that earned it.
 
@@ -625,6 +648,7 @@ The plan is only rebuilt when something material changed — a new price set, a 
 - [ENTSO-E Transparency Platform](https://transparency.entsoe.eu/) — day-ahead prices
 - [WeerLive](https://weerlive.nl/) — weather and radiation data
 - [Enever](https://enever.nl/) — daily gas price
+- [SolarEdge monitoring API](https://monitoringapi.solaredge.com/) — solar production, fallback for Modbus
 
 ---
 

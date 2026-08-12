@@ -1235,6 +1235,11 @@ zonkwartier na een nacht landt nog in `solarBeforeWh` vóórdat de lus breekt. T
    voor mórgen, en alleen zolang de echte nog niet gepubliceerd zijn. Kosten: ~50% meer rekentijd
    (48 u → 72 u was 279 → 721 ms in v1.0.77) en een extra dag in de grafiek. Wel eerst nagaan wat het
    bridge-reserve-blok in `BuildContextAsync` gaat doen — dat draait vandaag vrijwel nooit.
+12. **`KnmiService` is dode code met een externe URL erin.** Twee `api.dataplatform.knmi.nl`-endpoints,
+    nul aanroepers buiten het bestand zelf, niet geregistreerd in `Program.cs`. Bij de README-sweep van
+    v1.0.104 kwam hij als vijfde uitgaande host boven en is hij bewust *niet* gedocumenteerd — hij
+    belt nooit. Weggooien of afmaken; zolang hij er staat is elke inventarisatie van uitgaand verkeer
+    misleidend.
 
 ## Diagnosed, niet-een-bug
 - Setpoint requested ≠ Setpoint: Sessy-hardware klemt/tapert zelf (CC/CV, SOC-afhankelijk). API meldt geen reden. `Battery.SetpointRequested` (ons) vs `Sessy.PowerSetpoint` (device).

@@ -11,6 +11,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.104] — 2026-08-12
+
+### Changed
+- **README** corrected and filled in. It claimed prices and weather were the only outbound calls;
+  there are four, and they are now listed with what each is for and when it happens. Also fixed: the
+  planner does not look 72 hours ahead but as far as prices are published (24 to 48 hours), the
+  arbitrage block is 0.2 kWh rather than 0.1, the Sessy CT clamps are named as a solar source
+  wherever inverters are discussed, and the menu list matches the actual menu. Added: why you enter
+  your coordinates twice, why a leftover battery in `secrets.json` keeps being contacted, and why the
+  battery ends the last planned day low.
+
 ## [v1.0.103] — 2026-08-12
 
 ### Added
