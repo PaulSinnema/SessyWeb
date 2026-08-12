@@ -1160,6 +1160,32 @@ een derde kopie te krijgen en is samengetrokken in `MilpServiceBase.NightCapRati
 Tests: `NightReserveTests` (7), waaronder de bestaande gril die behouden moest blijven: het éérste
 zonkwartier na een nacht landt nog in `solarBeforeWh` vóórdat de lus breekt. Totaal 348.
 
+## Gebouwd 12-08 (v1.0.104 / v1.0.105) — documentatie
+
+**README-sweep (v1.0.104).** Aanleiding: de regel "de enige uitgaande calls zijn prijzen en weer".
+Er zijn er vier — `weerlive.nl`, `web-api.tp.entsoe.eu`, `enever.nl` en `monitoringapi.solaredge.com`
+— nu als tabel met per host waarvoor en wannéér. Diezelfde sweep haalde er meer uit: de "72-uur
+horizon" stond ook hier (twee plekken), de arbitrageblok stond op 0,1 kWh (is 0,20 sinds v1.0.77), de
+menulijst klopte niet, het batterij-aantal stond als harde limiet "1–3" terwijl niets het begrenst,
+en de Sessy-CT-klemmen ontbraken overal waar over omvormers werd gesproken. Eén regel sprak zichzelf
+tegen: "er is niets dat één batterij kiest", drie regels onder de documentatie van `Endpoint.Batteries`
+uit v1.0.100. Aangevuld met de drie dingen waar gebruikers in lopen: de dubbele coördinaten
+(`WeerOnline:Location` is de WeerLive-query, `Settings.Latitude/Longitude` is zonsopgang), de
+`secrets.json`-restanten van v1.0.82, en de lage eind-SOC van v1.0.103.
+
+**PLANNER.md (v1.0.105).** Nieuw bestand op verzoek: hoe de planner precies werkt en welke instelling
+welk deel beweegt. Bevat de twee passes, de vier kandidaten (A stock / B laden→ontladen / C
+carry-forward / D verkopen→terugkopen) met per stuk waaróm hij bestaat, de vier getallen die de
+uitkomst bepalen (cycluskosten, nachtreserve, replacement cost, discount), de rebuild-triggers met het
+verschil tussen forced en speculatief, de uitvoerings-guards, een volledige settings-tabel, de
+`appsettings.json`-sleutels die indirect aankomen, de vijf zelf-gemeten modellen, en een sectie
+"reading a plan that looks wrong".
+
+Alle getallen zijn tegen de bron gecontroleerd in plaats van uit dit document overgeschreven —
+`BlockKWh` 0,20, cycluskosten-terugval 0,05, strategie-multipliers 1,0/1,5/2,0, `SocDeviationThresholdPct`
+20, replacement cost P25/30 dagen/mediaan-cap, laadbodem P90 × 0,9 per 5%-bin, `ExpectedPriceService`
+60 dagen. Dat is de moeite waard gebleken: dit document had er zelf twee fout staan.
+
 ## Openstaande punten
 *De nummering heeft een gat (2 is vervallen). Niet hernummeren — elders in dit document wordt naar
 "Openstaande punten 4" verwezen.*

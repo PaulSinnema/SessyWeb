@@ -11,6 +11,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.105] — 2026-08-12
+
+### Added
+- **PLANNER.md**: what the planner does, step by step, and which setting moves which part of it. The
+  two passes and the four trades it scores, how the night reserve and the replacement cost are
+  arrived at, every planning setting with its default and effect, the `appsettings.json` keys that
+  reach the plan indirectly, the five models it fits from your own history, and a section on reading
+  a plan that looks wrong. Linked from the README.
+
 ## [v1.0.104] — 2026-08-12
 
 ### Changed

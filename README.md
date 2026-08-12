@@ -15,7 +15,7 @@ Everything runs locally. The database is a SQLite file on your own disk, your ba
 | `enever.nl` | Daily gas price | Only with an `Enever:Token`, and only for the heat-pump savings figures |
 | `monitoringapi.solaredge.com` | Solar production | Only with a `SolarEdgeCloud` section, as a fallback when the inverter is unreachable over Modbus |
 
-What changed per version is in [CHANGELOG.md](CHANGELOG.md).
+What changed per version is in [CHANGELOG.md](CHANGELOG.md). How the planner decides what it decides, and which setting moves which part of it, is in [PLANNER.md](PLANNER.md).
 
 > [!IMPORTANT]
 > SessyWeb actively controls your batteries and can throttle or shut down your solar inverter. Run it at your own risk. Start with **Charged in control** ticked — SessyWeb then only watches and records while your batteries keep running on their own schedule — and hand control over once the charts look right.
@@ -401,7 +401,7 @@ The container is running, but the planner does not know your household yet. Ever
      - *Balanced* — the usual choice, trades but keeps reserve for the house,
      - *Self consumption* — mostly store your own solar,
      - *Battery saving* — fewest cycles, gentlest on the battery;
-   - leave **Night reserve cap**, **Throttle fallback**, **Round-trip efficiency fallback** and the whole *Planning* block at their defaults for now — SessyWeb measures better values from your own data within a few weeks.
+   - leave **Night reserve cap**, **Throttle fallback**, **Round-trip efficiency fallback** and the whole *Planning* block at their defaults for now — SessyWeb measures better values from your own data within a few weeks. [PLANNER.md](PLANNER.md) explains what each of them does once you want to touch them.
    - Further down the same tab you set your **monthly household consumption** per month, in kWh. Read them off last year's energy bill, or divide your yearly total and adjust winter up and summer down.
 2. **Taxes** — enter the energy tax, surcharges and VAT from your energy contract, and whether you have **netting (saldering)**. Prices are meaningless until this is filled in: SessyWeb plans on the all-in price you actually pay, not the raw market price.
 3. **Tips & Checks** — this tab tells you what is still missing or misconfigured. Work until it is quiet.
@@ -635,6 +635,8 @@ The plan is only rebuilt when something material changed — a new price set, a 
 
 > [!NOTE]
 > A battery that never reaches 100 % is usually the planner being right, not wrong. Filling the battery costs money; it only pays if the energy can be sold higher later. Judge SessyWeb on the **Financial results** page, not on the SOC.
+
+**[PLANNER.md](PLANNER.md) has the full story**: the four candidate trades the search scores, how the night reserve and the replacement cost are arrived at, every setting that moves the plan and what each one does, and how to read a plan that looks wrong.
 
 ---
 
