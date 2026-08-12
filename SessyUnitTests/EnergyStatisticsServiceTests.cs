@@ -521,6 +521,28 @@ namespace SessyTests.Services
             Assert.Equal(0.5, result.TotalGridImportKWh, 2);
         }
 
+        /// <summary>
+        /// Without StatisticsFromDate nothing clamps the period, so the "All" option of the date
+        /// chooser reaches the service as MinValue/MaxValue. The meter query looks one quarter
+        /// before the window, and subtracting from DateTime.MinValue throws.
+        /// </summary>
+        [Fact]
+        public async Task GetEnergyStatistics_WithoutStatisticsFromDate_AcceptsAnUnboundedPeriod()
+        {
+            SetupMeasurements(Enumerable.Range(0, 4).Select(i => new QuarterlyMeasurement
+            {
+                Time = PeriodStart.AddMinutes(i * 15)
+            }).ToList());
+
+            SetupMeterReadings(Enumerable.Range(0, 4).Select(i =>
+                (PeriodStart.AddMinutes(i * 15), 100.0, 50.0)), runQuery: true);
+
+            var result = await _sut.GetEnergyStatisticsAsync(DateTime.MinValue, DateTime.MaxValue);
+
+            Assert.Equal(0.4, result.TotalGridImportKWh, 3);
+            Assert.Equal(0.2, result.TotalGridExportKWh, 3);
+        }
+
         // ── Financial statistics tests ───────────────────────────────────────
 
         [Fact]
@@ -1042,7 +1064,13 @@ namespace SessyTests.Services
                     times.Distinct().ToDictionary(t => t, _ => new EnergyPrice(buy, sell)));
         }
 
-        private void SetupMeterReadings(IEnumerable<(DateTime time, double importWh, double exportWh)> flows)
+        /// <param name="runQuery">
+        /// Runs the service's query lambda against the readings instead of returning them
+        /// unfiltered. The date arithmetic that builds the window lives inside that lambda, so a
+        /// test only sees it when the mock actually executes it.
+        /// </param>
+        private void SetupMeterReadings(IEnumerable<(DateTime time, double importWh, double exportWh)> flows,
+                                        bool runQuery = false)
         {
             var list = flows.OrderBy(f => f.time).ToList();
             var readings = new List<EnergyHistory>();
@@ -1073,9 +1101,14 @@ namespace SessyTests.Services
                 });
             }
 
-            _energyHistoryMock
-                .Setup(s => s.GetList(It.IsAny<Func<IQueryable<EnergyHistory>, Task<List<EnergyHistory>>>>()))
-                .ReturnsAsync(readings);
+            var setup = _energyHistoryMock
+                .Setup(s => s.GetList(It.IsAny<Func<IQueryable<EnergyHistory>, Task<List<EnergyHistory>>>>()));
+
+            if (runQuery)
+                setup.Returns((Func<IQueryable<EnergyHistory>, Task<List<EnergyHistory>>> query) =>
+                    query(readings.AsQueryable()));
+            else
+                setup.ReturnsAsync(readings);
         }
 
         private void SetupInverterMeasurements(List<InverterMeasurement> data)

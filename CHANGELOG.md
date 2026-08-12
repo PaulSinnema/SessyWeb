@@ -11,6 +11,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.102] — 2026-08-12
+
+### Fixed
+- The **Statistics** page stayed empty and threw when *Statistics from date* was left blank. Without
+  that date nothing limited the period, so the page asked for everything and the meter query tried to
+  look a quarter of an hour before the beginning of time. Leaving the field empty now simply means
+  "all data", as it always should have.
+
 ## [v1.0.101] — 2026-08-11
 
 ### Fixed

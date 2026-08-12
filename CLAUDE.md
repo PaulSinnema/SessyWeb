@@ -90,6 +90,16 @@ Services cache `Settings` in a field and refresh it in the `SettingsChanged` han
 
 `EnergySystemStateMachine` is the single place where battery mode and inverter setpoint are decided — "all transition logic lives here, nowhere else". Curtailment (negative selling price) overrides the plan. Two separate enums, do not conflate them: the battery mode is `Modes` (`Unknown`, `Charging`, `Discharging`, `ZeroNetHome`, `Disabled`), the curtailment action is `CurtailmentMode` (`None`, `ZeroExport`, `Throttle`, `Shutdown`). `InverterCurtailmentService` polls `CurrentAction` every 5s. It has no DI dependencies beyond a logger, which is why it is the most heavily unit-tested class — extend `EnergySystemStateMachineTests`' input matrix when adding a transition.
 
+### Solar sources
+
+Every source implements `ISolarInverterService` and is activated by its `ProviderName` appearing as a key in `PowerSystems:Endpoints`; `SolarInverterManager` holds the active ones and is the only thing the rest of the system talks to. Two kinds exist: `SunspecInverterService` (Modbus TCP, one thin subclass per brand) and `SessyInverterService` (the batteries' own CT clamps, v1.0.99). They are mutually exclusive — the same panels — and `FillActiveInverterServices` drops the others when `Sessy` is present.
+
+Three rules for anything that touches this area:
+
+- **0 W is a measurement only when it is dark.** A source that cannot read must report `IsAvailable = false`, never 0 W: consumption is `solar + grid + battery`, so a silent zero is stored as a household that used the whole solar production less than it did. `SolarIsMeasurable` is the gate.
+- **Curtailment is a capability, not a reachability.** `SupportsCurtailment` → `CurtailmentIsPossible` → `EnergySystemInput` → `EvaluateCurtailment`, which falls back to the plan when nothing can be throttled. FORCE_CHARGE draws maximum grid power *because* it assumes the inverter went to 0 W — that assumption is what the flag protects.
+- **Write `InverterMeasurements`.** SolarPowerPage, the statistics and `SolarService.CalculateHistoricalPerformanceFactorAsync` read that table, not the live value. Use `InverterMeasurementWriter`.
+
 ### Data access
 
 `DataService` classes derive from `ServiceBase<T>` (`Add`, `AddOrUpdate`, `Update`, `Remove`, `Get`, `GetList`, `Query`, `RemoveWhere`) and go through `DbHelper`, which creates a fresh scope + `ModelContext` per call. Sinds v1.0.40:
@@ -122,7 +132,10 @@ Blazor Server, Radzen components, `.razor` + `.razor.cs` code-behind pairs. Page
 # SessyWeb — Samenvatting voor nieuwe chat
 
 ## Wat is SessyWeb
-C#/.NET Blazor Server EMS. Stuurt 3× Sessy batterij (cap 16,2 kWh; raw charge 6600W/discharge 5100W; **aantoonbaar gehaald ~5,0-5,3 kW laden** over vrijwel het hele SOC-bereik — zie Openstaande punten, de eerdere "praktijk max ~4,4kW" was de getaperde planwaarde, niet de hardwarelimiet), SolarEdge inverter, Daikin warmtepomp. Draait op Synology NAS via Docker. Huidige versie **v1.0.97**. Locatie: Apeldoorn.
+C#/.NET Blazor Server EMS. Stuurt 3× Sessy batterij (cap 16,2 kWh; raw charge 6600W/discharge 5100W; **aantoonbaar gehaald ~5,0-5,3 kW laden** over vrijwel het hele SOC-bereik — zie Openstaande punten, de eerdere "praktijk max ~4,4kW" was de getaperde planwaarde, niet de hardwarelimiet), SolarEdge inverter, Daikin warmtepomp. Draait op Synology NAS via Docker. Huidige versie **v1.0.102**. Locatie: Apeldoorn.
+Sinds 11-08 staat de zonmeting hier op de **Sessy-bron** in plaats van SolarEdge-Modbus (v1.0.99/100) —
+de omvormer hangt er nog, maar wordt niet meer uitgelezen. Dat is bewust: het is de enige manier om die
+bron te ijken. Zie v1.0.101 en openstaand punt 9.
 **Let op:** dit document beschrijft t/m v1.0.56 en dan weer vanaf v1.0.72; v1.0.57-v1.0.71 (o.a. de
 GHCR-overstap en de .NET 10 / Blazor-buildfix) staan er niet in.
 Sinds v1.0.78 draaien er ook instanties bij anderen — meldingen komen als GitHub-issues binnen op
@@ -1025,6 +1038,9 @@ Wat er wél gerepareerd is, dezelfde klasse maar bij mij thuis óók actief:
    omvormers is een huis zonder panelen en blijft meetbaar (`All` op een lege lijst is `true`).
    Onmeetbaar → `error = true` → sample overgeslagen, met één logregel op de overgang (de lus tikt
    elke seconde). `IsAvailable` staat op de services default `true`, dus geen gat bij het opstarten.
+   **Nagekomen correctie:** met een Modbus-bron vuurt deze guard in de praktijk nooit, want niets zet
+   `IsAvailable` ooit op `false` — de health-check draait daar niet (openstaand punt 8, ontdekt bij
+   v1.0.101). De code klopt, de voorwaarde treedt alleen niet op. Bij de Sessy-bron werkt hij wél.
 2. **De weggooi-regel noemt de oorzaak.** Was `Consumption is negative {x}. Cleared data`; noemt nu
    het onderscheid tussen "geen omvormer geconfigureerd" en "alle drie gelezen maar tellen niet op".
 3. **Tips & Checks: `CheckSolarMeasurement`.** `ConsumptionMonitorService` telt de weggegooide
@@ -1069,6 +1085,35 @@ Drie dingen die niet vanzelf goed gaan:
 Niet getest: `MainLayout` valt onder openstaand punt 5 (geen projectreferentie van `SessyUnitTests`
 naar `SessyWeb`). Totaal blijft 315.
 
+## Gebouwd 12-08 (v1.0.102) — Statistics-pagina leeg zonder "Statistics from date"
+
+Melding: staat `Settings.StatisticsFromDate` leeg (null), dan gaat de Energy Statistics-pagina fout.
+
+Eén regel, en de keten is kort. `EnergyStatisticsPage.LoadStatisticsAsync(null)` geeft
+`start = DateTime.MinValue`, `end = DateTime.MaxValue` — dezelfde sentinels die de "All"-knop van
+`DateChooserComponent` zet. Beide clamps in `EnergyStatisticsService`
+(`GetEnergyStatisticsAsync`, `BuildDashboardStatisticsAsync`) zitten **binnen**
+`if (_settingsConfig.StatisticsFromDate.HasValue)`, dus zonder die datum reist `MinValue` ongemoeid
+door naar `GetMeasurementsAsync`, waar de meterquery een kwartier vóór het venster leest:
+`start.AddMinutes(-15)` → `ArgumentOutOfRangeException`. Met een datum ingevuld wordt `start`
+opgehoogd en gebeurt het nooit — precies het waargenomen verschil.
+
+Gerepareerd bij de bron (`historyStart`, geklemd op `MinValue`) en niet met een derde clamp bovenin:
+`GetMeasurementsAsync` heeft elf aanroepers, en `GetMonthlyTrendsAsync` (2020-01-01) en
+`GetDailyArbitrageTrendsAsync` (nu −30 dagen) hanteren elk al hun eigen sentinelconventie. Een vierde
+erbij verplaatst het probleem. De rest van de keten kan `MinValue`/`MaxValue` wél aan:
+`EnergyStatistics.PeriodDays` rekent op `ActualDataStart/End`, en dat is de enige plek die zou delen
+door een astronomisch getal. Nagelopen op alle datum-aftrekkingen in de service — 1649 was de enige
+op een door de aanroeper geleverde `start`.
+
+**Les over het testharnas, belangrijker dan de fix.** De eerste versie van de test slaagde óók
+zonder de reparatie: `_energyHistoryMock.Setup(...).ReturnsAsync(readings)` negeert de meegegeven
+lambda, en de kapotte aftrekking staat *ín* die lambda. Een mock die de query niet uitvoert kan geen
+enkele fout in die query zien. `SetupMeterReadings` heeft daarom een `runQuery`-vlag die de lambda
+tegen een in-memory `IQueryable` draait; standaard uit, want de bestaande tests leunen op de
+ongefilterde lijst (hun seed-meting ligt vóór `start` en zou wegvallen). Tests: 1 erbij in
+`EnergyStatisticsServiceTests`. Totaal 341.
+
 ## Openstaande punten
 *De nummering heeft een gat (2 is vervallen). Niet hernummeren — elders in dit document wordt naar
 "Openstaande punten 4" verwezen.*
@@ -1101,7 +1146,7 @@ naar `SessyWeb`). Totaal blijft 315.
 7. **Issue #4: de Sessy-bron is gebouwd (v1.0.99) maar bij de melder niet bevestigd.** Vraag hem de
    provider-key `"Sessy"` te configureren en dan Tips & Checks; die noemt alle faalgevallen bij naam.
    Werkt het niet, dan is de vraag of zijn Sessy's CT-klemmen om de PV-groep hebben — zonder die
-   bedrading meet ook de Sessy niets en is er geen tweede weg (de P1-respues `P1Details` heeft géén
+   bedrading meet ook de Sessy niets en is er geen tweede weg (de P1-respons `P1Details` heeft géén
    PV-veld, alleen `power_consumed`/`power_produced` van het net).
 8. **`SolarInverterManager.ExecuteAsync` bereikt zijn health-check nooit.** `SunspecInverterService.Start`
    draait zijn eigen lus *inline* (regel 113-141, `while` binnen `Start`), en `ExecuteAsync` doet
@@ -1119,10 +1164,21 @@ naar `SessyWeb`). Totaal blijft 315.
    erop dat er meer boven komt zodra hij ook voor Modbus gaat draaien.
 9. **De Sessy-zonmeting is nooit tegen een referentie gelegd.** `renewable_energy_phase*` wordt
    nergens bewaard, dus er valt niets retroactief te toetsen. Twee open vragen: (a) meet alleen
-   batterij 1 (aanwijzing uit de 21:38-meting) of meten meerdere dezelfde klemmen, en (b) hoe
-   verhoudt de Sessy-som zich tot de echte productie. Deze installatie heeft *beide* bronnen, dus de
-   ijking is de Sessy-som per kwartier naast de SolarEdge-waarde in `InverterMeasurements` — één
-   zonnige dag is genoeg. Doen vóórdat iemand anders erop gaat draaien.
+   batterij 1 (aanwijzing uit de 21:38-meting; `Batteries: ["1"]` staat er nu op, dus dit is een
+   aanname die in de config zit) en (b) hoe verhoudt de Sessy-som zich tot de echte productie.
+   **De simultane vergelijking is sinds 11-08 niet meer via de config te doen**: deze installatie
+   staat nu op de Sessy-bron, en de óf-óf-regel sluit SolarEdge uit, dus er komen geen nieuwe
+   SolarEdge-rijen meer naast. Twee wegen die wél werken: (i) één zonnige dag terug op SolarEdge en
+   de batterijen er los naast bemonsteren met `GET /api/v1/power/status` (de sterke variant — zelfde
+   kwartieren, beide bronnen), of (ii) de nieuwe Sessy-rijen vergelijken met SolarEdge-rijen van
+   eerdere dagen bij vergelijkbare instraling (zwak, want het weer verschilt). Doen vóórdat iemand
+   anders erop gaat draaien.
+10. **`SmaInverterService` en `SolisInverterService` staan niet in `Program.cs`.** Alleen SolarEdge,
+   Enphase, GoodWe, Huawei, Sungrow en Victron worden geregistreerd. Wie `"SMA"` of `"Solis"` in
+   `PowerSystems` zet krijgt stil niets — `FillActiveInverterServices` filtert op wat DI aanlevert,
+   dus die provider bestaat simpelweg niet. Zelfde klasse als issue #4: geen fout, geen log, geen
+   data. Eén regel per provider; de README noemt ze wel als beschikbaar-maar-ongetest, en dat is
+   misleidend zolang ze niet eens geconstrueerd worden.
 
 ## Diagnosed, niet-een-bug
 - Setpoint requested ≠ Setpoint: Sessy-hardware klemt/tapert zelf (CC/CV, SOC-afhankelijk). API meldt geen reden. `Battery.SetpointRequested` (ons) vs `Sessy.PowerSetpoint` (device).

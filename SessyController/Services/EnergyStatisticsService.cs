@@ -1644,9 +1644,14 @@ namespace SessyController.Services
 
             // Meter readings: load one quarter before the window too, so the first quarter
             // inside the window has a previous reading to compute its delta against.
+            // DateTime.MinValue ("all data") has nothing before it, and subtracting throws.
+            var historyStart = start > DateTime.MinValue.AddMinutes(15)
+                ? start.AddMinutes(-15)
+                : start;
+
             var histories = await _energyHistoryDataService.GetList(async set =>
                 await Task.FromResult(set
-                    .Where(h => h.Time >= start.AddMinutes(-15) && h.Time <= end)
+                    .Where(h => h.Time >= historyStart && h.Time <= end)
                     .OrderBy(h => h.Time)
                     .ToList()));
 
