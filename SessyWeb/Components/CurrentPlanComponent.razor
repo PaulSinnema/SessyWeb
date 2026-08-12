@@ -52,10 +52,20 @@
             <StatCardComponent Title="Future quarters"
                                Value="@($"{Dashboard!.Plan!.TotalFutureQuarters} ({Dashboard.Plan.TotalFutureQuarters / 4.0:F1} hrs)")" />
         </RadzenColumn>
+        <RadzenColumn Size="6" SizeMD="3">
+            <StatCardComponent Title="@(Dashboard!.Plan!.NightReserveIsLearned ? "Night reserve (learned)" : "Night reserve")"
+                               Value="@($"{Dashboard!.Plan!.NightReservePct:F1} % ({Dashboard.Plan.NightReserveWh / 1000.0:F1} kWh)")" />
+        </RadzenColumn>
     </RadzenRow>
     <RadzenText TextStyle="TextStyle.Caption" Style="margin-top: 0.75rem; opacity: 0.7;">
         Expected profit covers all @Dashboard!.Plan!.TotalFutureQuarters future quarters (@($"{Dashboard.Plan.TotalFutureQuarters / 4.0:F1}") hrs).
         The Arbitrage chart shows daily realized vs planned profit for past days only.
+    </RadzenText>
+    <RadzenText TextStyle="TextStyle.Caption" Style="opacity: 0.7;">
+        Night reserve is what the plan holds back for a night the sun will not cover — a cap on the
+        reserve, and the floor for the last evening in the horizon, where the night after it falls
+        outside the known prices.@(Dashboard!.Plan!.NightReserveIsLearned
+            ? " Self-learning fits it from measured nights (P80)." : " Set by hand on the Settings page.")
     </RadzenText>
 
     @if (Dashboard!.Plan!.RecentHistory.Any())

@@ -38,6 +38,19 @@
         /// <summary>SOC deviation at last build as percentage of total capacity.</summary>
         public double SocDeviationPct { get; set; }
 
+        /// <summary>
+        /// Night reserve as a percentage of capacity — what the plan holds back for a night the
+        /// sun will not cover. Also the floor used where the horizon cuts a night short (v1.0.103),
+        /// so it is the number that keeps the last evening from selling the battery empty.
+        /// </summary>
+        public double NightReservePct { get; set; }
+
+        /// <summary>The same reserve in Wh, so it can be read against the SOC line.</summary>
+        public double NightReserveWh { get; set; }
+
+        /// <summary>True when PlannerLearningService fits the reserve from measured nights.</summary>
+        public bool NightReserveIsLearned { get; set; }
+
         /// <summary>Recent plan solve history (most recent first).</summary>
         public List<SessyData.Services.PlanHistoryEntry> RecentHistory { get; set; } = new();
     }

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-SessyWeb is a home energy management system (HEMS) for households with [Sessy](https://www.sessy.nl) home batteries. It runs as a Docker container on a NAS and plans battery charge/discharge over a 72-hour horizon against day-ahead EPEX prices, solar forecast and consumption forecast. Everything is local — SQLite, no cloud beyond the ENTSO-E and WeerLive API calls.
+SessyWeb is a home energy management system (HEMS) for households with [Sessy](https://www.sessy.nl) home batteries. It runs as a Docker container on a NAS and plans battery charge/discharge against day-ahead EPEX prices, solar forecast and consumption forecast. The horizon runs to **23:45 tomorrow** — `EPEXPricesService` fetches no further (`end = now.AddDays(1).Date.AddHours(23).AddMinutes(45)`), so it is 24-48 hours depending on the time of day, never the 72 hours this file used to claim. The offline probes in v1.0.77 do run 72 hours, which is where that number came from. Everything is local — SQLite, no cloud beyond the ENTSO-E and WeerLive API calls.
 
 The planner is a **deterministic greedy search** (`BatteryGreedyPlanner`), not a MILP — there is no OR-Tools reference anywhere in the solution. The `Milp*` class names and the "solver" wording in `MilpServiceBase` are leftovers from the original design; see "Openstaande punten" 4 for the DP that would replace the heuristic.
 
@@ -1114,6 +1114,52 @@ tegen een in-memory `IQueryable` draait; standaard uit, want de bestaande tests 
 ongefilterde lijst (hun seed-meting ligt vóór `start` en zou wegvallen). Tests: 1 erbij in
 `EnergyStatisticsServiceTests`. Totaal 341.
 
+## Gebouwd 12-08 (v1.0.103) — de nacht achter het horizon-einde
+
+Klacht: aan het einde van de volgende dag loopt de charge left naar nul. Dat is geen prijsafweging
+maar een informatiegat, en het zat op twee plaatsen tegelijk:
+
+1. **De horizon eindigt altijd om 23:45 van morgen.** `EPEXPricesService.cs:498` haalt prijzen tot
+   `now.AddDays(1).Date.AddHours(23).AddMinutes(45)`; ontbreken morgens prijzen nog, dan vult
+   `ExpectedPriceService` ze aan, maar verder dan morgen reikt het nooit. De "72-uur horizon" uit de
+   openingsalinea van dit document bestond niet — dat getal komt uit de offline probes van v1.0.77.
+   Die claim heeft dit onderzoek een ronde gekost en is nu gecorrigeerd.
+2. **De reserve telde alleen binnen die lijst.** `BuildContextAsync` sommeerde vooruit met
+   `for (int j = i + 1; j < ordered.Count; j++)`: de lus stopte bij het einde van de array in plaats
+   van bij de volgende zonsopgang. Gemeten in `PlannedQuarters` is `MinSocWh` in de staart exact
+   `∑ NetLoadWh × 1,10` tot het horizon-einde — 2145 Wh om 18:00, 802 om 22:00, **0** om 23:45,
+   terwijl de geleerde nachtbehoefte 5312 Wh is (`NightReserveCapPct = 32,79 %` × 16200 Wh, door
+   `PlannerLearningService` gezet als P80 van 21 gemeten nachten). Plan-SOC eindigde op 510 Wh.
+
+**Oplossing: afkapping herkennen, niet beter schatten.** `ComputeMinSocWh` is uit `BuildContextAsync`
+getrokken als statische pure functie (patroon van `ChargeCostBasisService.Project` en
+`ClampToCapacity`) en houdt één extra gegeven bij: liep de scan tot het einde van de lijst zonder te
+breken op een tweede zonvenster, dan is de nacht afgekapt door de horizon en niet door een
+zonsopgang. In dat geval geldt `max(zichtbare som, geleerde nachtbehoefte − zon ervoor)`. De cap
+slokt de veiligheidsfactor daar op (5312 × 1,10 → geklemd op 5312), en dat klopt: die 33% is zelf al
+een P80. Netto is de reserve in de afgekapte staart dus gelijk aan de geleerde nachtbehoefte.
+
+Waarom een bodem en geen betere voorspelling: de kwartieren ná 23:45 bestáán niet in de invoer. Er
+valt niets te fitten — het enige eerlijke antwoord is het gemeten getal dat er al lag.
+
+**Gemeten op de echte reeks.** `PlannedQuarter.NetLoadWh` bewaart de invoer verbatim, dus oud en
+nieuw zijn over dezelfde 199 kwartieren na te rekenen: 65 scans zijn afgekapt, **46 kwartieren
+veranderen en die liggen allemaal ná 13-08 12:30**. Vandaag en morgenochtend zijn bit-identiek —
+daar breekt de scan gewoon op de volgende zonsopgang. Let op wat dit *niet* bewijst: dit toetst de
+bounds, niet het plan. Hoeveel de laatste avond minder verkoopt vraagt een opname via
+`SESSY_RECORD_SOLVE_INPUTS` uit productie; er stond er geen op schijf. Ook niet vergelijken met de
+`MinSocWh`-kolom van oudere rijen — die zijn per rebuild geschreven met de horizon van dát moment,
+dus dat is appels met peren (die val kostte hier een meting).
+
+**Zichtbaar gemaakt.** De nachtreserve stond nergens op het scherm terwijl hij bepaalt hoeveel het
+plan de avond in mag verkopen. `PlanStatistics` draagt hem nu (`NightReservePct`, `NightReserveWh`,
+`NightReserveIsLearned`) en de kaart **Current Plan** op de Statistics-pagina toont procent én kWh,
+met de vermelding of hij geleerd is of met de hand gezet. De "default 33%"-regel stond op het punt
+een derde kopie te krijgen en is samengetrokken in `MilpServiceBase.NightCapRatio`.
+
+Tests: `NightReserveTests` (7), waaronder de bestaande gril die behouden moest blijven: het éérste
+zonkwartier na een nacht landt nog in `solarBeforeWh` vóórdat de lus breekt. Totaal 348.
+
 ## Openstaande punten
 *De nummering heeft een gat (2 is vervallen). Niet hernummeren — elders in dit document wordt naar
 "Openstaande punten 4" verwezen.*
@@ -1179,6 +1225,16 @@ ongefilterde lijst (hun seed-meting ligt vóór `start` en zou wegvallen). Tests
    dus die provider bestaat simpelweg niet. Zelfde klasse als issue #4: geen fout, geen log, geen
    data. Eén regel per provider; de README noemt ze wel als beschikbaar-maar-ongetest, en dat is
    misleidend zolang ze niet eens geconstrueerd worden.
+11. **De horizon houdt op bij 23:45 morgen** (v1.0.103). De reserve is nu afgedekt, maar de planner
+   kan de laatste avond nog steeds niet tegen de nacht erná afwégen — hij houdt alleen genoeg vast.
+   De machinerie om te verlengen ligt er compleet: `ExpectedPriceService.GetExpectedPricesForDateAsync`
+   werkt voor elke datum (60-daags kwartiergemiddelde), `IsPriceExpected` bestaat, en bij
+   `PredictedPriceMode = Off` maakt `StrategyMilpService` zulke kwartieren `reserveOnly` — geen
+   export, geen netladen, wél ZeroNetHome. Dat is precies "horizon-verlenging zonder handel", de
+   gedocumenteerde bedoeling die nooit is aangezet: `EPEXPricesService` vult verwachte prijzen alleen
+   voor mórgen, en alleen zolang de echte nog niet gepubliceerd zijn. Kosten: ~50% meer rekentijd
+   (48 u → 72 u was 279 → 721 ms in v1.0.77) en een extra dag in de grafiek. Wel eerst nagaan wat het
+   bridge-reserve-blok in `BuildContextAsync` gaat doen — dat draait vandaag vrijwel nooit.
 
 ## Diagnosed, niet-een-bug
 - Setpoint requested ≠ Setpoint: Sessy-hardware klemt/tapert zelf (CC/CV, SOC-afhankelijk). API meldt geen reden. `Battery.SetpointRequested` (ons) vs `Sessy.PowerSetpoint` (device).

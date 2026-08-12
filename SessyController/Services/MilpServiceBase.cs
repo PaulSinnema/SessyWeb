@@ -347,9 +347,21 @@ namespace SessyController.Services
                 NextDischargeTime = futurePlan.FirstOrDefault(kvp => kvp.Value.Mode == Modes.Discharging).Key is var dt && dt == default ? null : dt,
                 NextChargeTime = futurePlan.FirstOrDefault(kvp => kvp.Value.Mode == Modes.Charging).Key is var ct && ct == default ? null : ct,
                 SocDeviationPct = GetCurrentSocDeviationPct(now, currentSocWh),
+                NightReservePct = NightCapRatio * 100.0,
+                NightReserveWh = NightCapRatio * _batteryContainer.GetTotalCapacity(),
+                NightReserveIsLearned = _settingsConfig.SelfLearningEnabled,
                 RecentHistory = history,
             };
         }
+
+        /// <summary>
+        /// Night reserve as a fraction of capacity, default 33%. One definition: the planner uses it
+        /// both as the cap on the reserve and, since v1.0.103, as the floor where the horizon cuts a
+        /// night short, and the dashboard shows it.
+        /// </summary>
+        private double NightCapRatio => _settingsConfig.NightReserveCapPct > 0
+            ? _settingsConfig.NightReserveCapPct / 100.0
+            : 0.33;
 
         /// <summary>
         /// Deviation between live SOC and the SOC the plan expects at this moment.
@@ -418,56 +430,24 @@ namespace SessyController.Services
                 _nettingByTime[qi.Time] = taxes?.Netting ?? true;
             }
 
-            // Night reserve cap (default 33%)
-            double nightCapRatio = _settingsConfig.NightReserveCapPct > 0
-                ? _settingsConfig.NightReserveCapPct / 100.0
-                : 0.33;
+            double nightCapRatio = NightCapRatio;
             double reserveSafetyFactor = _settingsConfig.ReserveSafetyFactor > 0
                 ? _settingsConfig.ReserveSafetyFactor
                 : 1.10;
 
+            var netLoads = ordered.Select(q => q.NetLoadWh).ToList();
+
             for (int i = 0; i < ordered.Count; i++)
             {
                 var qi = ordered[i];
-
-                // ── minSoc: reserve for the next no-solar window ─────────────
-                // Only what the sun will not deliver first. Reserving across a solar window meant
-                // that at sunrise the battery still held energy for the NEXT evening — a night and
-                // a full solar day away — so it could not be sold into the evening peak it was
-                // sitting in. On 06-08 that left 21% in the battery at first light while the
-                // evening had been paying €0,30/kWh.
-                double nightReserveWh = 0.0;
-                double solarBeforeWh = 0.0;
-                bool solarSeen = false;
-
-                for (int j = i + 1; j < ordered.Count; j++)
-                {
-                    var future = ordered[j];
-
-                    if (future.NetLoadWh <= 0.0)
-                    {
-                        if (solarSeen && nightReserveWh > 0.0)
-                            break; // Second solar window = the day after — stop here.
-
-                        solarSeen = true;
-                        solarBeforeWh += -future.NetLoadWh;   // surplus that refills before then
-                        continue;
-                    }
-
-                    nightReserveWh += future.NetLoadWh;
-                }
-
-                // The forecast can be wrong, so the safety factor stays on the part that has to
-                // come out of the battery. When the sun covers it all, nothing is held back.
-                double neededWh = Math.Max(0.0, nightReserveWh - solarBeforeWh);
-                double minSocWh = Math.Min(neededWh * reserveSafetyFactor, capWh * nightCapRatio);
 
                 // maxSoc = full capacity. The grid-balance solver decides for itself
                 // whether to store solar surplus or export it, so no artificial headroom
                 // is needed — that previously forced pointless early dumping.
                 double maxSocWh = capWh;
 
-                _minSocWhByTime[qi.Time] = minSocWh;
+                _minSocWhByTime[qi.Time] = ComputeMinSocWh(
+                    netLoads, i, capWh, nightCapRatio, reserveSafetyFactor);
                 _maxSocWhByTime[qi.Time] = maxSocWh;
             }
 
@@ -494,6 +474,65 @@ namespace SessyController.Services
                 else
                     _minSocWhByTime[lastKnown.Time] = bridgeWh;
             }
+        }
+
+        /// <summary>
+        /// Reserve (Wh) the plan has to keep at <paramref name="index"/> to cover the next no-solar
+        /// window. Only what the sun will not deliver first: reserving across a solar window meant
+        /// that at sunrise the battery still held energy for the NEXT evening — a night and a full
+        /// solar day away — so it could not be sold into the evening peak it was sitting in. On
+        /// 06-08 that left 21% in the battery at first light while the evening paid €0,30/kWh.
+        ///
+        /// Static and pure so the reserve can be tested without a database or a clock.
+        /// </summary>
+        /// <param name="netLoadWh">Household load minus solar per quarter, in horizon order.</param>
+        /// <param name="nightCapRatio">Night reserve cap as a fraction of capacity — also the
+        /// learned whole-night need, since PlannerLearningService fits it from measured nights.</param>
+        internal static double ComputeMinSocWh(
+            IReadOnlyList<double> netLoadWh,
+            int index,
+            double capacityWh,
+            double nightCapRatio,
+            double reserveSafetyFactor)
+        {
+            double nightReserveWh = 0.0;
+            double solarBeforeWh = 0.0;
+            bool solarSeen = false;
+            bool truncated = true;
+
+            for (int j = index + 1; j < netLoadWh.Count; j++)
+            {
+                double future = netLoadWh[j];
+
+                if (future <= 0.0)
+                {
+                    if (solarSeen && nightReserveWh > 0.0)
+                    {
+                        truncated = false;   // Second solar window = the day after — stop here.
+                        break;
+                    }
+
+                    solarSeen = true;
+                    solarBeforeWh += -future;   // surplus that refills before then
+                    continue;
+                }
+
+                nightReserveWh += future;
+            }
+
+            // The forecast can be wrong, so the safety factor stays on the part that has to
+            // come out of the battery. When the sun covers it all, nothing is held back.
+            double neededWh = Math.Max(0.0, nightReserveWh - solarBeforeWh);
+
+            // The scan ran out of quarters instead of reaching a sunrise: the horizon ends at 23:45
+            // tomorrow, so the night behind it is simply not in the list. Summing what is visible
+            // then reserves a fraction of a night, and at the very last quarter nothing at all —
+            // which let the plan sell the battery down to 3% with a full night still to come.
+            // The learned night need is the better estimate of what the house still draws.
+            if (truncated)
+                neededWh = Math.Max(neededWh, capacityWh * nightCapRatio - solarBeforeWh);
+
+            return Math.Min(neededWh * reserveSafetyFactor, capacityWh * nightCapRatio);
         }
 
         // ── Rebuild logic ────────────────────────────────────────────────────

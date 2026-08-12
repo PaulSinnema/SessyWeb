@@ -11,6 +11,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.103] — 2026-08-12
+
+### Added
+- **Current Plan** on the Statistics page shows the night reserve, as a percentage and in kWh, and
+  says whether it was learned from measured nights or set by hand. It is the number that decides how
+  much the plan may sell into the evening, and it was not visible anywhere.
+
+### Fixed
+- The plan ran the battery down to almost empty at the end of the last day it can see. Prices are
+  known only through tomorrow, and the reserve for "the coming night" was counted up to that edge —
+  so the last evening reserved a few hundred watt-hours instead of a night's worth, and the very
+  last quarter reserved nothing at all, with a full night still to come. Where the view is cut off
+  by the horizon rather than by the next sunrise, the measured night consumption now sets the floor.
+  Only the final day changes; today and tomorrow morning plan exactly as before.
+
 ## [v1.0.102] — 2026-08-12
 
 ### Fixed
