@@ -132,7 +132,7 @@ Blazor Server, Radzen components, `.razor` + `.razor.cs` code-behind pairs. Page
 # SessyWeb — Samenvatting voor nieuwe chat
 
 ## Wat is SessyWeb
-C#/.NET Blazor Server EMS. Stuurt 3× Sessy batterij (cap 16,2 kWh; raw charge 6600W/discharge 5100W; **aantoonbaar gehaald ~5,0-5,3 kW laden** over vrijwel het hele SOC-bereik — zie Openstaande punten, de eerdere "praktijk max ~4,4kW" was de getaperde planwaarde, niet de hardwarelimiet), SolarEdge inverter, Daikin warmtepomp. Draait op Synology NAS via Docker. Huidige versie **v1.0.108**. Locatie: Apeldoorn.
+C#/.NET Blazor Server EMS. Stuurt 3× Sessy batterij (cap 16,2 kWh; raw charge 6600W/discharge 5100W; **aantoonbaar gehaald ~5,0-5,3 kW laden** over vrijwel het hele SOC-bereik — zie Openstaande punten, de eerdere "praktijk max ~4,4kW" was de getaperde planwaarde, niet de hardwarelimiet), SolarEdge inverter, Daikin warmtepomp. Draait op Synology NAS via Docker. Huidige versie **v1.0.109**. Locatie: Apeldoorn.
 Sinds 11-08 staat de zonmeting hier op de **Sessy-bron** in plaats van SolarEdge-Modbus (v1.0.99/100) —
 de omvormer hangt er nog, maar wordt niet meer uitgelezen. Dat is bewust: het is de enige manier om die
 bron te ijken. Zie v1.0.101 en openstaand punt 9.
@@ -1323,26 +1323,6 @@ die week met 29%. De gemeten tabel wint nu; `MeasuredConsumptionQuarters`/`Total
 hoeveel kwartieren er werkelijk gemeten zijn, want een niet-gemeten kwartier heeft géén rij en mag
 niet als nul meetellen.
 
-Tests: `QuarterlyFactsTests` (9) plus 4 nieuwe in `EnergyStatisticsServiceTests`.
-
-## Gebouwd 13-08 (v1.0.108) — het venster, direct vervolg op v1.0.107
-
-**De ruggengraat begrensde het venster — een fout in de v1.0.107-opzet zelf.** `GetAsync`
-joint op `QuarterlyMeasurements`, dus élk totaal liep alleen over de periode waarvoor batterij-
-telemetrie bestaat. Op de productie-DB begint die tabel op **2026-05-13** terwijl `Consumption`
-teruggaat tot 2025-07-06: Energy Flows toonde 1167 kWh waar de Consumption-pagina 3389 kWh voor
-2026 alleen al liet zien. Beide getallen klopten over hun eigen venster.
-Nu: `GetDataRangeAsync` bepaalt het venster over **alle** bronnen samen, de dagtrimming werkt op dat
-venster, en elk totaal wordt gesommeerd over de tabel die de grootheid bezit
-(`GetGridTotalsAsync`, `GetConsumptionTotalsAsync`, `GetSolarProductionKWhAsync`). Alleen echt
-samengestelde cijfers — zelfverbruikte zon, de financiële — gebruiken de join, want die
-vermenigvuldigen de ene meting met de andere. Nagerekend: het all-time verbruik wordt 5549 kWh.
-**Regel hieruit:** een totaal mag nooit begrensd worden door de tabel van een ándere grootheid.
-
-**De statistiekpagina had geen datumkiezer.** `OnDateRangeChanged` stond er al en werd nergens
-aangeroepen, dus de pagina draaide altijd `MinValue..MaxValue` en was per definitie niet te
-vergelijken met de Consumption- of Solar-pagina. `DateChooserComponent` toegevoegd.
-
 **De netdelta bestond vier keer** (`EnergyStatisticsService`, `ChargeCostBasisService`, `GridPower`,
 plus een maandgrensvariant). Twee klemden een negatieve delta af, `GridPower` niet — een meterreset
 werd daar dus inkomsten. Nu één `QuarterlyFactsService.GridDelta`/`GridDeltas`, statisch en puur,
@@ -1384,6 +1364,57 @@ Tests: `QuarterlyFactsTests` (9) plus 4 nieuwe in `EnergyStatisticsServiceTests`
 **Let op bij vervolgwerk:** `Consumption.ConsumptionWh` is **Watt gemiddeld over het kwartier**,
 ondanks de naam. De conversie staat nu op één plek (`MeasurementView.ConsumptionKWh`); lezers deden
 het eerder zelf, de een met `* 0.25`, de ander met `/ 4`, en één helemaal niet.
+
+## Gebouwd 13-08 (v1.0.108) — het venster, direct vervolg op v1.0.107
+
+Melding: Energy Flows toont 1160 kWh, de Consumption-pagina ruim 3300. Geen eenheids- of
+definitiefout — het venster, en een fout in de v1.0.107-opzet zelf.
+
+**De ruggengraat begrensde het venster.** `GetAsync` joint op `QuarterlyMeasurements`, dus élk
+totaal liep alleen over de periode waarvoor batterij-telemetrie bestaat. Op de productie-DB begint
+die tabel op **2026-05-13** terwijl `Consumption` teruggaat tot 2025-07-06. Gemeten:
+Consumption-pagina jaar 2026 = 3388,6 kWh, Energy Flows = 1167,0 kWh, hele tabel = 5553,5 kWh.
+Beide getallen klopten over hun eigen venster.
+
+Nu bepaalt `GetDataRangeAsync` het venster over **alle** bronnen samen, werkt de dagtrimming
+(onvolledige eerste/laatste dag) op dat venster, en wordt elk totaal gesommeerd over de tabel die de
+grootheid bezit: `GetGridTotalsAsync`, `GetConsumptionTotalsAsync`, `GetSolarProductionKWhAsync`.
+Alleen echt samengestelde cijfers — zelfverbruikte zon, de financiële — gebruiken nog de join, want
+die vermenigvuldigen de ene meting met de andere. Nagerekend op de DB: all-time verbruik wordt
+5549,3 kWh, zon 4772,0 kWh over hetzelfde venster.
+
+**Regel hieruit:** een totaal mag nooit begrensd worden door de tabel van een ándere grootheid. Dat
+is precies de valkuil van een join-op-één-ruggengraat, en hij is bij het bouwen van de leeslaag niet
+opgemerkt omdat de eigen installatie recent genoeg is dat het verschil klein leek.
+
+**De statistiekpagina had geen datumkiezer.** `OnDateRangeChanged` stond al in de code-behind en
+werd nergens aangeroepen, dus de pagina draaide altijd `MinValue..MaxValue` en was per definitie
+niet naast de Consumption- of Solar-pagina te leggen. `DateChooserComponent` toegevoegd — dezelfde
+component en hetzelfde patroon als op ChargingHours en Consumption. Totaal blijft 389.
+
+## Gebouwd 13-08 (v1.0.109) — het gekozen venster is niet het gebruikte venster
+
+Vervolgmelding: met beide pagina's op 2026 staat er 3389 kWh tegen 2110 kWh. Het getal klopte, de
+oorzaak was onzichtbaar: **`Settings.StatisticsFromDate` staat hier op 2026-03-01**, en
+`GetEnergyStatisticsAsync` klemt de start daarop ongeacht wat er gekozen is. Nagerekend op de DB:
+`Consumption` vanaf 01-03 zonder vandaag = **2110,8 kWh** — exact wat de pagina toonde. De
+onvolledige-dag-trimming laat vandaag vallen, `StatisticsFromDate` de eerste twee maanden.
+
+De Consumption-pagina klemt níet, dus twee pagina's met dezelfde periodekeuze konden per definitie
+niet overeenkomen — en niets op het scherm zei waarom. Klemmen blijft goed (data van vóór de
+installatie is niet vergelijkbaar); stil klemmen niet.
+
+Nu draagt `EnergyStatistics` een `ClampedByStatisticsFromDate` en `DashboardStatistics` daarnaast
+`EffectiveStart`/`EffectiveEnd`, en zet `EnergyFlowsComponent` het gebruikte venster onder de titel,
+met de vermelding dat de start uit die instelling komt zodra hij bijt. `clamped` is bewust
+`start != fromDate` en niet "de instelling bestaat": de vlag hoort te zeggen dat het venster
+verkórt is.
+
+**Les:** twee getallen die niet overeenkomen zijn drie keer op rij een venster-verschil gebleken en
+geen rekenfout — eerst de ruggengraat (v1.0.108), toen de datumkiezer (v1.0.108), nu de klem. Bij een
+"komt niet overeen"-melding dus eerst uitrekenen wélk venster het getoonde getal precies oplevert;
+dat wees hier drie keer meteen de oorzaak aan. Tests: 1 erbij plus twee asserts in de bestaande
+klem-test. Totaal 390.
 
 ## Openstaande punten
 *De nummering heeft een gat (2 is vervallen). Niet hernummeren — elders in dit document wordt naar

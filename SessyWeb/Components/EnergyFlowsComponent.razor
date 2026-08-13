@@ -5,6 +5,19 @@
 
 <RadzenCard Style="height: 100%;">
     <RadzenText TextStyle="TextStyle.H6">⚡ Energy Flows</RadzenText>
+
+    @* The window these figures cover is not always the period that was picked: Statistics from
+       date cuts off everything before it, and an incomplete first or last day is dropped so the
+       daily averages are not distorted. Saying so is the point — a total covering five of the
+       eight months you asked for looks like an error in the total. *@
+    <RadzenText TextStyle="TextStyle.Caption" Style="opacity: 0.75;">
+        @($"{Dashboard!.EffectiveStart:dd-MM-yyyy} — {Dashboard!.EffectiveEnd:dd-MM-yyyy}")
+        @if (Dashboard!.ClampedByStatisticsFromDate)
+        {
+            <span> · starts at the configured "Statistics from date"</span>
+        }
+    </RadzenText>
+
     <RadzenRow>
         <RadzenColumn Size="6">
             <StatCardComponent Title="Total consumption" Value="@($"{Dashboard!.TotalConsumptionKWh:F1} kWh")" />

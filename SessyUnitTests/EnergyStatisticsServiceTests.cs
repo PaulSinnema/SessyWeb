@@ -594,6 +594,23 @@ namespace SessyTests.Services
 
             // Total import = (300 + 200) Wh / 1000 = 0.5 kWh.
             Assert.Equal(0.5, result.TotalGridImportKWh, 2);
+
+            // And the page has to be able to say so: a total that silently covers less than the
+            // period that was asked for reads as an error in the total.
+            Assert.True(result.ClampedByStatisticsFromDate);
+            Assert.True(result.ActualDataStart >= fromDate);
+        }
+
+        [Fact]
+        public async Task GetEnergyStatistics_NotClampedWhenTheRequestStartsLater()
+        {
+            // The flag says the window was shortened, not merely that the setting exists.
+            SetupMeasurements(new List<QuarterlyMeasurement> { new() { Time = PeriodStart } });
+            SetupConsumption(new[] { (PeriodStart, 2400.0) });
+
+            var result = await _sut.GetEnergyStatisticsAsync(PeriodStart, PeriodEnd);
+
+            Assert.False(result.ClampedByStatisticsFromDate);
         }
 
         /// <summary>

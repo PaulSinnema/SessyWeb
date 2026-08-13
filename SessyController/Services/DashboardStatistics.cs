@@ -79,6 +79,19 @@ namespace SessyController.Services.Statistics
         /// <summary>Number of days with data in the selected period.</summary>
         public double PeriodDays { get; set; }
 
+        /// <summary>
+        /// The window the figures on this page were actually summed over. It is not the period you
+        /// picked: it starts at Settings.StatisticsFromDate when that is later, and it drops an
+        /// incomplete first or last day so daily averages are not distorted. Showing it is the
+        /// point — a total silently covering five of the eight months you asked for looks like an
+        /// error in the total.
+        /// </summary>
+        public DateTime EffectiveStart { get; set; }
+        public DateTime EffectiveEnd { get; set; }
+
+        /// <summary>True when Settings.StatisticsFromDate moved the start of the window.</summary>
+        public bool ClampedByStatisticsFromDate { get; set; }
+
         /// <summary>Total energy savings vs baseline in the selected period (EUR).</summary>
         public double PeriodSavingsEur { get; set; }
 

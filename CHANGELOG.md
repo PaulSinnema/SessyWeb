@@ -11,6 +11,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.109] — 2026-08-13
+
+### Added
+- **The Energy flows card now says which period it is actually showing.** "Statistics from date" in
+  the settings cuts off everything before it, whatever period you pick, and an incomplete first or
+  last day is left out so the daily averages stay honest. That was invisible: with the setting on
+  1 March, asking for 2026 gave 2110 kWh where the Consumption page showed 3389 kWh for the year,
+  and the difference looked like a fault. The card now prints the window it used, and says so when
+  the start came from that setting.
+
 ## [v1.0.108] — 2026-08-13
 
 ### Fixed

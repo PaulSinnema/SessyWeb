@@ -34,6 +34,9 @@
         /// <summary>Quarters in the period, measured or not.</summary>
         public int TotalQuarters { get; set; }
 
+        /// <summary>True when Settings.StatisticsFromDate moved the start of the window.</summary>
+        public bool ClampedByStatisticsFromDate { get; set; }
+
         /// <summary>Energy consumed directly from solar without going through grid or battery (kWh).</summary>
         public double SelfConsumedSolarKWh { get; set; }
 

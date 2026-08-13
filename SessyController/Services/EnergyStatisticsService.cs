@@ -214,11 +214,20 @@ namespace SessyController.Services
         /// </summary>
         public async Task<EnergyStatistics> GetEnergyStatisticsAsync(DateTime start, DateTime end)
         {
+            // Settings.StatisticsFromDate cuts off everything before it, whatever period was asked
+            // for. That is deliberate — data from before the installation is not comparable — but
+            // it was invisible: asking for 2026 quietly gave March onwards, and the resulting total
+            // looked like an error next to the Consumption page, which does not clamp.
+            bool clamped = false;
+
             if (_settingsConfig.StatisticsFromDate.HasValue)
             {
                 var fromDate = _settingsConfig.StatisticsFromDate.Value;
                 if (start == DateTime.MinValue || start < fromDate)
+                {
+                    clamped = start != fromDate;
                     start = fromDate;
+                }
             }
 
             // The window is the span every source together covers, not the span of one of them.
@@ -251,6 +260,7 @@ namespace SessyController.Services
                 PeriodEnd = end,
                 ActualDataStart = windowStart,
                 ActualDataEnd = windowEnd,
+                ClampedByStatisticsFromDate = clamped,
             };
 
             // Each total is summed over the table that owns the quantity, across the whole window.
@@ -1562,6 +1572,9 @@ namespace SessyController.Services
                 AverageSocPct = periodStats.AverageSocPct,
                 AvgCyclesPerBattery = avgCyclesPerBattery,
                 CycleCostEurPerKWh = _settingsService.CycleCost,
+                EffectiveStart = periodStats.ActualDataStart,
+                EffectiveEnd = periodStats.ActualDataEnd,
+                ClampedByStatisticsFromDate = periodStats.ClampedByStatisticsFromDate,
                 TotalConsumptionKWh = periodStats.TotalConsumptionKWh,
                 TotalGridImportKWh = periodStats.TotalGridImportKWh,
                 AvgDailyConsumptionKWh = periodStats.AvgDailyConsumptionKWh,
