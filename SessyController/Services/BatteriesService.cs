@@ -153,11 +153,15 @@ namespace SessyController.Services
 
                     await Process(cancellationToken).ConfigureAwait(false);
 
-                    delaySeconds = DataChanged == null ? 1 :
+                    // The control rate must not depend on whether a browser has the charging hours
+                    // page open — DataChanged is subscribed there and nowhere else, so this ran
+                    // once per second on every unattended installation and turned each threshold
+                    // flicker into a strategy write per second. The UI gets an immediate cycle
+                    // through OnHeartBeat; it does not need a faster loop.
 #if DEBUG
-                        10;
+                    delaySeconds = 10;
 #else
-                        60;
+                    delaySeconds = 60;
 #endif
 
                     if (DataChanged != null)
@@ -256,6 +260,8 @@ namespace SessyController.Services
                 {
                     // ── Execute ───────────────────────────────────────────────────────
                     await ExecuteAction(action.BatteryMode, action.BatterySetpointW).ConfigureAwait(false);
+
+                    WatchStrategy(_systemInput.NowQuarter, action.BatteryMode);
                 }
                 else
                 {
@@ -383,6 +389,130 @@ namespace SessyController.Services
 #else
             await Task.Delay(1).ConfigureAwait(false);
 #endif
+        }
+
+        // ── Strategy watch ───────────────────────────────────────────────────
+        //
+        // Both checks below exist for problems reported from installations we cannot inspect. The
+        // production log level is Warning, so a path that logs at Information is a path that says
+        // nothing; these are the two symptoms a user can actually see in the Sessy app or in Home
+        // Assistant, and neither of them was visible in the log. Both are gated: once per quarter
+        // for the churn, once per episode for the foreign strategy — never per cycle.
+
+        /// <summary>How many mode changes inside one quarter are no longer normal planning.</summary>
+        private const int StrategyChurnThreshold = 4;
+
+        /// <summary>How many consecutive cycles the hardware may disagree before it is reported.</summary>
+        private const int ForeignStrategyCycles = 3;
+
+        private DateTime _strategyWatchQuarter = DateTime.MinValue;
+        private Modes _lastCommandedMode = Modes.Unknown;
+        private int _modeChangesThisQuarter;
+        private bool _churnReported;
+        private int _foreignStrategyCycles;
+        private bool _foreignStrategyReported;
+
+        /// <summary>
+        /// Evidence for the two symptoms above, read by ConfigurationCheckService. Counting them is
+        /// the point: the log is not visible in the UI, and "the battery keeps switching" is exactly
+        /// the report that arrives without any way to say why. Same pattern as
+        /// ConsumptionMonitorService.NegativeConsumptionQuarters.
+        /// </summary>
+        public int StrategyChurnQuarters { get; private set; }
+        public DateTime? LastStrategyChurnAt { get; private set; }
+        public int LastStrategyChurnCount { get; private set; }
+
+        public int ForeignStrategyEpisodes { get; private set; }
+        public DateTime? LastForeignStrategyAt { get; private set; }
+        public string? LastForeignStrategy { get; private set; }
+        public string? LastCommandedStrategy { get; private set; }
+
+        /// <summary>
+        /// The Sessy power strategy a mode is executed as. ZeroNetHome is the only one that maps to
+        /// NOM — Charging, Discharging and Disabled all go through the open API, which is why every
+        /// crossing of that line is a strategy write.
+        /// </summary>
+        internal static string ExpectedStrategy(Modes mode) =>
+            mode == Modes.ZeroNetHome
+                ? ActivePowerStrategy.PowerStrategies.POWER_STRATEGY_NOM.ToString()
+                : ActivePowerStrategy.PowerStrategies.POWER_STRATEGY_API.ToString();
+
+        /// <summary>
+        /// Reports two things that are invisible from the outside: a mode that keeps changing inside
+        /// one quarter, and a battery that is not on the strategy we commanded.
+        /// </summary>
+        private void WatchStrategy(DateTime nowQuarter, Modes commandedMode)
+        {
+            if (nowQuarter != _strategyWatchQuarter)
+            {
+                _strategyWatchQuarter = nowQuarter;
+                _modeChangesThisQuarter = 0;
+                _churnReported = false;
+            }
+
+            if (_lastCommandedMode != Modes.Unknown && commandedMode != _lastCommandedMode)
+                _modeChangesThisQuarter++;
+
+            _lastCommandedMode = commandedMode;
+
+            if (!_churnReported && _modeChangesThisQuarter >= StrategyChurnThreshold)
+            {
+                _churnReported = true;
+
+                StrategyChurnQuarters++;
+                LastStrategyChurnAt = nowQuarter;
+                LastStrategyChurnCount = _modeChangesThisQuarter;
+
+                _logger.LogWarning(
+                    $"STRATEGY_CHURN[{nowQuarter:dd-MM HH:mm}]: battery mode changed {_modeChangesThisQuarter} times " +
+                    $"in this quarter (now {commandedMode} = {ExpectedStrategy(commandedMode)}). Every change rewrites " +
+                    $"the Sessy power strategy. Look for a GUARD_ or PLANNED_MODE_ line just above; if there is none, " +
+                    $"something outside SessyWeb is setting the strategy as well.");
+            }
+            else if (_churnReported)
+            {
+                // Keep the number honest while the quarter is still running — the warning is
+                // written once, but Tips & Checks shows the final count.
+                LastStrategyChurnCount = _modeChangesThisQuarter;
+            }
+
+            // The hardware strategy is polled every 10s and cached for 2s inside Battery, so one
+            // disagreeing cycle right after a change means nothing. Several in a row do.
+            var actual = _hardwareStatus.ActualBatteryStrategy;
+
+            if (string.IsNullOrEmpty(actual))
+                return;
+
+            var expected = ExpectedStrategy(commandedMode);
+
+            if (actual == expected)
+            {
+                if (_foreignStrategyReported)
+                    _logger.LogWarning(
+                        $"FOREIGN_STRATEGY[{nowQuarter:dd-MM HH:mm}]: battery is back on {actual}, as commanded.");
+
+                _foreignStrategyCycles = 0;
+                _foreignStrategyReported = false;
+                return;
+            }
+
+            _foreignStrategyCycles++;
+
+            if (_foreignStrategyReported || _foreignStrategyCycles < ForeignStrategyCycles)
+                return;
+
+            _foreignStrategyReported = true;
+
+            ForeignStrategyEpisodes++;
+            LastForeignStrategyAt = nowQuarter;
+            LastForeignStrategy = actual;
+            LastCommandedStrategy = expected;
+
+            _logger.LogWarning(
+                $"FOREIGN_STRATEGY[{nowQuarter:dd-MM HH:mm}]: commanded {commandedMode} ({expected}) but the battery " +
+                $"reports {actual} for {_foreignStrategyCycles} cycles. SessyWeb only writes the strategy when it " +
+                $"differs from what the battery reports, so it will not fight this — check for a second controller " +
+                $"(Home Assistant, the Sessy app, Charged) writing the power strategy.");
         }
 
         private async Task ExecuteManualOverride()

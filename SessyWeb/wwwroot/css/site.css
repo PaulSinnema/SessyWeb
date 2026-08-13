@@ -138,6 +138,55 @@ a, .btn-link {
 }
 
 
+/* ── Attentiestip (Tips & Checks) ─────────────────────────────────────────────
+   Een iOS-achtige notificatiestip rechtsboven op een icoon: rood bij errors,
+   oranje bij warnings. Drie dingen die niet vanzelf goed gaan:
+
+   1. De stip hangt aan het ICOON, niet aan het menu-item. Het menu klapt in tot
+      50 px (alleen iconen) en uit tot 200 px, dus het icoon verschuift — de stip
+      rijdt zo vanzelf mee en klopt in beide standen.
+   2. Aangestuurd via data-sessy-badge en niet via een eigen class: Radzen zet
+      class= ná @attributes op zowel het <li> van het menu-item als de <button>
+      van de tabkop, dus een meegegeven class wordt overschreven.
+   3. Alleen de waarden "error" en "warning" tekenen iets. Zo hoeft de code geen
+      attribuut weg te laten en is er geen kale [data-sessy-badge]-selector die
+      per ongeluk op iets anders aanslaat.
+
+   De ring eromheen (box-shadow) is wat de stip van het icoon losmaakt; hij volgt
+   het thema-oppervlak, net als .sessy-tooltip hieronder. */
+[data-sessy-badge="error"] .rz-navigation-item-icon,
+[data-sessy-badge="warning"] .rz-navigation-item-icon,
+[data-sessy-badge="error"] .rz-tabview-icon,
+[data-sessy-badge="warning"] .rz-tabview-icon {
+    position: relative;
+    overflow: visible;
+}
+
+[data-sessy-badge="error"] .rz-navigation-item-icon::after,
+[data-sessy-badge="warning"] .rz-navigation-item-icon::after,
+[data-sessy-badge="error"] .rz-tabview-icon::after,
+[data-sessy-badge="warning"] .rz-tabview-icon::after {
+    content: "";
+    position: absolute;
+    top: -2px;
+    right: -4px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    box-shadow: 0 0 0 2px var(--rz-base-background-color);
+    pointer-events: none;
+}
+
+[data-sessy-badge="error"] .rz-navigation-item-icon::after,
+[data-sessy-badge="error"] .rz-tabview-icon::after {
+    background: var(--rz-danger);
+}
+
+[data-sessy-badge="warning"] .rz-navigation-item-icon::after,
+[data-sessy-badge="warning"] .rz-tabview-icon::after {
+    background: var(--rz-warning);
+}
+
 /* ── Info-tooltips (InfoTipComponent) ─────────────────────────────────────────
    Het thema schildert tooltips met --rz-info als achtergrond (#2cc8c8) en witte
    tekst: contrast ~1,9:1 en het lijkt op niets anders in de app. Deze volgen het

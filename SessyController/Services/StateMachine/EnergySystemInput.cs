@@ -48,6 +48,13 @@ namespace SessyController.Services.StateMachine
 
         // ── Snapshot values (set by LoadAsync) ───────────────────────────
 
+        /// <summary>
+        /// Wall-clock time of this snapshot. The mode dwell in EnergySystemStateMachine needs a
+        /// clock; taking it from the snapshot keeps that class free of a time dependency.
+        /// DateTime.MinValue means "no clock in this snapshot" and disables the dwell.
+        /// </summary>
+        public virtual DateTime Now { get; protected set; }
+
         /// <summary>Quarter being evaluated.</summary>
         public virtual DateTime NowQuarter { get; protected set; }
 
@@ -119,7 +126,8 @@ namespace SessyController.Services.StateMachine
             if (!_hardwareStatus.IsReady)
                 return;
 
-            NowQuarter = _timeZoneService.Now.DateFloorQuarter();
+            Now = _timeZoneService.Now;
+            NowQuarter = Now.DateFloorQuarter();
 
             // ── MILP plan for this quarter ────────────────────────────────
             (PlannedMode, PlannedSetpointW) = await _milpService

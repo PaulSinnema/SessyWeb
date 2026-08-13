@@ -71,6 +71,36 @@ namespace SessyController.Services
         /// <summary>Below this many Wh a (dis)charge is not worth issuing; guards drop to ZeroNetHome.</summary>
         private const double MinimumUsefulWh = 25.0;
 
+        /// <summary>
+        /// The same floor as a fraction of the bank. 25 Wh was picked for a 16.2 kWh bank; on a
+        /// single 5 kWh battery it is inside the resolution of the reported state of charge, so the
+        /// guard below fires and releases on measurement noise alone.
+        /// </summary>
+        private const double MinimumUsefulCapacityRatio = 0.005;
+
+        /// <summary>
+        /// How much wider the release threshold is than the stop threshold. Without it the guards
+        /// stop and resume on the same bare comparison: ZeroNetHome lets the house drain the
+        /// battery, the number climbs back over the threshold, and the mode flips again on the next
+        /// cycle. ZeroNetHome is the Sessy strategy NOM and everything else is API, so every flip
+        /// is a strategy rewrite.
+        /// </summary>
+        private const double GuardReleaseFactor = 4.0;
+
+        /// <summary>
+        /// Net load within this many Wh of zero is noise, not a sign. The previous quarter's
+        /// NetLoad is recomputed every cycle and its solar term is replaced by the measurement as
+        /// soon as that quarter closes, so around sunrise it crosses zero repeatedly — and the two
+        /// branches it selects between are NOM and API.
+        /// </summary>
+        private const double NetLoadDeadbandWh = 50.0;
+
+        // Guard state has to survive between cycles, otherwise the hysteresis above is a no-op.
+        private bool _chargeRoomGuardHeld;
+        private bool _chargeTargetGuardHeld;
+        private bool _dischargeGuardHeld;
+        private Modes _lastIdleMode = Modes.Unknown;
+
         private string? _lastRebuildReason;
         private DateTime? _lastBuildTime;
         private double _lastPlanObjectiveEur;
@@ -809,6 +839,43 @@ namespace SessyController.Services
         }
 
         /// <summary>
+        /// The energy below which a (dis)charge is not worth issuing, scaled to the bank so that a
+        /// single battery gets a deadband it can actually resolve. Never below MinimumUsefulWh.
+        /// </summary>
+        internal static double MinimumUsefulEnergyWh(double capacityWh)
+            => Math.Max(MinimumUsefulWh, capacityWh * MinimumUsefulCapacityRatio);
+
+        /// <summary>
+        /// Whether a runtime guard is holding, with hysteresis: it engages at <paramref name="stopWh"/>
+        /// and only releases once the available energy has climbed back over <paramref name="releaseWh"/>.
+        /// Pure, so the noise case is testable without a battery.
+        /// </summary>
+        internal static bool GuardHolds(bool wasHolding, double availableWh, double stopWh, double releaseWh)
+            => wasHolding ? availableWh < releaseWh : availableWh <= stopWh;
+
+        /// <summary>
+        /// Picks between ZeroNetHome (store the surplus, Sessy strategy NOM) and Disabled (battery
+        /// off, Sessy strategy API at 0 W) for a quarter the plan left idle.
+        ///
+        /// Outside the deadband the rule is unchanged. Inside it the sign of the net load carries
+        /// no information, so the previous choice is kept rather than flipping the strategy every
+        /// cycle. Returns Modes.Unknown when neither rule applies — the caller then keeps the plan.
+        /// </summary>
+        internal static Modes SelectIdleMode(
+            double netLoadWh, bool hasRoom, bool belowCycleCost, Modes previous, double deadbandWh)
+        {
+            if (Math.Abs(netLoadWh) < deadbandWh &&
+                (previous == Modes.ZeroNetHome || previous == Modes.Disabled))
+                return previous;
+
+            if (netLoadWh < 0.0 && hasRoom) return Modes.ZeroNetHome;
+
+            if (netLoadWh >= 0.0 && belowCycleCost) return Modes.Disabled;
+
+            return Modes.Unknown;
+        }
+
+        /// <summary>
         /// Discharge power to ASK the batteries for — the same rule as RequestedChargePowerW, on
         /// the other side. The plan's own power is what the measured capability lets through and
         /// belongs to the SOC path; the setpoint is the request.
@@ -989,15 +1056,26 @@ namespace SessyController.Services
 
             var qi = _quarterlyInfos.FirstOrDefault(q => q.Time == nowQuarter);
 
+            // Stop and release thresholds, scaled to the bank. Both guards below engage at stopWh
+            // and only let go above releaseWh; a bare comparison flips them on SOC noise.
+            double stopWh = MinimumUsefulEnergyWh(capWh);
+            double releaseWh = stopWh * GuardReleaseFactor;
+
             if (planned.Mode == Modes.Charging)
             {
                 double roomWh = maxSocWh - socWh;
 
-                if (roomWh <= MinimumUsefulWh)
+                bool roomGuardWasHeld = _chargeRoomGuardHeld;
+                _chargeRoomGuardHeld = GuardHolds(roomGuardWasHeld, roomWh, stopWh, releaseWh);
+
+                if (_chargeRoomGuardHeld)
                 {
-                    _logger.LogWarning(
-                        $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: GUARD_CHARGE_NO_ROOM → ZeroNetHome " +
-                        $"(socWh={socWh:F0}, maxSocWh={maxSocWh:F0}, roomWh={roomWh:F0})");
+                    // Once per engagement — this method runs on every heartbeat and every UI refresh.
+                    if (!roomGuardWasHeld)
+                        _logger.LogWarning(
+                            $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: GUARD_CHARGE_NO_ROOM → ZeroNetHome " +
+                            $"(socWh={socWh:F0}, maxSocWh={maxSocWh:F0}, roomWh={roomWh:F0}, releaseWh={releaseWh:F0})");
+
                     var nzh = new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
                     qi?.SetMode(Modes.ZeroNetHome);
                     qi?.SetPlanPower(0, 0);
@@ -1014,11 +1092,16 @@ namespace SessyController.Services
                 // energy forward inside one price block, but the tail must not buy past the plan.
                 double limitWh = Math.Min(roomWh, SessionRemainingWh(nowQuarter, socWh, roomWh));
 
-                if (limitWh <= MinimumUsefulWh)
+                bool targetGuardWasHeld = _chargeTargetGuardHeld;
+                _chargeTargetGuardHeld = GuardHolds(targetGuardWasHeld, limitWh, stopWh, releaseWh);
+
+                if (_chargeTargetGuardHeld)
                 {
-                    _logger.LogWarning(
-                        $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: GUARD_CHARGE_TARGET_REACHED → ZeroNetHome " +
-                        $"(socWh={socWh:F0}, limitWh={limitWh:F0})");
+                    if (!targetGuardWasHeld)
+                        _logger.LogWarning(
+                            $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: GUARD_CHARGE_TARGET_REACHED → ZeroNetHome " +
+                            $"(socWh={socWh:F0}, limitWh={limitWh:F0}, releaseWh={releaseWh:F0})");
+
                     var nzh = new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
                     qi?.SetMode(Modes.ZeroNetHome);
                     qi?.SetPlanPower(0, 0);
@@ -1068,11 +1151,16 @@ namespace SessyController.Services
                 // exactly minSoc, so an extra fixed margin dropped the last discharge quarter.
                 double availableWh = socWh - minSocWh;
 
-                if (availableWh <= MinimumUsefulWh)
+                bool dischargeGuardWasHeld = _dischargeGuardHeld;
+                _dischargeGuardHeld = GuardHolds(dischargeGuardWasHeld, availableWh, stopWh, releaseWh);
+
+                if (_dischargeGuardHeld)
                 {
-                    _logger.LogWarning(
-                        $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: GUARD_DISCHARGE_NO_ENERGY → ZeroNetHome " +
-                        $"(socWh={socWh:F0}, minSocWh={minSocWh:F0}, availableWh={availableWh:F0})");
+                    if (!dischargeGuardWasHeld)
+                        _logger.LogWarning(
+                            $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: GUARD_DISCHARGE_NO_ENERGY → ZeroNetHome " +
+                            $"(socWh={socWh:F0}, minSocWh={minSocWh:F0}, availableWh={availableWh:F0}, releaseWh={releaseWh:F0})");
+
                     var nzh = new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
                     qi?.SetMode(Modes.ZeroNetHome);
                     qi?.SetPlanPower(0, 0);
@@ -1129,24 +1217,39 @@ namespace SessyController.Services
                 // discharging worthwhile.
                 double effectiveNetLoadWh = prevQuarter?.NetLoadWh ?? qi.NetLoadWh;
 
-                if (effectiveNetLoadWh < 0.0 && socWh < maxSocWh)
+                var previousIdleMode = _lastIdleMode;
+
+                var idleMode = SelectIdleMode(
+                    effectiveNetLoadWh,
+                    socWh < maxSocWh,
+                    qi.SellingPrice < _settingsService.CycleCost,
+                    previousIdleMode,
+                    NetLoadDeadbandWh);
+
+                if (idleMode == Modes.ZeroNetHome)
                 {
-                    if (planned.Mode != Modes.ZeroNetHome)
+                    _lastIdleMode = idleMode;
+
+                    if (planned.Mode != Modes.ZeroNetHome && previousIdleMode != idleMode)
                         _logger.LogWarning(
                             $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: PLANNED_MODE_ALREADY_{planned.Mode} " +
                             $"→ ZERO_NET_HOME_SOLAR_SURPLUS (effectiveNetLoadWh={effectiveNetLoadWh:F0}, socWh={socWh:F0}, maxSocWh={maxSocWh:F0})");
+
                     var nzh = new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
                     qi.SetMode(Modes.ZeroNetHome);
                     qi.SetPlanPower(0, 0);
                     return nzh;
                 }
 
-                if (effectiveNetLoadWh >= 0.0 &&
-                    qi.SellingPrice < _settingsService.CycleCost)
+                if (idleMode == Modes.Disabled)
                 {
-                    _logger.LogWarning(
-                        $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: PLANNED_MODE_{planned.Mode}_BELOW_CYCLE_COST " +
-                        $"→ Disabled (sellingPrice={qi.SellingPrice:F4}, cycleCost={_settingsService.CycleCost:F4})");
+                    _lastIdleMode = idleMode;
+
+                    if (previousIdleMode != idleMode)
+                        _logger.LogWarning(
+                            $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: PLANNED_MODE_{planned.Mode}_BELOW_CYCLE_COST " +
+                            $"→ Disabled (sellingPrice={qi.SellingPrice:F4}, cycleCost={_settingsService.CycleCost:F4})");
+
                     var disabled = new PlanAction { Mode = Modes.Disabled, PowerW = 0 };
                     qi.SetMode(Modes.Disabled);
                     qi.SetPlanPower(0, 0);

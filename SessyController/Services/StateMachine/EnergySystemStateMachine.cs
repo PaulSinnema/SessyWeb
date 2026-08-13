@@ -40,6 +40,25 @@ namespace SessyController.Services.StateMachine
         /// </summary>
         public EnergySystemAction CurrentAction { get; private set; } = new EnergySystemAction();
 
+        /// <summary>
+        /// How long a mode has to hold before an opposite change is accepted.
+        ///
+        /// Everything feeding this class decides on a bare comparison: the runtime guards test a
+        /// live SOC against a fixed number of Wh, the idle branch tests the sign of a NetLoad that
+        /// is recomputed every cycle, and the curtailment branch tests a battery power that its own
+        /// previous decision caused. None of them has hysteresis. Because ZeroNetHome maps to the
+        /// Sessy strategy NOM while Charging, Discharging and Disabled all map to API, a value
+        /// flickering around any of those thresholds rewrites the battery's power strategy on every
+        /// cycle — which is exactly what an external installation reported.
+        /// </summary>
+        public static readonly TimeSpan MinimumModeDwell = TimeSpan.FromSeconds(120);
+
+        /// <summary>When the mode currently in CurrentAction was accepted.</summary>
+        private DateTime _modeSince = DateTime.MinValue;
+
+        /// <summary>The mode last held back, so the suppression is logged once and not per cycle.</summary>
+        private Modes _suppressedMode = Modes.Unknown;
+
         public EnergySystemStateMachine(ILogger<EnergySystemStateMachine> logger)
         {
             _logger = logger;
@@ -55,6 +74,8 @@ namespace SessyController.Services.StateMachine
                 ? EvaluateCurtailment(input)
                 : EvaluatePlan(input);
 
+            action = ApplyModeDwell(action, input.Now);
+
             // Only log when something changes.
             if (action.Reason != CurrentAction.Reason ||
                 action.BatteryMode != CurrentAction.BatteryMode ||
@@ -68,6 +89,66 @@ namespace SessyController.Services.StateMachine
 
             CurrentAction = action;
             return action;
+        }
+
+        // ── Mode dwell ────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// How active a mode is. ZeroNetHome and Disabled both leave the battery alone, Charging
+        /// and Discharging both command power, so they rank equal within each pair.
+        /// </summary>
+        private static int ActivityRank(Modes mode)
+            => mode == Modes.Charging || mode == Modes.Discharging ? 1 : 0;
+
+        /// <summary>
+        /// Whether a mode change may be executed now.
+        ///
+        /// Stopping is always allowed — holding an active mode because a timer has not expired is
+        /// the one direction that could keep charging a full battery, so it is never delayed.
+        /// Starting again, and swapping between two equally active modes, waits out the dwell.
+        /// That asymmetry is what breaks the limit cycle without ever holding a dangerous state:
+        /// the guard fires immediately, only the re-arm is rate limited.
+        /// </summary>
+        internal static bool MayChangeMode(Modes current, Modes candidate, DateTime modeSince, DateTime now, TimeSpan dwell)
+        {
+            if (candidate == current) return true;
+            if (current == Modes.Unknown) return true;
+            if (ActivityRank(candidate) < ActivityRank(current)) return true;
+
+            return now - modeSince >= dwell;
+        }
+
+        /// <summary>
+        /// Keeps the previous action when the new one would change mode too soon. Returns the
+        /// action unchanged when the snapshot carries no clock, so a caller that never sets
+        /// EnergySystemInput.Now keeps the old behaviour exactly.
+        /// </summary>
+        private EnergySystemAction ApplyModeDwell(EnergySystemAction action, DateTime now)
+        {
+            if (now == DateTime.MinValue) return action;
+
+            var current = CurrentAction.BatteryMode;
+
+            if (MayChangeMode(current, action.BatteryMode, _modeSince, now, MinimumModeDwell))
+            {
+                if (action.BatteryMode != current)
+                    _modeSince = now;
+
+                _suppressedMode = Modes.Unknown;
+                return action;
+            }
+
+            // One line per suppressed transition, not per cycle — this runs every heartbeat.
+            if (_suppressedMode != action.BatteryMode)
+            {
+                _suppressedMode = action.BatteryMode;
+
+                _logger.LogWarning(
+                    $"EnergyStateMachine: {current} → {action.BatteryMode} held back for " +
+                    $"{(MinimumModeDwell - (now - _modeSince)).TotalSeconds:F0}s — {action.Reason}");
+            }
+
+            return CurrentAction;
         }
 
         // ── Curtailment branch ────────────────────────────────────────────────

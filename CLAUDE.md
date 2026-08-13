@@ -132,7 +132,7 @@ Blazor Server, Radzen components, `.razor` + `.razor.cs` code-behind pairs. Page
 # SessyWeb — Samenvatting voor nieuwe chat
 
 ## Wat is SessyWeb
-C#/.NET Blazor Server EMS. Stuurt 3× Sessy batterij (cap 16,2 kWh; raw charge 6600W/discharge 5100W; **aantoonbaar gehaald ~5,0-5,3 kW laden** over vrijwel het hele SOC-bereik — zie Openstaande punten, de eerdere "praktijk max ~4,4kW" was de getaperde planwaarde, niet de hardwarelimiet), SolarEdge inverter, Daikin warmtepomp. Draait op Synology NAS via Docker. Huidige versie **v1.0.102**. Locatie: Apeldoorn.
+C#/.NET Blazor Server EMS. Stuurt 3× Sessy batterij (cap 16,2 kWh; raw charge 6600W/discharge 5100W; **aantoonbaar gehaald ~5,0-5,3 kW laden** over vrijwel het hele SOC-bereik — zie Openstaande punten, de eerdere "praktijk max ~4,4kW" was de getaperde planwaarde, niet de hardwarelimiet), SolarEdge inverter, Daikin warmtepomp. Draait op Synology NAS via Docker. Huidige versie **v1.0.106**. Locatie: Apeldoorn.
 Sinds 11-08 staat de zonmeting hier op de **Sessy-bron** in plaats van SolarEdge-Modbus (v1.0.99/100) —
 de omvormer hangt er nog, maar wordt niet meer uitgelezen. Dat is bewust: het is de enige manier om die
 bron te ijken. Zie v1.0.101 en openstaand punt 9.
@@ -1186,6 +1186,122 @@ Alle getallen zijn tegen de bron gecontroleerd in plaats van uit dit document ov
 20, replacement cost P25/30 dagen/mediaan-cap, laadbodem P90 × 0,9 per 5%-bin, `ExpectedPriceService`
 60 dagen. Dat is de moeite waard gebleken: dit document had er zelf twee fout staan.
 
+## Gebouwd 13-08 (v1.0.106) — strategie-flapperen bij een externe gebruiker
+
+Melding van buiten: HA-historiegrafiek van één Sessy (PV via de Sessy-CT's) waarin
+`power strategy` tussen 07:07 en 07:30 tientallen keren wisselt tussen **Net zero
+(POWER_STRATEGY_NOM)** en **API**, met setpoint-uitschieters tot −2200 W. Ervoor en erna staat hij
+stabiel op NOM met een vloeiende curve. Eerste vermoeden van de gebruiker was een tweede schrijver
+(hij draait HA); dat is mogelijk, maar niet nodig — SessyWeb doet dit zelf.
+
+**Het mechanisme dat elke flikkering duur maakt.** `ZeroNetHome` → NOM, maar `Charging`,
+`Discharging` **en `Disabled`** → API (`BatteriesService.cs:355-375`; `Disabled` loopt via
+`StopAll()` = API + setpoint 0). Elke wissel over die grens is een strategie-POST. Op dit hele pad
+bestond nergens hysterese, deadband of minimum-verblijftijd: `EnergySystemStateMachine.Evaluate` is
+stateless op logonderdrukking na, de guards zijn kale `<=`-vergelijkingen, en `MaterialPowerChangeW`
+(250 W) gate alléén logging.
+
+**Drie zelf-opwekkende oscillatoren, gevonden en elk apart gerepareerd:**
+1. **Idle-tak, `MilpServiceBase.cs:1132`/`:1144`.** `prevQuarter.NetLoadWh < 0 && socWh < maxSocWh`
+   → ZeroNetHome (NOM); `>= 0 && SellingPrice < CycleCost` → Disabled (API + 0 W). `NetLoadWh`
+   wordt élke cyclus herrekend (`BatteriesService:214`/`:220`) en
+   `SolarService.BackfillActualSolarAsync` vervangt de zonterm van afgesloten kwartieren door de
+   **meting** — bij zonsopgang wiebelt dat teken rond nul. Tijdstip in de melding past hier exact
+   op, en het verklaart waarom het ervóór en erná stil is. **Dit is de waarschijnlijke oorzaak.**
+   Nieuw: `SelectIdleMode` (statisch, puur) met `NetLoadDeadbandWh = 50`; binnen de band blijft de
+   vorige keuze staan, buiten de band is de regel ongewijzigd.
+2. **Laad-/ontlaadguards, `MilpServiceBase.cs:996`/`:1017`/`:1071`.** Stoppen en hervatten deelden
+   één drempel. Nieuw: `GuardHolds(wasHolding, availableWh, stopWh, releaseWh)` — vuurt op `stopWh`,
+   laat pas los boven `releaseWh` (`GuardReleaseFactor = 4`). De vlag staat in een veld, anders is
+   de hysterese een no-op. De guardregels loggen nu bij het **aangaan** in plaats van elke cyclus.
+3. **Negatieve prijs, `EnergySystemStateMachine.cs:143-151` vs `:96-110`.** FORCE_CHARGE laat de
+   batterij laden → `ActualBatteryPowerW < -50` → volgende cyclus ZERO_EXPORT, en omdat
+   `PlannedMode != Charging` geeft die ZeroNetHome/0 ⇒ NOM → laden stopt → weer FORCE_CHARGE. De
+   actie wekt zelf de conditie die hem omkeert. Niet in de bron aangepakt maar afgevangen door de
+   dwell hieronder — de curtailment-tak zelf herschrijven raakt vijf takken die door
+   `EnergySystemStateMachineTests` vastgelegd zijn.
+
+**De backstop: `MinimumModeDwell` (120 s) in `EnergySystemStateMachine`.** Alle drie de oscillatoren
+lopen door `Evaluate`, dus één filter dekt ze alle drie én alles wat er later bijkomt. De
+asymmetrie is het punt: `MayChangeMode` staat een wissel naar een **minder actieve** modus altijd
+direct toe (een timer die laden vasthoudt op een volle batterij zou de gevaarlijke richting zijn),
+en laat opnieuw starten of wisselen tussen twee even actieve modi de dwell uitzitten. Alleen het
+her-inschakelen is dus afgeknepen, nooit het afschakelen. De klok komt uit `EnergySystemInput.Now`
+in plaats van uit een geïnjecteerde `TimeZoneService` — dat houdt de zwaarst geteste klasse van het
+project vrij van een tijdafhankelijkheid, en `DateTime.MinValue` betekent "geen klok in deze
+snapshot" zodat de bestaande testmatrix ongemoeid blijft.
+
+**De deadband schaalt nu mee met de bank.** `MinimumUsefulWh = 25` was gekozen voor 16,2 kWh; bij
+één Sessy (~5,2 kWh) is dat 0,5 % SOC en dus binnen de meetruis van `Sessy.StateOfCharge`. Nieuw:
+`MinimumUsefulEnergyWh(capWh) = max(25, capWh × 0,005)`.
+
+**De regellus liep één keer per seconde.** `BatteriesService.cs:156` had
+`delaySeconds = DataChanged == null ? 1 : 60`, en `DataChanged` wordt uitsluitend door
+`ChargingHoursPage.razor.cs:233` geabonneerd — dus op elke installatie zonder open browsertab draaide
+de volledige regellus (inclusief `ExecuteAction`) op 1 Hz, wat alle bovenstaande instabiliteit met
+zestig vermenigvuldigde. Nu constant 60 s (10 s in DEBUG); de UI krijgt zijn directe cyclus via
+`OnHeartBeat`, niet via een snellere lus.
+
+**Twee waarschuwingen erbij, want dit was van buiten niet te zien.** Deze hele diagnose kwam uit een
+screenshot; in het log stond niets, omdat geen enkel pad hier iets op Warning zei.
+`BatteriesService.WatchStrategy` (aangeroepen ná `ExecuteAction`, dus alleen als wíj sturen) meldt:
+- `STRATEGY_CHURN` — ≥ 4 modewissels binnen één kwartier, één keer per kwartier. De regel verwijst
+  naar de `GUARD_`/`PLANNED_MODE_`-regels erboven, want dat is precies het onderscheid tussen "wij
+  flapperen" en "iemand anders schrijft ook".
+- `FOREIGN_STRATEGY` — de batterij rapporteert 3 cycli achtereen een andere strategie dan wij
+  commandeerden, plus een herstelregel als hij terugkomt. Dit is het directe bewijs voor een tweede
+  schrijver, en het is nodig omdat `Battery.SetActivePowerStrategy` alleen POST bij verschil: wij
+  gaan zo'n gevecht niet aan en er ontstaat dus ook geen zichtbaar spoor.
+`ExpectedStrategy(mode)` legt de mapping vast (alleen `ZeroNetHome` → NOM) — dat feit was de sleutel
+tot de hele diagnose en verdient een test in plaats van een comment.
+Verder is `Battery.SetActivePowerStrategy`'s tak "de terugleesactie faalde, dus schrijf blind" van
+Information naar Warning gegaan: dat is de enige plek waar de "alleen schrijven bij verschil"-regel
+wordt overgeslagen, en op logniveau Warning was dat onzichtbaar.
+
+**Tips & Checks: twee checks erbij, plus een indicator die er nog helemaal niet was.**
+`CheckBatteryStrategyStability` leest de tellers die `WatchStrategy` bijhoudt op `BatteriesService`
+(`StrategyChurnQuarters`, `ForeignStrategyEpisodes` c.s.) — zelfde patroon als
+`ConsumptionMonitorService.NegativeConsumptionQuarters` (v1.0.98): het log is in de UI niet
+zichtbaar, dus het bewijs moet geteld worden. Vreemde schrijver = Error (dan klopt élke andere check
+niet meer, want de hardware doet iets anders dan het plan zegt), flapperen = Warning.
+
+Daarbij het probleem dat die checks al hadden: **ze draaiden alleen als je de tab opende**, precies
+het moment dat niemand kijkt. Nu houdt `ConfigurationCheckService` de telling van de laatste run
+vast (`ErrorCount`/`WarningCount`, `EnsureSummaryAsync` met een leeftijd van 5 minuten en een
+single-flight slot, want in Blazor Server vraagt elk circuit apart). Zichtbaar als een
+notificatiestip à la iOS op het menu-item Settings en op de tab zelf (rood bij errors, oranje bij
+warnings), CSS in `site.css`.
+Vier dingen die niet vanzelf goed gaan:
+1. **De stip hangt aan het ICOON, niet aan het label.** Het menu klapt in tot 50 px (alleen iconen)
+   en uit tot 200 px; een badge naast de tekst is ingeklapt onzichtbaar, een `::after` op
+   `.rz-navigation-item-icon` rijdt mee en klopt in beide standen. Voor de tab hetzelfde op
+   `.rz-tabview-icon`.
+2. **Aangestuurd via `data-sessy-badge`, niet via een eigen class.** Radzen zet `class=` **ná**
+   `@attributes` — op het `<li>` van `RadzenPanelMenuItem` én op de header-`<button>` van
+   `RadzenTabsItem` — dus een meegegeven class wordt overschreven en het item verliest zijn opmaak.
+   Een `data-*`-attribuut heeft die botsing niet. Geverifieerd in de Radzen-bron; dat is ook de
+   reden dat de tab géén `Template` nodig had en de tab-body onaangeroerd bleef.
+   Alleen de waarden `"error"` en `"warning"` tekenen iets, zodat de code nooit een attribuut hoeft
+   weg te laten (Blazor's omgang met een null-waarde in een splat is dan niet relevant) en er geen
+   kale `[data-sessy-badge]`-selector bestaat die per ongeluk elders aanslaat.
+3. **`ChecksChanged` vuurt alleen bij een echt gewijzigde telling.** De Settings-pagina draait de
+   checks elke 5 s opnieuw zolang hij open staat, en het renderen van de layout rendert `@Body` mee
+   (v1.0.76) — een onvoorwaardelijk event zou de hele pagina vier keer per minuut hertekenen.
+4. **`EnsureSummaryAsync` gaat via `Task.Run`.** Componentcode draait op de synchronisatiecontext van
+   het circuit en de checks doen DB-werk (v1.0.43). Hij hangt aan `OnInitializedAsync` én aan
+   `NavigationManager.LocationChanged`, anders is de badge zo vers als het moment waarop de tab werd
+   geopend; de leeftijdsgrens zorgt dat rondklikken niets herberekent. Afmelden in `Dispose`, samen
+   met de andere twee abonnementen.
+
+Tests: `ModeFlappingTests` (29) — de pure kern van elke reparatie, inclusief een ruisreeks rond de
+drempel en een zonsopgang-reeks rond nul die elk nul modewissels mogen opleveren. Totaal 377.
+`WatchStrategy`, `CheckBatteryStrategyStability` en de indicator zijn niet getest: `BatteriesService`
+hangt aan concrete klassen zonder interface (openstaand punt 6) en `SessyUnitTests` heeft geen
+projectreferentie naar `SessyWeb` (openstaand punt 5).
+
+**Les:** een grafiek van *strategie* zegt meer dan een grafiek van vermogen. Het beeld was pas te
+lezen toen duidelijk was dat `Disabled` óók API is — daarvóór leek elke API-periode een laadpoging.
+
 ## Openstaande punten
 *De nummering heeft een gat (2 is vervallen). Niet hernummeren — elders in dit document wordt naar
 "Openstaande punten 4" verwezen.*
@@ -1266,6 +1382,22 @@ Alle getallen zijn tegen de bron gecontroleerd in plaats van uit dit document ov
     v1.0.104 kwam hij als vijfde uitgaande host boven en is hij bewust *niet* gedocumenteerd — hij
     belt nooit. Weggooien of afmaken; zolang hij er staat is elke inventarisatie van uitgaand verkeer
     misleidend.
+13. **`ThrottleAnalysisService.MinRequestedW = 3000` maakt de laadtaper onleerbaar bij één batterij.**
+    Toegepast op `:181` en `:707`. `PlannedUnthrottledPowerW` is een **banktotaal** uit
+    `TotalRawChargingCapacity` (`StrategyMilpService.cs:60`), en één Sessy laadt nameplate 2200 W —
+    de drempel wordt dus nooit gehaald, `FitChargeTaperAsync` geeft `ChargeTaper.None` (`:269`) en
+    de planner draait permanent op `ThrottleFallbackPct` (0,80). De twee zusterfits
+    (`DischargeCapability`, `ChargeCapabilityFloor`) laten die drempel bewust weg en werken wél; de
+    voor de hand liggende reparatie is hem relatief maken aan de bankcapaciteit. Niet meegenomen in
+    v1.0.106 — dat raakt de taperfit, en die staat al onder punt 0.
+14. **`SessyInverterService.ClampToCapacity` heeft geen ondergrens** (`:263-268`): alleen
+    `totalW > capacityW` wordt geklemd. Een negatieve som van `renewable_energy_phase*` loopt
+    ongemoeid door naar `ActualSolarPowerInWatts` (`:365`), naar `InverterMeasurements`
+    (`InverterMeasurementWriter.cs:64,70` filtert alleen NaN/Inf) en in `solar + grid + battery`.
+    Erger: de daglicht-nulalarm-toets is `reading <= 0.0` (`:367`), dus een negatieve meting
+    produceert de melding "CT-klemmen zitten niet om de PV-groep" — de verkeerde diagnose. Hangt
+    samen met punt 9: het teken- en optelconventie van `renewable_energy_phase*` is nergens
+    vastgelegd of getest.
 
 ## Diagnosed, niet-een-bug
 - Setpoint requested ≠ Setpoint: Sessy-hardware klemt/tapert zelf (CC/CV, SOC-afhankelijk). API meldt geen reden. `Battery.SetpointRequested` (ons) vs `Sessy.PowerSetpoint` (device).

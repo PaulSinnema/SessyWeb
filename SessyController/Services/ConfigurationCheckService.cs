@@ -45,6 +45,7 @@ namespace SessyController.Services
         private readonly SolarInverterManager _solarInverterManager;
         private readonly ConsumptionMonitorService _consumptionMonitorService;
         private readonly SessyInverterService _sessyInverterService;
+        private readonly BatteriesService _batteriesService;
         private readonly IOptionsMonitor<PowerSystemsConfig> _powerSystemsConfigMonitor;
         private PowerSystemsConfig _powerSystemsConfig => _powerSystemsConfigMonitor.CurrentValue;
 
@@ -71,8 +72,10 @@ namespace SessyController.Services
             SolarInverterManager solarInverterManager,
             ConsumptionMonitorService consumptionMonitorService,
             SessyInverterService sessyInverterService,
+            BatteriesService batteriesService,
             IOptionsMonitor<PowerSystemsConfig> powerSystemsConfigMonitor)
         {
+            _batteriesService = batteriesService;
             _solarInverterManager = solarInverterManager;
             _consumptionMonitorService = consumptionMonitorService;
             _sessyInverterService = sessyInverterService;
@@ -98,6 +101,48 @@ namespace SessyController.Services
             _plannerLearningService = plannerLearningService;
         }
 
+        // ── Summary for the badge ────────────────────────────────────────────
+        //
+        // The checks only ran when someone opened the Tips & Checks tab, which is exactly the
+        // moment nobody looks. Keeping the counts of the last run lets the menu and the tab header
+        // say there is something to see, without every render re-querying the database.
+
+        /// <summary>How long the counts stay good enough to badge with.</summary>
+        private static readonly TimeSpan SummaryMaxAge = TimeSpan.FromMinutes(5);
+
+        private readonly SemaphoreSlim _summaryLock = new(1, 1);
+        private DateTime _lastRunAt = DateTime.MinValue;
+
+        public int ErrorCount { get; private set; }
+        public int WarningCount { get; private set; }
+        public bool HasIssues => ErrorCount > 0 || WarningCount > 0;
+
+        /// <summary>Raised after every run so open circuits can refresh their badge.</summary>
+        public event Action? ChecksChanged;
+
+        /// <summary>
+        /// Makes sure the counts are recent enough to show. Runs the checks only when the last run
+        /// is older than <see cref="SummaryMaxAge"/>, and only one run at a time — in Blazor Server
+        /// every open browser tab is its own circuit and they all ask at once.
+        /// </summary>
+        public async Task EnsureSummaryAsync()
+        {
+            if (_timeZoneService.Now - _lastRunAt < SummaryMaxAge) return;
+
+            await _summaryLock.WaitAsync().ConfigureAwait(false);
+
+            try
+            {
+                if (_timeZoneService.Now - _lastRunAt < SummaryMaxAge) return;
+
+                await RunAllChecksAsync().ConfigureAwait(false);
+            }
+            finally
+            {
+                _summaryLock.Release();
+            }
+        }
+
         public async Task<List<ConfigurationCheck>> RunAllChecksAsync()
         {
             var checks = new List<ConfigurationCheck>();
@@ -107,6 +152,8 @@ namespace SessyController.Services
             CheckBatteryConfiguration(checks);
             CheckSolarSource(checks);
             CheckSolarMeasurement(checks);
+            CheckBatteryStrategyStability(checks);
+            AddBadgeDemoChecks(checks);
             await CheckConsumptionHistory(checks);
             await CheckEneverToken(checks);
             await CheckTaxesConfiguration(checks);
@@ -117,6 +164,21 @@ namespace SessyController.Services
             CheckSettingsExtremes(checks);
             CheckPlannerLearning(checks);
             await CheckPlanStatus(checks).ConfigureAwait(false);
+
+            int errors = checks.Count(c => c.Severity == CheckSeverity.Error);
+            int warnings = checks.Count(c => c.Severity == CheckSeverity.Warning);
+
+            bool changed = errors != ErrorCount || warnings != WarningCount;
+
+            ErrorCount = errors;
+            WarningCount = warnings;
+            _lastRunAt = _timeZoneService.Now;
+
+            // Only on a real change. The Settings page re-runs every 5 seconds while it is open,
+            // and rendering the layout renders @Body with it (v1.0.76) — an unconditional event
+            // would redraw the whole page four times a minute for nothing.
+            if (changed)
+                ChecksChanged?.Invoke();
 
             return checks.OrderBy(c => c.Severity).ToList();
         }
@@ -395,6 +457,75 @@ namespace SessyController.Services
         /// quarter is discarded, so consumption is recorded at night and missing all day (issue #4).
         /// A discarded quarter is the evidence, which is why it is counted rather than only logged.
         /// </summary>
+        // ═════════════════════════════════════════════════════════════════════
+        // TEMPORARY — remove. Only here to show what the notification dot looks
+        // like; DEBUG-only so it can never reach the published image.
+        // ═════════════════════════════════════════════════════════════════════
+        private static void AddBadgeDemoChecks(List<ConfigurationCheck> checks)
+        {
+#if DEBUG
+            checks.Add(new ConfigurationCheck
+            {
+                Severity = CheckSeverity.Error,
+                Title = "TEMPORARY — demo error",
+                Description = "Not a real problem. This check exists only to make the notification dot " +
+                              "appear on the Settings menu item and on the Tips & Checks tab. It is " +
+                              "compiled into DEBUG builds only, so it is not in the Docker image. " +
+                              "Delete AddBadgeDemoChecks and its call in RunAllChecksAsync when done."
+            });
+#endif
+        }
+
+        /// <summary>
+        /// Two things a user sees in the Sessy app or in Home Assistant and cannot explain: the
+        /// battery hopping between "Net zero" and "API", and the battery sitting on a strategy
+        /// SessyWeb never asked for. Only ZeroNetHome maps to NOM — Charging, Discharging and
+        /// Disabled all go out through the open API — so every mode change across that line is a
+        /// strategy rewrite. Counted in BatteriesService, because the log is not visible here.
+        /// </summary>
+        private void CheckBatteryStrategyStability(List<ConfigurationCheck> checks)
+        {
+            // A second controller is the more serious of the two: it makes every other check
+            // unreliable, because the battery is not doing what the plan says it is doing.
+            if (_batteriesService.ForeignStrategyEpisodes > 0)
+            {
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Error,
+                    Title = "Something else is changing the battery power strategy",
+                    Description = $"{_batteriesService.ForeignStrategyEpisodes} time(s) the battery reported a different " +
+                                  $"power strategy than SessyWeb commanded, most recently " +
+                                  $"{_batteriesService.LastForeignStrategyAt:dd-MM-yyyy HH:mm} " +
+                                  $"({_batteriesService.LastForeignStrategy} instead of {_batteriesService.LastCommandedStrategy}). " +
+                                  "SessyWeb only writes the strategy when it differs from what the battery reports, so it " +
+                                  "will not fight this — the plan and the hardware simply drift apart. Check whether Home " +
+                                  "Assistant, the Sessy app or Charged is also writing the power strategy, and let only one " +
+                                  "of them drive. If SessyWeb should not be driving at all, hand control over on the " +
+                                  "Settings page instead.",
+                    ActionUrl = "/settings",
+                    ActionLabel = "Open settings"
+                });
+            }
+
+            if (_batteriesService.StrategyChurnQuarters > 0)
+            {
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Warning,
+                    Title = $"Battery mode kept changing ({_batteriesService.StrategyChurnQuarters} quarters)",
+                    Description = $"Most recently {_batteriesService.LastStrategyChurnAt:dd-MM-yyyy HH:mm}, with " +
+                                  $"{_batteriesService.LastStrategyChurnCount} changes inside that one quarter. Only Zero " +
+                                  "Net Home runs as the Sessy strategy \"Net zero\"; charging, discharging and off all run " +
+                                  "through the open API, so each of those changes rewrites the strategy on the battery. A " +
+                                  "few per quarter is normal when a charge finishes or the sun comes up; a long run of them " +
+                                  "is not. Look in the log for GUARD_ or PLANNED_MODE_ lines around that time — if there " +
+                                  "are none, another system is driving the battery as well.",
+                    ActionUrl = "/charginghours",
+                    ActionLabel = "Open charging hours"
+                });
+            }
+        }
+
         private void CheckSolarMeasurement(List<ConfigurationCheck> checks)
         {
             int dropped = _consumptionMonitorService.NegativeConsumptionQuarters;

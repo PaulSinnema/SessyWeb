@@ -11,6 +11,40 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.106] — 2026-08-13
+
+### Fixed
+- **The battery no longer switches between "Net zero" and "API" dozens of times per quarter.** Three
+  separate decisions could flip on measurement noise, and each flip rewrote the Sessy's power
+  strategy: the charge and discharge guards compared a live state of charge against a fixed number
+  of watt-hours, and the choice between Zero Net Home and switching the battery off compared the
+  sign of a net load that is recalculated every cycle. All three now have to move a real distance
+  before they change their mind, and a mode has to hold for two minutes before the opposite change
+  is accepted — stopping is still immediate.
+- **The threshold below which charging is "not worth it" now scales with your battery bank.** It was
+  a fixed 25 Wh, chosen for three batteries; on a single battery that is inside the resolution of
+  the reported state of charge, so it triggered on noise alone.
+
+### Added
+- **A notification dot on the Settings menu item when Tips & Checks has something to say** — red for
+  errors, orange for warnings, in the top right corner of the gear, like the badge on a phone app.
+  It sits on the icon rather than next to the label, so it is there with the menu collapsed to icons
+  as well, and the Tips & Checks tab carries the same dot. Until now the checks only ran when you
+  opened that tab, so a real problem could sit there unnoticed for weeks.
+- **Tips & Checks reports both symptoms.** "Something else is changing the battery power strategy"
+  when the battery keeps coming back on a strategy SessyWeb did not ask for — that is Home
+  Assistant, the Sessy app or Charged writing as well, and it makes the plan and the hardware drift
+  apart. "Battery mode kept changing" when the mode flipped repeatedly inside a single quarter, with
+  the quarter and the number of changes.
+- **The log now says the same two things.** Both are warnings, so they show up at the default log
+  level, and both are written once per episode rather than every cycle. A battery whose strategy
+  cannot be read at all is now a warning too — it used to be invisible.
+
+### Changed
+- **The control loop now always runs once a minute.** It ran once per *second* whenever nobody had
+  the Charging hours page open in a browser, which multiplied every one of the above by sixty. The
+  page still refreshes immediately when you open it.
+
 ## [v1.0.105] — 2026-08-12
 
 ### Added

@@ -37,6 +37,20 @@ namespace SessyWeb.Pages
             _ => "var(--rz-base-600)"
         };
 
+        // ── Tab indicator ─────────────────────────────────────────────────────
+        //
+        // The same notification dot as on the Settings menu item, on the tab icon, so a problem is
+        // visible without opening the tab. Driven by the list this page has already loaded, so it
+        // costs nothing extra. RadzenTabsItem splats unmatched attributes onto the header button,
+        // which is why this needs no Template and the tab body is left alone.
+
+        private int CheckErrors => _checks?.Count(c => c.Severity == CheckSeverity.Error) ?? 0;
+        private int CheckWarnings => _checks?.Count(c => c.Severity == CheckSeverity.Warning) ?? 0;
+
+        /// <summary>Drives the dot; only "error" and "warning" draw anything. See site.css.</summary>
+        private string ChecksTabBadge =>
+            CheckErrors > 0 ? "error" : CheckWarnings > 0 ? "warning" : "none";
+
         private async Task LoadChecks()
         {
             _checks = await _checkService!.RunAllChecksAsync();

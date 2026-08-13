@@ -188,7 +188,12 @@ namespace SessyController.Services.Items
             }
             else
             {
-                _logger.LogInformation($"Changing strategy to {strategy.Strategy}: 2");
+                // The read failed, so there is nothing to compare against and the write goes out
+                // blind. Warning, not Information: on a production log level of Warning this is the
+                // only trace that the "only write when it differs" rule was skipped, and a battery
+                // whose strategy cannot be read is the first thing to check in a report.
+                _logger.LogWarning(
+                    $"Battery {Id}: active power strategy could not be read — setting {strategy.Strategy} unconditionally.");
 
                 await _sessyService.SetActivePowerStrategyAsync(Id, strategy, handover);
                 InvalidateStatusCache();

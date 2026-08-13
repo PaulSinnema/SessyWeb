@@ -116,9 +116,15 @@
                                      Path="energystatistics"
                                      Click="@CollapseMenu"
                                      Icon="monitoring" />
+                @* Notification dot when Tips & Checks has something to say. data-sessy-badge lands
+                   on the <li> and the dot is drawn on the icon, so it is visible with the menu
+                   collapsed to icons as well. Radzen writes class= after @attributes, so a class of
+                   our own would be overwritten — see site.css. *@
                 <RadzenPanelMenuItem Text="Settings"
                                      Path="settings"
                                      Click="@CollapseMenu"
+                                     data-sessy-badge="@SettingsBadge"
+                                     title="@SettingsMenuTitle"
                                      Icon="settings" />
                 <RadzenPanelMenuItem Text="Data Editor"
                                      Path="dataeditor"
