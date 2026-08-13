@@ -11,6 +11,37 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.107] — 2026-08-13
+
+### Fixed
+- **Household consumption on the Energy statistics page was too high.** It was recalculated there as
+  grid import + solar − export, a formula with no battery term, so charging the battery from the
+  grid counted as household use. It now shows the measured figure — the same one the Consumption
+  page has always shown. On a sample week the old number read 102.6 kWh against a measured
+  79.7 kWh, a 29% overstatement, and the difference matches the energy that went into the battery
+  almost exactly.
+- **Quarters recorded twice were counted twice.** A database index that should have prevented
+  duplicates was lost in an earlier upgrade, and two background services write the same table. Any
+  duplicated quarter doubled its battery energy and its consumption in every total. Duplicates are
+  now collapsed on reading.
+- **The Energy statistics page could stay empty while the Consumption page filled up.** The service
+  that records meter readings gave up entirely when there was no weather data — the same fault
+  fixed for consumption in v1.0.96, in the other service. Without those records the whole statistics
+  page has nothing to show. Weather is now optional there, as it already was elsewhere, and a
+  missing meter section says so in the log instead of failing silently.
+
+### Changed
+- **Every measured figure now has exactly one source.** Grid import and export come from the meter
+  readings, solar from the inverter measurements, household load from the consumption
+  measurements, battery state from the quarterly measurements — and all of it through one place, so
+  the Solar power page, the Consumption page, the statistics and the financial results can no
+  longer disagree. The meter calculation existed in four separate copies, one of which turned a
+  meter reset into income on the financial page.
+
+### Removed
+- Unused code: the power-estimates service, an unused consumption query, and two data services that
+  were injected but never called.
+
 ## [v1.0.106] — 2026-08-13
 
 ### Fixed

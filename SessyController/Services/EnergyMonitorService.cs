@@ -101,7 +101,26 @@ namespace SessyController.Services
 
         private async Task Process(CancellationToken cancelationToken)
         {
-            await EnsureServicesAreInitialized(cancelationToken);
+            await WaitForOptionalServicesAsync(cancelationToken);
+
+            // A missing meter section used to be completely silent: the loop below simply had
+            // nothing to walk. Without meter readings there are no QuarterlyMeasurements either,
+            // and the whole Energy statistics page stays empty (issue #4, same class).
+            if (_p1MeterContainer.P1Meters.Count == 0)
+            {
+                if (!_noMetersLogged)
+                {
+                    _noMetersLogged = true;
+
+                    _logger.LogWarning(
+                        "EnergyMonitorService: no P1 meters configured (Sessy:Meters) — no meter readings and no " +
+                        "quarterly measurements are stored, so the Energy statistics page stays empty.");
+                }
+
+                return;
+            }
+
+            _noMetersLogged = false;
 
             foreach (P1Meter? p1Meter in _p1MeterContainer.P1Meters)
             {
@@ -123,16 +142,16 @@ namespace SessyController.Services
                     continue;
 
                 var p1Details = await _p1MeterContainer.GetDetails(p1Meter.Id!);
-                var weatherData = await _weatherService.GetWeatherData();
-                var prices = await _epexPricesService.GetPrices();
 
-                var weatherHourData = weatherData.UurVerwachting
+                // Weather is decoration here — it contributes one nullable temperature. Without a
+                // null guard a missing WeerOnline section threw on UurVerwachting and took the
+                // meter reading down with it.
+                var weatherData = await _weatherService.GetWeatherData();
+
+                var weatherHourData = weatherData?.UurVerwachting?
                     .FirstOrDefault(uv => uv.TimeStamp == selectTime.DateHour());
 
-                var quarterlyInfo = prices
-                    .FirstOrDefault(hi => hi.Time.DateFloorQuarter() == selectTime);
-
-                await StoreMeasurement(p1Details!, quarterlyInfo, selectTime, weatherHourData, meterId);
+                await StoreMeasurement(p1Details!, selectTime, weatherHourData, meterId);
 
                 DataChanged?.Invoke();
 
@@ -140,29 +159,51 @@ namespace SessyController.Services
             }
         }
 
-        public async Task EnsureServicesAreInitialized(CancellationToken cancelationToken)
+        private bool _firstCycle = true;
+        private bool _noMetersLogged;
+        private bool _weatherMissingLogged;
+
+        /// <summary>
+        /// Gives the weather service a moment to come up on the very first cycle, then carries on
+        /// regardless.
+        ///
+        /// This used to throw when weather or prices were not initialized, which stopped the meter
+        /// readings AND the QuarterlyMeasurement rows — while ConsumptionMonitorService, fixed in
+        /// v1.0.96, kept filling the Consumption table. That is exactly how one installation ended
+        /// up with a populated Consumption page and an empty Energy statistics page.
+        ///
+        /// Neither service is actually needed to store a meter reading: prices contributed nothing
+        /// at all (the QuarterlyInfo was passed to StoreMeasurement and never read), and weather
+        /// contributes one nullable temperature. WeatherService clears its own initialised flag at
+        /// the top of every cycle, so a missing WeerOnline section means it is never true.
+        /// </summary>
+        private async Task WaitForOptionalServicesAsync(CancellationToken cancelationToken)
         {
-            var tries = 0;
-
-            while (!_weatherService.IsInitialized() && tries++ < 10)
+            if (_firstCycle)
             {
-                await Task.Delay(TimeSpan.FromSeconds(5), cancelationToken);
+                _firstCycle = false;
+
+                var tries = 0;
+
+                while (!_weatherService!.IsInitialized() && tries++ < 10)
+                    await Task.Delay(TimeSpan.FromSeconds(5), cancelationToken);
             }
 
-            tries = 0;
+            bool weatherMissing = !_weatherService!.IsInitialized();
 
-            while (!_epexPricesService.IsInitialized() && tries++ < 10)
+            // One line on the transition, not one per quarter.
+            if (weatherMissing != _weatherMissingLogged)
             {
-                await Task.Delay(TimeSpan.FromSeconds(5), cancelationToken);
-            }
+                _weatherMissingLogged = weatherMissing;
 
-            if (!(_epexPricesService.IsInitialized() && _weatherService.IsInitialized()))
-                throw new InvalidOperationException("Day ahead service or weather service not initialized");
+                _logger.LogWarning(weatherMissing
+                    ? "EnergyMonitorService: no weather data — storing meter readings without a temperature."
+                    : "EnergyMonitorService: weather data is back.");
+            }
         }
 
         private async Task StoreMeasurement(
             P1Details p1Details,
-            QuarterlyInfo? quarterlyInfo,
             DateTime time,
             UurVerwachting? hourExpectancy,
             string? meterId)

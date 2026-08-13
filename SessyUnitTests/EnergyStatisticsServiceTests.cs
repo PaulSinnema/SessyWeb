@@ -27,6 +27,7 @@ namespace SessyTests.Services
         private readonly Mock<InvestmentGroupDataService> _groupMock;
         private readonly Mock<TimeZoneService> _timeZoneMock;
         private readonly Mock<ICalculationService> _calculationServiceMock;
+        private readonly Mock<ConsumptionDataService> _consumptionMock;
         private readonly EnergyStatisticsService _sut;
 
         private static readonly DateTime PeriodStart = new DateTime(2026, 5, 1);
@@ -96,6 +97,7 @@ namespace SessyTests.Services
             var consumptionMock = new Mock<ConsumptionDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
             consumptionMock.Setup(s => s.GetList(It.IsAny<Func<IQueryable<Consumption>, Task<List<Consumption>>>>()))
                            .ReturnsAsync(new List<Consumption>());
+            _consumptionMock = consumptionMock;
 
             var scopeFactoryMock2 = BuildScopeFactory();
             _inverterMeasurementMock = new Mock<InverterMeasurementDataService>(MockBehavior.Loose, scopeFactoryMock2.Object);
@@ -104,6 +106,14 @@ namespace SessyTests.Services
             _solarDataMock = new Mock<SolarDataService>(MockBehavior.Loose, scopeFactoryMock2.Object);
             _solarDataMock.Setup(s => s.GetList(It.IsAny<Func<IQueryable<SolarData>, Task<List<SolarData>>>>()))
                           .ReturnsAsync(new List<SolarData>());
+
+            // The assembly of a measured quarter lives here now, so the same mocks feed it.
+            var quarterlyFactsService = new QuarterlyFactsService(
+                _measurementMock.Object,
+                _energyHistoryMock.Object,
+                _inverterMeasurementMock.Object,
+                consumptionMock.Object,
+                calculationServiceMock.Object);
 
             _sut = new EnergyStatisticsService(
                 _measurementMock.Object,
@@ -123,8 +133,8 @@ namespace SessyTests.Services
                 milpServiceMock.Object,
                 null!,   // hardwareStatusService
                 null!,   // planVsActualService
-                _inverterMeasurementMock.Object,
                 _solarDataMock.Object,
+                quarterlyFactsService,
                 NewLogger());
         }
 
@@ -374,24 +384,80 @@ namespace SessyTests.Services
         // ── Consumption tests ────────────────────────────────────────────────
 
         [Fact]
-        public async Task GetEnergyStatistics_CalculatesConsumptionViaEnergyBalance()
+        public async Task GetEnergyStatistics_ReadsConsumptionFromTheMeasurement()
         {
-            // Consumption = import + solar - export = 500 + 200 - 100 = 600 Wh = 0.6 kWh.
+            // 2400 W averaged over a quarter = 0.6 kWh.
+            SetupMeasurements(new List<QuarterlyMeasurement>
+            {
+                new() { Time = PeriodStart }
+            });
+            SetupConsumption(new[] { (PeriodStart, 2400.0) });
+
+            var result = await _sut.GetEnergyStatisticsAsync(PeriodStart, PeriodEnd);
+
+            Assert.Equal(0.6, result.TotalConsumptionKWh, 3);
+            Assert.Equal(1, result.MeasuredConsumptionQuarters);
+        }
+
+        [Fact]
+        public async Task GetEnergyStatistics_ConsumptionIgnoresTheGridBalance()
+        {
+            // The old formula was import + solar - export and had no battery term, so charging
+            // from the grid counted as household load. Grid and solar here would have produced
+            // 0.6 kWh; the measurement says 0.1 kWh and that is what must come out.
             SetupMeasurements(new List<QuarterlyMeasurement>
             {
                 new() { Time = PeriodStart }
             });
             SetupMeterReadings(new[] { (PeriodStart, 500.0, 100.2) });
-
-            // Solar production = 0.2 kWh for this quarter.
             SetupInverterMeasurements(new List<InverterMeasurement>
             {
                 new() { Time = PeriodStart, SolarProductionKWh = 0.2 }
             });
+            SetupConsumption(new[] { (PeriodStart, 400.0) });
+
+            var result = await _sut.GetEnergyStatisticsAsync(PeriodStart, PeriodEnd);
+
+            Assert.Equal(0.1, result.TotalConsumptionKWh, 3);
+        }
+
+        [Fact]
+        public async Task GetEnergyStatistics_DuplicateQuartersAreCountedOnce()
+        {
+            // The unique index on QuarterlyMeasurements.Time was lost in an EF table rebuild, and
+            // two services write the table, so the production database holds duplicate quarters.
+            // Counting them twice doubled both the battery energy and the consumption.
+            SetupMeasurements(new List<QuarterlyMeasurement>
+            {
+                new() { Id = 1, Time = PeriodStart, BatteryPowerWatts = -4000 },
+                new() { Id = 2, Time = PeriodStart, BatteryPowerWatts = -4000 }
+            });
+            SetupConsumption(new[] { (PeriodStart, 2400.0) });
 
             var result = await _sut.GetEnergyStatisticsAsync(PeriodStart, PeriodEnd);
 
             Assert.Equal(0.6, result.TotalConsumptionKWh, 3);
+            Assert.Equal(1, result.MeasuredConsumptionQuarters);
+            Assert.Equal(1.0, result.TotalBatteryChargedKWh, 3);
+        }
+
+        [Fact]
+        public async Task GetEnergyStatistics_UnmeasuredQuartersAreNotCountedAsZero()
+        {
+            // A quarter that could not be measured has no Consumption row. Counting it as zero
+            // would report a household that used nothing; it must simply not be counted.
+            SetupMeasurements(new List<QuarterlyMeasurement>
+            {
+                new() { Time = PeriodStart },
+                new() { Time = PeriodStart.AddMinutes(15) }
+            });
+            SetupConsumption(new[] { (PeriodStart, 2400.0) });
+
+            var result = await _sut.GetEnergyStatisticsAsync(PeriodStart, PeriodEnd);
+
+            Assert.Equal(0.6, result.TotalConsumptionKWh, 3);
+            Assert.Equal(1, result.MeasuredConsumptionQuarters);
+            Assert.Equal(2, result.TotalQuarters);
         }
 
         [Fact]
@@ -408,12 +474,14 @@ namespace SessyTests.Services
                 new() { Time = new DateTime(2026, 5, 2, 23, 45, 0) }
             };
             SetupMeasurements(measurements);
-            SetupMeterReadings(new[]
+
+            // 2000 W over a quarter = 0.5 kWh, twice on Friday and twice on Saturday.
+            SetupConsumption(new[]
             {
-                (new DateTime(2026, 5, 1,  0,  0, 0), 500.0, 0.0),
-                (new DateTime(2026, 5, 1, 23, 45, 0), 500.0, 0.0),
-                (new DateTime(2026, 5, 2,  0,  0, 0), 250.0, 0.0),
-                (new DateTime(2026, 5, 2, 23, 45, 0), 250.0, 0.0)
+                (new DateTime(2026, 5, 1,  0,  0, 0), 2000.0),
+                (new DateTime(2026, 5, 1, 23, 45, 0), 2000.0),
+                (new DateTime(2026, 5, 2,  0,  0, 0), 1000.0),
+                (new DateTime(2026, 5, 2, 23, 45, 0), 1000.0)
             });
 
             var result = await _sut.GetEnergyStatisticsAsync(PeriodStart, PeriodEnd);
@@ -492,6 +560,13 @@ namespace SessyTests.Services
             consumptionMock2.Setup(s => s.GetList(It.IsAny<Func<IQueryable<Consumption>, Task<List<Consumption>>>>()))
                             .ReturnsAsync(new List<Consumption>());
 
+            var quarterlyFactsService2 = new QuarterlyFactsService(
+                measurementMock.Object,
+                energyHistoryMock.Object,
+                _inverterMeasurementMock.Object,
+                consumptionMock2.Object,
+                calculationServiceMock2.Object);
+
             var sut = new EnergyStatisticsService(
                 measurementMock.Object,
                 investmentMock.Object,
@@ -510,8 +585,8 @@ namespace SessyTests.Services
                 milpServiceMock2.Object,
                 null!,   // hardwareStatusService
                 null!,   // planVsActualService
-                _inverterMeasurementMock.Object,
                 _solarDataMock.Object,
+                quarterlyFactsService2,
                 NewLogger());
 
             // Request full month — StatisticsFromDate clips it to May 15.
@@ -1109,6 +1184,21 @@ namespace SessyTests.Services
                     query(readings.AsQueryable()));
             else
                 setup.ReturnsAsync(readings);
+        }
+
+        /// <summary>
+        /// Measured household load per quarter. The stored value is Watts averaged over the
+        /// quarter, despite the column being called ConsumptionWh.
+        /// </summary>
+        private void SetupConsumption(IEnumerable<(DateTime time, double averageW)> rows)
+        {
+            var data = rows
+                .Select(r => new Consumption { Time = r.time, ConsumptionWh = r.averageW })
+                .ToList();
+
+            _consumptionMock
+                .Setup(s => s.GetList(It.IsAny<Func<IQueryable<Consumption>, Task<List<Consumption>>>>()))
+                .ReturnsAsync(data);
         }
 
         private void SetupInverterMeasurements(List<InverterMeasurement> data)

@@ -8,10 +8,8 @@ namespace SessyController.Services.Items
     /// </summary>
     public class GridPower
     {
-        private double _cons1;
-        private double _cons2;
-        private double _prod1;
-        private double _prod2;
+        private double _consumed;
+        private double _produced;
         private EnergyHistory _history1;
         private EnergyHistory _history2;
 
@@ -28,16 +26,19 @@ namespace SessyController.Services.Items
             if (currentHistory.Time == previousHistory.Time)
                 throw new InvalidOperationException($"Dates be in descending order and not be the same. currentHistory {currentHistory} <= previousHistory {previousHistory}");
 
-            _cons1 = currentHistory.ConsumedTariff1 - previousHistory.ConsumedTariff1;
-            _cons2 = currentHistory.ConsumedTariff2 - previousHistory.ConsumedTariff2;
-            _prod1 = currentHistory.ProducedTariff1 - previousHistory.ProducedTariff1;
-            _prod2 = currentHistory.ProducedTariff2 - previousHistory.ProducedTariff2;
+            // One implementation of the meter delta, in QuarterlyFactsService. The four separate
+            // subtractions that used to live here skipped the clamp the other copies applied, so a
+            // meter reset showed up as income on the financial page.
+            var (importWh, exportWh) = QuarterlyFactsService.GridDelta(previousHistory, currentHistory);
+
+            _consumed = importWh;
+            _produced = exportWh;
         }
 
         /// <summary>
         /// Total cost. Negative is what you have to pay. Positive is what you receive.
         /// </summary>
-        public double Total => -_cons1 + -_cons2 +  _prod1 + _prod2;
+        public double Total => -_consumed + _produced;
 
         /// <summary>
         /// For financial reports we need to inverse the sign.
@@ -47,12 +48,12 @@ namespace SessyController.Services.Items
         /// <summary>
         /// Total consumption
         /// </summary>
-        public double TotalConsumed => _cons1 + _cons2;
+        public double TotalConsumed => _consumed;
 
         /// <summary>
         /// Total production.
         /// </summary>
-        public double TotalProduced => _prod1 + _prod2;
+        public double TotalProduced => _produced;
 
         /// <summary>
         /// Is this item a consumer of producer of energy?

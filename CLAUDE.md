@@ -132,7 +132,7 @@ Blazor Server, Radzen components, `.razor` + `.razor.cs` code-behind pairs. Page
 # SessyWeb — Samenvatting voor nieuwe chat
 
 ## Wat is SessyWeb
-C#/.NET Blazor Server EMS. Stuurt 3× Sessy batterij (cap 16,2 kWh; raw charge 6600W/discharge 5100W; **aantoonbaar gehaald ~5,0-5,3 kW laden** over vrijwel het hele SOC-bereik — zie Openstaande punten, de eerdere "praktijk max ~4,4kW" was de getaperde planwaarde, niet de hardwarelimiet), SolarEdge inverter, Daikin warmtepomp. Draait op Synology NAS via Docker. Huidige versie **v1.0.106**. Locatie: Apeldoorn.
+C#/.NET Blazor Server EMS. Stuurt 3× Sessy batterij (cap 16,2 kWh; raw charge 6600W/discharge 5100W; **aantoonbaar gehaald ~5,0-5,3 kW laden** over vrijwel het hele SOC-bereik — zie Openstaande punten, de eerdere "praktijk max ~4,4kW" was de getaperde planwaarde, niet de hardwarelimiet), SolarEdge inverter, Daikin warmtepomp. Draait op Synology NAS via Docker. Huidige versie **v1.0.107**. Locatie: Apeldoorn.
 Sinds 11-08 staat de zonmeting hier op de **Sessy-bron** in plaats van SolarEdge-Modbus (v1.0.99/100) —
 de omvormer hangt er nog, maar wordt niet meer uitgelezen. Dat is bewust: het is de enige manier om die
 bron te ijken. Zie v1.0.101 en openstaand punt 9.
@@ -1302,6 +1302,69 @@ projectreferentie naar `SessyWeb` (openstaand punt 5).
 **Les:** een grafiek van *strategie* zegt meer dan een grafiek van vermogen. Het beeld was pas te
 lezen toen duidelijk was dat `Disabled` óók API is — daarvóór leek elke API-periode een laadpoging.
 
+## Gebouwd 13-08 (v1.0.107) — één bron per grootheid
+
+Melding: de Consumption-pagina toont data, de kaart Energy Flows op de statistiekpagina blijft leeg.
+Ze deelden geen enkele bron, en het bleek niet alleen redundant maar ook fout.
+
+**`QuarterlyFactsService` is nu de enige plek waar een gemeten kwartier wordt samengesteld.**
+Per grootheid precies één gezaghebbende tabel: net ← `EnergyHistory` (delta), zon ←
+`InverterMeasurements`, huisbelasting ← `Consumption`, batterij ← `QuarterlyMeasurements`, prijzen
+← `EPEXPrices` + `Taxes`. `MeasurementView` (bestond al) is de drager en heeft er `SolarProductionKWh`,
+`ConsumptionAverageW`, `HasConsumption` en `ConsumptionKWh` bij gekregen. Lezers: `EnergyStatisticsService`,
+`ChargeCostBasisService`, `GridPower`/`FinancialResultsService`.
+
+**De verbruiksformule was fout, niet alleen dubbel.** `TotalConsumptionKWh` werd berekend als
+`netinvoer + zon − teruglevering` — **zonder batterijterm**, dus laden uit het net telde als
+huisverbruik. Nagemeten op de productie-DB over 5-11 augustus: oude formule 102,58 kWh, gemeten
+tabel 79,69 kWh, verschil 22,89 kWh, netto de batterij in 22,37 kWh. Restverschil 0,52 kWh (0,6%)
+— de balans sluit, en het verschil ís de ontbrekende term. De statistiek overdreef het huisverbruik
+die week met 29%. De gemeten tabel wint nu; `MeasuredConsumptionQuarters`/`TotalQuarters` zeggen
+hoeveel kwartieren er werkelijk gemeten zijn, want een niet-gemeten kwartier heeft géén rij en mag
+niet als nul meetellen.
+
+**De netdelta bestond vier keer** (`EnergyStatisticsService`, `ChargeCostBasisService`, `GridPower`,
+plus een maandgrensvariant). Twee klemden een negatieve delta af, `GridPower` niet — een meterreset
+werd daar dus inkomsten. Nu één `QuarterlyFactsService.GridDelta`/`GridDeltas`, statisch en puur,
+mét clamp én **gegroepeerd per `MeterId`**: bij twee P1-meters trok de oude lus de ene meterstand van
+de andere af.
+
+**Duplicaten in `QuarterlyMeasurements` werden dubbel geteld.** De unieke index op `Time` uit
+migratie `RepairQuarterlyMeasurements` was rauwe SQL; een latere EF-tabelherbouw
+(`RemoveRedundancy`, `RemoveNettoPricesFromMeasurments`) heeft hem meegenomen. In de productie-DB
+staan **268 dubbele kwartieren**, en er komen er nog bij (1 vandaag) — twee diensten schrijven die
+tabel zonder constraint. Elke dubbele rij verdubbelde zijn batterij-energie én zijn verbruik in élk
+totaal. `GetAsync` groepeert nu op `Time` en houdt de hoogste `Id`. **De index zelf is nog niet
+teruggezet** — zie openstaand punt 15.
+
+**`EnergyMonitorService` gooide bij ontbrekend weer.** `EnsureServicesAreInitialized` wierp een
+exception als weer óf prijzen niet geïnitialiseerd waren, en stond bovenaan `Process()` — dus géén
+`EnergyHistory` en géén `QuarterlyMeasurements`. Dat is exact issue #4 (v1.0.96), maar in de andere
+dienst: die sweep heeft er één gemist, en sindsdien lopen de twee pagina's zichtbaar uit elkaar
+(vóór v1.0.96 waren ze allebei leeg). Geen van beide diensten is nodig om een meterstand op te
+slaan: `quarterlyInfo` werd aan `StoreMeasurement` doorgegeven en **nooit gelezen**, en van het weer
+komt alleen `hourExpectancy?.Temp`. Nu `WaitForOptionalServicesAsync` (opstart-gratie op de eerste
+cyclus, daarna doorgaan, één regel op de overgang), een null-guard op `weatherData.UurVerwachting`,
+en een Warning bij een lege metersectie.
+
+**Verouderde docs die het tegenovergestelde beweerden**, alle drie gecorrigeerd:
+`QuarterlyMeasurement` heette "single source of truth for all quarter-hour measurements" en
+documenteerde `GridImportWh`/`GridExportWh`/`GlobalRadiation` — kolommen die migratie
+`RemoveRedundancy` heeft verwijderd; `InverterMeasurement` verwees naar een niet-bestaande
+`QuarterlyMeasurement.SolarProductionKWh`; `ChargingHoursPage.razor.cs:357` zei "QuarterlyMeasurements
+is the single source of truth for solar" terwijl de regel eronder `InverterMeasurements` las.
+
+Opgeruimd: `PowerEstimatesService` (geregistreerd in DI, nul aanroepers),
+`ConsumptionDataService.GetConsumptionBetween` (geen aanroepers, en het somde `ConsumptionWh` rauw
+op terwijl dat Watt-per-kwartier is), en de ongebruikte `InverterMeasurementDataService`-injectie in
+`EnergyStatisticsService`.
+
+Tests: `QuarterlyFactsTests` (9) plus 4 nieuwe in `EnergyStatisticsServiceTests`. Totaal 389.
+
+**Let op bij vervolgwerk:** `Consumption.ConsumptionWh` is **Watt gemiddeld over het kwartier**,
+ondanks de naam. De conversie staat nu op één plek (`MeasurementView.ConsumptionKWh`); lezers deden
+het eerder zelf, de een met `* 0.25`, de ander met `/ 4`, en één helemaal niet.
+
 ## Openstaande punten
 *De nummering heeft een gat (2 is vervallen). Niet hernummeren — elders in dit document wordt naar
 "Openstaande punten 4" verwezen.*
@@ -1398,6 +1461,23 @@ lezen toen duidelijk was dat `Disabled` óók API is — daarvóór leek elke AP
     produceert de melding "CT-klemmen zitten niet om de PV-groep" — de verkeerde diagnose. Hangt
     samen met punt 9: het teken- en optelconventie van `renewable_energy_phase*` is nergens
     vastgelegd of getest.
+15. **De unieke index op `QuarterlyMeasurements.Time` is weg en moet terug** (v1.0.107). Hij werd in
+    `20260521085715_RepairQuarterlyMeasurements` met rauwe SQL aangemaakt en staat daardoor niet in
+    het model; een latere EF-tabelherbouw heeft hem stilzwijgend meegenomen. Gevolg: 268 dubbele
+    kwartieren in de productie-DB en er komen er nog bij. De leeslaag ontdubbelt nu, maar dat is een
+    pleister — twee diensten schrijven die tabel en alleen de DB kan de race echt afvangen. Terug te
+    zetten via `[Index(nameof(Time), IsUnique = true)]` op het model plus een migratie die éérst de
+    bestaande duplicaten opruimt (hoogste `Id` per `Time` houden, gelijk aan wat de leeslaag doet).
+    Dan pas de ontdubbeling in `QuarterlyFactsService` heroverwegen.
+16. **38 dagen hebben wél `QuarterlyMeasurements` maar géén `EnergyHistory`** (14-05 t/m ~half juni
+    in de productie-DB). Die dagen tellen dus mee in de statistiek met netinvoer en -teruglevering
+    op nul, en de eerste meterstand ná het gat draagt de hele periode als één delta. Nog niet
+    uitgezocht waar dat gat vandaan komt; de weer-throw van v1.0.107 is een kandidaat.
+17. **`ActualQuarters` dupliceert `QuarterlyMeasurements`.** `ActualPowerW`/`ActualSocWh` zijn
+    dezelfde uitlezing voor hetzelfde kwartier, uit dezelfde API-call. De rest van de tabel
+    (`ControlMode`, `StateMachineReason`, `CurtailmentMode`) is wél uniek, dus dit is geen simpele
+    verwijdering: de twee kolommen eruit halen vraagt een migratie én een join in
+    `PlanVsActualService`. Afgesproken in de consolidatieronde van v1.0.107, niet meer gehaald.
 
 ## Diagnosed, niet-een-bug
 - Setpoint requested ≠ Setpoint: Sessy-hardware klemt/tapert zelf (CC/CV, SOC-afhankelijk). API meldt geen reden. `Battery.SetpointRequested` (ons) vs `Sessy.PowerSetpoint` (device).

@@ -5,11 +5,11 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace SessyData.Model
 {
     /// <summary>
-    /// Per-inverter solar production per quarter-hour.
-    /// Child of QuarterlyMeasurement — one record per inverter per quarter.
+    /// Per-inverter solar production per quarter-hour, and the only measured source of it — the
+    /// Solar power page, the statistics and the performance factor all read this table.
     ///
-    /// This allows the SolarPowerPage to show production per inverter
-    /// while QuarterlyMeasurement.SolarProductionKWh holds the total.
+    /// One row per inverter per quarter, so a total means summing the rows for that quarter.
+    /// QuarterlyMeasurement has no solar column; this comment used to say it held the total.
     /// </summary>
     [Index(nameof(Time))]
     [Index(nameof(InverterId))]

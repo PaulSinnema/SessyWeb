@@ -125,11 +125,12 @@ builder.Services.AddScoped<SolarService>();
 builder.Services.AddScoped<TcpClientProvider>();
 builder.Services.AddScoped<SessyStatusHistoryService>();
 builder.Services.AddScoped<DbHelper>();
-builder.Services.AddScoped<PowerEstimatesService>();
 builder.Services.AddScoped<FinancialResultsService>();
 builder.Services.AddSingleton<ConsumptionDataService>();
 builder.Services.AddSingleton<InvestmentDataService>();
 builder.Services.AddSingleton<InvestmentGroupDataService>();
+// The one place a measured quarter is assembled — every reader of measured energy goes through it.
+builder.Services.AddScoped<QuarterlyFactsService>();
 builder.Services.AddScoped<EnergyStatisticsService>();
 builder.Services.AddSingleton<ThrottleAnalysisService>();
 builder.Services.AddSingleton<BatteryEfficiencyService>();

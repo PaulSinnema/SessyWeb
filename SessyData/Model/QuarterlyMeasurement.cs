@@ -6,17 +6,19 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace SessyData.Model
 {
     /// <summary>
-    /// Single source of truth for all quarter-hour measurements.
-    /// Replaces the old Performance + EnergyHistory split.
+    /// Battery telemetry per quarter-hour, and the row that says the system was running at all —
+    /// QuarterlyFactsService uses it as the spine and hangs the other measured quantities off it.
+    ///
+    /// This is NOT the single source of truth for a whole quarter, whatever this comment used to
+    /// claim: grid flows live in EnergyHistory (migration RemoveRedundancy dropped the columns
+    /// documented here), solar in InverterMeasurements, household load in Consumption. Read them
+    /// through QuarterlyFactsService rather than re-deriving any of them.
     ///
     /// Unit conventions:
     ///   BatteryPowerWatts        — Watts; negative = charging, positive = discharging
     ///   BatteryStateOfChargeWh   — Wh
-    ///   GridImportWh             — Wh imported from grid this quarter (P1 delta)
-    ///   GridExportWh             — Wh exported to grid this quarter (P1 delta)
     ///   BuyingPriceEur           — EUR/kWh (incl. taxes, computed from EPEXPrices + Taxes, not stored)
     ///   SellingPriceEur          — EUR/kWh (incl. taxes, computed from EPEXPrices + Taxes, not stored)
-    ///   GlobalRadiation          — W/m² (KNMI)
     /// </summary>
     [Index(nameof(Time))]
     public class QuarterlyMeasurement : IUpdatable<QuarterlyMeasurement>

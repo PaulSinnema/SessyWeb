@@ -30,6 +30,24 @@ namespace SessyController.Services.Items
         /// <summary>Energy exported to grid this quarter in Wh (produced-tariff delta).</summary>
         public double GridExportWh { get; init; }
 
+        // ── Solar (InverterMeasurements) ─────────────────────────────────────
+        /// <summary>Solar production this quarter in kWh, summed over every inverter.</summary>
+        public double SolarProductionKWh { get; init; }
+
+        // ── Household load (Consumption) ─────────────────────────────────────
+        /// <summary>
+        /// Measured household load, in Watts averaged over this quarter — the unit
+        /// Consumption.ConsumptionWh actually holds, whatever its name says.
+        /// </summary>
+        public double ConsumptionAverageW { get; init; }
+
+        /// <summary>
+        /// False when the quarter has no Consumption row. A quarter that could not be measured is
+        /// not stored at all, so this is the difference between "the house used nothing" and "we
+        /// do not know" — the whole reason the consumption figures may not simply be summed.
+        /// </summary>
+        public bool HasConsumption { get; init; }
+
         // ── Prices (EPEXPrices + Taxes) ──────────────────────────────────────
         public double BuyingPriceEur { get; init; }
         public double SellingPriceEur { get; init; }
@@ -37,6 +55,13 @@ namespace SessyController.Services.Items
         // ── Derived helpers ──────────────────────────────────────────────────
         public double GridImportKWh => GridImportWh / 1000.0;
         public double GridExportKWh => GridExportWh / 1000.0;
+
+        /// <summary>
+        /// Measured household load this quarter in kWh. The one place the Watts-per-quarter
+        /// convention of the Consumption table is converted — readers used to do it themselves,
+        /// some with * 0.25, some with / 4, and one not at all.
+        /// </summary>
+        public double ConsumptionKWh => ConsumptionAverageW * 0.25 / 1000.0;
 
         public double BatteryChargedKWh => BatteryPowerWatts < 0
             ? Math.Abs(BatteryPowerWatts) * 0.25 / 1000.0

@@ -608,18 +608,11 @@ namespace SessyController.Services
                 return await Task.FromResult(result);
             }).ConfigureAwait(false);
 
-            var importByTime = new Dictionary<DateTime, double>();
-
-            for (int i = 1; i < histories.Count; i++)
-            {
-                double importWh = (histories[i].ConsumedTariff1 - histories[i - 1].ConsumedTariff1)
-                                + (histories[i].ConsumedTariff2 - histories[i - 1].ConsumedTariff2);
-
-                // Guard against meter resets / gaps producing negative deltas.
-                importByTime[histories[i].Time] = Math.Max(0.0, importWh);
-            }
-
-            return importByTime;
+            // One implementation of the meter delta, in QuarterlyFactsService. This used to be a
+            // second copy of it, and a third and a fourth lived in EnergyStatisticsService and
+            // GridPower — one of which did not clamp negative deltas.
+            return QuarterlyFactsService.GridDeltas(histories)
+                .ToDictionary(kv => kv.Key, kv => kv.Value.importWh);
         }
     }
 }

@@ -354,10 +354,8 @@ namespace SessyWeb.Pages
             var start = date.Date;
             var end = start.AddDays(1);
 
-            // QuarterlyMeasurements is the single source of truth for solar after
-            // the MigrateSolarInverterDataToInverterMeasurements migration.
-            // For dates before InverterMeasurements existed, QM is populated via
-            // the same migration from the historical SolarInverterData table.
+            // Battery telemetry. Solar is NOT in this table — it comes from InverterMeasurements
+            // just below, which is the only measured source of it.
             var measurements = await _measurementDataService!.GetList(async set =>
             {
                 var result = set

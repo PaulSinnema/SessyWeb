@@ -44,8 +44,9 @@ namespace SessyController.Services
         private readonly IMilpService _milpService;
         private readonly HardwareStatusService _hardwareStatusService;
         private readonly PlanVsActualService _planVsActualService;
-        private readonly InverterMeasurementDataService _inverterMeasurementDataService;
+        // InverterMeasurements is no longer read here — solar comes through QuarterlyFactsService.
         private readonly SolarDataService _solarDataDataService;
+        private readonly QuarterlyFactsService _quarterlyFactsService;
         private readonly LoggingService<EnergyStatisticsService> _logger;
 
         // Convenience property: total battery capacity in kWh from BatteryContainer.
@@ -69,10 +70,11 @@ namespace SessyController.Services
                                        IMilpService milpService,
                                        HardwareStatusService hardwareStatusService,
                                        PlanVsActualService planVsActualService,
-                                       InverterMeasurementDataService inverterMeasurementDataService,
                                        SolarDataService solarDataDataService,
+                                       QuarterlyFactsService quarterlyFactsService,
                                        LoggingService<EnergyStatisticsService> logger)
         {
+            _quarterlyFactsService = quarterlyFactsService;
             _logger = logger;
             _measurementDataService = measurementDataService;
             _investmentDataService = investmentDataService;
@@ -117,7 +119,6 @@ namespace SessyController.Services
             _milpService = milpService;
             _hardwareStatusService = hardwareStatusService;
             _planVsActualService = planVsActualService;
-            _inverterMeasurementDataService = inverterMeasurementDataService;
             _solarDataDataService = solarDataDataService;
         }
 
@@ -1195,40 +1196,47 @@ namespace SessyController.Services
             stats.SelfConsumedSolarKWh = Math.Min(selfConsumed, stats.TotalSolarProductionKWh);
         }
 
-        private async Task CalculateConsumptionStatsAsync(
+        /// <summary>
+        /// Household consumption, read from the measured Consumption table.
+        ///
+        /// This used to be re-derived here as an energy balance, grid import + solar − export, and
+        /// that formula has no battery term: charging from the grid counted as household load and
+        /// discharging disappeared from it. ConsumptionMonitorService measures solar + grid +
+        /// battery per second and stores the quarter average, which is the same quantity done
+        /// right, so the balance is gone and the measurement is the only source.
+        ///
+        /// Quarters that could not be measured have no row at all, and are skipped rather than
+        /// counted as zero — the difference between "used nothing" and "not known".
+        /// </summary>
+        private Task CalculateConsumptionStatsAsync(
             List<MeasurementView> measurements, EnergyStatistics stats)
         {
-            // Total consumption via energy balance.
-            stats.TotalConsumptionKWh = Math.Max(0,
-                stats.TotalGridImportKWh +
-                stats.TotalSolarProductionKWh -
-                stats.TotalGridExportKWh);
+            var measured = measurements.Where(m => m.HasConsumption).ToList();
 
-            if (!measurements.Any()) return;
-            var start = measurements.Min(m => m.Time);
-            var end = measurements.Max(m => m.Time);
-            var solarByQuarter = await GetSolarByQuarterAsync(start, end);
+            stats.TotalConsumptionKWh = measured.Sum(m => m.ConsumptionKWh);
+            stats.MeasuredConsumptionQuarters = measured.Count;
+            stats.TotalQuarters = measurements.Count;
 
-            double Solar(DateTime t) => solarByQuarter.TryGetValue(t, out var kwh) ? kwh : 0.0;
+            if (!measured.Any()) return Task.CompletedTask;
 
-            // Peak daily consumption from per-quarter grid import.
-            stats.PeakDailyConsumptionKWh = measurements
+            stats.PeakDailyConsumptionKWh = measured
                 .GroupBy(m => m.Time.Date)
-                .Select(g => g.Sum(m => m.GridImportKWh + Solar(m.Time) - m.GridExportKWh))
+                .Select(g => g.Sum(m => m.ConsumptionKWh))
                 .Where(v => v > 0)
                 .DefaultIfEmpty(0)
                 .Max();
 
-            // Weekday vs weekend from grid import + solar - export per quarter.
-            stats.WeekdayConsumptionKWh = measurements
+            stats.WeekdayConsumptionKWh = measured
                 .Where(m => m.Time.DayOfWeek != DayOfWeek.Saturday &&
                             m.Time.DayOfWeek != DayOfWeek.Sunday)
-                .Sum(m => Math.Max(0, m.GridImportKWh + Solar(m.Time) - m.GridExportKWh));
+                .Sum(m => m.ConsumptionKWh);
 
-            stats.WeekendConsumptionKWh = measurements
+            stats.WeekendConsumptionKWh = measured
                 .Where(m => m.Time.DayOfWeek == DayOfWeek.Saturday ||
                             m.Time.DayOfWeek == DayOfWeek.Sunday)
-                .Sum(m => Math.Max(0, m.GridImportKWh + Solar(m.Time) - m.GridExportKWh));
+                .Sum(m => m.ConsumptionKWh);
+
+            return Task.CompletedTask;
         }
 
         private void CalculateBatteryStats(
@@ -1632,92 +1640,22 @@ namespace SessyController.Services
 
         // ── Data access ──────────────────────────────────────────────────────
 
-        private async Task<List<MeasurementView>> GetMeasurementsAsync(
-            DateTime start, DateTime end)
-        {
-            // Battery telemetry for the window.
-            var measurements = await _measurementDataService.GetList(async set =>
-                await Task.FromResult(set
-                    .Where(m => m.Time >= start && m.Time <= end)
-                    .OrderBy(m => m.Time)
-                    .ToList()));
-
-            // Meter readings: load one quarter before the window too, so the first quarter
-            // inside the window has a previous reading to compute its delta against.
-            // DateTime.MinValue ("all data") has nothing before it, and subtracting throws.
-            var historyStart = start > DateTime.MinValue.AddMinutes(15)
-                ? start.AddMinutes(-15)
-                : start;
-
-            var histories = await _energyHistoryDataService.GetList(async set =>
-                await Task.FromResult(set
-                    .Where(h => h.Time >= historyStart && h.Time <= end)
-                    .OrderBy(h => h.Time)
-                    .ToList()));
-
-            // Grid import/export per quarter as the delta between consecutive meter readings,
-            // keyed by the END time of the interval (matching the measurement quarter).
-            var gridByTime = new Dictionary<DateTime, (double importWh, double exportWh)>();
-            for (int i = 1; i < histories.Count; i++)
-            {
-                var prev = histories[i - 1];
-                var cur = histories[i];
-
-                double importWh = (cur.ConsumedTariff1 - prev.ConsumedTariff1)
-                                + (cur.ConsumedTariff2 - prev.ConsumedTariff2);
-                double exportWh = (cur.ProducedTariff1 - prev.ProducedTariff1)
-                                + (cur.ProducedTariff2 - prev.ProducedTariff2);
-
-                // Guard against meter resets / gaps producing negative deltas.
-                gridByTime[cur.Time] = (Math.Max(0.0, importWh), Math.Max(0.0, exportWh));
-            }
-
-            // Prices from EPEXPrices + current Taxes for every quarter.
-            var prices = await _calculationService.CalculateEnergyPricesBatchAsync(
-                measurements.Select(m => m.Time));
-
-            return measurements.Select(m =>
-            {
-                gridByTime.TryGetValue(m.Time, out var grid);
-                prices.TryGetValue(m.Time, out var price);
-
-                return new MeasurementView
-                {
-                    Time = m.Time,
-                    BatteryPowerWatts = m.BatteryPowerWatts,
-                    BatteryStateOfChargeWh = m.BatteryStateOfChargeWh,
-                    BatteryMode = m.BatteryMode,
-                    IsReliable = m.IsReliable,
-                    PlannedRevenueEur = m.PlannedRevenueEur,
-                    GridImportWh = grid.importWh,
-                    GridExportWh = grid.exportWh,
-                    BuyingPriceEur = price?.Buying ?? 0.0,
-                    SellingPriceEur = price?.Selling ?? 0.0
-                };
-            }).ToList();
-        }
-
         /// <summary>
-        /// Returns total solar production in kWh for the given period from InverterMeasurements.
+        /// Every measured quarter in the window. The assembly itself lives in QuarterlyFactsService
+        /// so that this service, ChargeCostBasisService and FinancialResultsService all read the
+        /// same numbers from the same tables — this method used to carry its own copy of the grid
+        /// delta, one of four.
         /// </summary>
-        private async Task<double> GetSolarProductionKWhAsync(DateTime start, DateTime end)
-        {
-            var inverterMeasurements = await _inverterMeasurementDataService.GetList(async set =>
-                await Task.FromResult(set.Where(m => m.Time >= start && m.Time <= end).ToList()));
-            return inverterMeasurements.Sum(m => m.SolarProductionKWh);
-        }
+        private Task<List<MeasurementView>> GetMeasurementsAsync(DateTime start, DateTime end)
+            => _quarterlyFactsService.GetAsync(start, end);
 
-        /// <summary>
-        /// Returns solar production in kWh grouped by quarter-hour Time for the given period.
-        /// </summary>
-        private async Task<Dictionary<DateTime, double>> GetSolarByQuarterAsync(DateTime start, DateTime end)
-        {
-            var inverterMeasurements = await _inverterMeasurementDataService.GetList(async set =>
-                await Task.FromResult(set.Where(m => m.Time >= start && m.Time <= end).ToList()));
-            return inverterMeasurements
-                .GroupBy(m => m.Time)
-                .ToDictionary(g => g.Key, g => g.Sum(m => m.SolarProductionKWh));
-        }
+        /// <summary>Total solar production in kWh for the period. One source: InverterMeasurements.</summary>
+        private Task<double> GetSolarProductionKWhAsync(DateTime start, DateTime end)
+            => _quarterlyFactsService.GetSolarProductionKWhAsync(start, end);
+
+        /// <summary>Solar production in kWh per quarter. One source: InverterMeasurements.</summary>
+        private Task<Dictionary<DateTime, double>> GetSolarByQuarterAsync(DateTime start, DateTime end)
+            => _quarterlyFactsService.GetSolarByQuarterAsync(start, end);
 
         /// <summary>
         /// Returns GlobalRadiation (W/m²) grouped by hour for the given period from SolarData.

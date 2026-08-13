@@ -20,8 +20,19 @@
         /// <summary>Total solar energy produced (kWh).</summary>
         public double TotalSolarProductionKWh { get; set; }
 
-        /// <summary>Total household consumption (kWh).</summary>
+        /// <summary>Total household consumption (kWh), measured — the sum of the Consumption rows.</summary>
         public double TotalConsumptionKWh { get; set; }
+
+        /// <summary>
+        /// How many quarters in the period actually carry a consumption measurement, out of
+        /// <see cref="TotalQuarters"/>. A quarter that could not be measured has no row, so a low
+        /// ratio means the total is an undercount rather than a low household load — which is
+        /// exactly the failure the Consumption page reports as gaps.
+        /// </summary>
+        public int MeasuredConsumptionQuarters { get; set; }
+
+        /// <summary>Quarters in the period, measured or not.</summary>
+        public int TotalQuarters { get; set; }
 
         /// <summary>Energy consumed directly from solar without going through grid or battery (kWh).</summary>
         public double SelfConsumedSolarKWh { get; set; }
