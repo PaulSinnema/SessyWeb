@@ -221,51 +221,50 @@ namespace SessyController.Services
                     start = fromDate;
             }
 
-            var measurements = await GetMeasurementsAsync(start, end);
+            // The window is the span every source together covers, not the span of one of them.
+            // Taking it from the battery telemetry alone cut the period back to the age of that
+            // table — on the production database 2026-05-13, while consumption goes back to
+            // 2025-07-06 — so the page reported a fraction of the household use the Consumption
+            // page showed for the same year.
+            var (firstData, lastData) = await _quarterlyFactsService.GetDataRangeAsync(start, end);
 
-            // Exclude incomplete first and last days only when sufficient complete days remain.
-            // A day is complete when it has data from 00:00 through 23:45 (96 quarters).
-            if (measurements.Any())
+            var windowStart = firstData ?? start;
+            var windowEnd = lastData ?? end;
+
+            // Exclude incomplete first and last days: a day is complete when it runs from 00:00
+            // through 23:45, and a partial one distorts every daily average. Only applied while a
+            // complete day is left over.
+            if (firstData.HasValue && lastData.HasValue)
             {
-                var firstTime = measurements.Min(m => m.Time);
-                var lastTime = measurements.Max(m => m.Time);
+                if (windowStart.TimeOfDay > TimeSpan.Zero && windowStart.Date.AddDays(1) <= windowEnd)
+                    windowStart = windowStart.Date.AddDays(1);
 
-                // First day incomplete if data doesn't start at midnight.
-                if (firstTime.TimeOfDay > TimeSpan.Zero)
-                {
-                    var firstFullDay = firstTime.Date.AddDays(1);
-                    var afterFilter = measurements.Where(m => m.Time >= firstFullDay).ToList();
-                    // Only apply if complete days remain after filtering.
-                    if (afterFilter.Any())
-                        measurements = afterFilter;
-                }
-
-                // Re-evaluate after potential first-day trim.
-                lastTime = measurements.Any() ? measurements.Max(m => m.Time) : lastTime;
-
-                // Last day incomplete if data doesn't end at 23:45.
-                if (lastTime.TimeOfDay < new TimeSpan(23, 45, 0))
-                {
-                    var lastFullDay = lastTime.Date;
-                    var afterFilter = measurements.Where(m => m.Time < lastFullDay).ToList();
-                    // Only apply if complete days remain after filtering.
-                    if (afterFilter.Any())
-                        measurements = afterFilter;
-                }
+                if (windowEnd.TimeOfDay < new TimeSpan(23, 45, 0) && windowEnd.Date > windowStart)
+                    windowEnd = windowEnd.Date.AddTicks(-1);
             }
+
+            var measurements = await GetMeasurementsAsync(windowStart, windowEnd);
 
             var stats = new EnergyStatistics
             {
                 PeriodStart = start,
                 PeriodEnd = end,
-                ActualDataStart = measurements.Any() ? measurements.Min(m => m.Time) : start,
-                ActualDataEnd = measurements.Any() ? measurements.Max(m => m.Time) : end,
+                ActualDataStart = windowStart,
+                ActualDataEnd = windowEnd,
             };
 
-            // Order matters: self-consumed solar depends on battery totals.
-            CalculateGridFlows(measurements, stats);
+            // Each total is summed over the table that owns the quantity, across the whole window.
+            // Only the combined figures below — self-consumed solar, the financial ones — use the
+            // joined quarters, because they multiply one measurement by another.
+            var (importKWh, exportKWh) = await _quarterlyFactsService.GetGridTotalsAsync(windowStart, windowEnd);
+            stats.TotalGridImportKWh = importKWh;
+            stats.TotalGridExportKWh = exportKWh;
+
+            stats.TotalSolarProductionKWh = await _quarterlyFactsService
+                .GetSolarProductionKWhAsync(windowStart, windowEnd);
+
             await CalculateSolarStatsAsync(measurements, stats);
-            await CalculateConsumptionStatsAsync(measurements, stats);
+            await CalculateConsumptionStatsAsync(windowStart, windowEnd, measurements.Count, stats);
             CalculateBatteryStats(measurements, stats);
             await CalculateSelfConsumedSolarAsync(measurements, stats);
             CalculateFinancialStats(measurements, stats);
@@ -1208,35 +1207,18 @@ namespace SessyController.Services
         /// Quarters that could not be measured have no row at all, and are skipped rather than
         /// counted as zero — the difference between "used nothing" and "not known".
         /// </summary>
-        private Task CalculateConsumptionStatsAsync(
-            List<MeasurementView> measurements, EnergyStatistics stats)
+        private async Task CalculateConsumptionStatsAsync(
+            DateTime windowStart, DateTime windowEnd, int joinedQuarters, EnergyStatistics stats)
         {
-            var measured = measurements.Where(m => m.HasConsumption).ToList();
+            var totals = await _quarterlyFactsService.GetConsumptionTotalsAsync(windowStart, windowEnd);
 
-            stats.TotalConsumptionKWh = measured.Sum(m => m.ConsumptionKWh);
-            stats.MeasuredConsumptionQuarters = measured.Count;
-            stats.TotalQuarters = measurements.Count;
+            stats.TotalConsumptionKWh = totals.TotalKWh;
+            stats.MeasuredConsumptionQuarters = totals.MeasuredQuarters;
+            stats.TotalQuarters = Math.Max(joinedQuarters, totals.MeasuredQuarters);
 
-            if (!measured.Any()) return Task.CompletedTask;
-
-            stats.PeakDailyConsumptionKWh = measured
-                .GroupBy(m => m.Time.Date)
-                .Select(g => g.Sum(m => m.ConsumptionKWh))
-                .Where(v => v > 0)
-                .DefaultIfEmpty(0)
-                .Max();
-
-            stats.WeekdayConsumptionKWh = measured
-                .Where(m => m.Time.DayOfWeek != DayOfWeek.Saturday &&
-                            m.Time.DayOfWeek != DayOfWeek.Sunday)
-                .Sum(m => m.ConsumptionKWh);
-
-            stats.WeekendConsumptionKWh = measured
-                .Where(m => m.Time.DayOfWeek == DayOfWeek.Saturday ||
-                            m.Time.DayOfWeek == DayOfWeek.Sunday)
-                .Sum(m => m.ConsumptionKWh);
-
-            return Task.CompletedTask;
+            stats.PeakDailyConsumptionKWh = totals.PeakDailyKWh;
+            stats.WeekdayConsumptionKWh = totals.WeekdayKWh;
+            stats.WeekendConsumptionKWh = totals.WeekendKWh;
         }
 
         private void CalculateBatteryStats(

@@ -132,7 +132,7 @@ Blazor Server, Radzen components, `.razor` + `.razor.cs` code-behind pairs. Page
 # SessyWeb — Samenvatting voor nieuwe chat
 
 ## Wat is SessyWeb
-C#/.NET Blazor Server EMS. Stuurt 3× Sessy batterij (cap 16,2 kWh; raw charge 6600W/discharge 5100W; **aantoonbaar gehaald ~5,0-5,3 kW laden** over vrijwel het hele SOC-bereik — zie Openstaande punten, de eerdere "praktijk max ~4,4kW" was de getaperde planwaarde, niet de hardwarelimiet), SolarEdge inverter, Daikin warmtepomp. Draait op Synology NAS via Docker. Huidige versie **v1.0.107**. Locatie: Apeldoorn.
+C#/.NET Blazor Server EMS. Stuurt 3× Sessy batterij (cap 16,2 kWh; raw charge 6600W/discharge 5100W; **aantoonbaar gehaald ~5,0-5,3 kW laden** over vrijwel het hele SOC-bereik — zie Openstaande punten, de eerdere "praktijk max ~4,4kW" was de getaperde planwaarde, niet de hardwarelimiet), SolarEdge inverter, Daikin warmtepomp. Draait op Synology NAS via Docker. Huidige versie **v1.0.108**. Locatie: Apeldoorn.
 Sinds 11-08 staat de zonmeting hier op de **Sessy-bron** in plaats van SolarEdge-Modbus (v1.0.99/100) —
 de omvormer hangt er nog, maar wordt niet meer uitgelezen. Dat is bewust: het is de enige manier om die
 bron te ijken. Zie v1.0.101 en openstaand punt 9.
@@ -1322,6 +1322,26 @@ tabel 79,69 kWh, verschil 22,89 kWh, netto de batterij in 22,37 kWh. Restverschi
 die week met 29%. De gemeten tabel wint nu; `MeasuredConsumptionQuarters`/`TotalQuarters` zeggen
 hoeveel kwartieren er werkelijk gemeten zijn, want een niet-gemeten kwartier heeft géén rij en mag
 niet als nul meetellen.
+
+Tests: `QuarterlyFactsTests` (9) plus 4 nieuwe in `EnergyStatisticsServiceTests`.
+
+## Gebouwd 13-08 (v1.0.108) — het venster, direct vervolg op v1.0.107
+
+**De ruggengraat begrensde het venster — een fout in de v1.0.107-opzet zelf.** `GetAsync`
+joint op `QuarterlyMeasurements`, dus élk totaal liep alleen over de periode waarvoor batterij-
+telemetrie bestaat. Op de productie-DB begint die tabel op **2026-05-13** terwijl `Consumption`
+teruggaat tot 2025-07-06: Energy Flows toonde 1167 kWh waar de Consumption-pagina 3389 kWh voor
+2026 alleen al liet zien. Beide getallen klopten over hun eigen venster.
+Nu: `GetDataRangeAsync` bepaalt het venster over **alle** bronnen samen, de dagtrimming werkt op dat
+venster, en elk totaal wordt gesommeerd over de tabel die de grootheid bezit
+(`GetGridTotalsAsync`, `GetConsumptionTotalsAsync`, `GetSolarProductionKWhAsync`). Alleen echt
+samengestelde cijfers — zelfverbruikte zon, de financiële — gebruiken de join, want die
+vermenigvuldigen de ene meting met de andere. Nagerekend: het all-time verbruik wordt 5549 kWh.
+**Regel hieruit:** een totaal mag nooit begrensd worden door de tabel van een ándere grootheid.
+
+**De statistiekpagina had geen datumkiezer.** `OnDateRangeChanged` stond er al en werd nergens
+aangeroepen, dus de pagina draaide altijd `MinValue..MaxValue` en was per definitie niet te
+vergelijken met de Consumption- of Solar-pagina. `DateChooserComponent` toegevoegd.
 
 **De netdelta bestond vier keer** (`EnergyStatisticsService`, `ChargeCostBasisService`, `GridPower`,
 plus een maandgrensvariant). Twee klemden een negatieve delta af, `GridPower` niet — een meterreset

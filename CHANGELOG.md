@@ -11,6 +11,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.108] — 2026-08-13
+
+### Fixed
+- **The statistics covered far less than the data you have.** Every figure was limited to the period
+  for which battery telemetry exists — on this database that starts 13 May 2026, while consumption
+  goes back to July 2025 — so household use read 1167 kWh where the Consumption page showed
+  3389 kWh for 2026 alone. Each total is now summed over its own records across the whole period,
+  and the period itself is the span every source together covers.
+
+### Added
+- **A period selector on the Energy statistics page.** It always showed the entire history and there
+  was no way to change that, so its figures could not be compared with the Consumption or Solar
+  power page, which do have one. Put both on the same period and they should now agree.
+
 ## [v1.0.107] — 2026-08-13
 
 ### Fixed

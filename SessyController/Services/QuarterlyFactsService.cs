@@ -199,5 +199,109 @@ namespace SessyController.Services
             var solarByTime = await GetSolarByQuarterAsync(start, end);
             return solarByTime.Values.Sum();
         }
+
+        // ── Period totals ────────────────────────────────────────────────────
+        //
+        // A total is summed over the table that owns the quantity, across the whole period — never
+        // over the joined quarters. The join needs a QuarterlyMeasurements row on both sides, and
+        // that table starts much later than the others: on the production database it begins
+        // 2026-05-13 while Consumption goes back to 2025-07-06, so the statistics page reported
+        // 1167 kWh of household use where the Consumption page showed 3389 kWh for the year. Both
+        // numbers were right about their own window; only the join made them look inconsistent.
+        //
+        // Only genuinely combined figures — arbitrage value, self-consumed solar — need the join,
+        // because they multiply one measurement by another.
+
+        /// <summary>Grid import and export in kWh over the period, from the meter readings alone.</summary>
+        public async Task<(double importKWh, double exportKWh)> GetGridTotalsAsync(DateTime start, DateTime end)
+        {
+            var historyStart = start > DateTime.MinValue.AddMinutes(15)
+                ? start.AddMinutes(-15)
+                : start;
+
+            var histories = await _energyHistoryDataService.GetList(async set =>
+                await Task.FromResult(set
+                    .Where(h => h.Time >= historyStart && h.Time <= end)
+                    .ToList()));
+
+            var deltas = GridDeltas(histories);
+
+            return (deltas.Values.Sum(d => d.importWh) / 1000.0,
+                    deltas.Values.Sum(d => d.exportWh) / 1000.0);
+        }
+
+        /// <summary>Measured household load over the period, from the Consumption table alone.</summary>
+        public async Task<ConsumptionTotals> GetConsumptionTotalsAsync(DateTime start, DateTime end)
+        {
+            var byQuarter = await GetConsumptionByQuarterAsync(start, end);
+
+            double ToKWh(double averageW) => averageW * 0.25 / 1000.0;
+
+            return new ConsumptionTotals
+            {
+                TotalKWh = byQuarter.Values.Sum(ToKWh),
+                MeasuredQuarters = byQuarter.Count,
+
+                PeakDailyKWh = byQuarter
+                    .GroupBy(kv => kv.Key.Date)
+                    .Select(g => g.Sum(kv => ToKWh(kv.Value)))
+                    .DefaultIfEmpty(0.0)
+                    .Max(),
+
+                WeekdayKWh = byQuarter
+                    .Where(kv => kv.Key.DayOfWeek != DayOfWeek.Saturday &&
+                                 kv.Key.DayOfWeek != DayOfWeek.Sunday)
+                    .Sum(kv => ToKWh(kv.Value)),
+
+                WeekendKWh = byQuarter
+                    .Where(kv => kv.Key.DayOfWeek == DayOfWeek.Saturday ||
+                                 kv.Key.DayOfWeek == DayOfWeek.Sunday)
+                    .Sum(kv => ToKWh(kv.Value))
+            };
+        }
+
+        /// <summary>
+        /// The span actually covered by measured data in the window, over every source together.
+        /// Taking it from QuarterlyMeasurements alone shortened the reported period to the age of
+        /// the battery telemetry and divided every daily average by the wrong number of days.
+        /// </summary>
+        public async Task<(DateTime? first, DateTime? last)> GetDataRangeAsync(DateTime start, DateTime end)
+        {
+            var times = new List<DateTime>();
+
+            void Add(DateTime? t) { if (t.HasValue) times.Add(t.Value); }
+
+            var consumption = await GetConsumptionByQuarterAsync(start, end);
+            if (consumption.Count > 0) { Add(consumption.Keys.Min()); Add(consumption.Keys.Max()); }
+
+            var solar = await GetSolarByQuarterAsync(start, end);
+            if (solar.Count > 0) { Add(solar.Keys.Min()); Add(solar.Keys.Max()); }
+
+            var histories = await _energyHistoryDataService.GetList(async set =>
+                await Task.FromResult(set
+                    .Where(h => h.Time >= start && h.Time <= end)
+                    .ToList()));
+            if (histories.Count > 0) { Add(histories.Min(h => h.Time)); Add(histories.Max(h => h.Time)); }
+
+            var measurements = await _measurementDataService.GetList(async set =>
+                await Task.FromResult(set
+                    .Where(m => m.Time >= start && m.Time <= end)
+                    .ToList()));
+            if (measurements.Count > 0) { Add(measurements.Min(m => m.Time)); Add(measurements.Max(m => m.Time)); }
+
+            if (times.Count == 0) return (null, null);
+
+            return (times.Min(), times.Max());
+        }
+
+        /// <summary>Household load over a period, all of it from the Consumption table.</summary>
+        public sealed class ConsumptionTotals
+        {
+            public double TotalKWh { get; init; }
+            public int MeasuredQuarters { get; init; }
+            public double PeakDailyKWh { get; init; }
+            public double WeekdayKWh { get; init; }
+            public double WeekendKWh { get; init; }
+        }
     }
 }
