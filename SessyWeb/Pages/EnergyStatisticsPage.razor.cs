@@ -3,7 +3,6 @@ using SessyCommon.Services;
 using SessyController.Interfaces;
 using SessyController.Services;
 using SessyController.Services.Statistics;
-using static SessyWeb.Components.DateChooserComponent;
 
 namespace SessyWeb.Pages
 {
@@ -30,7 +29,7 @@ namespace SessyWeb.Pages
         {
             _statisticsService!.ConfigurationChanged += OnConfigurationChanged;
 
-            await LoadStatisticsAsync(null);
+            await LoadStatisticsAsync();
         }
 
         /// <summary>
@@ -45,7 +44,7 @@ namespace SessyWeb.Pages
             {
                 if (!IsComponentActive) return;
 
-                await LoadStatisticsAsync(_lastArgs);
+                await LoadStatisticsAsync();
             });
         }
 
@@ -57,26 +56,19 @@ namespace SessyWeb.Pages
             base.Dispose();
         }
 
-        /// <summary>The period the page is showing, so a rebuild keeps it.</summary>
-        private DateArgs? _lastArgs;
-
-        private async Task LoadStatisticsAsync(DateArgs? args)
+        private async Task LoadStatisticsAsync()
         {
-            _lastArgs = args;
-
             IsLoading = true;
             StateHasChanged();
 
             try
             {
-                var start = args?.Start ?? DateTime.MinValue;
-                var end = args?.End ?? DateTime.MaxValue;
-
+                // Lifetime overview — always the whole history.
                 // Task.Run on purpose. Component code runs on the circuit's synchronization
                 // context, so without it every continuation inside the statistics service — and it
                 // walks the data month by month, with database round trips and LINQ per month —
                 // resumes on the dispatcher and blocks every other click for the whole build.
-                Dashboard = await Task.Run(() => _statisticsService!.GetDashboardStatisticsAsync(start, end))
+                Dashboard = await Task.Run(() => _statisticsService!.GetDashboardStatisticsAsync(DateTime.MinValue, DateTime.MaxValue))
                     .ConfigureAwait(true);
             }
             finally
@@ -86,15 +78,10 @@ namespace SessyWeb.Pages
             }
         }
 
-        private async Task OnDateRangeChanged(DateArgs args)
-        {
-            await LoadStatisticsAsync(args);
-        }
-
         private async Task ClearPlanAsync()
         {
             await _milpService!.ClearPlanAsync();
-            await LoadStatisticsAsync(null);
+            await LoadStatisticsAsync();
         }
 
         /// <summary>
@@ -119,7 +106,7 @@ namespace SessyWeb.Pages
                 _logger?.LogError($"Forcing a new plan failed: {ex.Message}");
             }
 
-            await LoadStatisticsAsync(null);
+            await LoadStatisticsAsync();
         }
     }
 }

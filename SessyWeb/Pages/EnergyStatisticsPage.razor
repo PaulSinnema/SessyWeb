@@ -4,7 +4,6 @@
 @using SessyWeb.Components
 @using Radzen
 @using Radzen.Blazor
-@using static SessyWeb.Components.DateChooserComponent
 
 <style>
     /* Make every card stretch to the full height of its column so cards in the
@@ -27,14 +26,6 @@
     </RadzenHeader>
 
     <RadzenBody Style="margin: 8px; padding: 0px; overflow-y: auto;">
-        @* Without this the page always ran on the whole history, so its figures could never be
-           compared with the Consumption or Solar power page, which do have a period. The handler
-           was already here — only the chooser itself was missing. *@
-        <RadzenStack Orientation="Orientation.Horizontal" Gap="2" AlignItems="AlignItems.Start"
-                     Style="width: 100%; margin-bottom: 8px;">
-            <DateChooserComponent SelectionChanged="@((DateArgs d) => OnDateRangeChanged(d))" />
-        </RadzenStack>
-
         @if (IsLoading)
         {
             <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
