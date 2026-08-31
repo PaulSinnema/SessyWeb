@@ -46,10 +46,11 @@ namespace SessyController.Services.StateMachine
         /// Everything feeding this class decides on a bare comparison: the runtime guards test a
         /// live SOC against a fixed number of Wh, the idle branch tests the sign of a NetLoad that
         /// is recomputed every cycle, and the curtailment branch tests a battery power that its own
-        /// previous decision caused. None of them has hysteresis. Because ZeroNetHome maps to the
-        /// Sessy strategy NOM while Charging, Discharging and Disabled all map to API, a value
-        /// flickering around any of those thresholds rewrites the battery's power strategy on every
-        /// cycle — which is exactly what an external installation reported.
+        /// previous decision caused. None of them has hysteresis. Charging, Discharging and
+        /// ZeroNetHome now all run on NOM (the P1 grid target sets the power), so a value flickering
+        /// around any of those thresholds churns the grid target every cycle, and any flicker across
+        /// the Disabled boundary also rewrites the battery's power strategy — the instability an
+        /// external installation reported.
         /// </summary>
         public static readonly TimeSpan MinimumModeDwell = TimeSpan.FromSeconds(120);
 

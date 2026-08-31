@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Options;
 using SessyCommon.Configurations;
+using SessyCommon.Services;
 using static P1MeterService;
 
 namespace SessyController.Services.Items
@@ -11,17 +12,20 @@ namespace SessyController.Services.Items
     {
         private SessyP1Config _sessyP1Config { get; set; }
         private P1MeterService _p1MeterService { get; set; }
+        private LoggingService<P1MeterContainer> _logger { get; set; }
 
         private IDisposable? _sessyP1ConfigSubscription { get; set; }
 
         private IOptionsMonitor<SessyP1Config> _sessyP1ConfigMonitor { get; set; }
 
         public P1MeterContainer(IOptionsMonitor<SessyP1Config> sessyP1ConfigMonitor,
-                                P1MeterService p1MeterService)
+                                P1MeterService p1MeterService,
+                                LoggingService<P1MeterContainer> logger)
         {
             _sessyP1ConfigMonitor = sessyP1ConfigMonitor;
             _sessyP1Config = _sessyP1ConfigMonitor.CurrentValue;
             _p1MeterService = p1MeterService;
+            _logger = logger;
 
             _sessyP1ConfigSubscription = _sessyP1ConfigMonitor.OnChange((settings) =>
             {
@@ -81,6 +85,59 @@ namespace SessyController.Services.Items
         public async Task<P1Details?> GetDetails(string id)
         {
             return await _p1MeterService!.GetP1DetailsAsync(id);
+        }
+
+        /// <summary>
+        /// Net power (W) of the first configured P1 meter. Import +, export -.
+        /// One grid connection = one meter; returns null when none is configured.
+        /// </summary>
+        public async Task<double?> GetFirstMeterNetPowerAsync()
+        {
+            var meter = FirstMeterOrNull();
+            if (meter == null) return null;
+
+            var details = await GetDetails(meter.Name!);
+            return details?.PowerTotal;
+        }
+
+        /// <summary>
+        /// Set the grid target (W) on the first configured P1 meter. Import +, export -.
+        /// The control-mode gate lives in P1MeterService.SetGridTargetAsync.
+        /// </summary>
+        public async Task SetGridTargetFirstAsync(int gridTargetW)
+        {
+            var meter = FirstMeterOrNull();
+            if (meter == null) return;
+
+            await _p1MeterService.SetGridTargetAsync(meter.Name!, new GridTargetPost { GridTarget = gridTargetW });
+        }
+
+        /// <summary>
+        /// The grid target (W) currently set on the first P1 meter, for display/verification.
+        /// Import +, export -. Null when no meter is configured. Reads silently — no Warning.
+        /// </summary>
+        public async Task<int?> GetFirstMeterGridTargetAsync()
+        {
+            var meter = P1Meters?.FirstOrDefault();
+            if (meter == null) return null;
+
+            var target = await _p1MeterService.GetGridTargetAsync(meter.Name!);
+            return target?.GridTarget;
+        }
+
+        // One grid connection = one meter. Warn on none or extras; take the first.
+        private P1Meter? FirstMeterOrNull()
+        {
+            if (P1Meters == null || P1Meters.Count == 0)
+            {
+                _logger.LogWarning("No P1 meter configured; grid target cannot be set.");
+                return null;
+            }
+
+            if (P1Meters.Count > 1)
+                _logger.LogWarning($"Multiple P1 meters configured ({P1Meters.Count}); using the first ({P1Meters[0].Name}) for grid target.");
+
+            return P1Meters[0];
         }
 
         private bool _isDisposed = false;

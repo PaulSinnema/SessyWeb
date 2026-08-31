@@ -164,6 +164,7 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<HardwareStatusServ
 builder.Services.AddSingleton<EnergySystemStateMachine>();
 // ─────────────────────────────────────────────────────────────────────────
 builder.Services.AddSingleton<BatteriesService>();
+builder.Services.AddSingleton<GridTargetService>();
 builder.Services.AddSingleton<SessyMonitorService>();
 builder.Services.AddSingleton<EnergyMonitorService>();
 builder.Services.AddSingleton<SolarDataService>();
@@ -212,6 +213,7 @@ builder.Services.AddHostedService(provider => provider.GetRequiredService<Settin
 
 builder.Services.AddHostedService(provider => provider.GetRequiredService<EPEXPricesService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<BatteriesService>());
+builder.Services.AddHostedService(provider => provider.GetRequiredService<GridTargetService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<WeatherService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<SessyMonitorService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<EnergyMonitorService>());

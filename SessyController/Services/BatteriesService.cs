@@ -358,18 +358,11 @@ namespace SessyController.Services
 
                 switch (mode)
                 {
+                    // (Dis)charging now runs through NOM; the P1 grid target (GridTargetService) sets
+                    // the power. StartCharging/StartDisharging stay as dead code, no longer called.
                     case Modes.Charging:
-                        if (powerW > 10)
-                            await _batteryContainer.StartCharging((int)Math.Round(powerW)).ConfigureAwait(false);
-                        else
-                            await _batteryContainer.StopAll().ConfigureAwait(false);
-                        break;
-
                     case Modes.Discharging:
-                        if (powerW > 10)
-                            await _batteryContainer.StartDisharging((int)Math.Round(powerW)).ConfigureAwait(false);
-                        else
-                            await _batteryContainer.StopAll().ConfigureAwait(false);
+                        await _batteryContainer.StartNetZeroHome().ConfigureAwait(false);
                         break;
 
                     case Modes.ZeroNetHome:
@@ -428,14 +421,14 @@ namespace SessyController.Services
         public string? LastCommandedStrategy { get; private set; }
 
         /// <summary>
-        /// The Sessy power strategy a mode is executed as. ZeroNetHome is the only one that maps to
-        /// NOM — Charging, Discharging and Disabled all go through the open API, which is why every
-        /// crossing of that line is a strategy write.
+        /// The Sessy power strategy a mode is executed as. Charging, Discharging and ZeroNetHome all
+        /// run through NOM now — the P1 grid target sets the power. Only Disabled goes through the
+        /// open API (setpoint 0), so that boundary is the only one that rewrites the strategy.
         /// </summary>
         internal static string ExpectedStrategy(Modes mode) =>
-            mode == Modes.ZeroNetHome
-                ? ActivePowerStrategy.PowerStrategies.POWER_STRATEGY_NOM.ToString()
-                : ActivePowerStrategy.PowerStrategies.POWER_STRATEGY_API.ToString();
+            mode == Modes.Disabled
+                ? ActivePowerStrategy.PowerStrategies.POWER_STRATEGY_API.ToString()
+                : ActivePowerStrategy.PowerStrategies.POWER_STRATEGY_NOM.ToString();
 
         /// <summary>
         /// Reports two things that are invisible from the outside: a mode that keeps changing inside
@@ -465,9 +458,9 @@ namespace SessyController.Services
 
                 _logger.LogWarning(
                     $"STRATEGY_CHURN[{nowQuarter:dd-MM HH:mm}]: battery mode changed {_modeChangesThisQuarter} times " +
-                    $"in this quarter (now {commandedMode} = {ExpectedStrategy(commandedMode)}). Every change rewrites " +
-                    $"the Sessy power strategy. Look for a GUARD_ or PLANNED_MODE_ line just above; if there is none, " +
-                    $"something outside SessyWeb is setting the strategy as well.");
+                    $"in this quarter (now {commandedMode} = {ExpectedStrategy(commandedMode)}). Each change re-aims the " +
+                    $"P1 grid target, and crossing to or from Disabled also rewrites the Sessy strategy. Look for a GUARD_ " +
+                    $"or PLANNED_MODE_ line just above; if there is none, something outside SessyWeb is driving as well.");
             }
             else if (_churnReported)
             {

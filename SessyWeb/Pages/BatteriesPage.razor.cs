@@ -1,10 +1,19 @@
-﻿using SessyController.Services.Items;
+﻿using Microsoft.AspNetCore.Components;
+using SessyController.Services;
+using SessyController.Services.Items;
 
 namespace SessyWeb.Pages
 {
     public partial class BatteriesPage : PageBase
     {
         public List<Battery>? BatteriesList = new List<Battery>();
+
+        [Inject]
+        public GridTargetService? GridTargetService { get; set; }
+
+        // Grid target (W) SessyWeb computes for the P1 meter, refreshed each tick. Import +, export -.
+        // In DEBUG this is the would-be value; nothing is written to the meter.
+        public int? GridTargetW;
 
         private CancellationTokenSource _cts = new();
 
@@ -30,6 +39,7 @@ namespace SessyWeb.Pages
                         await InvokeAsync(() =>
                         {
                             BatteriesList = batteryContainer?.Batteries?.ToList();
+                            GridTargetW = GridTargetService?.LastComputedTargetW;
                             StateHasChanged();
                         });
                     }

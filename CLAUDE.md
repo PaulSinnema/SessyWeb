@@ -1416,6 +1416,84 @@ geen rekenfout — eerst de ruggengraat (v1.0.108), toen de datumkiezer (v1.0.10
 dat wees hier drie keer meteen de oorzaak aan. Tests: 1 erbij plus twee asserts in de bestaande
 klem-test. Totaal 390.
 
+## Gebouwd (fase 1) — (ont)laden via P1 grid target i.p.v. batterij-setpoint
+
+Fase 1 gebouwd — build groen, 395 tests groen, nog niet in productie gedraaid. Het zetten van batterijvermogen gaat niet meer via
+`SetPowerSetpointAsync` maar via de grid target op de P1-meter (`P1MeterService.SetGridTargetAsync`,
+`POST /api/v1/meter/grid_target`). De batterijen draaien daarvoor in NOM; alleen in NOM luistert de
+Sessy naar de P1-grid-target — precies wat het comment bij `BatteryManagementController.SetGridTarget:154`
+al vaststelde ("Setting it does not seem to do anything … they don't", omdat de batterijen toen op API
+stonden).
+
+**Mechanisme.** In NOM houdt de Sessy `net = grid_target`, dus `batterij = huisnetto − grid_target`.
+Omgekeerd voor een gewenst vermogen P: laden `grid_target = huisnetto + P`, ontladen
+`grid_target = huisnetto − P`, met `huisnetto = verbruik − zon`. Huisnetto is niet direct meetbaar (de
+P1 leest `net = huisnetto − batterij`), dus per cyclus herrekenen: `huisnetto = P1net + batterij`, uit
+`P1MeterContainer.GetFirstMeterNetPowerAsync()` (eerste meter) en `BatteryContainer.GetTotalPowerInWatts()`.
+
+**Tekens (bevestigd).** Grid target: import = +, export = −. Uit de bestaande consumptieformule
+`consumption = solar + net + battery` (`ConsumptionMonitorService`) volgt de conventie: `P1Details.PowerTotal`
+import +, export −; batterij ontladen +, laden −. Dus `huisnetto = P1net + batterij`. Geen meting nodig —
+het stond al vast in de code.
+
+**Besliste keuzes:**
+- Mode-mapping: Charging → NOM + `grid_target = huisnetto + P`; Discharging → NOM +
+  `grid_target = huisnetto − P`; ZeroNetHome → NOM + `grid_target = 0`; Disabled → API +
+  `SetPowerSetpointAsync(0)`. Het setpoint-pad blijft dus bestaan, uitsluitend voor stop/idle.
+- Twee lussen: de planner-cyclus blijft 60 s en bepaalt P; een lichte refresher-lus (5 s) leest
+  P1 + batterij, herrekent de grid target voor de `CurrentAction` en POST alleen buiten een deadband.
+  Zonder die snellere lus drijft de batterij tussen cycli mee met het huisverbruik (waterkoker = kW).
+  Hysterese/deadband hergebruiken uit v1.0.106 tegen churn.
+- Clamp op de setter: de grid target zo begrenzen dat het resulterende batterijvermogen binnen de
+  nameplate blijft. Bewust een eigen klem en geen vertrouwen dat de Sessy zichzelf klemt — een
+  hardware-fout mag de batterijen niet kunnen beschadigen.
+- Control-gate: `WeMayDriveTheBatteries` ook op het grid-target-pad. `SetGridTargetAsync` heeft die
+  nu niet, `SessyService.SetPowerSetpointAsync` wél. `Process()` gate `weDrive` (`:259`) beschermt de
+  hoofdlus al, maar de refresher-lus moet hem óók respecteren, en het web-endpoint `SetGridTarget`
+  staat nu wagenwijd open — dubbel afgedekt.
+- Eén P1 max; bij meerdere de eerste, met Warning. P1 wordt een harde afhankelijkheid: zichtbaar
+  falen als hij ontbreekt, geen stille fallback (lijn van v1.0.78+).
+- Geen setter-side klem op energie: de planner-modellen (taper / `DischargeCapability` /
+  `ChargeCapabilityFloor`) blijven ongemoeid, zodat de SOC-planning realistisch blijft.
+
+**FORCE_CHARGE/ZERO_EXPORT rijden gedwongen mee.** `EvaluateCurtailment` (`EnergySystemStateMachine.cs:177`
+en `:224`) geeft `BatteryMode = Charging` mét vermogen uit, dus die lopen automatisch door het nieuwe
+pad — niet los te knippen. Semantiek overleeft: FORCE_CHARGE zet de omvormer op 0 (aparte
+`InverterCurtailmentService`), dus zon = 0 en `grid_target = verbruik + MaxCharge`, batterij laadt max
+uit het net — mits huisnetto live berekend wordt. Aandachtspunt fase 2: refresher-lus én
+`InverterCurtailmentService` lezen/schrijven dan beide de P1; botsing checken.
+
+**Wat er staat (fase 1).** `GridTargetCalculator` (pure omrekening + clamp, met `GridTargetCalculatorTests`,
+8 stuks), `GridTargetService` (5 s-refresher, deadband 50 W, `weDrive`-gate, geregistreerd in `Program.cs`),
+de gate op `P1MeterService.SetGridTargetAsync` (`WeMayDriveTheBatteries`), `P1MeterContainer` eerste-meter
+lezen/zetten met Warning, `ExecuteAction` Charging/Discharging → `StartNetZeroHome`, `ExpectedStrategy`
+Disabled = API en de rest NOM, en `ConfigurationCheckService` die een ontbrekende P1 als Error meldt met de
+control-afhankelijkheid erbij. De ≤10 W-terugval in `ExecuteAction` is weg — in NOM is laden op 5 W gewoon
+`grid_target = huisnetto + 5`. Enige omgezette test: de `ExpectedStrategy`-test in `ModeFlappingTests`; de
+planner- en state-machine-tests raakten niets van deze wijziging.
+
+**DEBUG-veiligheid.** Net als `ExecuteAction` schrijft `GridTargetService` in DEBUG niets naar de hardware:
+de daadwerkelijke `SetGridTargetFirstAsync`-POST staat achter `#if !DEBUG`. De berekening loopt wél elke
+cyclus door en wordt bewaard in `GridTargetService.LastComputedTargetW`, zodat de "Grid target (P1)"-kaart op
+`BatteriesPage` de would-be waarde toont — in DEBUG dus zichtbaar zonder dat de P1-meter (en daarmee de
+batterijen in NOM) wordt aangestuurd. Zonder deze guard zou de refresher-lus, anders dan `ExecuteAction`, in
+DEBUG wél naar de meter schrijven; dat is bewust dichtgezet.
+
+**UI.** `BatteriesPage` toont bovenaan een "Grid target (P1)"-kaart (`LastComputedTargetW`), uitgelijnd met de
+batterijkaarten (zelfde wrapper + onzichtbaar beeld als spacer). De per-batterij "Setpoint requested"
+(`Battery.SetpointRequested`) is uit `BatteryInfoComponent` gehaald — die waarde wordt niet meer gezet; de
+device-eigen "Setpoint" (`PowerSetpoint`) blijft.
+
+**Nog te doen.** Fase 2: de omvormer-kant van curtailment reconciliëren (`ExpectedStrategy` / `WatchStrategy` /
+`STRATEGY_CHURN` / `FOREIGN_STRATEGY` en de mode-dwell zijn al bijgewerkt voor NOM), en checken of
+`GridTargetService` en `InverterCurtailmentService` niet botsen op de P1. De DI-graaf en het echte gedrag
+zijn nog niet in een draaiende app geverifieerd — let bij de eerste run op `GridTargetService started ...`
+en of de batterij op de gewenste P uitkomt.
+
+**Werkwijze.** In de services wordt bij deze ombouw géén code verwijderd — vervangen methoden
+(`StartCharging` / `StartDisharging`, het setpoint-pad voor (ont)laden) blijven als dode code staan.
+Buiten de services mag dode code wel weg.
+
 ## Openstaande punten
 *De nummering heeft een gat (2 is vervallen). Niet hernummeren — elders in dit document wordt naar
 "Openstaande punten 4" verwezen.*

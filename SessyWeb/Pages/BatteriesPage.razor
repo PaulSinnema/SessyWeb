@@ -8,6 +8,28 @@
 <PageTitle>Sessy</PageTitle>
 
 <div>
+	<div style="min-width: 200px;">
+		<RadzenCard Style="background-color: transparent; width:97%; margin: 0px;">
+			<RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center">
+				@if (!ScreenInfo?.IsMobile ?? false)
+				{
+					<RadzenColumn SizeXL="12" SizeSM="6" SizeMD="4">
+						<RadzenStack Orientation="Orientation.Vertical" AlignItems="AlignItems.Center">
+							@* Invisible image keeps the same column width as the battery cards so the card below lines up. *@
+							<RadzenImage Path="/Images/sessy_transparant.png" Style="max-width: 200px; min-width: 25px; width: 100%; height: auto; margin-right: 20px; visibility: hidden;" />
+						</RadzenStack>
+					</RadzenColumn>
+				}
+
+				<RadzenStack Orientation="Orientation.Vertical" AlignItems="AlignItems.Normal" Style="width: 100%; max-width: 1000px;">
+					<RadzenCard class="rz-background-color-primary-light rz-shadow-0 rz-border-radius-0 rz-p-8 rz-border-radius-2" style="margin: 1rem calc(-1 * var(--rz-card-padding));">
+						<RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-0 rz-mb-0">Grid target (P1)</RadzenText>
+						<RadzenText TextStyle="TextStyle.H6" class="rz-color-on-primary-light"><strong>@(GridTargetW?.ToString() ?? "—") W</strong></RadzenText>
+					</RadzenCard>
+				</RadzenStack>
+			</RadzenStack>
+		</RadzenCard>
+	</div>
 	@{
 		if (BatteriesList != null)
 		{

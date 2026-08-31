@@ -20,6 +20,8 @@ public class P1MeterService : BackgroundService, IDisposable
     private IOptionsMonitor<SessyP1Config> _p1ConfigMonitor { get; set; }
     private SessyP1Config _p1Configuration { get; set; }
 
+    private ControlModeService _controlMode { get; set; }
+
     private IDisposable? _p1ConfigSubscription { get; set; }
 
     /// <summary>
@@ -29,12 +31,14 @@ public class P1MeterService : BackgroundService, IDisposable
     public P1MeterService(LoggingService<P1MeterService> logger,
                           TimeZoneService timeZoneService,
                           IHttpClientFactory httpClientFactory,
-                          IOptionsMonitor<SessyP1Config> p1ConfigMonitor)
+                          IOptionsMonitor<SessyP1Config> p1ConfigMonitor,
+                          ControlModeService controlMode)
     {
         _logger = logger;
         _timeZoneService = timeZoneService;
         _httpClientFactory = httpClientFactory;
         _p1ConfigMonitor = p1ConfigMonitor;
+        _controlMode = controlMode;
         _p1Configuration = _p1ConfigMonitor.CurrentValue;
 
         _p1ConfigSubscription = _p1ConfigMonitor.OnChange((settings) => _p1Configuration = settings);
@@ -168,6 +172,15 @@ public class P1MeterService : BackgroundService, IDisposable
     /// <returns>An awaitable task representing the asynchronous operation.</returns>
     public async Task SetGridTargetAsync(string id, GridTargetPost gridTarget)
     {
+        // Same guard as SessyService.SetPowerSetpointAsync — do not drive when Charged or a provider is in control.
+        if (!_controlMode.WeMayDriveTheBatteries)
+        {
+            _logger.LogWarning($"SetGridTarget({id}, {gridTarget.GridTarget}) refused — {_controlMode.Current} is in control.");
+            return;
+        }
+
+        _logger.LogInformation($"SetGridTarget({id}, {gridTarget.GridTarget})");
+
         using var client = CreateHttpClient(id);
         var json = JsonConvert.SerializeObject(gridTarget);
         var content = new StringContent(json, Encoding.UTF8, "application/json");

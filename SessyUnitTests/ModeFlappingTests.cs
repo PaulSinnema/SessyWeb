@@ -188,22 +188,22 @@ namespace SessyTests.Services
         // BatteriesService.ExpectedStrategy — which mode is which Sessy strategy
         // ══════════════════════════════════════════════════════════════════════
 
-        [Fact]
-        public void Only_ZeroNetHome_maps_to_the_Net_zero_strategy()
-        {
-            Assert.Equal("POWER_STRATEGY_NOM", BatteriesService.ExpectedStrategy(Modes.ZeroNetHome));
-        }
-
         [Theory]
         [InlineData(Modes.Charging)]
         [InlineData(Modes.Discharging)]
-        [InlineData(Modes.Disabled)]
-        [InlineData(Modes.Unknown)]
-        public void Every_other_mode_is_executed_through_the_open_api(Modes mode)
+        [InlineData(Modes.ZeroNetHome)]
+        public void Charge_discharge_and_net_zero_all_run_on_the_Net_zero_strategy(Modes mode)
         {
-            // Disabled is the surprising one: it looks idle but goes out as API with setpoint 0,
-            // so a ZeroNetHome/Disabled flip is a strategy rewrite like any other.
-            Assert.Equal("POWER_STRATEGY_API", BatteriesService.ExpectedStrategy(mode));
+            // (Dis)charging now runs through NOM too — the P1 grid target sets the power.
+            Assert.Equal("POWER_STRATEGY_NOM", BatteriesService.ExpectedStrategy(mode));
+        }
+
+        [Fact]
+        public void Only_Disabled_is_executed_through_the_open_api()
+        {
+            // Disabled is the one API path left: it goes out as API with setpoint 0, so a flip to or
+            // from Disabled is the only strategy rewrite.
+            Assert.Equal("POWER_STRATEGY_API", BatteriesService.ExpectedStrategy(Modes.Disabled));
         }
 
         // ══════════════════════════════════════════════════════════════════════

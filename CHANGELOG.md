@@ -11,6 +11,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.110] — 2026-08-31
+
+### Changed
+- **The batteries are now steered through the P1 meter's grid target instead of a direct power
+  setpoint.** To charge or discharge, SessyWeb keeps the batteries on the Zero-net-home strategy and
+  sets a grid target on the P1 meter; the meter then drives the batteries to that target. The wanted
+  power is recomputed against the live house load (consumption minus solar) every few seconds, so the
+  batteries keep following the plan as consumption and solar move. A P1 meter is now required to steer
+  the batteries — without one, Tips & Checks reports it as an error.
+
+### Added
+- **A "Grid target (P1)" card at the top of the Batteries page.** It shows, in watts, the grid target
+  SessyWeb is aiming for (import positive, export negative), so you can see the steering at work. In a
+  debug build it shows the would-be value without sending anything to the hardware.
+
+### Removed
+- **The per-battery "Setpoint requested" line** on the Batteries page. That value is no longer set now
+  that steering runs through the grid target; the battery's own "Setpoint" reading stays.
+
 ## [v1.0.109] — 2026-08-13
 
 ### Added

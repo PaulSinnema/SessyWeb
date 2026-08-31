@@ -238,8 +238,8 @@ namespace SessyController.Services
         }
 
         /// <summary>
-        /// No meter means no consumption at all, and it fails silently: the recording loop iterates
-        /// over an empty meter list and logs nothing.
+        /// No meter means no consumption recording, and — since (dis)charging now runs through the
+        /// P1 grid target — no battery control either. Absence is an Error, not a Warning.
         /// </summary>
         private void CheckP1MeterConfiguration(List<ConfigurationCheck> checks)
         {
@@ -254,8 +254,9 @@ namespace SessyController.Services
                     Severity = CheckSeverity.Error,
                     Title = "No P1 meter configured",
                     Description = "The Sessy:Meters section of appsettings.json is empty or absent. Household " +
-                                  "consumption is measured through the P1 meter, so nothing is recorded and the " +
-                                  "Consumption page stays empty. Add a meter with Name, BaseUrl, UserId and Password."
+                                  "consumption is measured through the P1 meter, and (dis)charging is now driven " +
+                                  "through its grid target, so nothing is recorded and the batteries cannot be " +
+                                  "controlled. Add a meter with Name, BaseUrl, UserId and Password."
                 });
                 return;
             }
@@ -269,7 +270,7 @@ namespace SessyController.Services
                     Description = $"The Sessy:Meters entries ({string.Join(", ", skipped)}) have no BaseUrl, so they " +
                                   "are skipped. This happens when credentials are left behind in secrets.json for a " +
                                   "meter that appsettings.json no longer declares — secrets augment a device, they do " +
-                                  "not declare one. No consumption is recorded."
+                                  "not declare one. No consumption is recorded and the batteries cannot be controlled."
                 });
                 return;
             }
