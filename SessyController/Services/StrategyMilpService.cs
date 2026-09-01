@@ -293,7 +293,7 @@ namespace SessyController.Services
                     _timeZoneService.Now, message => _logger.LogWarning(message));
 
                 var sw = System.Diagnostics.Stopwatch.StartNew();
-                var result = await _strategy.SolveAsync(context).ConfigureAwait(false);
+                var result = await _strategy.SolveAsync(context).ConfigureAwait(false); PlannerShadow.Compare(context, result, _timeZoneService.Now, m => _logger.LogWarning(m));
                 sw.Stop();
 
                 return ApplySolveResult(result, sw.ElapsedMilliseconds, quarters.Count, socKWh);

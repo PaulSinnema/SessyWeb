@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 What changed per version, from a user's point of view. The version is the one in
 `SessyCommon/AppInfo.cs`, shown in the header and recorded in the `AppVersions` table, so the
@@ -10,6 +10,14 @@ rejected — lives in `CLAUDE.md`. This file stays short: what changed, and what
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries are grouped as
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
+
+## [v1.0.112] — 2026-09-01
+
+### Changed
+- **Internal — a shadow planner now measures how much a smarter planner could earn.** A
+  dynamic-programming planner runs alongside the existing one on the same inputs and logs the
+  difference in expected result; it does not change how the batteries are driven. It only gathers
+  evidence for whether a future planner upgrade is worth building.
 
 ## [v1.0.111] — 2026-08-31
 

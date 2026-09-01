@@ -1,4 +1,4 @@
-# CLAUDE.md
+﻿# CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
@@ -1508,10 +1508,27 @@ Buiten de services mag dode code wel weg.
    maar elke replay tot nu toe rekent af tegen dezelfde forecast waarmee gepland is. Een harnas dat
    afrekent tegen gemeten verbruik en zon (`QuarterlyMeasurements` / `EnergyHistory`) zou de vraag
    wél beantwoorden — en meteen die van `PredictedPriceMode` en de nachtreserve.
-4. **Greedy laat geld liggen, hoeveel is onbekend.** Een langere horizon levert minder op (zie
+4. **Greedy laat geld liggen — gemeten op ~€145/jaar (band €70–200).** Een langere horizon levert minder op (zie
    v1.0.77), wat alleen bij een suboptimale heuristiek kan. Een DP over (kwartier, SOC-niveau) geeft
    het optimum onder dezelfde constraints en is naar schatting sneller dan de huidige zoektocht;
    het is wel een herbouw van de kern.
+
+   **Gemeten (backtest op de productie-DB, 25 mei–31 aug 2026).** Een DP over (kwartier, SOC-niveau)
+   is op de weken-data vergeleken met de greedy planner, met η = 0,83 (`RoundTripEfficiencyFallbackPct`),
+   cycluskosten €0,086/kWh (afgeleid uit de `Investment`-tabel: €11.174 / 16,2 kWh / 8000 cycli) en per
+   dag dezelfde start/eind-SOC als werkelijk, zodat het verschil puur dispatch-kwaliteit is. Op
+   **dezelfde forecast** die de greedy planner had (zon/verbruik uit `PlannedQuarters`; prijzen zijn
+   day-ahead bekend, dus daar zit geen voorspelfout) en open-loop uitgevoerd tegen de realisatie — een
+   eerlijke, conservatieve ondergrens, want een re-plannende MPC doet beter — wint de DP over 85
+   SessyWeb-dominante dagen **~€0,40/dag ≈ €145/jaar**; met perfecte vooruitblik ~€184/jaar. De winst
+   **schaalt met de dagelijkse prijsspread** (juni: spread €0,31 → €0,69/dag; juli: €0,22 → €0,19/dag),
+   precies wat een greedy-vs-optimaal verschil doet. Eerlijke band **~€70–200/jaar**, afhankelijk van
+   volatiliteit. Kanttekeningen: alleen zomerdata (het systeem start eind mei 2026 — geen winter meetbaar,
+   maar de winst is prijs-arbitrage en werkt zonder zon, dus winter is plausibel vergelijkbaar);
+   open-loop onderschat een re-plannende DP; Charged-dagen eruit gefilterd; netting per kwartier
+   benaderd; 200 Wh SOC-raster. Ter contrast: het onderzochte alternatief "zon exporteren i.p.v.
+   opslaan bij hoge prijzen" levert maar ~€5–12/jaar (bovengrens) omdat zon-overschot midden op de dag
+   valt wanneer de prijs juist het laagst is (duck-curve) — de planner is de veel grotere hefboom.
 5. **`SessyWeb.Helpers.ScreenInfo` is niet getest** omdat `SessyUnitTests` geen projectreferentie
    naar `SessyWeb` heeft. Sinds v1.0.76 draagt `Update` een beslissing (wel/niet hertekenen), dus
    dat is nu testwaardig. Twee wegen: `ScreenInfo` verhuizen naar `SessyCommon` (het is een pure

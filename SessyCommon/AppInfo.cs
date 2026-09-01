@@ -1,4 +1,4 @@
-namespace SessyCommon
+﻿Onnamespace SessyCommon
 {
     /// <summary>
     /// Single source of the application version — bump the patch here on every change.
@@ -9,6 +9,6 @@ namespace SessyCommon
     /// </summary>
     public static class AppInfo
     {
-        public const string Version = "v1.0.111";
+        public const string Version = "v1.0.112";
     }
 }
