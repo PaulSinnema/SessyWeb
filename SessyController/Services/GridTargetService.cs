@@ -5,6 +5,7 @@ using SessyCommon.Services;
 using SessyController.Services.Items;
 using SessyController.Services.Optimization;
 using SessyController.Services.StateMachine;
+using static SessyData.Model.SessyWebControl;
 
 namespace SessyController.Services
 {
@@ -84,7 +85,12 @@ namespace SessyController.Services
         {
             if (!_controlMode.WeMayDriveTheBatteries)
             {
-                LastComputedTargetW = null;
+                // Charged has taken over. Don't leave a stale grid target steering the batteries —
+                // drive it to 0 (net zero) once. Other control modes (Manual/provider) just stop.
+                if (_controlMode.Current == ControlMode.Charged)
+                    await PostTargetAsync(0).ConfigureAwait(false);
+                else
+                    LastComputedTargetW = null;
                 return;
             }
 
@@ -100,39 +106,47 @@ namespace SessyController.Services
                 return;
             }
 
+            int targetW;
+
+            if (action.BatteryMode == Modes.ZeroNetHome)
+            {
+                targetW = 0;
+            }
+            else
+            {
+                var p1NetW = await _p1MeterContainer.GetFirstMeterNetPowerAsync().ConfigureAwait(false);
+                if (p1NetW == null)
+                {
+                    LastComputedTargetW = null;
+                    return; // No P1 meter — nothing to drive.
+                }
+
+                var batteryW = await _batteryContainer.GetTotalPowerInWatts().ConfigureAwait(false);
+                var houseNetW = GridTargetCalculator.HouseNetW(p1NetW.Value, batteryW);
+
+                var maxChargeW = _batteryContainer.GetChargingCapacityInWattsPerHour();
+                var maxDischargeW = _batteryContainer.GetDischargingCapacityInWattsPerHour();
+
+                targetW = GridTargetCalculator.GridTargetW(
+                    action.BatteryMode, houseNetW, action.BatterySetpointW, maxChargeW, maxDischargeW);
+                targetW = GridTargetCalculator.SafeClamp(targetW, houseNetW, maxChargeW, maxDischargeW);
+            }
+
+            await PostTargetAsync(targetW).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Serialise the write, remember it for the UI, and post only when it moved beyond the
+        /// deadband. In DEBUG nothing reaches the meter — mirror ExecuteAction's guard.
+        /// </summary>
+        private async Task PostTargetAsync(int targetW)
+        {
             await _semaphore.WaitAsync().ConfigureAwait(false);
             try
             {
-                int targetW;
-
-                if (action.BatteryMode == Modes.ZeroNetHome)
-                {
-                    targetW = 0;
-                }
-                else
-                {
-                    var p1NetW = await _p1MeterContainer.GetFirstMeterNetPowerAsync().ConfigureAwait(false);
-                    if (p1NetW == null)
-                    {
-                        LastComputedTargetW = null;
-                        return; // No P1 meter — nothing to drive.
-                    }
-
-                    var batteryW = await _batteryContainer.GetTotalPowerInWatts().ConfigureAwait(false);
-                    var houseNetW = GridTargetCalculator.HouseNetW(p1NetW.Value, batteryW);
-
-                    var maxChargeW = _batteryContainer.GetChargingCapacityInWattsPerHour();
-                    var maxDischargeW = _batteryContainer.GetDischargingCapacityInWattsPerHour();
-
-                    targetW = GridTargetCalculator.GridTargetW(
-                        action.BatteryMode, houseNetW, action.BatterySetpointW, maxChargeW, maxDischargeW);
-                    targetW = GridTargetCalculator.SafeClamp(targetW, houseNetW, maxChargeW, maxDischargeW);
-                }
-
                 LastComputedTargetW = targetW;
 
 #if !DEBUG
-                // In DEBUG nothing is written to the meter/batteries — mirror ExecuteAction's guard.
                 if (_lastPostedTargetW.HasValue && Math.Abs(targetW - _lastPostedTargetW.Value) <= DeadbandW)
                     return;
 

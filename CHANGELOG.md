@@ -11,6 +11,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.111] — 2026-08-31
+
+### Changed
+- **Handing control to Charged now clears the grid target.** When Charged takes over, SessyWeb sets
+  the P1 grid target to zero instead of leaving its last value behind, so a stale target no longer
+  keeps steering the batteries after the handover.
+
+### Removed
+- **The period selector on the Energy statistics page.** That page is a lifetime overview — payback,
+  return on investment, total savings — where picking a single day or week says nothing. It now
+  always shows the whole history.
+
 ## [v1.0.110] — 2026-08-31
 
 ### Changed
