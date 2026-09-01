@@ -377,3 +377,5 @@ FodyWeavers.xsd
 /SessyWeb/SessyController/Data/Sessy.db
 /SessyWeb/SessyController/Data/Sessy.db-shm
 /SessyWeb/SessyController/Data/Sessy.db-wal
+/.abacusai/config.json
+/.abacusai/temp/32bb136d-c174-413b-a83f-0f6e85d03a64.png
