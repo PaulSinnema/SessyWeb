@@ -1,4 +1,4 @@
-﻿Onnamespace SessyCommon
+﻿namespace SessyCommon
 {
     /// <summary>
     /// Single source of the application version — bump the patch here on every change.
