@@ -13,14 +13,17 @@ namespace SessyController.Services.Optimization
     /// so a positive objective delta is real headroom, not a modelling artefact.
     ///
     /// Actions per quarter: idle, or one charge/discharge of an AC-side energy block up to the
-    /// quarter's tapered/capped limit. SOC is discretised into Levels states; a transition snaps the
-    /// resulting SOC to the nearest level. That snapping is why this is a shadow measurement, not a
-    /// setpoint source.
+    /// quarter's tapered/capped limit — the same 0.20 kWh granularity the greedy allocates in.
+    /// The cost-to-go V is stored on an 81-point SOC grid but LINEARLY INTERPOLATED at the continuous
+    /// resulting SOC, and the forward pass re-optimises each action from the actual continuous SOC
+    /// using that interpolated V (a rollout, not a snapped-node policy table). Both remove the
+    /// grid-snapping loss that previously made the shadow score below greedy, so the reported DP
+    /// objective is a true upper bound on the greedy objective under equal/looser constraints.
     /// </summary>
     public static class BatteryDpPlanner
     {
         private const int Levels = 81;        // SOC grid resolution
-        private const double BlockKWh = 0.20; // AC action granularity
+        private const double BlockKWh = 0.20; // AC action granularity (matches greedy)
         private const double Eps = 1e-6;
         private const double NegInf = -1e18;
 
@@ -47,7 +50,6 @@ namespace SessyController.Services.Optimization
 
             double chEffFor(double ac) => efficiency.ChargeAt(Math.Max(0.0, ac) / dt);
             double disEffFor(double ac) => efficiency.DischargeAt(Math.Max(0.0, ac) / dt);
-            double disEffFull = efficiency.DischargeAt(Math.Max(0.1, spec.MaxDischargeKW));
             double chEffFull = efficiency.ChargeAt(Math.Max(0.1, spec.MaxChargeKW));
 
             var minSoc = new double[n];
@@ -91,7 +93,19 @@ namespace SessyController.Services.Optimization
             }
 
             double socOf(int idx) => idx / (double)(Levels - 1) * capacity;
-            int idxOf(double soc) => (int)Math.Round(Clamp(soc, 0.0, capacity) / capacity * (Levels - 1));
+
+            // Linear interpolation of the cost-to-go on the SOC grid. Interpolating (instead of
+            // snapping to the nearest node) is what keeps the reported objective a true upper bound
+            // on greedy: no achievable value is rounded away between grid points.
+            double Vinterp(double[] Vt, double soc)
+            {
+                double x = Clamp(soc, 0.0, capacity) / capacity * (Levels - 1);
+                int lo = (int)Math.Floor(x);
+                if (lo >= Levels - 1) return Vt[Levels - 1];
+                if (lo < 0) return Vt[0];
+                double frac = x - lo;
+                return Vt[lo] * (1.0 - frac) + Vt[lo + 1] * frac;
+            }
 
             // Reward and resulting SOC for an action at (t, soc). chargeAc>0 charges, disAc>0 discharges.
             (double reward, double socNext, bool ok) Step(int t, double soc, double chargeAc, double disAc)
@@ -137,10 +151,56 @@ namespace SessyController.Services.Optimization
             double capMax = Math.Max(maxChargeKWh.Length > 0 ? Max(maxChargeKWh) : 0, Max(maxDischargeKWh));
             int steps = Math.Max(1, (int)Math.Ceiling(capMax / BlockKWh));
 
-            // ── Backward DP ──────────────────────────────────────────────────
+            // Best action from a continuous SOC given the next-step cost-to-go. Used for BOTH the
+            // backward value iteration (over grid nodes) and the forward rollout (over the actual
+            // continuous SOC), so the plan the shadow reports is scored on exactly the value it was
+            // chosen on.
+            (double c, double d, double reward, double socNext, double value) BestAction(int t, double soc, double[] Vnext)
+            {
+                double bestV = NegInf, bc = 0, bd = 0, br = 0, bs = soc;
+
+                var e0 = Step(t, soc, 0, 0);
+                if (e0.ok)
+                {
+                    double v = e0.reward + Vinterp(Vnext, e0.socNext);
+                    if (v > bestV) { bestV = v; bc = 0; bd = 0; br = e0.reward; bs = e0.socNext; }
+                }
+
+                double capC = taperedChargeKWh(t, soc);
+                for (int k = 1; k <= steps; k++)
+                {
+                    double c = Math.Min(k * BlockKWh, capC);
+                    if (c <= Eps) break;
+                    var e = Step(t, soc, c, 0);
+                    if (e.ok)
+                    {
+                        double v = e.reward + Vinterp(Vnext, e.socNext);
+                        if (v > bestV) { bestV = v; bc = c; bd = 0; br = e.reward; bs = e.socNext; }
+                    }
+                    if (c >= capC - Eps) break;
+                }
+
+                double capD = cappedDischargeKWh(t, soc);
+                for (int k = 1; k <= steps; k++)
+                {
+                    double d = Math.Min(k * BlockKWh, capD);
+                    if (d <= Eps) break;
+                    var e = Step(t, soc, 0, d);
+                    if (e.ok)
+                    {
+                        double v = e.reward + Vinterp(Vnext, e.socNext);
+                        if (v > bestV) { bestV = v; bc = 0; bd = d; br = e.reward; bs = e.socNext; }
+                    }
+                    if (d >= capD - Eps) break;
+                }
+
+                if (bestV <= NegInf / 2) // nothing feasible (should not happen: idle is always feasible)
+                    return (0, 0, 0, soc, Vinterp(Vnext, soc));
+                return (bc, bd, br, bs, bestV);
+            }
+
+            // ── Backward value iteration ─────────────────────────────────────
             var V = new double[n + 1][];
-            var polCharge = new double[n][];
-            var polDis = new double[n][];
             V[n] = new double[Levels];
             bool carry = opt.AllowCarryForward && opt.ReplacementCostEurPerKWh > 0.0;
             for (int s = 0; s < Levels; s++)
@@ -149,50 +209,21 @@ namespace SessyController.Services.Optimization
             for (int t = n - 1; t >= 0; t--)
             {
                 V[t] = new double[Levels];
-                polCharge[t] = new double[Levels];
-                polDis[t] = new double[Levels];
                 for (int s = 0; s < Levels; s++)
-                {
-                    double soc = socOf(s);
-                    double best = NegInf, bc = 0, bd = 0;
-                    // idle
-                    var e0 = Step(t, soc, 0, 0);
-                    if (e0.ok) { double v = e0.reward + V[t + 1][idxOf(e0.socNext)]; if (v > best) { best = v; bc = 0; bd = 0; } }
-                    // charge blocks
-                    for (int k = 1; k <= steps; k++)
-                    {
-                        double c = Math.Min(k * BlockKWh, taperedChargeKWh(t, soc));
-                        if (c <= Eps) break;
-                        var e = Step(t, soc, c, 0);
-                        if (e.ok) { double v = e.reward + V[t + 1][idxOf(e.socNext)]; if (v > best) { best = v; bc = c; bd = 0; } }
-                        if (c >= taperedChargeKWh(t, soc) - Eps) break;
-                    }
-                    // discharge blocks
-                    for (int k = 1; k <= steps; k++)
-                    {
-                        double d = Math.Min(k * BlockKWh, cappedDischargeKWh(t, soc));
-                        if (d <= Eps) break;
-                        var e = Step(t, soc, 0, d);
-                        if (e.ok) { double v = e.reward + V[t + 1][idxOf(e.socNext)]; if (v > best) { best = v; bc = 0; bd = d; } }
-                        if (d >= cappedDischargeKWh(t, soc) - Eps) break;
-                    }
-                    V[t][s] = best <= NegInf / 2 ? V[t + 1][s] : best;
-                    polCharge[t][s] = bc; polDis[t][s] = bd;
-                }
+                    V[t][s] = BestAction(t, socOf(s), V[t + 1]).value;
             }
 
-            // ── Forward extract ──────────────────────────────────────────────
+            // ── Forward rollout on the continuous SOC ────────────────────────
             var plan = new List<PlanStep>(n);
             double objective = 0.0;
             double socCur = Clamp(spec.InitialSocKWh, 0.0, capacity);
             for (int t = 0; t < n; t++)
             {
-                int s = idxOf(socCur);
-                double c = polCharge[t][s], d = polDis[t][s];
-                var e = Step(t, socCur, c, d);
+                var a = BestAction(t, socCur, V[t + 1]);
+                double c = a.c, d = a.d;
                 double socStart = socCur;
-                double socEnd = e.ok ? e.socNext : socCur;
-                objective += e.ok ? e.reward : 0.0;
+                double socEnd = a.socNext;
+                objective += a.reward;
 
                 double netLoad = pricePoints[t].NetLoadWh / 1000.0;
                 double deficit = netLoad > 0 ? netLoad : 0.0;
