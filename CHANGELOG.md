@@ -11,6 +11,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.113] — 2026-09-01
+
+### Fixed
+- **Internal — the shadow planner was scoring below the live planner (a measurement bug).** Its
+  cost-to-go is now read with linear interpolation between SOC grid points, and it re-picks each
+  action from the real (continuous) battery level instead of a rounded lookup, so the comparison no
+  longer throws away value at the grid edges. The logged difference is again a fair upper bound.
+
 ## [v1.0.112] — 2026-09-01
 
 ### Changed
