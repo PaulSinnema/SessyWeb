@@ -284,7 +284,7 @@ namespace SessyController.Services
                     AllowCarryForward: _settingsConfig.CarryForwardEnabled);
 
                 var context = new SolveContext(pricePoints, spec, opt, socBounds,
-                    Trace: message => _logger.LogWarning(message));
+                    Trace: null); // trace disabled — re-enable with: message => _logger.LogWarning(message)
 
                 // Diagnostic, off unless SESSY_RECORD_SOLVE_INPUTS is set: the four things that
                 // decide a plan, written out so a suspect plan can be replayed exactly instead of
