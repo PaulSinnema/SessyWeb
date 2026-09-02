@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Hosting;
+﻿using Microsoft.Extensions.Hosting;
 using SessyCommon.Enums;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
@@ -30,7 +30,10 @@ namespace SessyController.Services
         private const int DeadbandW = 50;
 
         private readonly SemaphoreSlim _semaphore = new(1, 1);
+#if !DEBUG
+        // Only used by the Release-only meter path in PostTargetAsync (deadband guard).
         private int? _lastPostedTargetW;
+#endif
 
         // The grid target (W) computed this cycle, shown in the UI. In DEBUG it is not written.
         public int? LastComputedTargetW { get; private set; }
@@ -101,7 +104,9 @@ namespace SessyController.Services
                 action.BatteryMode != Modes.ZeroNetHome)
             {
                 // Disabled/Unknown run on API; forget the last target so re-entry always posts.
+#if !DEBUG
                 _lastPostedTargetW = null;
+#endif
                 LastComputedTargetW = null;
                 return;
             }

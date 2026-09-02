@@ -1,4 +1,4 @@
-@page "/settings"
+﻿@page "/settings"
 @inherits PageBase
 @using SessyData.Model
 @using Radzen
@@ -873,6 +873,23 @@
                             </RadzenColumn>
 
                         </RadzenRow>
+                    </RadzenStack>
+                </RadzenTabsItem>
+
+                @* ── Container log ─────────────────────────────────────────── *@
+                <RadzenTabsItem Text="Container log" Icon="terminal">
+                    <RadzenStack Orientation="Orientation.Vertical" Gap="0.5rem" Style="padding: 1rem; height: 70vh;">
+                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
+                            <RadzenCheckBox @bind-Value="_logAutoScroll" Name="logAutoScroll" />
+                            <RadzenLabel Text="Auto-scroll" Component="logAutoScroll" />
+                            <RadzenLabel Text="Level" />
+                            <RadzenDropDown TValue="Microsoft.Extensions.Logging.LogLevel" Data="@_logLevels" @bind-Value="_logMinLevel" Change="@(args => RefreshLogNow())" Style="width: 130px;" />
+                            
+                            <RadzenButton Text="Copy" Icon="content_copy" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" Click="@CopyLog" />
+                            <RadzenButton Text="Export" Icon="download" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" Click="@ExportLog" />
+                            <RadzenButton Text="Clear" Icon="delete" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" Click="@ClearLog" />
+                        </RadzenStack>
+                        <pre @ref="_logContainer" style="flex: 1 1 auto; min-height: 0; overflow: auto; background: #1e1e1e; color: #d4d4d4; font-family: Consolas, 'Courier New', monospace; font-size: 12px; line-height: 1.35; padding: 8px; margin: 0; white-space: pre; border-radius: 4px;">@_logText</pre>
                     </RadzenStack>
                 </RadzenTabsItem>
 

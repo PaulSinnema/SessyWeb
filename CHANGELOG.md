@@ -11,6 +11,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.119] — 2026-09-02
+
+### Added
+- **The container log is now visible live in Settings.** A new "Container log" tab shows the
+  application's log stream in a scrollable window, updating as new lines arrive. Auto-scroll is on
+  by default (with a checkbox to turn it off), a level dropdown filters the view (Trace … Critical,
+  starting at Warning), and Copy / Export buttons put the shown text on the clipboard or download it
+  as a file. The buffer keeps the most recent 1000 lines.
+
 ## [v1.0.118] — 2026-09-02
 
 ### Fixed

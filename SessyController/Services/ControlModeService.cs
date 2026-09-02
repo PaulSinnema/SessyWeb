@@ -77,7 +77,7 @@ namespace SessyController.Services
                                       && mode == ControlMode.Charged;
 
             if (previous != mode)
-                _logger.LogWarning($"Control mode: {previous?.ToString() ?? "unknown"} → {mode}");
+                _logger.LogInformation($"Control mode: {previous?.ToString() ?? "unknown"} → {mode}");
 
             return mode;
         }

@@ -80,10 +80,92 @@ namespace SessyWeb.Pages
             }, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
         }
 
+        // ── Container log ─────────────────────────────────────────────────────
+
+        [Inject] private SessyWeb.Services.LogBufferService? _logBuffer { get; set; }
+
+        private System.Threading.Timer? _logTimer;
+        private ElementReference _logContainer;
+        private string _logText = string.Empty;
+        private long _lastLogVersion = -1;
+        private bool _scrollLogPending;
+
+        /// <summary>Auto-scroll the log to the newest line. On by default; the user can switch it off.</summary>
+        private bool _logAutoScroll = true;
+
+        /// <summary>Minimum level shown in the viewer. Trace = show everything.</summary>
+        private Microsoft.Extensions.Logging.LogLevel _logMinLevel = Microsoft.Extensions.Logging.LogLevel.Warning;
+
+        private static readonly Microsoft.Extensions.Logging.LogLevel[] _logLevels =
+        {
+            Microsoft.Extensions.Logging.LogLevel.Trace,
+            Microsoft.Extensions.Logging.LogLevel.Debug,
+            Microsoft.Extensions.Logging.LogLevel.Information,
+            Microsoft.Extensions.Logging.LogLevel.Warning,
+            Microsoft.Extensions.Logging.LogLevel.Error,
+            Microsoft.Extensions.Logging.LogLevel.Critical
+        };
+
+        // Filter changed: re-render immediately (the background poll only fires on new lines).
+        private void RefreshLogNow()
+        {
+            _logText = _logBuffer?.Snapshot(_logMinLevel) ?? string.Empty;
+            _scrollLogPending = _logAutoScroll;
+            StateHasChanged();
+        }
+
+        // Poll the shared buffer twice a second and re-render only when something new arrived.
+        private void StartLogRefresh()
+        {
+            _logTimer ??= new System.Threading.Timer(async _ =>
+            {
+                try
+                {
+                    if (_logBuffer == null || _logBuffer.Version == _lastLogVersion)
+                        return;
+
+                    _lastLogVersion = _logBuffer.Version;
+                    var text = _logBuffer.Snapshot(_logMinLevel);
+
+                    await InvokeAsync(() =>
+                    {
+                        _logText = text;
+                        _scrollLogPending = _logAutoScroll;
+                        StateHasChanged();
+                    });
+                }
+                catch
+                {
+                    // Best-effort background refresh.
+                }
+            }, null, TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(500));
+        }
+
+        private async Task CopyLog()
+        {
+            if (_js != null)
+                await _js.InvokeVoidAsync("sessyLog.copy", _logText);
+        }
+
+        private async Task ExportLog()
+        {
+            if (_js != null)
+                await _js.InvokeVoidAsync("sessyLog.download",
+                    $"sessy-log-{DateTime.Now:yyyyMMdd-HHmmss}.txt", _logText);
+        }
+
+        private void ClearLog()
+        {
+            _logBuffer?.Clear();
+            _lastLogVersion = -1;   // force the next poll to push the (now empty) buffer
+        }
+
         public override void Dispose()
         {
             _checksTimer?.Dispose();
             _checksTimer = null;
+            _logTimer?.Dispose();
+            _logTimer = null;
             base.Dispose();
         }
 
@@ -181,6 +263,10 @@ namespace SessyWeb.Pages
             {
                 Groups = await _groupService!.GetList(async set =>
                     await Task.FromResult(set.OrderBy(g => g.Name).ToList()));
+
+                _logText = _logBuffer?.Snapshot(_logMinLevel) ?? string.Empty;
+                _lastLogVersion = _logBuffer?.Version ?? -1;
+                StartLogRefresh();
             }
 
             // Each tab's grid ref becomes non-null the first time that tab renders.
@@ -222,6 +308,13 @@ namespace SessyWeb.Pages
                 _checksInitialised = true;
                 await LoadChecks();
                 StartChecksRefresh();
+            }
+
+            if (_scrollLogPending)
+            {
+                _scrollLogPending = false;
+                if (_logAutoScroll && _js != null)
+                    await _js.InvokeVoidAsync("sessyLog.scrollToBottom", _logContainer);
             }
 
             await base.OnAfterRenderAsync(firstRender);

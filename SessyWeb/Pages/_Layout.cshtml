@@ -69,4 +69,28 @@
 
 
 <script src="_content/Radzen.Blazor/Radzen.Blazor.js?v=@(typeof(Radzen.Colors).Assembly.GetName().Version)"></script>
+<script>
+    // Helpers for the container-log viewer on the Settings page.
+    window.sessyLog = {
+        scrollToBottom: function (el) { if (el) { el.scrollTop = el.scrollHeight; } },
+        copy: function (text) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                return navigator.clipboard.writeText(text);
+            }
+            // Fallback for non-secure contexts.
+            var ta = document.createElement('textarea');
+            ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+            document.body.appendChild(ta); ta.focus(); ta.select();
+            try { document.execCommand('copy'); } finally { document.body.removeChild(ta); }
+        },
+        download: function (filename, text) {
+            var blob = new Blob([text], { type: 'text/plain' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url; a.download = filename;
+            document.body.appendChild(a); a.click();
+            document.body.removeChild(a); URL.revokeObjectURL(url);
+        }
+    };
+</script>
 <persist-component-state /> <!-- Must be behind the list script tag -->

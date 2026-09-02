@@ -279,6 +279,20 @@ builder.Services.AddLogging(logging =>
 });
 
 // Add global error-handling middleware
+// In-memory log buffer + provider, added after the console/debug providers above so it is not
+// cleared. It mirrors every ILogger line (the container log) so the Settings page can show it live.
+var logBuffer = new SessyWeb.Services.LogBufferService();
+builder.Services.AddSingleton(logBuffer);
+builder.Logging.AddProvider(new SessyWeb.Services.InMemoryLoggerProvider(logBuffer));
+
+// The console level in appsettings.json is applied before any provider sees a line, so without
+// its own filter the in-app buffer would only hold what the console holds. Give the buffer its own
+// rules: capture the app's own output down to Trace so the viewer's level dropdown has something to
+// filter, while keeping the noisy framework categories at Warning.
+builder.Logging.AddFilter<SessyWeb.Services.InMemoryLoggerProvider>(null, Microsoft.Extensions.Logging.LogLevel.Trace);
+builder.Logging.AddFilter<SessyWeb.Services.InMemoryLoggerProvider>("Microsoft", Microsoft.Extensions.Logging.LogLevel.Warning);
+builder.Logging.AddFilter<SessyWeb.Services.InMemoryLoggerProvider>("System", Microsoft.Extensions.Logging.LogLevel.Warning);
+
 builder.Services.AddSingleton<IStartupFilter, GlobalExceptionHandlingStartupFilter>();
 
 // This code prevents a null reference exception in RadzenThemeDispose() for now but according to
