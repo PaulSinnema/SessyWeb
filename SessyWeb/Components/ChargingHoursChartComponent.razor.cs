@@ -212,6 +212,9 @@ namespace SessyWeb.Components
             {
                 "Charging" => -(powerW / 18000.0),
                 "Discharging" => powerW / 18000.0,
+                // ZeroNetHome carries a self-consumption discharge (PowerW is discharge Watts);
+                // render it above zero like a discharge so the overlay matches the main area series.
+                "ZeroNetHome" => powerW / 18000.0,
                 _ => 0.0
             };
 

@@ -9,7 +9,8 @@ namespace SessyController.Services.Optimization.Strategies
         IReadOnlyList<PricePoint> PricePoints,
         BatterySpec Spec,
         SessyOptions Options,
-        IReadOnlyList<SocBound> SocBounds
+        IReadOnlyList<SocBound> SocBounds,
+        Action<string>? Trace = null
     );
 
     /// <summary>

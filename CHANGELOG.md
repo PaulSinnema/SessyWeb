@@ -11,6 +11,32 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.115] — 2026-09-02
+
+### Fixed
+- **The plan comparison line hid battery discharge that only covers the house.** A quarter where the
+  battery powers the house (self-consumption, mode ZeroNetHome) really does discharge, but the
+  dashed "other plan" overlay drew it as nothing — so a plan that discharges several kWh through the
+  evening could look like it did nothing. The overlay now draws that self-consumption the same way
+  the main plan area already does.
+
+## [v1.0.114] — 2026-09-01
+
+### Fixed
+- **The next day's plan could sell nothing at all even when buy/sell prices left clear room for
+  profit.** The plan for a quarter left in `ZeroNetHome` mode always showed 0 W, even when the
+  underlying SOC path moved — Charge/Discharge quarters were unaffected. The stock-discharge floor
+  (selling energy already in the battery) also charged the future replacement energy price on top
+  of the wear cost, on every quarter, which priced out almost all of a day's trading; that floor is
+  now the wear cost of the replacement cycle alone, grossed up for its round trip.
+
+### Changed
+- **Internal — `BatteryGreedyPlanner` split into focused, documented methods.** The single ~680
+  line `Solve` method is now composed of small, individually-summarized steps (context setup, the
+  baseline self-consumption pass, each arbitrage candidate, the trace explanation, and plan
+  reconstruction). No behavioural change beyond the floor fix above — replayed plans are identical
+  where the floor value is unchanged.
+
 ## [v1.0.113] — 2026-09-01
 
 ### Fixed

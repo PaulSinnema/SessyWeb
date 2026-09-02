@@ -1,4 +1,4 @@
-using Microsoft.Data.Sqlite;
+﻿using Microsoft.Data.Sqlite;
 using SessyController.Services;
 using SessyController.Services.Items;
 using SessyController.Services.Optimization;

@@ -12,8 +12,9 @@ namespace SessyTests.Services
     ///     behind it is worth nothing (the old behaviour, which must not drift);
     ///   - with it on, "buy now or buy later" is the only comparison, and the cycle cost does not
     ///     enter it because the kWh is cycled once either way;
-    ///   - stock already in the battery is never sold below what replacing it would cost, and that
-    ///     floor carries the round-trip loss, exactly like the cost of a real charge quarter.
+    ///   - stock already in the battery is never sold below the wear cost of the cycle needed to
+    ///     replace it, and that floor carries the round-trip loss, exactly like the cost of a real
+    ///     charge quarter — see BatteryGreedyPlanner.Context.ReplacementRoundTrip.
     /// </summary>
     public class CarryForwardPlannerTests
     {
@@ -82,9 +83,12 @@ namespace SessyTests.Services
         {
             var points = FlatPrices(8, buy: 0.05, sell: 0.05);
 
+            // A non-zero cycle cost keeps the stock floor (cycleCost / roundTrip = 0.1108) above
+            // the 0.05 sale price in this fixture, so the charged stock is held rather than
+            // immediately re-sold inside the horizon — isolating the thing being tested here.
             var result = BatteryGreedyPlanner.Solve(
                 points, Spec(initialSocKWh: 0.0),
-                Options(replacementCost: 0.20, allowCarryForward: true),
+                Options(replacementCost: 0.20, allowCarryForward: true, cycleCost: 0.10),
                 Bounds(points));
 
             Assert.NotNull(result);
@@ -122,9 +126,11 @@ namespace SessyTests.Services
             // One quarter goes negative: the case the whole feature exists for.
             points[3] = points[3] with { BuyEurPerKWh = -0.10 };
 
+            // Same isolation as above: a non-zero cycle cost keeps the 0.05 sale price under the
+            // stock floor, so the charged block is not immediately sold back inside the horizon.
             var result = BatteryGreedyPlanner.Solve(
                 points, Spec(initialSocKWh: 0.0),
-                Options(replacementCost: 0.20, allowCarryForward: true),
+                Options(replacementCost: 0.20, allowCarryForward: true, cycleCost: 0.10),
                 Bounds(points));
 
             Assert.NotNull(result);
@@ -144,9 +150,10 @@ namespace SessyTests.Services
         {
             var points = FlatPrices(8, buy: 0.05, sell: 0.05);
 
+            // Same isolation as CarryForwardOn_ChargesWhenBuyingNowBeatsBuyingLater.
             var result = BatteryGreedyPlanner.Solve(
                 points, Spec(initialSocKWh: 0.0),
-                Options(replacementCost: 0.20, allowCarryForward: true),
+                Options(replacementCost: 0.20, allowCarryForward: true, cycleCost: 0.10),
                 Bounds(points, maxSocKWh: 5.0));
 
             Assert.NotNull(result);
@@ -183,12 +190,12 @@ namespace SessyTests.Services
 
             var result = BatteryGreedyPlanner.Solve(
                 points, Spec(initialSocKWh: 8.0),
-                Options(replacementCost: 0.10),
+                Options(cycleCost: 0.10),
                 Bounds(points));
 
             Assert.NotNull(result);
             Assert.All(result!.Plan, step => Assert.True(step.DischargeKW <= 1e-6,
-                "stock was sold at its own replacement cost, ignoring the round-trip loss."));
+                "stock was sold below the cycle cost of replacing it, ignoring the round-trip loss."));
         }
 
         [Fact]
@@ -199,7 +206,7 @@ namespace SessyTests.Services
 
             var result = BatteryGreedyPlanner.Solve(
                 points, Spec(initialSocKWh: 8.0),
-                Options(replacementCost: 0.10),
+                Options(cycleCost: 0.10),
                 Bounds(points));
 
             Assert.NotNull(result);

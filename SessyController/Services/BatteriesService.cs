@@ -139,7 +139,7 @@ namespace SessyController.Services
 
             var delaySeconds = 60;
 #if DEBUG
-            delaySeconds = 10;
+            delaySeconds = 5;
 #endif
 
             while (!cancellationToken.IsCancellationRequested)

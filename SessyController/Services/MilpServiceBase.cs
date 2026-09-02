@@ -806,7 +806,10 @@ namespace SessyController.Services
                 else if (act.Mode == Modes.Discharging)
                     qi.SetPlanPower(0, act.PowerW, RequestedDischargePowerW(act));
                 else
-                    qi.SetPlanPower(0, 0);
+                    // ZeroNetHome still carries a self-consumption discharge from the solve
+                    // (ApplySolveResult's ActionMode.ZeroNetHome case) — showing 0 here hid the
+                    // very flow that keeps ChargeLeftWh moving while the mode stays ZeroNetHome.
+                    qi.SetPlanPower(0, act.PowerW);
             }
         }
 
@@ -1034,7 +1037,10 @@ namespace SessyController.Services
                     qi.SetPlanPower(0, dischargeW, Math.Max(dischargeW, RequestedDischargePowerW(act)));
                 }
                 else
-                    qi.SetPlanPower(0, 0);
+                    // Same as WritePlanIntoQuarterlyInfos: ZeroNetHome carries a self-consumption
+                    // discharge from the solve, not a flat 0 — this else runs after that one and
+                    // was overwriting it back to 0 on every quarter from now on.
+                    qi.SetPlanPower(0, act.PowerW);
             }
         }
 

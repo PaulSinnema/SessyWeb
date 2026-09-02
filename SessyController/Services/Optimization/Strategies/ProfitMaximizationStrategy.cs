@@ -13,7 +13,8 @@
                 context.PricePoints,
                 context.Spec,
                 context.Options,
-                context.SocBounds);
+                context.SocBounds,
+                context.Trace);
 
             return Task.FromResult(result);
         }

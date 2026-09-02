@@ -293,12 +293,12 @@ namespace SessyTests.Services
         }
 
         [Fact]
-        public void StockFloor_AddsTheCycleCostOnTopOfTheReplacementCost()
+        public void StockFloor_AddsTheRoundTripLossOnTopOfTheCycleCost()
         {
-            // Selling stock has to clear the replacement cost AND the cycle cost. Priced exactly
-            // between the two, the sale must be refused.
-            double floor = ReplacementCost / RoundTrip;          // 0.1550
-            var points = FlatDay(8, buy: floor + 0.04, sell: floor + 0.04);   // under floor + cycle
+            // Selling stock has to clear the cycle cost of the cycle needed to replace it, grossed
+            // up for the round trip. Priced just under that floor, the sale must be refused.
+            double floor = CycleCost / RoundTrip;                // 0.1023
+            var points = FlatDay(8, buy: floor - 0.01, sell: floor - 0.01);
 
             var result = BatteryGreedyPlanner.Solve(
                 points, FlatSpec(8.0),
@@ -307,7 +307,7 @@ namespace SessyTests.Services
 
             Assert.NotNull(result);
             Assert.All(result!.Plan, step => Assert.True(step.DischargeKW <= 1e-6,
-                "sold stock without covering the cycle cost on top of the replacement cost."));
+                "sold stock without covering the round-trip loss on top of the cycle cost."));
         }
 
         // ── The horizon discount on carry-forward ─────────────────────────────
