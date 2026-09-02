@@ -11,6 +11,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.116] — 2026-09-02
+
+### Fixed
+- **The saved plan line still dropped battery self-consumption when read back from the database.**
+  v1.0.115 fixed the dashed overlay, but the main plan line rebuilt charge/discharge from the stored
+  mode text, which only knew "Charging"/"Discharging" — so a plan read back from the database showed
+  every self-consumption (ZeroNetHome) quarter as nothing, while the live plan for the same quarter
+  showed it correctly. The plan now stores charge and discharge power as two separate values and the
+  dashboard reads them directly, so the live and saved plan lines match. Existing saved plans are
+  back-filled automatically on first start.
+
 ## [v1.0.115] — 2026-09-02
 
 ### Fixed

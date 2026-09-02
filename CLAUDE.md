@@ -143,7 +143,7 @@ Blazor Server, Radzen components, `.razor` + `.razor.cs` code-behind pairs. Page
 C#/.NET Blazor Server EMS. Stuurt 3× Sessy batterij (cap 16,2 kWh; raw charge 6600W/discharge 5100W;
 **aantoonbaar gehaald ~5,0-5,3 kW laden** over vrijwel het hele SOC-bereik — de eerdere "praktijk max
 ~4,4kW" was de getaperde planwaarde, niet de hardwarelimiet), SolarEdge inverter, Daikin warmtepomp.
-Draait op Synology NAS via Docker. Huidige versie **v1.0.114**. Locatie: Apeldoorn. De zonmeting staat
+Draait op Synology NAS via Docker. Huidige versie **v1.0.115**. Locatie: Apeldoorn. De zonmeting staat
 op de **Sessy-bron** in plaats van SolarEdge-Modbus; de omvormer hangt er nog maar wordt niet meer
 uitgelezen (bewust, om die bron te ijken — zie openstaand punt 9).
 
@@ -271,3 +271,20 @@ selecteert dat juist de stille takken — zoek daar eerst.
    de echte productie. De simultane vergelijking kan niet meer via de config (óf-óf-regel sluit SolarEdge
    uit); wél: één zonnige dag terug op SolarEdge en de batterijen er los naast bemonsteren met
    `GET /api/v1/power/status` (zelfde kwartieren, beide bronnen).
+10. **De view toont niet 1-op-1 het berekende plan — lossy conversie + reconstructie in de view.**
+    Het plan (`PlanStep`: aparte `ChargeKW`/`DischargeKW` + `ActionMode`) wordt onderweg twee keer
+    platgeslagen: `ApplySolveResult` → `PlanAction { Mode, PowerW }` (bij ZeroNetHome is `PowerW`
+    alléén het ontlaadvermogen; een ZeroNetHome die zon opslaat verliest de laadwaarde hier al), en
+    `SavePlan` → DB-`PlannedQuarter { PlannedMode (string), PlannedPowerW (één signed getal) }`.
+    Vervolgens **reconstrueert** `QuarterlyInfoView` (~r90) laden/ontladen uit de mode-string met een
+    switch die alléén "Charging"/"Discharging" kent — dus elke ZeroNetHome/Disabled valt op 0, en
+    zelfconsumptie-ontlading (mode ZeroNetHome, kan meerdere kWh zijn) wordt als 0 getoond. De
+    live-tak (`plannedQuarter == null`) leest wél `qi.PlannedDischargePowerW` correct → zelfde
+    kwartier, twee uitkomsten afhankelijk van de bron. Bevestigd via replay (02-09): greedy plant
+    5,56 kWh ontlading (46 kw ZeroNetHome-zelfconsumptie, 0 actief export, 1 laadkwartier van
+    1,11 kWh = de "1 kwartier geladen") — de planner is dus niet stuk, de view verliest het onderweg.
+    Richting single-source-of-truth: `PlannedQuarter` twee aparte vermogensvelden geven zoals de
+    planner ze levert, de view die rechtstreeks lezen, de mode-string alleen voor label/kleur, en één
+    projectie `PlanStep → (chargeW, dischargeW, mode)` die zowel de live- als de DB-tak voedt.
+    v1.0.115 trok alleen de overlay (`ChargingHoursChartComponent.PlanPowerVisualFor`) gelijk; de
+    hoofdoorzaak (reconstructie uit de mode-string in `QuarterlyInfoView`) staat nog open.

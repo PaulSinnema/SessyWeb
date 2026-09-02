@@ -33,6 +33,21 @@ namespace SessyData.Model
         public double PlannedPowerW { get; set; }
 
         /// <summary>
+        /// Planned charge power (W) exactly as the planner produced it — 0 when this quarter does
+        /// not charge. Stored separately from PlannedDischargePowerW so the view no longer has to
+        /// reconstruct direction from PlannedMode, which only knew Charging/Discharging and dropped
+        /// every ZeroNetHome/Disabled quarter to 0.
+        /// </summary>
+        public double PlannedChargePowerW { get; set; }
+
+        /// <summary>
+        /// Planned discharge power (W) exactly as the planner produced it — 0 when this quarter
+        /// does not discharge. Includes ZeroNetHome self-consumption discharge, which the old
+        /// mode-string reconstruction lost.
+        /// </summary>
+        public double PlannedDischargePowerW { get; set; }
+
+        /// <summary>
         /// Planned power setpoint (W) the solver would have used without the temperature
         /// throttle. This is the throttle-free target and is the denominator for the throttle
         /// ratio, so throttling already baked into the plan does not hide future throttling.

@@ -89,10 +89,11 @@ namespace SessyWeb.Pages
 
             if (plannedQuarter != null)
             {
-                if (string.Equals(plannedQuarter.PlannedMode, "Charging", StringComparison.OrdinalIgnoreCase))
-                    PlannedChargePowerW = Math.Abs(plannedQuarter.PlannedPowerW);
-                else if (string.Equals(plannedQuarter.PlannedMode, "Discharging", StringComparison.OrdinalIgnoreCase))
-                    PlannedDischargePowerW = Math.Abs(plannedQuarter.PlannedPowerW);
+                PlannedChargePowerW = plannedQuarter.PlannedChargePowerW;
+                PlannedDischargePowerW = plannedQuarter.PlannedDischargePowerW;
+                // Direction comes straight from the stored split fields; PlannedMode is used
+                // only for the label/colour (PlannedDisplayState). The old switch reconstructed
+                // power from the mode and lost every ZeroNetHome self-consumption discharge.
             }
             else
             {

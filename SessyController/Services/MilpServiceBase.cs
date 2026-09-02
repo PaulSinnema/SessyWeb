@@ -218,6 +218,10 @@ namespace SessyController.Services
                         Time = qi.Time,
                         PlannedMode = qi.Mode.ToString(),
                         PlannedPowerW = qi.PlannedChargePowerW > 0 ? qi.PlannedChargePowerW : -qi.PlannedDischargePowerW,
+                        // Split power fields, stored exactly as the planner delivered them so the
+                        // view reads direction directly instead of reconstructing it from PlannedMode.
+                        PlannedChargePowerW = qi.PlannedChargePowerW,
+                        PlannedDischargePowerW = qi.PlannedDischargePowerW,
                         PlannedUnthrottledPowerW = qi.PlannedChargePowerW > 0
                             ? qi.PlannedUnthrottledPowerW
                             : -qi.PlannedUnthrottledPowerW,
