@@ -11,6 +11,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.118] — 2026-09-02
+
+### Fixed
+- **After a restart the plan chart now appears in seconds instead of after about a minute.** On a
+  cold start the prices and battery status are not ready on the very first control cycle, so the
+  planner skipped that cycle — and then waited a full 60 s before trying again. It now retries every
+  5 s until the first plan is built, after which it settles back to the normal 60 s control cycle.
+
 ## [v1.0.117] — 2026-09-02
 
 ### Changed

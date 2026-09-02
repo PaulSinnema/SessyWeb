@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Options;
+﻿using Microsoft.Extensions.Options;
 using SessyCommon.Enums;
 using SessyCommon.Configurations;
 using SessyCommon.Extensions;
@@ -129,6 +129,10 @@ namespace SessyController.Services
             return base.StopAsync(cancellationToken);
         }
 
+        // True once Process has actually built a plan (not bailed out on a not-yet-ready
+        // dependency). Used to retry quickly on a cold start until the first plan exists.
+        private bool _planBuiltThisCycle;
+
         protected override async Task ExecuteAsync(CancellationToken cancellationToken)
         {
             _logger.LogWarning("BatteriesService started ...");
@@ -159,9 +163,9 @@ namespace SessyController.Services
                     // flicker into a strategy write per second. The UI gets an immediate cycle
                     // through OnHeartBeat; it does not need a faster loop.
 #if DEBUG
-                    delaySeconds = 10;
+                    delaySeconds = _planBuiltThisCycle ? 10 : 2;
 #else
-                    delaySeconds = 60;
+                    delaySeconds = _planBuiltThisCycle ? 60 : 5;
 #endif
 
                     if (DataChanged != null)
@@ -191,8 +195,13 @@ namespace SessyController.Services
             _logger.LogWarning("BatteriesService stopped.");
         }
 
+        // Sets _planBuiltThisCycle: true when a plan was actually built this cycle, false when it bailed out early
+        // because a dependency (EPEX prices, hardware SOC) was not ready yet. The caller uses that
+        // to retry quickly on a cold start instead of waiting a full control interval.
         public async Task Process(CancellationToken cancellationToken)
         {
+            _planBuiltThisCycle = false;
+
             if (_epexPricesService == null || !_epexPricesService.IsInitialized())
             {
                 _logger.LogInformation("BatteriesService: EPEX prices not yet initialized — retrying in 2s.");
@@ -236,6 +245,7 @@ namespace SessyController.Services
 
                 // Delegate all MILP planning to MilpService.
                 await _milpService.BuildPlanAsync(_quarterlyInfos, currentSocWh).ConfigureAwait(false);
+                _planBuiltThisCycle = true;
 
                 // What the batteries plan for themselves, whoever is executing: under Charged it is
                 // what will happen, under our own control it is the alternative we did not take.
