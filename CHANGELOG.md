@@ -11,6 +11,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.117] — 2026-09-02
+
+### Changed
+- **During expensive hours the battery now exports surplus solar instead of always storing it.**
+  The plan weighs selling the surplus now against what keeping it for a later quarter is worth, and
+  when selling wins it leaves the battery off (grid strategy "API") so all solar flows to the grid,
+  rather than charging it in ("Net zero"). This shows up mainly on sunny days with an expensive
+  morning peak and cheaper hours later. When storing is worth more — the usual case — nothing
+  changes. Exporting a surplus quarter now also shows as "Disabled" rather than "Net zero", so the
+  plan reflects what the battery is actually doing.
+
 ## [v1.0.116] — 2026-09-02
 
 ### Fixed

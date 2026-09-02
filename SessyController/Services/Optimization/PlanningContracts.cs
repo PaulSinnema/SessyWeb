@@ -5,13 +5,18 @@ namespace SessyController.Services.Optimization
     /// <summary>What the battery is doing during a quarter.</summary>
     public enum ActionMode
     {
-        Idle = 0,
+        /// <summary>Battery off (Sessy strategy API, 0 W): the battery neither charges nor
+        /// discharges, so all solar surplus flows straight to the grid. Chosen when exporting the
+        /// surplus now is worth more than storing it for later. Also the default (0) value —
+        /// replaces the previously unused "Idle".</summary>
+        Disabled = 0,
         /// <summary>Actively charging from the grid.</summary>
         Charge = 1,
         /// <summary>Actively discharging to the grid (export).</summary>
         Discharge = 2,
         /// <summary>Self-regulating: storing solar surplus and/or covering the house load.</summary>
         ZeroNetHome = 3
+        // (Disabled is value 0 at the top of this enum; there is no separate "Idle".)
     }
 
     /// <summary>

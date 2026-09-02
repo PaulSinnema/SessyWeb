@@ -260,7 +260,7 @@ namespace SessyTests.Services
         /// the one run where a difference with production can only come from the planner itself.
         /// Needs SESSY_RECORD_SOLVE_INPUTS set on the machine that built the plan.
         /// </summary>
-        [Fact]
+        [Fact(Skip = "Diagnostic probe — replays a recorded production solve. Remove Skip to run manually.")]
         public void Replay_the_recorded_solve_input()
         {
             // Settings.ExportDirectory is "/data/exports", which on Windows lands on the current
@@ -361,7 +361,7 @@ namespace SessyTests.Services
             }
         }
 
-        [Fact]
+        [Fact(Skip = "Diagnostic probe — runs the real planner ~8x over the full production plan window (minutes). Remove Skip to run manually.")]
         public void Why_does_the_evening_stay_unsold()
         {
             if (!File.Exists(DatabasePath))

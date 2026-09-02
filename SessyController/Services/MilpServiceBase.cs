@@ -757,6 +757,10 @@ namespace SessyController.Services
                         powerW = Math.Round(p.DischargeKW * 1000.0, 0);
                         requestedW = Math.Round(p.RequestedDischargeKW * 1000.0, 0);
                         break;
+                    case ActionMode.Disabled:
+                        mode = Modes.Disabled;
+                        powerW = 0.0;
+                        break;
                     case ActionMode.ZeroNetHome:
                         mode = Modes.ZeroNetHome;
                         powerW = Math.Round(p.DischargeKW * 1000.0, 0);
@@ -869,13 +873,17 @@ namespace SessyController.Services
         /// cycle. Returns Modes.Unknown when neither rule applies — the caller then keeps the plan.
         /// </summary>
         internal static Modes SelectIdleMode(
-            double netLoadWh, bool hasRoom, bool belowCycleCost, Modes previous, double deadbandWh)
+            double netLoadWh, bool hasRoom, bool belowCycleCost, Modes previous, double deadbandWh,
+            bool planWantsExport = false)
         {
             if (Math.Abs(netLoadWh) < deadbandWh &&
                 (previous == Modes.ZeroNetHome || previous == Modes.Disabled))
                 return previous;
 
-            if (netLoadWh < 0.0 && hasRoom) return Modes.ZeroNetHome;
+            // Surplus with room: store it (ZeroNetHome) unless the plan decided exporting it now
+            // is worth more (planWantsExport, i.e. the planned mode is Disabled). The economic
+            // choice lives in the greedy baseline; here we only honour it.
+            if (netLoadWh < 0.0 && hasRoom) return planWantsExport ? Modes.Disabled : Modes.ZeroNetHome;
 
             if (netLoadWh >= 0.0 && belowCycleCost) return Modes.Disabled;
 
@@ -1234,7 +1242,8 @@ namespace SessyController.Services
                     socWh < maxSocWh,
                     qi.SellingPrice < _settingsService.CycleCost,
                     previousIdleMode,
-                    NetLoadDeadbandWh);
+                    NetLoadDeadbandWh,
+                    planned.Mode == Modes.Disabled);
 
                 if (idleMode == Modes.ZeroNetHome)
                 {

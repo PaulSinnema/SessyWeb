@@ -93,6 +93,15 @@ namespace SessyController.Services.Optimization
         /// <summary>Values below this are treated as zero (kW / kWh).</summary>
         private const double Eps = 1e-6;
 
+        /// <summary>
+        /// Margin on the baseline's export-vs-store choice. The surplus is exported only when
+        /// selling now beats the arbitrage pass's own store break-even by at least this much, so
+        /// the two passes can never oscillate over the same solar in 0.20 kWh blocks. A couple of
+        /// cents comfortably clears the cycleCost * (1 - roundTrip) band where they would otherwise
+        /// disagree — the band that made the production-plan probe spin to the iteration cap.
+        /// </summary>
+        private const double ExportDecisionMarginEurPerKWh = 0.02;
+
         /// <summary>Sentinel: no profitable pair found this iteration.</summary>
         private const int NoSource = -1;
 
@@ -358,6 +367,16 @@ namespace SessyController.Services.Optimization
             var state = new State(ctx.N);
             double soc = Clamp(ctx.Spec.InitialSocKWh, 0.0, ctx.Capacity);
 
+            // Best per-kWh value any later quarter can give stored energy: avoiding a future import
+            // (buy) or exporting later (sell), whichever is higher. Suffix maximum, so the
+            // store-vs-export choice below is O(1) per quarter.
+            var bestFutureValue = new double[ctx.N];
+            for (int tt = ctx.N - 2; tt >= 0; tt--)
+            {
+                double valNext = Math.Max(ctx.PricePoints[tt + 1].BuyEurPerKWh, ctx.PricePoints[tt + 1].SellEurPerKWh);
+                bestFutureValue[tt] = Math.Max(valNext, bestFutureValue[tt + 1]);
+            }
+
             for (int t = 0; t < ctx.N; t++)
             {
                 double netLoadKWh = ctx.PricePoints[t].NetLoadWh / 1000.0;
@@ -366,19 +385,37 @@ namespace SessyController.Services.Optimization
 
                 if (surplus > Eps)
                 {
-                    // Store as much solar as the room and the charge limit allow. The efficiency is
-                    // read at the power this quarter would run at, so the same surplus stores less
-                    // when it trickles in than when it arrives in bulk.
-                    double roomStore = Math.Max(0.0, ctx.MaxSoc[t] - soc);
-                    double surplusEff = ctx.ChEffFor(surplus);
-                    double absorb = Math.Min(surplus, Math.Min(roomStore / surplusEff, ctx.TaperedChargeKWh(t, soc)));
-                    if (absorb > Eps)
+                    // Store solar only when keeping it for a later quarter beats exporting it now.
+                    // Otherwise leave the battery idle and export the whole surplus. Arbitrage
+                    // (phase 2) can still store it later when a genuinely better use appears, but
+                    // this default never keeps solar that is worth more sold now — the old
+                    // unconditional store did exactly that, which biased the plan toward ZeroNetHome.
+                    double exportValue = ctx.PricePoints[t].SellEurPerKWh;
+                    // Arbitrage (phase 2) stores solar when sell < roundTrip*(bestFutureValue - cycle).
+                    // Match that break-even exactly, plus a margin, so surplus exported here is never
+                    // worth re-storing to the arbitrage pass.
+                    double storeBreakeven = ctx.ReplacementRoundTrip * (bestFutureValue[t] - ctx.CycleCost);
+
+                    if (exportValue > storeBreakeven + ExportDecisionMarginEurPerKWh)
                     {
-                        state.ChargeKWh[t] += absorb;
-                        state.SolarChargeKWh[t] += absorb;
-                        soc += absorb * ctx.ChEffFor(absorb);
+                        state.ExportKWh[t] = surplus;
                     }
-                    state.ExportKWh[t] = surplus - absorb;
+                    else
+                    {
+                        // Store as much solar as the room and the charge limit allow. The efficiency
+                        // is read at the power this quarter would run at, so the same surplus stores
+                        // less when it trickles in than when it arrives in bulk.
+                        double roomStore = Math.Max(0.0, ctx.MaxSoc[t] - soc);
+                        double surplusEff = ctx.ChEffFor(surplus);
+                        double absorb = Math.Min(surplus, Math.Min(roomStore / surplusEff, ctx.TaperedChargeKWh(t, soc)));
+                        if (absorb > Eps)
+                        {
+                            state.ChargeKWh[t] += absorb;
+                            state.SolarChargeKWh[t] += absorb;
+                            soc += absorb * ctx.ChEffFor(absorb);
+                        }
+                        state.ExportKWh[t] = surplus - absorb;
+                    }
                 }
                 else if (deficit > Eps)
                 {
@@ -983,6 +1020,11 @@ namespace SessyController.Services.Optimization
                 ActionMode mode =
                     gridChargeKWh > Eps ? ActionMode.Charge :
                     batteryExportKWh > Eps ? ActionMode.Discharge :
+                    // Battery idle while a solar surplus is exported: report Disabled, not
+                    // ZeroNetHome, so the plan reflects "export the PV". The runtime honours this
+                    // as Modes.Disabled instead of forcing the surplus back into storage.
+                    (state.ExportKWh[t] > Eps && state.ChargeKWh[t] <= Eps && state.DischargeKWh[t] <= Eps)
+                        ? ActionMode.Disabled :
                     ActionMode.ZeroNetHome;
 
                 double totalImport = state.ImportKWh[t] + gridChargeKWh;
