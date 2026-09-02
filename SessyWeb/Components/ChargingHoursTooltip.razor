@@ -112,6 +112,14 @@
         }
     </div>
 
+    @if (q?.Why != null)
+    {
+        <div class="sw-tt-why">
+            <div class="sw-tt-why-plain">@q.Why.Plain</div>
+            <div class="sw-tt-why-tech">@q.Why.Technical</div>
+        </div>
+    }
+
     @if (hasDeviation)
     {
         <div class="sw-tt-note">@q?.PlanDeviationReason</div>
@@ -168,6 +176,22 @@
         background: currentColor;
         opacity: .15;
         margin: 5px 0;
+    }
+
+    .sw-tt-why {
+        margin-top: 6px;
+        padding-top: 5px;
+        border-top: 1px solid rgba(150, 150, 150, .25);
+    }
+
+    .sw-tt-why-plain {
+        font-weight: 600;
+    }
+
+    .sw-tt-why-tech {
+        opacity: .7;
+        font-size: 11px;
+        margin-top: 2px;
     }
 
     .sw-tt-note {

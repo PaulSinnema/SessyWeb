@@ -9,6 +9,6 @@
     /// </summary>
     public static class AppInfo
     {
-        public const string Version = "v1.0.119";
+        public const string Version = "v1.0.120";
     }
 }

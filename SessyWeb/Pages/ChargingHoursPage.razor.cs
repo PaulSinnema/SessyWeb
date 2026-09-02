@@ -30,6 +30,25 @@ namespace SessyWeb.Pages
         [Inject] private EnergySystemStateMachine? _stateMachine { get; set; }
         [Inject] private IMilpService? _milpService { get; set; }
         [Inject] private SettingsService? _settingsService { get; set; }
+        [Inject] private SessyWeb.Services.PlanExplanationService? _planExplanation { get; set; }
+
+        private SessyWeb.Services.PlanWhy? _planWhy;
+        private bool _showPlanWhy;
+        private object? _explainedFor;
+
+        // Fills each quarter's "why" (shown in the tooltip) and the overall summary. Recomputes only
+        // when a fresh QuarterlyInfos list was built, so it is cheap to call from the markup.
+        private void EnsureExplanations()
+        {
+            if (_planExplanation == null || QuarterlyInfos == null) return;
+            if (ReferenceEquals(_explainedFor, QuarterlyInfos)) return;
+            _explainedFor = QuarterlyInfos;
+
+            foreach (var v in QuarterlyInfos)
+                v.Why = _planExplanation.ExplainQuarter(v, QuarterlyInfos);
+
+            _planWhy = QuarterlyInfos.Count > 0 ? _planExplanation.ExplainPlan(QuarterlyInfos) : null;
+        }
 
         private double SocDeviationPct { get; set; } = 0.0;
         private string LastPlanReason { get; set; } = string.Empty;
@@ -299,8 +318,13 @@ namespace SessyWeb.Pages
         /// </summary>
         private async Task BatteriesServiceDataChanged()
         {
-            IsBusy = true;
-            await InvokeAsync(StateHasChanged); // show spinner immediately
+            // Only show the spinner on the first load. On the recurring control-cycle refresh a
+            // spinner would flash every cycle and close any open chart tooltip — refresh silently.
+            bool showBusy = QuarterlyInfos == null || QuarterlyInfos.Count == 0;
+            if (showBusy)
+                IsBusy = true;
+            if (showBusy)
+                await InvokeAsync(StateHasChanged); // show spinner immediately (first load only)
 
             try
             {
@@ -344,7 +368,8 @@ namespace SessyWeb.Pages
             }
             finally
             {
-                IsBusy = false;
+                if (showBusy)
+                    IsBusy = false;
                 await InvokeAsync(StateHasChanged);
             }
         }

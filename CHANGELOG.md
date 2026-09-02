@@ -11,6 +11,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.120] — 2026-09-02
+
+### Added
+- **The plan now explains itself.** Hovering a quarter in the charging-hours chart shows why that
+  quarter is planned the way it is — a plain sentence plus the numbers behind it (prices, kWh, how
+  it ranks against the rest of the window, and the best later alternative). A new "Why this plan?"
+  button above the chart opens a short summary of the whole plan: what it charges in the cheap hours,
+  sells in the expensive ones, covers from the battery, and keeps as reserve.
+
+### Fixed
+- **The chart tooltip no longer disappears every refresh.** The recurring control-cycle refresh used
+  to flash the busy spinner each time, which closed any open tooltip. The spinner now only shows on
+  the first load; later refreshes update silently.
+
 ## [v1.0.119] — 2026-09-02
 
 ### Added

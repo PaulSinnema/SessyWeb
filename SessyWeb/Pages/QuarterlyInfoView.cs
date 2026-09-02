@@ -1,5 +1,6 @@
 ﻿using SessyController.Services.Items;
 using SessyData.Model;
+using SessyWeb.Services;
 using static SessyController.Services.Items.ChargingModes;
 
 namespace SessyWeb.Pages
@@ -187,6 +188,9 @@ namespace SessyWeb.Pages
 
         // ── Now line (mutable — set by chart component) ───────────────────────
         public double NowLineHeight { get; set; } = 0.0;
+
+        /// <summary>Why this quarter is planned the way it is. Filled by the page after the list is built.</summary>
+        public QuarterWhy? Why { get; set; }
 
         // ── Visuals ───────────────────────────────────────────────────────────
         public double VisualizeInChart =>

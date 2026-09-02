@@ -283,6 +283,7 @@ builder.Services.AddLogging(logging =>
 // cleared. It mirrors every ILogger line (the container log) so the Settings page can show it live.
 var logBuffer = new SessyWeb.Services.LogBufferService();
 builder.Services.AddSingleton(logBuffer);
+builder.Services.AddSingleton<SessyWeb.Services.PlanExplanationService>();
 builder.Logging.AddProvider(new SessyWeb.Services.InMemoryLoggerProvider(logBuffer));
 
 // The console level in appsettings.json is applied before any provider sees a line, so without

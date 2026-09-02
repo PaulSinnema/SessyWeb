@@ -12,6 +12,8 @@
 @{
     var desktop = !ScreenInfo?.IsMobile ?? false;
 
+    EnsureExplanations();
+
     if (desktop)
     {
         <RadzenCard Style="padding: 3px 3px 5px 10px;">
@@ -191,6 +193,24 @@
 
         @if (QuarterlyInfos != null && QuarterlyInfos.Count != 0)
         {
+            @if (_planWhy != null)
+            {
+                <RadzenButton Text="Why this plan?" Icon="help_outline" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                              Click="@(() => _showPlanWhy = !_showPlanWhy)" class="rz-mb-2" />
+                @if (_showPlanWhy)
+                {
+                    <RadzenCard class="rz-mb-2" Style="max-width: 900px;">
+                        <RadzenText TextStyle="TextStyle.Body1"><b>@_planWhy.Plain</b></RadzenText>
+                        <ul style="margin: 8px 0 0 0; padding-left: 18px; opacity: .85; font-size: 13px;">
+                            @foreach (var line in _planWhy.Technical)
+                            {
+                                <li>@line</li>
+                            }
+                        </ul>
+                    </RadzenCard>
+                }
+            }
+
             <ChargingHoursChartComponent @ref="_chartComponent" QuarterlyInfos="@QuarterlyInfos" GraphStyle="@GraphStyle" ShowAll="@ShowAll" />
         }
     }
