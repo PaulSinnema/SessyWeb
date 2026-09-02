@@ -18,6 +18,13 @@ namespace SessyWeb.Services
     /// cheapest hours, sell into the most expensive, cover the house from the battery, and only hold
     /// energy when no trade beats the cycle cost. That is exactly what this puts into words.
     /// </summary>
+    /// <remarks>
+    /// KEEP IN SYNC WITH THE PLANNER. This mirrors BatteryGreedyPlanner's decision logic — the
+    /// baseline export-vs-store threshold, the arbitrage comparisons, the meaning of each
+    /// mode/ActionMode, and the price / round-trip / cycle-cost trade-offs. If the planner changes
+    /// (a new mode, a different threshold, a changed price build-up), update this explainer too, or
+    /// "Why this plan?" will describe behaviour the planner no longer follows.
+    /// </remarks>
     public sealed class PlanExplanationService
     {
         private const double QuarterHours = 0.25;

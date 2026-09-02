@@ -217,6 +217,7 @@ batterijen draaien daarvoor in NOM, want alleen dan luistert de Sessy naar de P1
 - `QuarterlyMeasurement.BatteryMode` is óns geplande mode, niet de hardware-keuze.
 - Prijseenheden: ENTSO-E EUR/MWh ÷1000, Sessy ÷100000 → EUR/kWh; ENTSO-E levert PT60M (uur) → `ExpandToQuarters` (een prijs is een tarief, niet delen).
 - `consumption = solar + net + battery` — een ontbrekende term wordt stil als verkeerd verbruik opgeslagen; daarom de `SolarIsMeasurable`-gate en `null`-in-plaats-van-partiële-som.
+- **`SessyWeb.Services.PlanExplanationService` spiegelt de beslislogica van de planner** (baseline export-vs-opslaan-drempel, arbitrage, de betekenis van elke mode/`ActionMode`, en de prijs/round-trip/cyclus-afwegingen). Verandert de planner — nieuwe mode, andere drempel, andere prijsopbouw — pas dan **óók** deze class aan, anders beschrijft de "Why this plan?"-uitleg gedrag dat de planner niet meer volgt.
 
 ## Diagnostiek
 Instrumentatie die blijft loggen (prod log-level = Warning): `DbHelper` (trage wacht-/houdtijden),

@@ -11,6 +11,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.121] — 2026-09-02
+
+### Changed
+- **Internal — documented that the plan explainer must track the planner.** `PlanExplanationService`
+  (behind "Why this plan?") mirrors the planner's decision logic; a keep-in-sync note was added to the
+  class and to `CLAUDE.md` so it is updated whenever the planner changes. No user-visible change.
+
 ## [v1.0.120] — 2026-09-02
 
 ### Added
