@@ -481,7 +481,8 @@ namespace SessyController.Services
                 double maxSocWh = capWh;
 
                 _minSocWhByTime[qi.Time] = ComputeMinSocWh(
-                    netLoads, i, capWh, nightCapRatio, reserveSafetyFactor);
+                    netLoads, i, capWh, nightCapRatio, reserveSafetyFactor,
+                    !_settingsConfig.UseCalculatedNightReserve);
                 _maxSocWhByTime[qi.Time] = maxSocWh;
             }
 
@@ -527,8 +528,14 @@ namespace SessyController.Services
             int index,
             double capacityWh,
             double nightCapRatio,
-            double reserveSafetyFactor)
+            double reserveSafetyFactor,
+            bool fixedReserve = false)
         {
+            // Fixed reserve: hold the configured fraction as a firm floor with the safety surcharge
+            // on top, independent of the night forecast — "this reserve must be used" as set.
+            if (fixedReserve)
+                return Math.Min(capacityWh, capacityWh * nightCapRatio * reserveSafetyFactor);
+
             double nightReserveWh = 0.0;
             double solarBeforeWh = 0.0;
             bool solarSeen = false;

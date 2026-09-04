@@ -118,6 +118,13 @@
                             <RadzenText TextStyle="TextStyle.Overline" class="rz-display-flex rz-mt-4 rz-mb-0">Battery (actual)</RadzenText>
                             <RadzenText TextStyle="TextStyle.Body1"><b>@displayStrategy</b></RadzenText>
                             <RadzenText TextStyle="TextStyle.Body2">@($"{actualPowerW:F0} W") @powerLabel</RadzenText>
+                            @if (rawStrategy == "POWER_STRATEGY_NOM")
+                            {
+                                <RadzenText TextStyle="TextStyle.Caption" Style="opacity:.7; line-height:1.2;"
+                                            title="With grid-target steering the battery strategy stays Zero Net Home (NOM). Charging and discharging are driven by the P1 grid target, so the plan can read Charging while the hardware strategy shows Zero Net Home.">
+                                    charge/discharge via P1 grid target
+                                </RadzenText>
+                            }
                         </RadzenStack>
                     </RadzenTableCell>
 
@@ -193,23 +200,6 @@
 
         @if (QuarterlyInfos != null && QuarterlyInfos.Count != 0)
         {
-            @if (_planWhy != null)
-            {
-                <RadzenButton Text="Why this plan?" Icon="help_outline" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
-                              Click="@(() => _showPlanWhy = !_showPlanWhy)" class="rz-mb-2" />
-                @if (_showPlanWhy)
-                {
-                    <RadzenCard class="rz-mb-2" Style="max-width: 900px;">
-                        <RadzenText TextStyle="TextStyle.Body1"><b>@_planWhy.Plain</b></RadzenText>
-                        <ul style="margin: 8px 0 0 0; padding-left: 18px; opacity: .85; font-size: 13px;">
-                            @foreach (var line in _planWhy.Technical)
-                            {
-                                <li>@line</li>
-                            }
-                        </ul>
-                    </RadzenCard>
-                }
-            }
 
             <ChargingHoursChartComponent @ref="_chartComponent" QuarterlyInfos="@QuarterlyInfos" GraphStyle="@GraphStyle" ShowAll="@ShowAll" />
         }
@@ -380,7 +370,7 @@
                 display: flex; align-items: center; justify-content: center;">
                 ✕
             </button>
-            <ChartHelpComponent />
+            <ChartHelpComponent PlanWhy="_planWhy" />
         </div>
     </div>
 }
@@ -390,5 +380,5 @@
 
     void ShowTooltipWithHtml(ElementReference elementReference, TooltipOptions? options = null)
         => tooltipService!.Open(elementReference, ds =>
-@<ChartHelpComponent />, options);
+@<ChartHelpComponent PlanWhy="_planWhy" />, options);
 }

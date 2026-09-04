@@ -94,13 +94,13 @@ namespace SessyData.Model
         /// (Σ net cost / Σ capacity·cycles). When false, the planner uses the fixed
         /// FixedCycleCostEurPerKWh below — set it to 0 to disable the wear cost entirely.
         /// </summary>
-        public bool UseCalculatedCycleCost { get; set; } = true;
+        public bool UseCalculatedCycleCost { get; set; } = false;
 
         /// <summary>
         /// Fixed cycle (wear) cost in EUR/kWh, used only when UseCalculatedCycleCost is false.
         /// Default 0 = no wear cost, which lets the planner trade on every profitable spread.
         /// </summary>
-        public double FixedCycleCostEurPerKWh { get; set; } = 0.0;
+        public double FixedCycleCostEurPerKWh { get; set; } = 0.04;
 
         /// <summary>
         /// Fallback for the throttle ratio (%), used only while ThrottleAnalysisService has no

@@ -33,7 +33,6 @@ namespace SessyWeb.Pages
         [Inject] private SessyWeb.Services.PlanExplanationService? _planExplanation { get; set; }
 
         private SessyWeb.Services.PlanWhy? _planWhy;
-        private bool _showPlanWhy;
         private object? _explainedFor;
 
         // Fills each quarter's "why" (shown in the tooltip) and the overall summary. Recomputes only

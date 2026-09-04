@@ -1,4 +1,5 @@
 ﻿@using Radzen
+@using SessyWeb.Services
 @inherits BaseComponent
 
 <style>
@@ -97,6 +98,20 @@
         </div>
     </div>
 
+    @if (PlanWhy != null)
+    {
+        <div class="help-section-title">🧠 Why this plan</div>
+        <div style="margin-bottom:16px; font-size:13px;">
+            <div style="font-weight:600; color:#f0f0f0; margin-bottom:6px;">@PlanWhy.Plain</div>
+            <ul style="margin:0; padding-left:18px; color:#9999bb;">
+                @foreach (var line in PlanWhy.Technical)
+                {
+                    <li>@line</li>
+                }
+            </ul>
+        </div>
+    }
+
     <div class="help-grid">
 
         @* ── Left column ── *@
@@ -148,6 +163,8 @@
 </div>
 
 @code {
+    [Parameter] public PlanWhy? PlanWhy { get; set; }
+
     RenderFragment Row(string color, string label, string desc) => b =>
     {
         b.OpenElement(0, "tr");

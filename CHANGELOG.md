@@ -11,6 +11,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.127] — 2026-09-04
+
+### Changed
+- **The "Battery (actual)" header now explains why it says Zero Net Home while charging.** With
+  grid-target steering the battery strategy stays Zero Net Home (NOM) and the P1 grid target does the
+  charging/discharging, so the plan can read "Charging" while the hardware shows "Zero Net Home". The
+  header now adds a small note — "charge/discharge via P1 grid target" — with a fuller explanation on
+  hover, so the two no longer look contradictory.
+
+## [v1.0.126] — 2026-09-04
+
+### Changed
+- **A fresh install now defaults to a fixed cycle cost of €0,04/kWh** (checkbox "Calculate from
+  investments" off), instead of deriving the full wear cost from the investments. Existing installs
+  keep whatever they have set; change it under Advanced planning parameters.
+- **The safety surcharge now actually applies to a fixed night reserve.** With a fixed reserve the
+  surcharge used to be swallowed by a cap, so it never raised the reserve and low-consumption nights
+  could even hold less than the set percentage. A fixed reserve is now a firm floor with the safety
+  surcharge on top (e.g. 10% reserve + 10% surcharge = 11% held), independent of the night forecast.
+
+### Removed
+- **The separate "Why this plan?" button.** Its explanation now lives inside the Chart Guide (the "i"
+  button), so the whole-plan summary and the legend are in one place.
+
 ## [v1.0.125] — 2026-09-04
 
 ### Added

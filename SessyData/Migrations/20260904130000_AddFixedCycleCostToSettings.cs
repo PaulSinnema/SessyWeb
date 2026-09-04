@@ -24,14 +24,14 @@ namespace SessyData.Migrations
                 table: "Settings",
                 type: "INTEGER",
                 nullable: false,
-                defaultValue: true);
+                defaultValue: false);
 
             migrationBuilder.AddColumn<double>(
                 name: "FixedCycleCostEurPerKWh",
                 table: "Settings",
                 type: "REAL",
                 nullable: false,
-                defaultValue: 0.0);
+                defaultValue: 0.04);
         }
 
         /// <inheritdoc />
