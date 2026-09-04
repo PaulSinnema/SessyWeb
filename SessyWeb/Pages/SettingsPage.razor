@@ -66,11 +66,30 @@
                                                         Style="width:100%" />
                                     </RadzenColumn>
                                     <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Night reserve source" />
+                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
+                                            <RadzenCheckBox @bind-Value="_settings.UseCalculatedNightReserve" />
+                                            <RadzenLabel Text="Calculate from history" />
+                                        </RadzenStack>
+                                        <RadzenText TextStyle="TextStyle.Caption">
+                                            On uses the self-learned cap; off uses the fixed percentage.
+                                            <InfoTipComponent Text="On: reserve from the self-learned Night reserve cap (shown at right). Off: the fixed reserve percentage (shown at right), giving direct control." />
+                                        </RadzenText>
+                                    </RadzenColumn>
+                                    <RadzenColumn Size="12" SizeMD="4" Visible="@(!_settings.UseCalculatedNightReserve)">
+                                        <RadzenLabel Text="Fixed night reserve (%)" />
+                                        <RadzenNumeric TValue="double" @bind-Value="_settings.FixedNightReservePct" Format="F0" Min="0" Max="100" Style="width:100%" />
+                                        <RadzenText TextStyle="TextStyle.Caption">
+                                            Default 10. A firm floor; the safety surcharge applies on top.
+                                            <InfoTipComponent Text="Fixed percent of capacity held back for the night, used only when Calculate from history is off. A firm floor with the reserve safety surcharge on top. Lower it to discharge deeper into the evening peak." />
+                                        </RadzenText>
+                                    </RadzenColumn>
+                                    <RadzenColumn Size="12" SizeMD="4" Visible="@_settings.UseCalculatedNightReserve">
                                         <RadzenLabel Text="Night reserve cap (%)" />
                                         <RadzenNumeric TValue="double" @bind-Value="_settings.NightReserveCapPct" Format="F0" Min="0" Max="100" Style="width:100%" />
                                         <RadzenText TextStyle="TextStyle.Caption">
-                                            0 = 33%@(_settings.SelfLearningEnabled ? " · learned nightly" : "")
-                                            <InfoTipComponent Text="Caps how much energy is held back for the coming night, as a percentage of total capacity. 0 falls back to 33%. With self-learning on, the nightly fit replaces whatever is here as soon as it has enough measured nights — so an edit you make now holds until then, and is overwritten after." />
+                                            0 = 33%@(_settings.SelfLearningEnabled ? " (learned nightly)" : "")
+                                            <InfoTipComponent Text="Caps energy held back for the night, as a percent of capacity. 0 falls back to 33%. With self-learning on, the nightly fit overwrites this once enough nights are measured; an edit holds until then." />
                                         </RadzenText>
                                     </RadzenColumn>
                                     <RadzenColumn Size="12" SizeMD="4">
@@ -87,25 +106,6 @@
                                         <RadzenText TextStyle="TextStyle.Caption">
                                             0 = 90%
                                             <InfoTipComponent Text="Round-trip energy efficiency used until enough charging and discharging has been measured. This is how much of the stored energy comes back out, which decides whether arbitrage pays at all — a different quantity from the throttle, which limits power. The planner derives the one-way efficiencies as the square root of this." />
-                                        </RadzenText>
-                                    </RadzenColumn>
-                                    <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Night reserve source" />
-                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
-                                            <RadzenCheckBox @bind-Value="_settings.UseCalculatedNightReserve" />
-                                            <RadzenLabel Text="Calculate from history" />
-                                        </RadzenStack>
-                                        <RadzenText TextStyle="TextStyle.Caption">
-                                            Off = use the fixed percentage below.
-                                            <InfoTipComponent Text="On: the night reserve comes from the self-learned value (Night reserve cap above). Off: the planner uses the fixed reserve percentage instead, giving you direct control." />
-                                        </RadzenText>
-                                    </RadzenColumn>
-                                    <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Fixed night reserve (%)" />
-                                        <RadzenNumeric TValue="double" @bind-Value="_settings.FixedNightReservePct" Format="F0" Min="0" Max="100" Style="width:100%" />
-                                        <RadzenText TextStyle="TextStyle.Caption">
-                                            Default: 10. Used when 'Calculate from history' is off.
-                                            <InfoTipComponent Text="Fixed percentage of total capacity held back for the night, used only when 'Calculate from history' is off. Lower it to let the battery discharge deeper into the evening peak." />
                                         </RadzenText>
                                     </RadzenColumn>
                                     <RadzenColumn Size="12" SizeMD="4" Style="display:flex; flex-direction:column; gap:8px; justify-content:flex-end;">

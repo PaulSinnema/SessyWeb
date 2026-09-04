@@ -11,6 +11,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.128] — 2026-09-04
+
+### Changed
+- **The night-reserve settings now show only the field that applies.** The "Night reserve source"
+  checkbox comes first, and below it you see the "Night reserve cap (%)" when Calculate from history
+  is on, or the "Fixed night reserve (%)" when it is off — never both. The two are mutually exclusive
+  (the checkbox picks which one the planner uses), so showing only the active one removes the earlier
+  confusion about whether they were the same setting.
+
 ## [v1.0.127] — 2026-09-04
 
 ### Changed
