@@ -11,6 +11,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.122] — 2026-09-04
+
+### Added
+- **The night reserve can now be a fixed percentage you set yourself.** Battery control settings gain
+  a "Fixed night reserve (%)" field (default 10%) and a "Calculate from history" checkbox. Leave the
+  checkbox on to keep the self-learned reserve as before; switch it off to make the planner hold
+  exactly the percentage you set. Lowering it lets the battery discharge deeper into the evening peak
+  instead of holding energy back for the night.
+
 ## [v1.0.121] — 2026-09-02
 
 ### Changed

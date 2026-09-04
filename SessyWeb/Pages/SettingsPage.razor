@@ -89,6 +89,25 @@
                                             <InfoTipComponent Text="Round-trip energy efficiency used until enough charging and discharging has been measured. This is how much of the stored energy comes back out, which decides whether arbitrage pays at all — a different quantity from the throttle, which limits power. The planner derives the one-way efficiencies as the square root of this." />
                                         </RadzenText>
                                     </RadzenColumn>
+                                    <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Night reserve source" />
+                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
+                                            <RadzenCheckBox @bind-Value="_settings.UseCalculatedNightReserve" />
+                                            <RadzenLabel Text="Calculate from history" />
+                                        </RadzenStack>
+                                        <RadzenText TextStyle="TextStyle.Caption">
+                                            Off = use the fixed percentage below.
+                                            <InfoTipComponent Text="On: the night reserve comes from the self-learned value (Night reserve cap above). Off: the planner uses the fixed reserve percentage instead, giving you direct control." />
+                                        </RadzenText>
+                                    </RadzenColumn>
+                                    <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Fixed night reserve (%)" />
+                                        <RadzenNumeric TValue="double" @bind-Value="_settings.FixedNightReservePct" Format="F0" Min="0" Max="100" Style="width:100%" />
+                                        <RadzenText TextStyle="TextStyle.Caption">
+                                            Default: 10. Used when 'Calculate from history' is off.
+                                            <InfoTipComponent Text="Fixed percentage of total capacity held back for the night, used only when 'Calculate from history' is off. Lower it to let the battery discharge deeper into the evening peak." />
+                                        </RadzenText>
+                                    </RadzenColumn>
                                     <RadzenColumn Size="12" SizeMD="4" Style="display:flex; flex-direction:column; gap:8px; justify-content:flex-end;">
                                         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
                                             <RadzenCheckBox @bind-Value="_settings.ChargedInControl" />

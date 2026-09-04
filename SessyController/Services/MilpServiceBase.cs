@@ -393,9 +393,9 @@ namespace SessyController.Services
         /// both as the cap on the reserve and, since v1.0.103, as the floor where the horizon cuts a
         /// night short, and the dashboard shows it.
         /// </summary>
-        private double NightCapRatio => _settingsConfig.NightReserveCapPct > 0
-            ? _settingsConfig.NightReserveCapPct / 100.0
-            : 0.33;
+        private double NightCapRatio => !_settingsConfig.UseCalculatedNightReserve
+            ? Math.Clamp(_settingsConfig.FixedNightReservePct, 0.0, 100.0) / 100.0
+            : _settingsConfig.NightReserveCapPct > 0 ? _settingsConfig.NightReserveCapPct / 100.0 : 0.33;
 
         /// <summary>
         /// Deviation between live SOC and the SOC the plan expects at this moment.

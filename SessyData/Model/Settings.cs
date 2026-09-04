@@ -1,4 +1,4 @@
-using SessyCommon.Attributes;
+﻿using SessyCommon.Attributes;
 using SessyCommon.Extensions;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
@@ -75,6 +75,19 @@ namespace SessyData.Model
         /// When 0, defaults to 33%. Limits how much energy is held back for nightly consumption.
         /// </summary>
         public double NightReserveCapPct { get; set; }
+
+        /// <summary>
+        /// When true (default), the night reserve comes from the self-learned NightReserveCapPct
+        /// (historical forecast errors). When false, the planner uses the fixed FixedNightReservePct
+        /// below, giving direct manual control over the reserve.
+        /// </summary>
+        public bool UseCalculatedNightReserve { get; set; } = true;
+
+        /// <summary>
+        /// Fixed night reserve as a percentage of total capacity (0-100), used only when
+        /// UseCalculatedNightReserve is false. Default 10%.
+        /// </summary>
+        public double FixedNightReservePct { get; set; } = 10.0;
 
         /// <summary>
         /// Fallback for the throttle ratio (%), used only while ThrottleAnalysisService has no

@@ -143,7 +143,7 @@ Blazor Server, Radzen components, `.razor` + `.razor.cs` code-behind pairs. Page
 C#/.NET Blazor Server EMS. Stuurt 3× Sessy batterij (cap 16,2 kWh; raw charge 6600W/discharge 5100W;
 **aantoonbaar gehaald ~5,0-5,3 kW laden** over vrijwel het hele SOC-bereik — de eerdere "praktijk max
 ~4,4kW" was de getaperde planwaarde, niet de hardwarelimiet), SolarEdge inverter, Daikin warmtepomp.
-Draait op Synology NAS via Docker. Huidige versie **v1.0.115**. Locatie: Apeldoorn. De zonmeting staat
+Draait op Synology NAS via Docker. Huidige versie **v1.0.122**. Locatie: Apeldoorn. De zonmeting staat
 op de **Sessy-bron** in plaats van SolarEdge-Modbus; de omvormer hangt er nog maar wordt niet meer
 uitgelezen (bewust, om die bron te ijken — zie openstaand punt 9).
 

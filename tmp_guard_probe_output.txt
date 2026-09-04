@@ -1,6 +1,6 @@
 Curve: chCeil=0,8784 chOv=0,0599 disCeil=0,9227 disOv=0,0691 samples=1208
 ChargeAt(6.6)=0,8694 DischargeAt(4.16)=0,9061 roundTrip=0,7877
 i=11 (13:30) buy=0,2493 sell=0,2053 netload=-55
-j=35 (19:30) buy=0,4352 sell=0,3912 netload=138
+j=35 (19:30) buy=0,4352 sell=0,3912 netload=146
 Candidate B profit (valueJ=buy 0,4352): 0,0325
 Candidate B profit (valueJ=sell 0,3912): -0,0115
