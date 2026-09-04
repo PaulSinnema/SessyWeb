@@ -11,6 +11,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.125] — 2026-09-04
+
+### Added
+- **The cycle (wear) cost can now be a fixed amount you set yourself, or switched off entirely.**
+  Advanced planning parameters gain a "Fixed cycle cost (€/kWh)" field (default 0) and a "Calculate
+  from investments" checkbox. Leave the checkbox on to keep the wear cost derived from your battery
+  investments as before; switch it off to use the fixed amount instead — set it to 0 to remove the
+  wear penalty completely, so the planner trades on every profitable spread (more like Charged).
+
+## [v1.0.124] — 2026-09-04
+
+### Changed
+- **Internal — renamed the planner's `ReplacementCostEurPerKWh` to `ReservationPriceEurPerKWh`.** The
+  old name suggested battery replacement, but the value is a reservation/floor price for carrying
+  energy past the horizon, not a wear cost. No behavioural change.
+
+## [v1.0.123] — 2026-09-04
+
+### Fixed
+- **"Why this plan?" showed an impossible reserve (e.g. 21 or 41 kWh).** The end-of-window reserve
+  was formatted with a stray code that dropped the decimal separator and appended a literal "1", so
+  1,7 kWh read as "21" and ~4 kWh as "41". It now shows the real value with one decimal.
+
 ## [v1.0.122] — 2026-09-04
 
 ### Added

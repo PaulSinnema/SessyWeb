@@ -1,4 +1,4 @@
-using SessyController.Services;
+﻿using SessyController.Services;
 using SessyController.Services.Items;
 using SessyController.Services.Optimization;
 using SessyData.Model;
@@ -149,7 +149,7 @@ namespace SessyTests.Services
                    CycleCostEurPerKWh: cycleCost,
                    AllowExport: true,
                    FutureValueDiscountPerHour: discountPerHour,
-                   ReplacementCostEurPerKWh: replacementCost,
+                   ReservationPriceEurPerKWh: replacementCost,
                    AllowCarryForward: allowCarryForward);
 
         // ── The day itself ────────────────────────────────────────────────────

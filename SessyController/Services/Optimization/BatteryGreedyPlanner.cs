@@ -748,9 +748,9 @@ namespace SessyController.Services.Optimization
         /// </summary>
         private static void TryCandidateC(Context ctx, State state, Scratch scratch, Candidate best)
         {
-            if (!ctx.Opt.AllowCarryForward || ctx.Opt.ReplacementCostEurPerKWh <= 0.0) return;
+            if (!ctx.Opt.AllowCarryForward || ctx.Opt.ReservationPriceEurPerKWh <= 0.0) return;
 
-            double carryValue = ctx.Opt.ReplacementCostEurPerKWh * ctx.DiscountAt[ctx.N];
+            double carryValue = ctx.Opt.ReservationPriceEurPerKWh * ctx.DiscountAt[ctx.N];
 
             for (int i = 0; i < ctx.N; i++)
             {
@@ -1070,9 +1070,9 @@ namespace SessyController.Services.Optimization
             // the objective would score every carry-forward block as a pure loss and report a
             // plan as worse than the one it beats. Only when carry-forward is on, so the reported
             // objective is unchanged for callers that do not use it.
-            if (ctx.Opt.AllowCarryForward && ctx.Opt.ReplacementCostEurPerKWh > 0.0)
+            if (ctx.Opt.AllowCarryForward && ctx.Opt.ReservationPriceEurPerKWh > 0.0)
                 objective += soc / ctx.Efficiency.ChargeAt(Math.Max(0.1, ctx.Spec.MaxChargeKW))
-                           * ctx.Opt.ReplacementCostEurPerKWh;
+                           * ctx.Opt.ReservationPriceEurPerKWh;
 
             return new PlanResult(true, objective, plan);
         }

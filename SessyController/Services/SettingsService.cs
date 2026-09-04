@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Hosting;
+﻿using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using SessyCommon.Configurations;
 using SessyCommon.Services;
@@ -262,6 +262,14 @@ namespace SessyController.Services
         private async Task ApplyDerivedCycleCostAsync()
         {
             const double fallback = 0.05;
+
+            // Fixed cycle cost overrides the derived value when the user opts out of calculation.
+            if (_current is { UseCalculatedCycleCost: false })
+            {
+                _cycleCost = Math.Max(0.0, _current.FixedCycleCostEurPerKWh);
+                _logger.LogInformation($"SettingsService: CycleCost fixed by setting = € {_cycleCost:F4}/kWh.");
+                return;
+            }
             try
             {
                 var groups = await _investmentGroupDataService.GetList(set =>

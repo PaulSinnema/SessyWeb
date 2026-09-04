@@ -169,7 +169,7 @@ Er draaien ook instanties bij anderen — meldingen komen als GitHub-issues binn
 ## Planner-architectuur (BatteryGreedyPlanner.cs)
 Deterministisch, greedy, twee passes: (1) ZeroNetHome-baseline, (2) arbitrage in blokken van `BlockKWh` — 0,20 kWh (puur een snelheidsknop; plannen zijn bit-identiek van 0,05 t/m 1,00 kWh). Candidate A = ontladen van al-aanwezige energie (geen gekoppeld laadmoment); Candidate B = laden-i → ontladen-j met `i<j`; Candidate C = carry-forward voorbij de horizon; Candidate D = nu verkopen, later terugkopen (ontladen j → terugkopen k>j).
 - **FutureValueDiscountPerHour** (default 0,003 — UI toont procenten, dus 0,3): continue korting op waarde[j]/kosten[i]. Rapportage/objective gebruiken echte prijzen. Hoort samen met `PredictedPriceMode`: bij `Off` is >24 u toch `reserveOnly`.
-- **ReplacementCostEurPerKWh**: bodemprijs (reservatieprijs) voor Candidate A — voorkomt dumpen van doorschuif-energie. Geleverd door `ReplacementCostService` (FIFO alleen nog terugval). Zon-voorraad = 0.
+- **ReservationPriceEurPerKWh** (SessyOptions; hernoemd v1.0.124, heette `ReplacementCostEurPerKWh` — was nooit batterijvervanging): bodemprijs (reservatieprijs) voor Candidate A — voorkomt dumpen van doorschuif-energie. Geleverd door `ReplacementCostService` (FIFO alleen nog terugval). Zon-voorraad = 0.
 - `Solve` heeft een optionele `trace`-callback (null = geen extra berekening) die per kwartier meldt waaróm er niet verkocht is (waarde tegen bodem, slack, headroom).
 
 ## Zelf-gemeten modellen
@@ -179,12 +179,15 @@ Vijf modellen worden uit de productiehistorie gefit; alle vallen bij te weinig s
 - **ChargeCapabilityFloor** (`ThrottleAnalysisService`): per 5%-SOC-bin het P90 van gemeten laadvermogens × 0,9, geklemd op nameplate, uit elk laadkwartier (geen noemer nodig). `taperedChargeKWh = max(taper, floor)`. Bewust een bodem in watt en géén fit: een hoge meting bewíjst wat de bank kan, een lage bewijst niets.
 - **DischargeCapability** (`GetDischargeCapabilityAsync`): plateau + knik in absolute watts, **géén** temperatuurtermen (nagemeten: vermogen insignificant). Plateau = mediaan bin-maxima boven half vol; knik = laagste bin waar die bin én de volgende het plateau halen. De ontlaadkant plant op SOC.
 - **EfficiencyCurve** (`BatteryEfficiencyService.GetEfficiencyCurveAsync`): `rendement = plafond − overhead/vermogen`, per richting gefit. Bewuste asymmetrie: **beslissingen** lezen de curve op het vermogen dat een kwartier aankan, **boekhouding** op het vermogen dat het kwartier werkelijk kreeg. Te weinig samples → `Flat`.
-- **NightReserve / ComputeMinSocWh**: reserve tot de volgende zonsopgang; bij horizon-afkapping (nacht valt voorbij 23:45 morgen) `max(zichtbare som, geleerde nachtbehoefte − zon ervoor)`. `NightReserveCapPct` geleerd door `PlannerLearningService` (P80 van gemeten nachten, cap ~33%). De nachtreserve telt niet over een zonvenster heen (`solarBeforeWh` afgetrokken).
+- **NightReserve / ComputeMinSocWh**: reserve tot de volgende zonsopgang; bij horizon-afkapping (nacht valt voorbij 23:45 morgen) `max(zichtbare som, geleerde nachtbehoefte − zon ervoor)`. `NightReserveCapPct` geleerd door `PlannerLearningService` (P80 van gemeten nachten, cap ~33%). De nachtreserve telt niet over een zonvenster heen (`solarBeforeWh` afgetrokken). **Sinds v1.0.122** kiest `MilpServiceBase.NightCapRatio` de bron via `Settings.UseCalculatedNightReserve`: aan = geleerde `NightReserveCapPct` (huidig gedrag), uit = vaste `FixedNightReservePct` (default 10%, letterlijk gebruikt, 0% toegestaan). Instelbaar op de Settings-pagina onder Battery control.
 
-`ReplacementCostEurPerKWh` (`ReplacementCostService`) = P25 van de dagelijks goedkoopste all-in
+`ReservationPriceEurPerKWh` (geleverd door `ReplacementCostService`) = P25 van de dagelijks goedkoopste all-in
 inkoopprijs over 30 d, geklemd op de mediaan-inkoopprijs — een geschatte toekomstige energie-inkoopprijs,
 **geen** batterijvervanging. `CycleCostEurPerKWh` = echte slijtage = investering / (capaciteit × 8000 cycli),
-terugval 0,05.
+terugval 0,05. **Sinds v1.0.125** kiest `SettingsService.CycleCost` de bron via `Settings.UseCalculatedCycleCost`:
+aan = afgeleid uit investeringen (huidig gedrag), uit = vaste `FixedCycleCostEurPerKWh` (default 0 = wear-kost uit,
+planner handelt op elke rendabele spread). De override zit in `ApplyDerivedCycleCostAsync`, zodat álle lezers
+(planner, runtime-guards, stats, checks) dezelfde waarde krijgen. Instelbaar op de Settings-pagina onder Advanced planning parameters.
 
 ## Belangrijke mechanismen (huidige staat)
 - **ControlModeService** — `ControlMode` = SessyWeb/Manual/Charged/Provider, prioriteit leverancier > Charged > manual > wij. `WeMayDriveTheBatteries` is de enige schrijf-conditie op de hardware; **manual override = SessyWeb die een ander plan schrijft**, geen andere bestuurder. Lezers zijn ongeguard (`GetScheduleAsync`, identieke GET voor beide richtingen). Weigeren logt op Warning.

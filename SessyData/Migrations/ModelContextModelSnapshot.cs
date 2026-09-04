@@ -524,6 +524,9 @@ namespace SessyData.Migrations
                     b.Property<string>("ExportDirectory")
                         .HasColumnType("TEXT");
 
+                    b.Property<double>("FixedCycleCostEurPerKWh")
+                        .HasColumnType("REAL");
+
                     b.Property<double>("FixedNightReservePct")
                         .HasColumnType("REAL");
 
@@ -555,6 +558,9 @@ namespace SessyData.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("ManualOverride")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("UseCalculatedCycleCost")
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("UseCalculatedNightReserve")

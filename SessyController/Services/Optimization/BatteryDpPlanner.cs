@@ -202,9 +202,9 @@ namespace SessyController.Services.Optimization
             // ── Backward value iteration ─────────────────────────────────────
             var V = new double[n + 1][];
             V[n] = new double[Levels];
-            bool carry = opt.AllowCarryForward && opt.ReplacementCostEurPerKWh > 0.0;
+            bool carry = opt.AllowCarryForward && opt.ReservationPriceEurPerKWh > 0.0;
             for (int s = 0; s < Levels; s++)
-                V[n][s] = carry ? socOf(s) / chEffFull * opt.ReplacementCostEurPerKWh : 0.0;
+                V[n][s] = carry ? socOf(s) / chEffFull * opt.ReservationPriceEurPerKWh : 0.0;
 
             for (int t = n - 1; t >= 0; t--)
             {
@@ -240,7 +240,7 @@ namespace SessyController.Services.Optimization
                 socCur = socEnd;
             }
             if (carry)
-                objective += socCur / chEffFull * opt.ReplacementCostEurPerKWh;
+                objective += socCur / chEffFull * opt.ReservationPriceEurPerKWh;
 
             return new PlanResult(true, objective, plan);
         }

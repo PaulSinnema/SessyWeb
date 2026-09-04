@@ -1,4 +1,4 @@
-using SessyController.Services.Optimization;
+﻿using SessyController.Services.Optimization;
 using Xunit;
 
 namespace SessyTests.Services
@@ -54,7 +54,7 @@ namespace SessyTests.Services
                    CycleCostEurPerKWh: cycleCost,
                    AllowExport: true,
                    FutureValueDiscountPerHour: 0.0,
-                   ReplacementCostEurPerKWh: replacementCost,
+                   ReservationPriceEurPerKWh: replacementCost,
                    AllowCarryForward: allowCarryForward);
 
         private static double FinalSoc(PlanResult result) => result.Plan[^1].SocEndKWh;

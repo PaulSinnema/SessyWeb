@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Data.Sqlite;
@@ -81,7 +81,7 @@ namespace SessyTests.Services
                 QuarterMinutes: 15,
                 CycleCostEurPerKWh: 0.08622,
                 FutureValueDiscountPerHour: 0.0,
-                ReplacementCostEurPerKWh: 0.1299,
+                ReservationPriceEurPerKWh: 0.1299,
                 AllowCarryForward: true);
 
             var sb = new System.Text.StringBuilder();

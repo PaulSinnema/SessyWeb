@@ -158,7 +158,7 @@ namespace SessyWeb.Services
                 $"sells {sellKWh:0.0} kWh in the most expensive (avg {Euro(avgSell)}). " +
                 $"It also covers {selfKWh:0.0} kWh of household use from the battery" +
                 (solarExport.Count > 0 ? $" and feeds surplus solar straight back in {solarExport.Count} quarters" : "") +
-                $". At the end of the window {endSocKWh:0.1} kWh is left in the battery as reserve. " +
+                $". At the end of the window {endSocKWh:0.0} kWh is left in the battery as reserve. " +
                 "In short: buy when it is cheap, sell when it is expensive, and use the rest to avoid importing.";
 
             var tech = new List<string>
@@ -168,7 +168,7 @@ namespace SessyWeb.Services
                 $"Sold: {sellKWh:0.0} kWh @ avg {Euro(avgSell)} (revenue €{sellRevenue:0.00}) across {sells.Count} quarters.",
                 $"Self-consumption: {selfKWh:0.0} kWh (avoided import ≈ €{selfSaving:0.00}) across {selfUse.Count} quarters.",
                 $"Solar export (battery off): {solarExport.Count} quarters.",
-                $"End SOC (reserve): {endSocKWh:0.1} kWh.",
+                $"End SOC (reserve): {endSocKWh:0.0} kWh.",
                 $"Rough trade margin (sold − charged): €{(sellRevenue - chargeCost):0.00}, plus ≈ €{selfSaving:0.00} saved via self-consumption."
             };
 

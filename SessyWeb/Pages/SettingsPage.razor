@@ -153,6 +153,27 @@
                             @* ── Planner tuning parameters ────────────────────── *@
                             <RadzenFieldset Text="Advanced planning parameters">
                                 <RadzenRow Gap="1rem">
+                                    <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Cycle cost source" />
+                                        <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">
+                                            On = derive from investments. Off = use the fixed value.
+                                            <InfoTipComponent Text="On: the wear cost per kWh is derived from the battery investments (cost / capacity / cycles). Off: the planner uses the fixed cycle cost below — set it to 0 to disable the wear cost entirely and trade on every profitable spread." />
+                                        </RadzenText>
+                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
+                                            <RadzenCheckBox @bind-Value="_settings.UseCalculatedCycleCost" />
+                                            <RadzenLabel Text="Calculate from investments" />
+                                        </RadzenStack>
+                                    </RadzenColumn>
+                                    <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Fixed cycle cost (€/kWh)" />
+                                        <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">
+                                            Default: 0. Used when 'Calculate from investments' is off.
+                                            <InfoTipComponent Text="Fixed battery wear cost per kWh, used only when 'Calculate from investments' is off. 0 disables the wear penalty; a higher value makes the planner more cautious about cycling." />
+                                        </RadzenText>
+                                        <RadzenNumeric TValue="double" @bind-Value="_settings.FixedCycleCostEurPerKWh" Format="0.000" Min="0" Max="1" Step="0.01" Style="width:100%" />
+                                    </RadzenColumn>
+                                </RadzenRow>
+                                <RadzenRow Gap="1rem">
                                     <RadzenColumn Size="12">
                                         <RadzenButton Text="Reset to defaults" Icon="restart_alt" ButtonStyle="ButtonStyle.Secondary" Size="ButtonSize.Small"
                                                       Click="@ResetPlannerDefaults" Style="margin-bottom:0.75rem" />

@@ -45,7 +45,7 @@ namespace SessyTests.Services
         private const double MaxChargeKW = 6.6;
         private const double MaxDischargeKW = 5.1;
         private const double CycleCostEurPerKWh = 0.0862;
-        private const double ReplacementCostEurPerKWh = 0.1291;
+        private const double ReservationPriceEurPerKWh = 0.1291;
         private const double DiscountPerHour = 0.003;
         private const double NightReserveCapRatio = 0.32788;
         private const double ReserveSafetyFactor = 1.1;
@@ -330,7 +330,7 @@ namespace SessyTests.Services
             Replay("no per-quarter power caps", noCaps, input.Spec, input.Options, input.SocBounds);
             Replay("no reserve", input.PricePoints, input.Spec, input.Options,
                    input.SocBounds.Select(b => b with { MinSocKWh = 0.0 }).ToList());
-            Replay("no replacement cost", input.PricePoints, input.Spec, input.Options with { ReplacementCostEurPerKWh = 0.0 }, input.SocBounds);
+            Replay("no replacement cost", input.PricePoints, input.Spec, input.Options with { ReservationPriceEurPerKWh = 0.0 }, input.SocBounds);
             Replay("no discount", input.PricePoints, input.Spec, input.Options with { FutureValueDiscountPerHour = 0.0 }, input.SocBounds);
             Replay("no cycle cost", input.PricePoints, input.Spec, input.Options with { CycleCostEurPerKWh = 0.0 }, input.SocBounds);
             Replay("flat efficiency", input.PricePoints, input.Spec with { Efficiency = null }, input.Options, input.SocBounds);
@@ -416,7 +416,7 @@ namespace SessyTests.Services
                 CycleCostEurPerKWh: CycleCostEurPerKWh,
                 AllowExport: true,
                 FutureValueDiscountPerHour: DiscountPerHour,
-                ReplacementCostEurPerKWh: ReplacementCostEurPerKWh,
+                ReservationPriceEurPerKWh: ReservationPriceEurPerKWh,
                 AllowCarryForward: true);
 
             // Reproduce first — if this does not match production, the harness is wrong, not the planner.
@@ -424,7 +424,7 @@ namespace SessyTests.Services
 
             // Then take one input away at a time. Whichever line frees the evening is the cause.
             Run("no carry-forward", baseline with { AllowCarryForward = false }, Spec(curve, capability), points, bounds, quarters);
-            Run("no replacement cost", baseline with { ReplacementCostEurPerKWh = 0.0 }, Spec(curve, capability), points, bounds, quarters);
+            Run("no replacement cost", baseline with { ReservationPriceEurPerKWh = 0.0 }, Spec(curve, capability), points, bounds, quarters);
             Run("no discount", baseline with { FutureValueDiscountPerHour = 0.0 }, Spec(curve, capability), points, bounds, quarters);
             Run("no cycle cost", baseline with { CycleCostEurPerKWh = 0.0 }, Spec(curve, capability), points, bounds, quarters);
             Run("flat efficiency 0.91", baseline, Spec(null, capability), points, bounds, quarters);

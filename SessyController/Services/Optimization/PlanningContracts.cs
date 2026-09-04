@@ -55,7 +55,7 @@ namespace SessyController.Services.Optimization
     /// undiscounted prices — this only shapes which comparable quarter the search reaches for.
     /// 0 (default) reproduces the original undiscounted behaviour exactly.
     /// </param>
-    /// <param name="ReplacementCostEurPerKWh">
+    /// <param name="ReservationPriceEurPerKWh">
     /// What one kWh will cost to put back into the battery later (EUR/kWh, AC side), measured
     /// by ReplacementCostService. It gives energy a value outside the horizon, which the
     /// objective otherwise puts at zero, and it is used on both sides of that:
@@ -71,7 +71,7 @@ namespace SessyController.Services.Optimization
     /// </param>
     /// <param name="AllowCarryForward">
     /// Whether the planner may charge purely to carry energy past the end of the horizon, valued
-    /// at ReplacementCostEurPerKWh. Off (default) keeps every charge tied to a discharge quarter
+    /// at ReservationPriceEurPerKWh. Off (default) keeps every charge tied to a discharge quarter
     /// inside the horizon, as before.
     /// </param>
     public sealed record SessyOptions(
@@ -79,7 +79,7 @@ namespace SessyController.Services.Optimization
         double CycleCostEurPerKWh,
         bool AllowExport = true,
         double FutureValueDiscountPerHour = 0.0,
-        double ReplacementCostEurPerKWh = 0.0,
+        double ReservationPriceEurPerKWh = 0.0,
         bool AllowCarryForward = false
     );
 

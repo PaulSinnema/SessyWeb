@@ -90,6 +90,19 @@ namespace SessyData.Model
         public double FixedNightReservePct { get; set; } = 10.0;
 
         /// <summary>
+        /// When true (default), the cycle (wear) cost is derived from the battery investments
+        /// (Σ net cost / Σ capacity·cycles). When false, the planner uses the fixed
+        /// FixedCycleCostEurPerKWh below — set it to 0 to disable the wear cost entirely.
+        /// </summary>
+        public bool UseCalculatedCycleCost { get; set; } = true;
+
+        /// <summary>
+        /// Fixed cycle (wear) cost in EUR/kWh, used only when UseCalculatedCycleCost is false.
+        /// Default 0 = no wear cost, which lets the planner trade on every profitable spread.
+        /// </summary>
+        public double FixedCycleCostEurPerKWh { get; set; } = 0.0;
+
+        /// <summary>
         /// Fallback for the throttle ratio (%), used only while ThrottleAnalysisService has no
         /// measured samples for the current temperature. The throttle ratio caps how much *power*
         /// the planner may request; once samples exist the measured ratio takes over.

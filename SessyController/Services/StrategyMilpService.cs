@@ -280,7 +280,7 @@ namespace SessyController.Services
                     QuarterMinutes: 15,
                     CycleCostEurPerKWh: _settingsService.CycleCost,
                     FutureValueDiscountPerHour: _settingsConfig.FutureValueDiscountPerHour,
-                    ReplacementCostEurPerKWh: replacementCost,
+                    ReservationPriceEurPerKWh: replacementCost,
                     AllowCarryForward: _settingsConfig.CarryForwardEnabled);
 
                 var context = new SolveContext(pricePoints, spec, opt, socBounds,
