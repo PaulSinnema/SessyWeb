@@ -233,7 +233,7 @@ namespace SessyWeb.Pages
                             ConsumptionDayData = list.Select(cd => new ConsumptionDisplayDayData
                             {
                                 Time = cd.Time,
-                                ConsumptionKWh = cd.ConsumptionWh,
+                                ConsumptionKWh = cd.ConsumptionWh / 4,
                                 Humidity = cd.Humidity,
                                 GlobalRadiation = cd.GlobalRadiation,
                                 Temperature = cd.Temperature
