@@ -8,15 +8,16 @@
                             Data=@Periods
                             Change="@(period => PeriodChanged(period))"
                             Style="width: 100%; max-width: 400px;"
+                            PageSize="10"
                             Name="DropDownBindValue" />
 
             <RadzenLabel Text="Duration:" Component="DropDownBindValue" />
-            <RadzenDropDown @bind-Value=@DurationChosen 
-                                  Data=@Durations 
-                                  Change="@(duration => DurationChanged(duration))"
-                                  Style="width: 100%; max-width: 400px;"
-                                  Name="DropDownBindValue" 
-                                  Visible=@DurationVisible/>
+            <RadzenDropDown @bind-Value=@DurationChosen
+                            Data=@Durations
+                            Change="@(duration => DurationChanged(duration))"
+                            Style="width: 100%; max-width: 400px;"
+                            Name="DropDownBindValue"
+                            Visible=@DurationVisible />
         </RadzenStack>
         <RadzenStack Orientation="Orientation.Horizontal" Visible=@DatePickerVisible JustifyContent="JustifyContent.Center" AlignItems="AlignItems.Center" Gap="0.5rem">
             <RadzenLabel Text="Select Date:" Component="RadzenDatePickerBindValue" />
@@ -34,13 +35,13 @@
                               ShowCalendarWeek="true" />
 
             <RadzenDropDown TValue="string"
-                              @bind-value=@SelectedYear
-                              Change=@YearChanged
-                              Data=@Years
-                              Visible=@YearDisplay />
+                            @bind-value=@SelectedYear
+                            Change=@YearChanged
+                            Data=@Years
+                            Visible=@YearDisplay />
 
-            <RadzenButton     Text="Today" 
-                              Click=@TodayClicked/>
+            <RadzenButton Text="Today"
+                          Click=@TodayClicked />
 
         </RadzenStack>
     </RadzenStack>

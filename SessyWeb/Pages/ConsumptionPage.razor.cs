@@ -127,7 +127,27 @@ namespace SessyWeb.Pages
                         break;
 
                     case PeriodsEnums.Custom:
-                        width = ConsumptionCustomData.Count * 250;
+                        switch (DateSelectionChosen.DurationChosen)
+                        {
+                            case DurationEnums.Last7Days:
+                                width = ConsumptionCustomData.Count * 280;
+                                break;
+                            case DurationEnums.Last30Days:
+                                width = ConsumptionCustomData.Count * 70;
+                                break;
+                            case DurationEnums.Last90Days:
+                                width = ConsumptionCustomData.Count * 560;
+                                break;
+                            case DurationEnums.Last180Days:
+                                width = ConsumptionCustomData.Count * 280;
+                                break;
+                            case DurationEnums.Last365Days:
+                                width = ConsumptionCustomData.Count * 180;
+                                break;
+                            default:
+                                break;
+                        }
+
                         break;
 
                     default:
@@ -347,7 +367,7 @@ namespace SessyWeb.Pages
                             var result = await _consumptionDataService!.GetList(async (set) =>
                             {
                                 var result = set
-                                    .Where(sed => sed.Time >= DateSelectionChosen.Start && sed.Time <= DateSelectionChosen.End)
+                                    .Where(sed => sed.Time >= DateSelectionChosen.Start && sed.Time < DateSelectionChosen.End)
                                     .ToList();
 
                                 return await Task.FromResult(result);

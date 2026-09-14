@@ -196,6 +196,7 @@ namespace SessyWeb.Components
                     break;
 
                 case PeriodsEnums.Custom:
+                    DateFromChosen = dateIn;
                     break;
 
                 default:
