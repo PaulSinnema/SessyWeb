@@ -11,6 +11,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.129] — 2026-09-14
+
+### Changed
+- *You can now filter with a custom date in the consumption page.** The "Night reserve source"
+  In the consumption page it is now possible to select a custom period in the ranges below:
+  From the selected date to 
+  - Last 7 days
+  - Last 30 days
+  - Last 90 days
+  - Last 180 days
+  - Last 365 days
+  Also a total consumend kWh is calculated.
+
 ## [v1.0.128] — 2026-09-04
 
 ### Changed
