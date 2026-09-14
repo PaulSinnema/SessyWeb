@@ -284,7 +284,7 @@ namespace SessyWeb.Pages
             if (height <= 0) height = 900;
             if (width <= 0) width = 1400;
 
-            HandleResize(height - 300, width);
+            HandleResize(height, width);
         }
 
         private void HandleResize(int height, int width)

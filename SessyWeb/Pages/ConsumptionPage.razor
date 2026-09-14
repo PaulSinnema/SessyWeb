@@ -18,7 +18,7 @@
         <RadzenStack Orientation=Orientation.Horizontal AlignItems="AlignItems.Center" Style="height:100%;margin: 0px; padding: 0px;">
             @* TickDistance: <p>@TickDistance</p> *@
 
-            <DateChooserComponent SelectionChanged="@((DateArgs d) => DateSelectionChanged(d))" />
+            <DateChooserComponent SelectionChanged="@((DateArgs d) => DateSelectionChanged(d))" CustomChooserEnabled="true" />
 
             <RadzenLabel Text="Show labels" Component="ShowDataLabels" />
             <RadzenCheckBox @bind-Value="@ShowDataLabels" Name="ShowDataLabels" />
@@ -282,7 +282,40 @@
                 </RadzenChart>
             </RadzenCard>
         }
+        else if (DateSelectionChosen!.PeriodChosen == PeriodsEnums.Custom)
+        {
+            <RadzenCard Style="width: auto;">
+                <RadzenChart Style="@GraphStyle" @ref=ConsumptionCustomChart>
+                    <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
 
+                    <RadzenColumnSeries Data="@ConsumptionCustomData"
+                                        Stroke="blue"
+                                        StrokeWidth="2"
+                                        Fill="blue"
+                                        Title="Consumption"
+                                        CategoryProperty="X"
+                                        ValueProperty="ConsumptionKWh"
+                                        LineType="LineType.Solid">
+                        <ChildContent>
+                            <RadzenSeriesDataLabels Visible="@ShowDataLabels" />
+                        </ChildContent>
+                    </RadzenColumnSeries>
+
+                    <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance LabelAutoRotation="-45">
+                        <RadzenGridLines Visible="true" />
+                        <RadzenAxisTitle Text="Date" />
+                    </RadzenCategoryAxis>
+                    <RadzenValueAxis Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                        <RadzenGridLines Visible="true" />
+                        <RadzenAxisTitle Text="Watt" />
+                    </RadzenValueAxis>
+                </RadzenChart>
+            </RadzenCard>
+        }
 
     </RadzenBody>
+    <RadzenFooter>
+        <RadzenLabel Text="Total Consumption:" Component="RadzenDropDownBindValue" class="m-2" />
+        <RadzenNumeric Value="@TotalConsumptionKWh" ReadOnly="true" class="m-2" Format="0.00" Disabled ShowUpDown="false"/>
+    </RadzenFooter>
 </RadzenLayout>

@@ -45,7 +45,7 @@ namespace SessyWeb.Pages
 
         protected override async Task OnInitializedAsync()
         {
-            DateSelectionChosen = new DateArgs(PeriodsEnums.Day, _timeZoneService!.Now.Date);
+            DateSelectionChosen = new DateArgs(PeriodsEnums.Day, DurationEnums.Last7Days, _timeZoneService!.Now.Date);
 
             await base.OnInitializedAsync();
         }

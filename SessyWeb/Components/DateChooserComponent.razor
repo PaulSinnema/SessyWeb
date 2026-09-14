@@ -4,11 +4,23 @@
     <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.Center" AlignItems="AlignItems.Center" Gap="0.5rem">
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.Center" Gap="0.5rem">
             <RadzenLabel Text="Period:" Component="DropDownBindValue" />
-            <RadzenDropDown @bind-Value=@PeriodChosen Data=@Periods Change="@(period => PeriodChanged(period))" Style="width: 100%; max-width: 400px;" Name="DropDownBindValue" />
+            <RadzenDropDown @bind-Value=@PeriodChosen
+                            Data=@Periods
+                            Change="@(period => PeriodChanged(period))"
+                            Style="width: 100%; max-width: 400px;"
+                            Name="DropDownBindValue" />
+
+            <RadzenLabel Text="Duration:" Component="DropDownBindValue" />
+            <RadzenDropDown @bind-Value=@DurationChosen 
+                                  Data=@Durations 
+                                  Change="@(duration => DurationChanged(duration))"
+                                  Style="width: 100%; max-width: 400px;"
+                                  Name="DropDownBindValue" 
+                                  Visible=@DurationVisible/>
         </RadzenStack>
         <RadzenStack Orientation="Orientation.Horizontal" Visible=@DatePickerVisible JustifyContent="JustifyContent.Center" AlignItems="AlignItems.Center" Gap="0.5rem">
             <RadzenLabel Text="Select Date:" Component="RadzenDatePickerBindValue" />
-            <RadzenDatePicker @bind-Value=@DateChosen
+            <RadzenDatePicker @bind-Value=@DateFromChosen
                               Visible=@(!YearDisplay)
                               DateFormat=@DateFormat
                               ShowDays=@ShowDays
@@ -21,7 +33,7 @@
                               Name="RadzenDatePickerBindValue"
                               ShowCalendarWeek="true" />
 
-            <RadzenDropDown   TValue="string"
+            <RadzenDropDown TValue="string"
                               @bind-value=@SelectedYear
                               Change=@YearChanged
                               Data=@Years

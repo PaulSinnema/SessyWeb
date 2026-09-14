@@ -42,7 +42,7 @@
                 return false; // negeer mini-wijzigingen (iOS toolbars)
 
             Width = width;
-            Height = height;
+            Height = height - 500;
 
             return true;
         }

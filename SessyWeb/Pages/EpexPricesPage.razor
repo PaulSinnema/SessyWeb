@@ -5,16 +5,17 @@
 @using Radzen
 @using static SessyWeb.Components.DateChooserComponent
 
-<RadzenLayout>
-    <RadzenHeader>
+<RadzenLayout Style="height: 100%;margin: 0px; padding: 0px;">
+    <RadzenHeader Style="height: 100%;margin: 0px; padding: 0px;">
         <RadzenStack Orientation=Orientation.Horizontal AlignItems="AlignItems.Center" Style="height:100%;margin: 0px; padding: 0px;">
             <RadzenLabel Text="EPEX prices" class="h4 m-2" />
 
             <DateChooserComponent SelectionChanged="@((DateArgs d) => SelectionChanged(d))" />
         </RadzenStack>
     </RadzenHeader>
-    <RadzenBody>
+    <RadzenBody Style="height: 100%;margin: 0px; padding: 0px;">
         <RadzenDataGrid @ref="epexPricesGrid"
+                        Style="height: 100%;margin: 0px; padding: 0px;"
                         Data="@EPEXPricesList"
                         Context="data"
                         Count="@Count"

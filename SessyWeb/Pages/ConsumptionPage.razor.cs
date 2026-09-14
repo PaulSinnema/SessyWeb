@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Components;
+﻿using DocumentFormat.OpenXml.Bibliography;
+using Microsoft.AspNetCore.Components;
 using Radzen.Blazor;
 using Radzen.Blazor.Rendering;
 using SessyCommon.Extensions;
@@ -6,6 +7,7 @@ using SessyCommon.Services;
 using SessyController.Services;
 using SessyData.Services;
 using SessyWeb.Helpers;
+using Unfucked.DateTime;
 using static SessyWeb.Components.DateChooserComponent;
 
 namespace SessyWeb.Pages
@@ -26,7 +28,7 @@ namespace SessyWeb.Pages
         private RadzenChart? ConsumptionMonthChart { get; set; }
         private RadzenChart? ConsumptionYearChart { get; set; }
         private RadzenChart? ConsumptionAllChart { get; set; }
-
+        private RadzenChart? ConsumptionCustomChart { get; set; }
         private RadzenChart? HumidityChart { get; set; }
         private RadzenChart? GlobalRadiationChart { get; set; }
         private RadzenChart? TemperatureChart { get; set; }
@@ -40,10 +42,14 @@ namespace SessyWeb.Pages
         public List<ConsumptionDisplayMonthData> ConsumptionMonthData { get; set; } = new();
         public List<ConsumptionDisplayYearData> ConsumptionYearData { get; set; } = new();
         public List<ConsumptionDisplayAllData> ConsumptionAllData { get; set; } = new();
+        public List<ConsumptionDisplayCustomData> ConsumptionCustomData { get; set; } = new();
+
+        private double _totalConsumptionKWh  {  get; set; } = 0;
+        public double TotalConsumptionKWh  => _totalConsumptionKWh  / 1000;
 
         protected override void OnParametersSet()
         {
-            DateSelectionChosen ??= new DateArgs(PeriodsEnums.Day, _timeZoneService!.Now);
+            DateSelectionChosen ??= new DateArgs(PeriodsEnums.Day, DurationEnums.Last7Days, _timeZoneService!.Now);
 
             base.OnParametersSet();
         }
@@ -52,7 +58,7 @@ namespace SessyWeb.Pages
         {
             if (firstRender)
             {
-                DateSelectionChosen = new DateArgs(PeriodsEnums.Day, _timeZoneService!.Now);
+                DateSelectionChosen = new DateArgs(PeriodsEnums.Day, DurationEnums.Last7Days, _timeZoneService!.Now);
 
                 _consumptionMonitorService!.DataChanged += SelectionChanged;
             }
@@ -75,7 +81,7 @@ namespace SessyWeb.Pages
             var height = ScreenInfo!.Height;
             var width = ScreenInfo!.Width;
 
-            HandleResize(height - 300, width);
+            HandleResize(height, width);
         }
 
         /// <summary>
@@ -120,6 +126,10 @@ namespace SessyWeb.Pages
                         width = ConsumptionAllData.Count * 500;
                         break;
 
+                    case PeriodsEnums.Custom:
+                        width = ConsumptionCustomData.Count * 250;
+                        break;
+
                     default:
                         throw new InvalidOperationException($"Invalid period: {DateSelectionChosen!.PeriodChosen}");
                 }
@@ -137,41 +147,46 @@ namespace SessyWeb.Pages
             await SelectionChanged();
         }
 
-        public class ConsumptionDisplayDayData
+        public class DisplayBaseData
+        {
+            public double ConsumptionKWh { get; set; }
+        }
+
+        public class ConsumptionDisplayDayData : DisplayBaseData
         {
             public DateTime Time { get; set; }
-            public double ConsumptionKWh { get; set; }
             public double Temperature { get; set; }
             public double GlobalRadiation { get; set; }
             public double Humidity { get; set; }
         }
 
-        public class ConsumptionDisplayWeekData
+        public class ConsumptionDisplayWeekData : DisplayBaseData
         {
             public int Day { get; set; }
             public string DayOfWeek { get; set; } = string.Empty;
-            public double ConsumptionKWh { get; set; }
             public int Position { get; internal set; }
         }
 
-        public class ConsumptionDisplayMonthData
+        public class ConsumptionDisplayMonthData : DisplayBaseData
         {
             public int Day { get; set; }
             public string DayOfWeek { get; set; } = string.Empty;
-            public double ConsumptionKWh { get; set; }
         }
 
-        public class ConsumptionDisplayYearData
+        public class ConsumptionDisplayYearData : DisplayBaseData
         {
             public int Month { get; set; }
             public string MonthOfYear { get; set; } = string.Empty;
-            public double ConsumptionKWh { get; set; }
         }
 
-        public class ConsumptionDisplayAllData
+        public class ConsumptionDisplayAllData : DisplayBaseData
         {
             public string Year { get; set; } = string.Empty;
-            public double ConsumptionKWh { get; set; }
+        }
+
+        public class ConsumptionDisplayCustomData : DisplayBaseData
+        {
+            public string X { get; set; } = string.Empty;
         }
 
         private async Task SelectionChanged()
@@ -203,6 +218,8 @@ namespace SessyWeb.Pages
                                 GlobalRadiation = cd.GlobalRadiation,
                                 Temperature = cd.Temperature
                             }).ToList();
+
+                            _totalConsumptionKWh = ConsumptionDayData.Sum(cd => cd.ConsumptionKWh);
 
                             await ReloadCharts();
 
@@ -236,6 +253,8 @@ namespace SessyWeb.Pages
                                 .OrderBy(item => item.Position)
                                 .ToList();
 
+                            _totalConsumptionKWh  = ConsumptionWeekData.Sum(cd => cd.ConsumptionKWh);
+
                             await ReloadCharts();
 
                             break;
@@ -265,6 +284,8 @@ namespace SessyWeb.Pages
                                 .OrderBy(item => item.Day)
                                 .ToList();
 
+                            _totalConsumptionKWh  = ConsumptionMonthData.Sum(cd => cd.ConsumptionKWh);
+
                             await ReloadCharts();
 
                             break;
@@ -290,6 +311,8 @@ namespace SessyWeb.Pages
                                 })
                                 .ToList();
 
+                            _totalConsumptionKWh  = ConsumptionYearData.Sum(cd => cd.ConsumptionKWh);
+
                             await ReloadCharts();
 
                             break;
@@ -311,6 +334,65 @@ namespace SessyWeb.Pages
                                     ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4
                                 })
                                 .ToList();
+
+                            _totalConsumptionKWh  = ConsumptionAllData.Sum(cd => cd.ConsumptionKWh);
+
+                            await ReloadCharts();
+
+                            break;
+                        }
+
+                    case PeriodsEnums.Custom:
+                        {
+                            var result = await _consumptionDataService!.GetList(async (set) =>
+                            {
+                                var result = set
+                                    .Where(sed => sed.Time >= DateSelectionChosen.Start && sed.Time <= DateSelectionChosen.End)
+                                    .ToList();
+
+                                return await Task.FromResult(result);
+                            });
+
+                            switch (DateSelectionChosen.DurationChosen)
+                            {
+                                case DurationEnums.Last7Days:
+                                    ConsumptionCustomData = result.GroupBy(cd => cd.Time.Date)
+                                        .Select(gr => new ConsumptionDisplayCustomData
+                                        {
+                                            X = gr.Key.ToString("dd/MM/yyyy"),
+                                            ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4
+                                        })
+                                        .ToList();
+                                    break;
+
+                                case DurationEnums.Last30Days:
+                                    ConsumptionCustomData = result.GroupBy(cd => cd.Time.Date)
+                                        .Select(gr => new ConsumptionDisplayCustomData
+                                        {
+                                            X = gr.Key.ToString("dd/MM/yyyy"),
+                                            ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4
+                                        })
+                                        .ToList();
+                                    break;
+
+                                case DurationEnums.Last90Days:
+                                case DurationEnums.Last180Days:
+                                case DurationEnums.Last365Days:
+                                    ConsumptionCustomData = result.GroupBy(cd => $"{cd.Time.Date.Year}/{cd.Time.Date.Month}")
+                                        .Select(gr => new ConsumptionDisplayCustomData
+                                        {
+                                            X = gr.Key,
+                                            ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4
+                                        })
+                                        .ToList();
+                                    break;
+
+
+                                default:
+                                    throw new InvalidOperationException($"Invalid duration: {DateSelectionChosen.DurationChosen}");
+                            }
+
+                            _totalConsumptionKWh  = ConsumptionCustomData.Sum(cd => cd.ConsumptionKWh);
 
                             await ReloadCharts();
 
@@ -358,6 +440,10 @@ namespace SessyWeb.Pages
 
                 case PeriodsEnums.All:
                     await ConsumptionAllChart!.Reload();
+                    break;
+
+                case PeriodsEnums.Custom:
+                    await ConsumptionCustomChart!.Reload();
                     break;
 
                 default:
@@ -423,6 +509,32 @@ namespace SessyWeb.Pages
                         break;
                     }
 
+                case PeriodsEnums.Custom:
+                    {
+                        switch (DateSelectionChosen.DurationChosen)
+                        {
+                            case DurationEnums.Last7Days:
+                                TickDistance = ConsumptionChartWidth / 14;
+                                break;
+                            case DurationEnums.Last30Days:
+                                TickDistance = ConsumptionChartWidth / 150;
+                                break;
+                            case DurationEnums.Last90Days:
+                                TickDistance = ConsumptionChartWidth / 180; 
+                                break;
+                            case DurationEnums.Last180Days:
+                                TickDistance = ConsumptionChartWidth / 360;
+                                break;
+                            case DurationEnums.Last365Days:
+                                TickDistance = ConsumptionChartWidth / 730;
+                                break;
+                            default:
+                                break;
+                        }
+
+                        break;
+                    }
+
                 default:
                     throw new InvalidOperationException($"Invalid period: {DateSelectionChosen!.PeriodChosen}");
             }
@@ -446,6 +558,7 @@ namespace SessyWeb.Pages
                     Formatter = Formatters.FormatValue;
                     break;
 
+                case PeriodsEnums.Custom:
                 case PeriodsEnums.Year:
                 case PeriodsEnums.All:
                     Formatter = null;
