@@ -15,7 +15,7 @@ Everything runs locally. The database is a SQLite file on your own disk, your ba
 | `enever.nl` | Daily gas price | Only with an `Enever:Token`, and only for the heat-pump savings figures |
 | `monitoringapi.solaredge.com` | Solar production | Only with a `SolarEdgeCloud` section, as a fallback when the inverter is unreachable over Modbus |
 
-What changed per version is in [CHANGELOG.md](CHANGELOG.md). How the planner decides what it decides, and which setting moves which part of it, is in [PLANNER.md](PLANNER.md). Every setting on the **Settings** page is described in [SETTINGS.md](Settings.md).
+What changed per version is in [CHANGELOG.md](CHANGELOG.md). How the planner decides what it decides, and which setting moves which part of it, is in [PLANNER.md](PLANNER.md). Every setting on the **Settings** page is described in [SETTINGS.md](SETTINGS.md).
 
 > [!IMPORTANT]
 > SessyWeb actively controls your batteries and can throttle or shut down your solar inverter. Run it at your own risk. Start with **Charged in control** ticked — SessyWeb then only watches and records while your batteries keep running on their own schedule — and hand control over once the charts look right.
