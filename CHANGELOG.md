@@ -11,18 +11,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
-## [v1.0.129] — 2026-09-14
+## [v1.0.130] — 2026-09-20
 
 ### Changed
-- *You can now filter with a custom date in the consumption page.** The "Night reserve source"
-  In the consumption page it is now possible to select a custom period in the ranges below:
-  From the selected date to 
-  - Last 7 days
-  - Last 30 days
-  - Last 90 days
-  - Last 180 days
-  - Last 365 days
-  Also a total consumend kWh is calculated.
+- **Internal — GitHub releases are now created automatically.** After the Docker image is published,
+  a second CI job reads the version from `AppInfo.cs`, takes this file's matching section as the
+  release notes, and creates the GitHub release (skipping if one already exists for that version).
+  No user-visible change.
+
+## [v1.0.129] — 2026-09-14
+
+### Added
+- **A custom date range on the Consumption page.** You can pick a start date and view consumption
+  over a chosen window from it — the last 7, 30, 90, 180 or 365 days — with the total consumed kWh
+  for that period shown alongside.
 
 ## [v1.0.128] — 2026-09-04
 
