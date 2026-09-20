@@ -1,4 +1,4 @@
-name: Publish Docker image
+name: Publish Docker image and release
 
 on:
   push:
@@ -63,3 +63,55 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "- \`${{ steps.image.outputs.name }}:${{ steps.version.outputs.version }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- \`${{ steps.image.outputs.name }}:latest\`" >> "$GITHUB_STEP_SUMMARY"
+
+  # A GitHub release is created only after the image is published, so a version
+  # never gets a release/tag whose image failed to build. Idempotent: it skips
+  # when the release already exists, so only a version bump produces a release.
+  release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version from AppInfo.cs
+        id: version
+        run: |
+          VERSION=$(sed -n 's/.*Version[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' SessyCommon/AppInfo.cs)
+          if [ -z "$VERSION" ]; then
+            echo "Could not read the version from SessyCommon/AppInfo.cs" >&2
+            exit 1
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Skip if the release already exists
+        id: exists
+        run: |
+          if gh release view "${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Release ${{ steps.version.outputs.version }} already exists - skipping."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Pull just this version's section out of the changelog for the release body.
+      - name: Extract the changelog section for this version
+        if: steps.exists.outputs.skip == 'false'
+        run: |
+          VER="${{ steps.version.outputs.version }}"
+          awk -v v="## [$VER]" 'index($0, v)==1 {g=1; next} g && /^## \[/ {exit} g {print}' CHANGELOG.md > NOTES.md
+          if [ ! -s NOTES.md ]; then
+            echo "See CHANGELOG.md for details." > NOTES.md
+          fi
+
+      - name: Create the release
+        if: steps.exists.outputs.skip == 'false'
+        run: |
+          gh release create "${{ steps.version.outputs.version }}" \
+            --title "${{ steps.version.outputs.version }}" \
+            --notes-file NOTES.md \
+            --target master
