@@ -11,6 +11,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.131] — 2026-09-20
+
+### Added
+- **`SETTINGS.md` — a reference for every setting on the Settings page.** Each tab and field with its
+  default and what it does, linked from the README. Going forward it is kept in sync as settings change.
+
 ## [v1.0.130] — 2026-09-20
 
 ### Changed
