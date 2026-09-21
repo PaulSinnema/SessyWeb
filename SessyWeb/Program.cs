@@ -352,15 +352,17 @@ using (var scope = app.Services.CreateScope())
 
         var databaseScope = scope.ServiceProvider.GetRequiredService<DbHelper>();
 
-        // A failed pre-migration backup must NOT crash the app at startup. Log it and continue;
-        // the backup problem surfaces at runtime in Tips & Checks and Notifications instead.
+        // The pre-migration backup guards against a bad migration. If it fails, do NOT migrate:
+        // abort startup with a clear message rather than migrating without a safety copy.
         try
         {
             databaseScope.BackupDatabase().GetAwaiter().GetResult();
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Pre-migration backup failed, continuing startup: {ex.Message}");
+            Console.WriteLine($"FATAL: pre-migration backup failed — aborting before migration. " +
+                              $"Fix DatabaseBackupDirectory in appsettings.json. {ex.Message}");
+            throw;
         }
     }
 
