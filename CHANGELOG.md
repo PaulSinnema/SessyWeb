@@ -11,6 +11,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.132] — 2026-09-21
+
+### Fixed
+- **Database backups no longer vanish silently on a mistyped path.** The backup directory is no
+  longer created automatically: a typo in `DatabaseBackupDirectory` (for example `/SessyControler/…`
+  with one `l`) used to be created inside the container's temporary storage, so `VACUUM INTO`
+  "succeeded" and every backup was lost on the next restart. The backup now fails with a clear
+  message when the directory does not exist, telling you to point it inside the mounted data volume.
+
+### Added
+- **Tips & Checks now warns about backup problems.** A failed automated backup, a missing backup
+  directory, or a newest backup older than 48 hours is shown as an error on the Tips & Checks tab,
+  instead of only being written to the log where nobody looks.
+
 ## [v1.0.131] — 2026-09-20
 
 ### Added

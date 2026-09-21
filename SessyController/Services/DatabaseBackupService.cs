@@ -24,6 +24,13 @@ namespace SessyController.Services
             _databaseBackupDataService = databaseBackupDataService;
         }
 
+        // ── Backup health (surfaced in Tips & Checks) ─────────────────────────
+        // The nightly backup swallows its own exceptions into the log, so without these a broken
+        // backup stays invisible until someone notices a stale .bak file weeks later.
+        public DateTime? LastBackupAttemptAt { get; private set; }
+        public DateTime? LastBackupSuccessAt { get; private set; }
+        public string? LastBackupError { get; private set; }
+
         protected override async Task ExecuteAsync(CancellationToken cancelationToken)
         {
             _logger.LogWarning("Database Backup Service started ...");
@@ -52,10 +59,14 @@ namespace SessyController.Services
 
                 try
                 {
+                    LastBackupAttemptAt = _timeZoneService.Now;
                     await Process(cancelationToken);
+                    LastBackupSuccessAt = _timeZoneService.Now;
+                    LastBackupError = null;
                 }
                 catch (Exception ex)
                 {
+                    LastBackupError = ex.Message;
                     _logger.LogException(ex, "An error occurred while processing Database Backup.");
                 }
             }

@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -83,10 +83,18 @@ namespace SessyData.Helpers
                 var directory = DockerService.FileName(settingsConfig.DatabaseBackupDirectory ?? "/SessyController/Data/backups");
                 var backupFilePath = Path.Combine(directory, filename).Replace("\\", "/");
 
-                Directory.CreateDirectory(directory);
+                // Deliberately NOT creating the directory. A typo in DatabaseBackupDirectory (e.g.
+                // "/SessyControler/..." with one 'l') would otherwise be silently created inside the
+                // container's ephemeral overlay, VACUUM would "succeed", and every backup would be lost
+                // on the next container recreate. Requiring the directory to pre-exist makes such a
+                // misconfiguration fail loudly instead.
 
                 if (!Directory.Exists(directory))
-                    throw new InvalidOperationException($"Backup directory does not exist: {directory}");
+                    throw new InvalidOperationException(
+                        $"Backup directory does not exist: '{directory}'. It is not created automatically. " +
+                        "Check DatabaseBackupDirectory in appsettings.json — in Docker it must point inside the " +
+                        "mounted data volume (e.g. /SessyController/Data/Backups), otherwise backups are written " +
+                        "to ephemeral container storage and lost on restart.");
 
                 // VACUUM rewrites the whole file, so it takes the write side — but it cannot run
                 // inside a transaction, hence ExecuteWriteAsync rather than ExecuteTransaction.

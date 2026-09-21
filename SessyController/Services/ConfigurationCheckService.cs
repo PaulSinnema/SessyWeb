@@ -48,6 +48,8 @@ namespace SessyController.Services
         private readonly BatteriesService _batteriesService;
         private readonly IOptionsMonitor<PowerSystemsConfig> _powerSystemsConfigMonitor;
         private PowerSystemsConfig _powerSystemsConfig => _powerSystemsConfigMonitor.CurrentValue;
+        private readonly DatabaseBackupService _databaseBackupService;
+        private readonly IOptions<SettingsConfig> _settingsConfig;
 
         public ConfigurationCheckService(
             IConfiguration configuration,
@@ -73,7 +75,9 @@ namespace SessyController.Services
             ConsumptionMonitorService consumptionMonitorService,
             SessyInverterService sessyInverterService,
             BatteriesService batteriesService,
-            IOptionsMonitor<PowerSystemsConfig> powerSystemsConfigMonitor)
+            IOptionsMonitor<PowerSystemsConfig> powerSystemsConfigMonitor,
+            DatabaseBackupService databaseBackupService,
+            IOptions<SettingsConfig> settingsConfig)
         {
             _batteriesService = batteriesService;
             _solarInverterManager = solarInverterManager;
@@ -99,6 +103,8 @@ namespace SessyController.Services
             _milpService = milpService;
             _settingsService = settingsService;
             _plannerLearningService = plannerLearningService;
+            _databaseBackupService = databaseBackupService;
+            _settingsConfig = settingsConfig;
         }
 
         // ── Summary for the badge ────────────────────────────────────────────
@@ -163,6 +169,7 @@ namespace SessyController.Services
             await CheckInvestmentsHaveTheirSavingsSource(checks);
             CheckSettingsExtremes(checks);
             CheckPlannerLearning(checks);
+            CheckBackupStatus(checks);
             await CheckPlanStatus(checks).ConfigureAwait(false);
 
             int errors = checks.Count(c => c.Severity == CheckSeverity.Error);
@@ -1071,6 +1078,97 @@ namespace SessyController.Services
                     Title = "Planning horizon very short",
                     Description = $"Planning horizon is {s.PlanningHorizonHours} h. Below ~12 h the planner cannot " +
                                   "see the next price peak and may not save charge for it. Use 0 (no limit), 24 or 36.",
+                    ActionUrl = "/settings",
+                    ActionLabel = "Open settings"
+                });
+            }
+        }
+
+        /// <summary>
+        /// Surfaces backup problems on the Tips & Checks tab. The nightly backup only logs its
+        /// failures, so without this a broken or misconfigured backup stays invisible.
+        /// </summary>
+        private void CheckBackupStatus(List<ConfigurationCheck> checks)
+        {
+            // A recorded failure from the nightly run is the clearest signal.
+            if (!string.IsNullOrEmpty(_databaseBackupService.LastBackupError))
+            {
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Error,
+                    Title = "Database backup failed",
+                    Description = $"The last automated backup failed: {_databaseBackupService.LastBackupError} " +
+                                  "Check DatabaseBackupDirectory in appsettings.json and free disk space.",
+                    ActionUrl = "/settings",
+                    ActionLabel = "Open settings"
+                });
+                return;
+            }
+
+            // Otherwise judge by the age of the newest backup file, which survives restarts.
+            try
+            {
+                var directory = DockerService.FileName(
+                    _settingsConfig.Value.DatabaseBackupDirectory ?? "/SessyController/Data/backups");
+
+                if (!System.IO.Directory.Exists(directory))
+                {
+                    checks.Add(new ConfigurationCheck
+                    {
+                        Severity = CheckSeverity.Error,
+                        Title = "Backup directory missing",
+                        Description = $"The backup directory '{directory}' does not exist, so no backups can be " +
+                                      "written. Check DatabaseBackupDirectory in appsettings.json — in Docker it " +
+                                      "must point inside the mounted /SessyController/Data volume.",
+                        ActionUrl = "/settings",
+                        ActionLabel = "Open settings"
+                    });
+                    return;
+                }
+
+                DateTime? newest = null;
+
+                foreach (var file in System.IO.Directory.EnumerateFiles(directory, "Sessy_*.bak"))
+                {
+                    var written = System.IO.File.GetLastWriteTime(file);
+                    if (newest == null || written > newest) newest = written;
+                }
+
+                var now = _timeZoneService.Now;
+
+                if (newest == null)
+                {
+                    checks.Add(new ConfigurationCheck
+                    {
+                        Severity = CheckSeverity.Error,
+                        Title = "No database backups found",
+                        Description = $"No backup files were found in '{directory}'. Automated backups may be " +
+                                      "failing — check appsettings.json and disk space.",
+                        ActionUrl = "/settings",
+                        ActionLabel = "Open settings"
+                    });
+                }
+                else if ((now - newest.Value).TotalHours > 48)
+                {
+                    checks.Add(new ConfigurationCheck
+                    {
+                        Severity = CheckSeverity.Error,
+                        Title = "Database backup is stale",
+                        Description = $"The newest database backup is from {newest.Value:dd-MM-yyyy HH:mm}. " +
+                                      "Automated backups appear to have stopped — check appsettings.json and disk space.",
+                        ActionUrl = "/settings",
+                        ActionLabel = "Open settings"
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                // A diagnostic check must never break the whole run.
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Warning,
+                    Title = "Backup status unknown",
+                    Description = $"Could not determine backup status: {ex.Message}",
                     ActionUrl = "/settings",
                     ActionLabel = "Open settings"
                 });
