@@ -15,13 +15,17 @@ namespace SessyController.Services
 
         private DatabaseBackupDataService _databaseBackupDataService { get; set; }
 
+        private NotificationService _notificationService { get; set; }
+
         public DatabaseBackupService(LoggingService<DatabaseBackupService> logger,
                                      TimeZoneService timeZoneService,
-                                     DatabaseBackupDataService databaseBackupDataService)
+                                     DatabaseBackupDataService databaseBackupDataService,
+                                     NotificationService notificationService)
         {
             _logger = logger;
             _timeZoneService = timeZoneService;
             _databaseBackupDataService = databaseBackupDataService;
+            _notificationService = notificationService;
         }
 
         // ── Backup health (surfaced in Tips & Checks) ─────────────────────────
@@ -59,14 +63,11 @@ namespace SessyController.Services
 
                 try
                 {
-                    LastBackupAttemptAt = _timeZoneService.Now;
-                    await Process(cancelationToken);
-                    LastBackupSuccessAt = _timeZoneService.Now;
-                    LastBackupError = null;
+                    await BackupNowAsync();
                 }
                 catch (Exception ex)
                 {
-                    LastBackupError = ex.Message;
+                    // BackupNowAsync already raised the failure notification; just log here.
                     _logger.LogException(ex, "An error occurred while processing Database Backup.");
                 }
             }
@@ -74,9 +75,52 @@ namespace SessyController.Services
             _logger.LogWarning("Database Backup service stopped.");
         }
 
-        private async Task Process(object cancelationToken)
+        /// <summary>
+        /// Runs a backup and raises the matching notification. This is the single place both the
+        /// nightly run and the manual Settings button go through, so the notification logic lives
+        /// with the routine that actually performs the backup rather than being repeated per caller.
+        /// Rethrows on failure so a caller can still surface the error in its own UI.
+        /// </summary>
+        public async Task<string> BackupNowAsync()
         {
-            await _databaseBackupDataService.BackupDatabase();
+            LastBackupAttemptAt = _timeZoneService.Now;
+
+            try
+            {
+                var path = await _databaseBackupDataService.BackupDatabase();
+
+                LastBackupSuccessAt = _timeZoneService.Now;
+                LastBackupError = null;
+
+                // Clear any earlier failures and record a single, stable success entry.
+                await _notificationService.ClearByKeyAsync("backup-failed");
+                await _notificationService.AddAsync(
+                    NotificationSeverity.Information, "Backup", "Database backup succeeded",
+                    "The database was backed up successfully.", dedupKey: "backup-ok");
+
+                return path;
+            }
+            catch (Exception ex)
+            {
+                // Show the real underlying cause, not the wrapper. A different reason produces a
+                // separate notification (identity is key + message); an identical repeat increments.
+                var reason = ex.RootMessage();
+
+                LastBackupError = reason;
+
+                await _notificationService.AddAsync(
+                    NotificationSeverity.Error, "Backup", "Database backup failed",
+                    reason, dedupKey: "backup-failed");
+                await _notificationService.ClearByKeyAsync("backup-ok");
+
+                throw;
+            }
+        }
+
+        // Superseded by BackupNowAsync; kept as dead code rather than re-figuring it out later.
+        private async Task<string> Process(object cancelationToken)
+        {
+            return await _databaseBackupDataService.BackupDatabase();
         }
     }
 }

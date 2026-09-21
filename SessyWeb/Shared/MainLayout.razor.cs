@@ -6,6 +6,7 @@ using SessyController.Services;
 using SessyData.Model;
 using SessyWeb.Components;
 using SessyWeb.Helpers;
+using NotificationService = SessyController.Services.NotificationService;
 
 namespace SessyWeb.Shared
 {
@@ -16,6 +17,9 @@ namespace SessyWeb.Shared
 
         [Inject]
         private ConfigurationCheckService CheckService { get; set; } = default!;
+
+        [Inject]
+        private NotificationService NotificationService { get; set; } = default!;
 
         [Inject]
         private ILogger<MainLayout> Logger { get; set; } = default!;
@@ -31,14 +35,18 @@ namespace SessyWeb.Shared
 
         private int ErrorCount => CheckService.ErrorCount;
         private int WarningCount => CheckService.WarningCount;
+        private int NotifUnread => NotificationService.UnreadCount;
+        private int NotifErrors => NotificationService.UnreadErrorCount;
+        private int NotifWarnings => NotificationService.UnreadWarningCount;
 
         /// <summary>Drives the dot; only "error" and "warning" draw anything.</summary>
         private string SettingsBadge =>
-            ErrorCount > 0 ? "error" : WarningCount > 0 ? "warning" : "none";
+            ErrorCount > 0 || NotifErrors > 0 ? "error" : WarningCount > 0 || NotifWarnings > 0 ? "warning" : "none";
 
         private string SettingsMenuTitle =>
-            ErrorCount > 0 ? $"Tips & Checks: {ErrorCount} error(s), {WarningCount} warning(s)"
-            : WarningCount > 0 ? $"Tips & Checks: {WarningCount} warning(s)"
+            (ErrorCount + NotifErrors) > 0 ? $"{ErrorCount + NotifErrors} error(s), {WarningCount + NotifWarnings} warning(s)"
+            : (WarningCount + NotifWarnings) > 0 ? $"{WarningCount + NotifWarnings} warning(s)"
+            : NotifUnread > 0 ? $"{NotifUnread} notification(s)"
             : "Settings";
 
         /// <summary>
@@ -89,6 +97,10 @@ namespace SessyWeb.Shared
             SettingsService.SettingsChanged += OnSettingsChanged;
 
             CheckService.ChecksChanged += OnChecksChanged;
+
+            // The notification queue drives the same Settings dot; refresh it and follow changes.
+            NotificationService.Changed += OnChecksChanged;
+            _ = NotificationService.RefreshUnreadAsync();
 
             // Refresh on navigation as well, otherwise the badge is only as fresh as the moment the
             // browser tab was opened. EnsureSummaryAsync is gated on its own five-minute age, so
@@ -213,6 +225,7 @@ namespace SessyWeb.Shared
             ResizeListener.OnResized -= OnResized;
             SettingsService.SettingsChanged -= OnSettingsChanged;
             CheckService.ChecksChanged -= OnChecksChanged;
+            NotificationService.Changed -= OnChecksChanged;
             Navigation.LocationChanged -= OnLocationChanged;
         }
     }

@@ -16,6 +16,7 @@ namespace SessyController.Services
         private SolarDataService _solarDataService { get; set; }
         private LoggingService<SessyService> _logger { get; set; }
         private TimeZoneService _timeZoneService { get; set; }
+        private NotificationService _notificationService { get; set; }
 
         // Monitor rather than IOptions, so a corrected location or API key applies on the next
         // fetch instead of at the next restart.
@@ -30,13 +31,15 @@ namespace SessyController.Services
                               TimeZoneService timeZoneService,
                               IHttpClientFactory httpClientFactory,
                               SolarDataService solarDataService,
-                              IOptionsMonitor<WeatherExpectancyConfig> sunExpectancyConfigMonitor)
+                              IOptionsMonitor<WeatherExpectancyConfig> sunExpectancyConfigMonitor,
+                              NotificationService notificationService)
         {
             _logger = logger;
             _timeZoneService = timeZoneService;
             _httpClientFactory = httpClientFactory;
             _solarDataService = solarDataService;
             _weatherExpectancyConfigMonitor = sunExpectancyConfigMonitor;
+            _notificationService = notificationService;
         }
 
         private SemaphoreSlim WeatherDataSemaphore = new SemaphoreSlim(1);
@@ -67,6 +70,8 @@ namespace SessyController.Services
 
                     _initialized = true;
 
+                    await _notificationService.ClearByKeyAsync("weather-fetch-failed");
+
                     // Wait 30 minutes
                     await Task.Delay(TimeSpan.FromMinutes(30), cancelationToken);
 
@@ -75,6 +80,9 @@ namespace SessyController.Services
                 catch (Exception ex)
                 {
                     _logger.LogException(ex, "An error occurred while getting the weather data.");
+                    await _notificationService.AddAsync(
+                        NotificationSeverity.Error, "Weather", "Weather data fetch failed",
+                        ex.RootMessage(), dedupKey: "weather-fetch-failed");
                 }
 
                 await Task.Delay(TimeSpan.FromSeconds(30), cancelationToken);

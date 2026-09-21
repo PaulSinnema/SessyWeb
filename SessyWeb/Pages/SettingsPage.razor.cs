@@ -4,12 +4,15 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Radzen;
 using Radzen.Blazor;
+using SessyCommon.Extensions;
 using SessyCommon.Services;
 using SessyController.Services;
 using SessyController.Services.Statistics;
 using SessyData.Model;
 using SessyData.Services;
 using System.Linq.Dynamic.Core;
+using NotificationService = SessyController.Services.NotificationService;
+using NotificationSeverity = SessyData.Model.NotificationSeverity;
 
 namespace SessyWeb.Pages
 {
@@ -23,6 +26,7 @@ namespace SessyWeb.Pages
         [Inject] private SessyWebControlDataService? _controlService { get; set; }
         [Inject] private TimeZoneService? _timeZoneService { get; set; }
         [Inject] private ConfigurationCheckService? _checkService { get; set; }
+        [Inject] private NotificationService? _notificationService { get; set; }
 
         // ── Tips & Checks ─────────────────────────────────────────────────────
 
@@ -50,6 +54,90 @@ namespace SessyWeb.Pages
         /// <summary>Drives the dot; only "error" and "warning" draw anything. See site.css.</summary>
         private string ChecksTabBadge =>
             CheckErrors > 0 ? "error" : CheckWarnings > 0 ? "warning" : "none";
+
+        // ── Notifications ─────────────────────────────────────────────────────
+
+        private List<Notification>? _notifications;
+        private bool _notificationsInitialised;
+
+        // Client-side filters over the loaded list — no extra queries.
+        private NotificationSeverity? _notifSeverityFilter;
+        private string? _notifCategoryFilter;
+
+        private IEnumerable<string> NotificationCategories =>
+            _notifications?.Select(n => n.Category)
+                           .Where(c => !string.IsNullOrEmpty(c))
+                           .Distinct()
+                           .OrderBy(c => c) ?? Enumerable.Empty<string>();
+
+        private List<Notification> FilteredNotifications =>
+            (_notifications ?? new List<Notification>())
+                .Where(n => _notifSeverityFilter == null || n.Severity == _notifSeverityFilter)
+                .Where(n => string.IsNullOrEmpty(_notifCategoryFilter) || n.Category == _notifCategoryFilter)
+                .ToList();
+
+        private int NotificationUnread => _notifications?.Count(n => !n.IsRead) ?? 0;
+        private int NotificationErrors => _notifications?.Count(n => !n.IsRead && n.Severity == NotificationSeverity.Error) ?? 0;
+
+        /// <summary>Same red/amber dot as Tips &amp; Checks; only "error"/"warning" draw anything.</summary>
+        private string NotificationsTabBadge =>
+            NotificationErrors > 0 ? "error" : (NotificationUnread > 0) ? "warning" : "none";
+
+        private string NotificationColor(NotificationSeverity severity) => severity switch
+        {
+            NotificationSeverity.Error => "var(--rz-danger)",
+            NotificationSeverity.Warning => "var(--rz-warning)",
+            NotificationSeverity.Information => "var(--rz-info)",
+            _ => "var(--rz-base-600)"
+        };
+
+        private string NotificationIcon(NotificationSeverity severity) => severity switch
+        {
+            NotificationSeverity.Error => "error",
+            NotificationSeverity.Warning => "warning",
+            NotificationSeverity.Information => "info",
+            _ => "notifications"
+        };
+
+        private BadgeStyle NotificationBadgeStyle(NotificationSeverity severity) => severity switch
+        {
+            NotificationSeverity.Error => BadgeStyle.Danger,
+            NotificationSeverity.Warning => BadgeStyle.Warning,
+            NotificationSeverity.Information => BadgeStyle.Info,
+            _ => BadgeStyle.Light
+        };
+
+        private async Task LoadNotificationsAsync()
+        {
+            if (_notificationService == null) return;
+
+            _notifications = await _notificationService.GetRecentAsync();
+            StateHasChanged();
+        }
+
+        private async Task DeleteNotificationAsync(int id)
+        {
+            if (_notificationService == null) return;
+
+            await _notificationService.DeleteAsync(id);
+            await LoadNotificationsAsync();
+        }
+
+        private async Task DeleteAllNotificationsAsync()
+        {
+            if (_notificationService == null) return;
+
+            await _notificationService.DeleteAllAsync();
+            await LoadNotificationsAsync();
+        }
+
+        private async Task MarkAllNotificationsReadAsync()
+        {
+            if (_notificationService == null) return;
+
+            await _notificationService.MarkAllReadAsync();
+            await LoadNotificationsAsync();
+        }
 
         private async Task LoadChecks()
         {
@@ -308,6 +396,12 @@ namespace SessyWeb.Pages
                 _checksInitialised = true;
                 await LoadChecks();
                 StartChecksRefresh();
+            }
+
+            if (!_notificationsInitialised)
+            {
+                _notificationsInitialised = true;
+                await LoadNotificationsAsync();
             }
 
             if (_scrollLogPending)
@@ -704,6 +798,7 @@ namespace SessyWeb.Pages
         [Inject] private IServiceScopeFactory? _scopeFactory { get; set; }
         [Inject] private IJSRuntime? _js { get; set; }
         [Inject] private DatabaseBackupDataService? _backupService { get; set; }
+        [Inject] private DatabaseBackupService? _backupRunner { get; set; }
         private string? _sqlStatement;
         private string? _sqlError;
         private string? _sqlRowsAffected;
@@ -727,12 +822,17 @@ namespace SessyWeb.Pages
 
             try
             {
-                var path = await _backupService!.BackupDatabase();
+                // Goes through the backup routine, which raises the success/failure notification.
+                var path = await _backupRunner!.BackupNowAsync();
                 _sqlBackupMessage = $"Backup written to {path}";
+
+                await LoadNotificationsAsync();
             }
             catch (Exception ex)
             {
-                _sqlError = $"Backup failed: {ex.Message}";
+                _sqlError = $"Backup failed: {ex.RootMessage()}";
+
+                await LoadNotificationsAsync();
             }
             finally
             {

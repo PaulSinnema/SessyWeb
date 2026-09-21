@@ -63,6 +63,8 @@ namespace SessyData.Model
 
         public DbSet<AppVersion> AppVersions => Set<AppVersion>();
 
+        public DbSet<Notification> Notifications => Set<Notification>();
+
         /// <summary>
         /// Applied to every connection this context opens. Session settings only — they configure
         /// the connection and never write to the file.

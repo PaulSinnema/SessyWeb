@@ -11,6 +11,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.133] — 2026-09-21
+
+### Added
+- **Notifications — a generic, persistent message queue.** Any part of the app can raise a
+  notification with a severity (Information, Warning, Error). They appear on a new **Notifications**
+  tab in Settings, newest first and colour-coded per severity, and survive a restart. Filter by
+  **Severity** and **Category**; delete one, delete all, or mark all read. The app raises them for:
+  database backup success (Information) and failure (Error); day-ahead price fetch success with its
+  source — Sessy or ENTSO-E — (Information) and failure (Error); weather fetch failure (Error); and
+  gas-price fetch failure (Error). Both the nightly backup and the manual Backup button go through the
+  same routine, so either reports the result; a failure clears itself once the operation succeeds
+  again, and error notifications carry the root-cause message so you see what actually went wrong.
+- **No duplicate notifications, with an occurrence counter.** A repeat of the same notification (same
+  key and message) bumps the existing entry and shows a **×N** counter instead of adding a row, so a
+  repeating failure never floods the queue; a different failure reason under the same source is kept
+  as its own notification.
+- **The Settings menu dot reflects notifications too.** It combines Tips & Checks and notifications
+  with severity leading — red for any unread error, orange for a warning, nothing otherwise; the
+  strongest wins.
+
 ## [v1.0.132] — 2026-09-21
 
 ### Fixed

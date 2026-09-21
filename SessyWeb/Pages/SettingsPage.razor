@@ -748,6 +748,92 @@
                     </RadzenStack>
                 </RadzenTabsItem>
 
+                @* ── Notifications ──────────────────────────────────────────── *@
+                <RadzenTabsItem Text="Notifications" Icon="notifications" data-sessy-badge="@NotificationsTabBadge">
+                    <RadzenStack Orientation="Orientation.Vertical" Gap="1rem" Style="padding: 1rem; max-width: 900px;">
+
+                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Gap="0.5rem">
+                            <RadzenText TextStyle="TextStyle.H6" Style="margin: 0;">
+                                Notifications
+                                @if (NotificationUnread > 0)
+                                {
+                                    <RadzenBadge BadgeStyle="BadgeStyle.Danger" Text="@NotificationUnread.ToString()" Style="margin-left: 0.5rem;" />
+                                }
+                            </RadzenText>
+                            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+                                <RadzenButton Text="Mark all read" Icon="mark_email_read" ButtonStyle="ButtonStyle.Light"
+                                              Size="ButtonSize.Small" Click="@MarkAllNotificationsReadAsync"
+                                              Disabled="@(_notifications == null || NotificationUnread == 0)" />
+                                <RadzenButton Text="Delete all" Icon="delete_sweep" ButtonStyle="ButtonStyle.Danger"
+                                              Size="ButtonSize.Small" Click="@DeleteAllNotificationsAsync"
+                                              Disabled="@(_notifications == null || !_notifications.Any())" />
+                            </RadzenStack>
+                        </RadzenStack>
+
+                        @if (_notifications != null && _notifications.Any())
+                        {
+                            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                                <RadzenDropDown TValue="SessyData.Model.NotificationSeverity?" @bind-Value="_notifSeverityFilter"
+                                                Data="@(Enum.GetValues<SessyData.Model.NotificationSeverity>())" AllowClear="true"
+                                                Placeholder="All severities" Style="min-width: 180px;" />
+                                <RadzenDropDown TValue="string" @bind-Value="_notifCategoryFilter"
+                                                Data="@NotificationCategories" AllowClear="true"
+                                                Placeholder="All categories" Style="min-width: 180px;" />
+                            </RadzenStack>
+                        }
+
+                        @if (_notifications == null)
+                        {
+                            <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+                        }
+                        else if (!_notifications.Any())
+                        {
+                            <RadzenStack Orientation="Orientation.Vertical" AlignItems="AlignItems.Center" Gap="0.5rem" Style="padding: 2rem; opacity: 0.7;">
+                                <RadzenIcon Icon="notifications_none" Style="font-size: 3rem;" />
+                                <RadzenText TextStyle="TextStyle.Body1">No notifications.</RadzenText>
+                            </RadzenStack>
+                        }
+                        else
+                        {
+                            @if (!FilteredNotifications.Any())
+                            {
+                                <RadzenText TextStyle="TextStyle.Body2" Style="opacity: 0.7;">No notifications match the filter.</RadzenText>
+                            }
+                            @foreach (var n in FilteredNotifications)
+                            {
+                                <RadzenCard Style="@($"border-left: 5px solid {NotificationColor(n.Severity)}; padding: 0.9rem 1rem; {(n.IsRead ? "opacity: 0.6;" : "")}")">
+                                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Start" Gap="0.75rem">
+                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Start" Gap="0.75rem">
+                                            <RadzenIcon Icon="@NotificationIcon(n.Severity)" Style="@($"font-size: 1.6rem; color: {NotificationColor(n.Severity)};")" />
+                                            <RadzenStack Orientation="Orientation.Vertical" Gap="0.3rem">
+                                                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                                    <RadzenText TextStyle="TextStyle.Subtitle1" Style="margin: 0;">@n.Title</RadzenText>
+                                                    @if (n.Count > 1)
+                                                    {
+                                                        <RadzenBadge BadgeStyle="BadgeStyle.Base" IsPill="true" Text="@($"×{n.Count}")" title="@($"Occurred {n.Count} times")" />
+                                                    }
+                                                    <RadzenBadge BadgeStyle="@NotificationBadgeStyle(n.Severity)" Text="@n.Severity.ToString()" IsPill="true" />
+                                                    @if (!string.IsNullOrEmpty(n.Category))
+                                                    {
+                                                        <RadzenBadge BadgeStyle="BadgeStyle.Light" Text="@n.Category" IsPill="true" />
+                                                    }
+                                                </RadzenStack>
+                                                <RadzenText TextStyle="TextStyle.Body2" Style="opacity: 0.9; margin: 0;">@n.Message</RadzenText>
+                                                <RadzenText TextStyle="TextStyle.Caption" Style="opacity: 0.6; margin: 0;">
+                                                    @n.CreatedAt.ToString("dd-MM-yyyy HH:mm")
+                                                </RadzenText>
+                                            </RadzenStack>
+                                        </RadzenStack>
+                                        <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text"
+                                                      Size="ButtonSize.Small" title="Delete this notification"
+                                                      Click="@(() => DeleteNotificationAsync(n.Id))" />
+                                    </RadzenStack>
+                                </RadzenCard>
+                            }
+                        }
+                    </RadzenStack>
+                </RadzenTabsItem>
+
                 @* ── SQL Console ────────────────────────────────────────────── *@
                 <RadzenTabsItem Text="SQL Console" Icon="terminal">
                     <div style="display:flex; flex-direction:column; padding:1rem; gap:0.5rem;">

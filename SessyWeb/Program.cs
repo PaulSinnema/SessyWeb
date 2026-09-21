@@ -190,6 +190,8 @@ builder.Services.AddSingleton<TaxesDataService>();
 builder.Services.AddSingleton<ConsumptionMonitorService>();
 builder.Services.AddSingleton<DatabaseBackupService>();
 builder.Services.AddSingleton<DatabaseBackupDataService>();
+builder.Services.AddSingleton<NotificationDataService>();
+builder.Services.AddSingleton<SessyController.Services.NotificationService>();
 builder.Services.AddSingleton<P1MeterContainer>();
 
 // Solar inverters

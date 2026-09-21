@@ -41,6 +41,19 @@ namespace SessyCommon.Extensions
 
             return sb.ToString();
         }
+
+        /// <summary>The message of the innermost (root-cause) exception — concise, no stack trace.
+        /// Use this for a user-facing "what really went wrong" instead of the wrapper's message.</summary>
+        public static string RootMessage(this Exception? exception)
+        {
+            if (exception == null) return string.Empty;
+
+            var current = exception;
+            while (current.InnerException != null)
+                current = current.InnerException;
+
+            return current.Message;
+        }
     }
 
 }

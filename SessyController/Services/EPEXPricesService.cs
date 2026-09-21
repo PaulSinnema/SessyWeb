@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Options;
+﻿using Microsoft.Extensions.Options;
 using SessyCommon.Configurations;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
@@ -54,6 +54,8 @@ namespace SessyController.Services
 
         private ExpectedPriceService _expectedPriceService;
 
+        private NotificationService _notificationService;
+
 
         private IHttpClientFactory _httpClientFactory { get; set; }
 
@@ -90,7 +92,8 @@ namespace SessyController.Services
                                     SolarInverterManager solarInverterManager,
                                     CalculationService calculationService,
                                     IHttpClientFactory httpClientFactory,
-                                    IServiceScopeFactory serviceScopeFactory)
+                                    IServiceScopeFactory serviceScopeFactory,
+                                    NotificationService notificationService)
         {
             _securityToken = configuration[ConfigSecurityTokenKey];
             _inDomain = configuration[ConfigInDomain];
@@ -102,6 +105,7 @@ namespace SessyController.Services
             _epexPricesDataService = epexPricesDataService;
             _gasPricesDataService = gasPricesDataService;
             _expectedPriceService = expectedPriceService;
+            _notificationService = notificationService;
             _solarInverterManager = solarInverterManager;
             _httpClientFactory = httpClientFactory;
             _calculationService = calculationService;
@@ -281,6 +285,9 @@ namespace SessyController.Services
                     if (root.GetProperty("status").GetString() != "true")
                     {
                         _logger!.LogWarning("Enever gas price feed returned status != true.");
+                        await _notificationService.AddAsync(
+                            NotificationSeverity.Error, "Gas", "Gas price fetch failed",
+                            "Enever.nl returned status != true.", dedupKey: "gas-fetch-failed");
                         return;
                     }
 
@@ -289,6 +296,9 @@ namespace SessyController.Services
                     if (data.GetArrayLength() == 0)
                     {
                         _logger!.LogWarning("Enever gas price feed returned empty data array.");
+                        await _notificationService.AddAsync(
+                            NotificationSeverity.Error, "Gas", "Gas price fetch failed",
+                            "Enever.nl returned an empty data array.", dedupKey: "gas-fetch-failed");
                         return;
                     }
 
@@ -328,7 +338,13 @@ namespace SessyController.Services
             // Keep the last known price when the feed gave nothing usable. Publishing a price
             // built on a market price of zero would show the heat-pump comparison a gas price of
             // taxes alone, which is worse than showing yesterday's.
-            if (!havePrice) return;
+            if (!havePrice)
+            {
+                await _notificationService.AddAsync(
+                    NotificationSeverity.Error, "Gas", "Gas price fetch failed",
+                    "Could not fetch a usable gas price from Enever.nl.", dedupKey: "gas-fetch-failed");
+                return;
+            }
 
             // Apply gas energy tax (Energiebelasting) and VAT (BTW) from the Taxes table
             // to convert the TTF market price to the all-in consumer price.
@@ -339,6 +355,8 @@ namespace SessyController.Services
             _logger!.LogInformation(
                 $"Gas price fetched from Enever.nl: market={marketPrice:F4} EUR/m³, " +
                 $"all-in={CurrentGasPriceEurPerM3:F4} EUR/m³ (TTF EGSI + taxes)");
+
+            await _notificationService.ClearByKeyAsync("gas-fetch-failed");
         }
 
         /// <summary>Which source last delivered prices — surfaced in Tips &amp; Checks.</summary>
@@ -364,7 +382,15 @@ namespace SessyController.Services
                 PricesAvailable = true;
 
                 if (PriceSource != "Sessy")
+                {
                     _logger.LogWarning($"Day-ahead prices now come from the batteries ({fromBatteries.Count} quarters).");
+
+                    await _notificationService.AddAsync(
+                        NotificationSeverity.Information, "EPEX", "Day-ahead prices fetched",
+                        "Source: Sessy batteries.", dedupKey: "epex-price-ok");
+                }
+
+                await _notificationService.ClearByKeyAsync("epex-price-failed");
 
                 PriceSource = "Sessy";
                 return;
@@ -380,8 +406,16 @@ namespace SessyController.Services
                 PricesAvailable = true;
 
                 if (PriceSource != "ENTSO-E")
+                {
                     _logger.LogWarning($"Day-ahead prices now come from ENTSO-E ({fromEntsoe.Count} quarters). " +
                                        "Sessy's own planned power is unavailable from this source.");
+
+                    await _notificationService.AddAsync(
+                        NotificationSeverity.Information, "EPEX", "Day-ahead prices fetched",
+                        "Source: ENTSO-E (fallback).", dedupKey: "epex-price-ok");
+                }
+
+                await _notificationService.ClearByKeyAsync("epex-price-failed");
 
                 PriceSource = "ENTSO-E";
                 return;
@@ -393,7 +427,14 @@ namespace SessyController.Services
             if (PricesAvailable)
                 _logger.LogWarning("Both price sources failed — keeping the prices already loaded.");
             else
+            {
                 _logger.LogError("Both price sources failed and no prices are loaded — the planner cannot run.");
+
+                await _notificationService.AddAsync(
+                    NotificationSeverity.Error, "EPEX", "Day-ahead price fetch failed",
+                    "Both price sources failed (Sessy, ENTSO-E).", dedupKey: "epex-price-failed");
+                await _notificationService.ClearByKeyAsync("epex-price-ok");
+            }
         }
 
         /// <summary>

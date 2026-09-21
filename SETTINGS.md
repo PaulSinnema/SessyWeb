@@ -1,4 +1,4 @@
-# Settings reference
+﻿# Settings reference
 
 Every setting on the **Settings** page in the SessyWeb UI, tab by tab, with its default and what it
 does. These take effect immediately — no restart. Values that live in `appsettings.json` instead (the
@@ -90,6 +90,13 @@ These tabs manage data or expose tools rather than plain settings:
   provider) and the handover state.
 - **Tips & Checks** — diagnostics: configuration problems, stale data, and planner sanity checks. A
   badge on the tab flags errors (red) or warnings (orange).
+- **Notifications** — a message queue of events raised by the app, each with a severity
+  (Information, Warning, Error), newest first. Sources include backup success/failure, day-ahead
+  price fetch (with source) success/failure, and weather and gas fetch failures; a failure clears
+  itself once the operation succeeds again. Repeats never add a duplicate — they bump the existing
+  entry and show a ×N counter. Filter by **Severity** and **Category**; delete one, delete all, or
+  mark all read. A badge on the tab and the Settings menu flags unread errors (red) or warnings
+  (orange). Persisted, so events raised while nobody was watching survive a restart.
 - **SQL Console** — run SQL against the database. Statements separated by semicolons run in order in
   one transaction (a failure rolls everything back). Take a backup before anything destructive.
 - **Container log** — the live application log in a scrollable window, with auto-scroll, a level
