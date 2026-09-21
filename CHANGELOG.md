@@ -11,6 +11,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.134] — 2026-09-21
+
+### Fixed
+- **A failed pre-migration backup no longer crashes the app at startup.** When the backup directory
+  is misconfigured (e.g. a typo in `DatabaseBackupDirectory`), the startup backup used to throw and
+  terminate the app in a restart loop. It is now caught and logged, and startup continues; the backup
+  problem shows up in Tips & Checks and Notifications instead. (The directory itself still needs
+  fixing — point `DatabaseBackupDirectory` at the mounted `/SessyController/Data/Backups`.)
+
 ## [v1.0.133] — 2026-09-21
 
 ### Added
