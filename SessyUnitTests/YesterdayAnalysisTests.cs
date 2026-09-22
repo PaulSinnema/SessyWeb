@@ -10,13 +10,27 @@ using Xunit;
 namespace SessyTests.Services
 {
     // TIJDELIJK — alleen voor analyse van de meegeleverde Sessy.db-kopie. Mag weer weg na gebruik.
-    public class YesterdayAnalysisTests
+    [Collection("Database")]
+    public class YesterdayAnalysisTests : IDisposable
     {
         private readonly ITestOutputHelper _output;
+        private readonly string? _previousDocker;
 
         public YesterdayAnalysisTests(ITestOutputHelper output)
         {
             _output = output;
+
+            // These analysis tests use an absolute Windows DB path, which DockerService only leaves
+            // intact when it thinks it runs in Docker. Set the flag here and restore it in Dispose,
+            // so this process-wide setting never leaks into other tests (which rely on the
+            // non-Docker behaviour, where a leaked "true" turns "./x.db" into "/x.db" and fails).
+            _previousDocker = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_DOCKER");
+            Environment.SetEnvironmentVariable("DOTNET_RUNNING_IN_DOCKER", "true");
+        }
+
+        public void Dispose()
+        {
+            Environment.SetEnvironmentVariable("DOTNET_RUNNING_IN_DOCKER", _previousDocker);
         }
 
         // Kopie staat hier klaargezet, read-only openen — geen migraties, geen writes.
@@ -25,12 +39,6 @@ namespace SessyTests.Services
         [Fact]
         public async Task Analyseer_gisteren()
         {
-            // ModelContext runs the connection string through DockerService.ConnectionString,
-            // which prepends "." to any path outside Docker (breaks an absolute Windows path) and
-            // naively Split('=')'s on every '=' (breaks a ";Mode=ReadOnly" suffix). Pretending to
-            // be in Docker sidesteps both — it leaves an already-absolute path untouched.
-            Environment.SetEnvironmentVariable("DOTNET_RUNNING_IN_DOCKER", "true");
-
             var services = new ServiceCollection();
 
             services.AddDbContext<ModelContext>(options =>
@@ -111,8 +119,6 @@ namespace SessyTests.Services
         [Fact]
         public async Task Analyseer_legionella_venster()
         {
-            Environment.SetEnvironmentVariable("DOTNET_RUNNING_IN_DOCKER", "true");
-
             var services = new ServiceCollection();
             services.AddDbContext<ModelContext>(options => options.UseSqlite($"Data Source={DbPath}"));
             services.AddScoped<DbHelper>();

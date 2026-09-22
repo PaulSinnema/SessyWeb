@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using SessyCommon.Services;
 using SessyData.Helpers;
@@ -19,6 +19,7 @@ namespace SessyTests.Services
     /// Runs against a real SQLite file with the real migrations: the point under test is what the
     /// provider does with a table that is not there yet.
     /// </summary>
+    [Collection("Database")]
     public class StartupTimeZoneTests : IDisposable
     {
         // Relative and starting with a dot, like DbHelperConcurrencyTests: ModelContext runs the

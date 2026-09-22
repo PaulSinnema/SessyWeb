@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using SessyData.Helpers;
 using SessyData.Model;
@@ -17,6 +17,7 @@ namespace SessyTests.Services
     /// caller's Task after disposing the context. That blocked a thread-pool thread per query and
     /// only worked because SQLite completes most calls synchronously.
     /// </summary>
+    [Collection("Database")]
     public class DbHelperConcurrencyTests : IDisposable
     {
         // Relative and starting with a dot: ModelContext runs the connection string through

@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using SessyData.Helpers;
 using SessyData.Model;
@@ -12,6 +12,7 @@ namespace SessyTests.Services
     /// SQLite file with the real migrations applied, because the point of the feature is exactly
     /// what ends up in the file.
     /// </summary>
+    [Collection("Database")]
     public class AppVersionRecordingTests : IDisposable
     {
         // Relative and starting with a dot: ModelContext runs the connection string through
