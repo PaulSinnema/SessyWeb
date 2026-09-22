@@ -11,6 +11,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.137] — 2026-09-22
+
+### Changed
+- **Gas price fetching is now its own service.** It used to live inside `EPEXPricesService`; it now
+  runs as a dedicated `GasPriceService` (same daily fetch, rate-limit handling and backoff), behind a
+  new `IGasPriceService`. Purely a structural cleanup — no behaviour change.
+
+## [v1.0.136] — 2026-09-22
+
+### Fixed
+- **Gas price fetch: rate-limit handled, no more quarter-hourly retries.** When the free Enever.nl
+  feed hits its monthly token limit it answers with an error string instead of a price array, which
+  used to throw a confusing "Array vs String" error and retry every quarter. It now reads the error,
+  shows a clear notification ("token limit exceeded — resets on the 1st of the month"), and backs off:
+  a token limit waits until the 1st of next month, other failures use exponential backoff (15 min
+  doubling, capped at 6 h). A success clears the notification and resets the backoff.
+
 ## [v1.0.135] — 2026-09-21
 
 ### Fixed

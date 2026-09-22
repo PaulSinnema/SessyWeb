@@ -21,7 +21,7 @@ namespace SessyController.Services
         private readonly IConfiguration _configuration;
         private readonly TaxesDataService _taxesDataService;
         private readonly IGasPricesDataService _gasPricesDataService;
-        private readonly IEPEXPricesService _epexPricesService;
+        private readonly IGasPriceService _epexPricesService;
         private readonly TimeZoneService _timeZoneService;
         // Monitor rather than IOptions: the checks must reflect appsettings.json as it is now, not
         // as it was when this service was first resolved.
@@ -55,7 +55,7 @@ namespace SessyController.Services
             IConfiguration configuration,
             TaxesDataService taxesDataService,
             IGasPricesDataService gasPricesDataService,
-            IEPEXPricesService epexPricesService,
+            IGasPriceService epexPricesService,
             TimeZoneService timeZoneService,
             IOptionsMonitor<HeatPumpConfig> heatPumpConfigMonitor,
             IMilpService milpService,

@@ -12,6 +12,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Interfaces\IEPEXPricesService.cs" />
     <Compile Remove="Services\MilpService.cs" />
   </ItemGroup>
 

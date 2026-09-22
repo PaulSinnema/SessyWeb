@@ -151,7 +151,8 @@ builder.Services.AddSingleton<IBatteryContainer>(sp => sp.GetRequiredService<Bat
 builder.Services.AddSingleton<TimeZoneService>();
 builder.Services.AddSingleton<WeatherService>();
 builder.Services.AddSingleton<EPEXPricesService>();
-builder.Services.AddSingleton<IEPEXPricesService>(sp => sp.GetRequiredService<EPEXPricesService>());
+builder.Services.AddSingleton<GasPriceService>();
+builder.Services.AddSingleton<IGasPriceService>(sp => sp.GetRequiredService<GasPriceService>());
 builder.Services.AddSingleton<ProfitMaximizationMilpService>();
 builder.Services.AddSingleton<SelfConsumptionMilpService>();
 builder.Services.AddSingleton<BalancedMilpService>();
@@ -214,6 +215,7 @@ builder.Services.AddSingleton<ISolarInverterService>(provider => provider.GetReq
 builder.Services.AddHostedService(provider => provider.GetRequiredService<SettingsService>());
 
 builder.Services.AddHostedService(provider => provider.GetRequiredService<EPEXPricesService>());
+builder.Services.AddHostedService(provider => provider.GetRequiredService<GasPriceService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<BatteriesService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<GridTargetService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<WeatherService>());

@@ -1,4 +1,4 @@
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -72,7 +72,7 @@ namespace SessyTests.Services
             var powerSystemsConfig = Monitor(new PowerSystemsConfig());
 
             // Mock via interfaces — avoids constructor issues with complex service dependencies.
-            var epexPricesServiceMock = new Mock<IEPEXPricesService>();
+            var epexPricesServiceMock = new Mock<IGasPriceService>();
             epexPricesServiceMock.Setup(s => s.CurrentGasPriceEurPerM3).Returns((double?)null);
 
             var gasPricesMock = new Mock<IGasPricesDataService>();
@@ -539,7 +539,7 @@ namespace SessyTests.Services
             var groupMock2 = new Mock<InvestmentGroupDataService>(MockBehavior.Loose, scopeFactoryMock.Object);
             var powerSystemsConfig = Monitor(new PowerSystemsConfig());
 
-            var epexPricesServiceMock2 = new Mock<IEPEXPricesService>();
+            var epexPricesServiceMock2 = new Mock<IGasPriceService>();
             epexPricesServiceMock2.Setup(s => s.CurrentGasPriceEurPerM3).Returns((double?)null);
 
             var gasPricesMock2 = new Mock<IGasPricesDataService>();

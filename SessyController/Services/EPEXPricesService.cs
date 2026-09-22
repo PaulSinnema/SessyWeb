@@ -18,7 +18,7 @@ namespace SessyController.Services
     /// <summary>
     /// This background service fetches the prices from a Sessy battery..
     /// </summary>
-    public class EPEXPricesService : BackgroundService, IDisposable, IEPEXPricesService
+    public class EPEXPricesService : BackgroundService, IDisposable
     {
         private const string ApiUrl = "https://web-api.tp.entsoe.eu/api";
         private const string FormatDate = "yyyyMMdd";
@@ -36,13 +36,8 @@ namespace SessyController.Services
         private const string ConfigInDomain = "ENTSO-E:InDomain"; // EIC-code
         private const string ConfigSecurityTokenKey = "ENTSO-E:SecurityToken";
 
-        // Enever.nl gas price feed (free, personal use, daily TTF price in EUR/m³)
-        private const string EneverGasApiUrl = "https://enever.nl/apiv3/gasprijs_vandaag.php";
-        private const string ConfigEneverTokenKey = "Enever:Token";
-
         private static string? _securityToken;
         private static string? _inDomain;
-        private static string? _eneverToken;
 
         private ConcurrentDictionary<DateTime, DynamichSchedule>? _prices { get; set; }
         private static LoggingService<EPEXPricesService>? _logger { get; set; }
@@ -50,11 +45,11 @@ namespace SessyController.Services
         private BatteryContainer _batteryContainer { get; set; }
         private IServiceScopeFactory _serviceScopeFactory { get; set; }
         private EPEXPricesDataService _epexPricesDataService { get; set; }
-        private GasPricesDataService _gasPricesDataService { get; set; }
 
         private ExpectedPriceService _expectedPriceService;
 
         private NotificationService _notificationService;
+
 
 
         private IHttpClientFactory _httpClientFactory { get; set; }
@@ -74,18 +69,12 @@ namespace SessyController.Services
         private bool PricesAvailable { get; set; } = false;
         private bool _initialized { get; set; } = false;
 
-        /// <summary>
-        /// The most recently fetched natural gas price in EUR per m³ (TTF day-ahead via Enever.nl).
-        /// Null when not yet fetched or unavailable.
-        /// </summary>
-        public virtual double? CurrentGasPriceEurPerM3 { get; private set; }
 
         public EPEXPricesService(LoggingService<EPEXPricesService> logger,
                                     IConfiguration configuration,
                                     TimeZoneService timeZoneService,
                                     BatteryContainer batteryContainer,
                                     EPEXPricesDataService epexPricesDataService,
-                                    GasPricesDataService gasPricesDataService,
                                     ExpectedPriceService expectedPriceService,
                                     SettingsService settingsService,
                                     TaxesDataService taxesService,
@@ -97,13 +86,11 @@ namespace SessyController.Services
         {
             _securityToken = configuration[ConfigSecurityTokenKey];
             _inDomain = configuration[ConfigInDomain];
-            _eneverToken = configuration[ConfigEneverTokenKey];
 
             _timeZoneService = timeZoneService;
             _batteryContainer = batteryContainer;
             _serviceScopeFactory = serviceScopeFactory;
             _epexPricesDataService = epexPricesDataService;
-            _gasPricesDataService = gasPricesDataService;
             _expectedPriceService = expectedPriceService;
             _notificationService = notificationService;
             _solarInverterManager = solarInverterManager;
@@ -227,136 +214,7 @@ namespace SessyController.Services
                 }
             }
 
-            await FetchGasPriceAsync(cancellationToken);
-        }
-
-        /// <summary>
-        /// Fetches today's TTF day-ahead gas price (EUR/m³) from Enever.nl.
-        /// Updates <see cref="CurrentGasPriceEurPerM3"/> when successful.
-        /// Logs a warning and leaves the previous value intact on failure.
-        ///
-        /// The Enever.nl feed is free for personal use; a token can be created at
-        /// https://enever.nl/token-aanmaken/. Add it to appsettings.json as "Enever:Token".
-        /// The price in field "prijsEGSI" is the TTF wholesale price (excl. taxes) in EUR/m³.
-        /// </summary>
-        private async Task FetchGasPriceAsync(CancellationToken cancellationToken)
-        {
-            if (string.IsNullOrWhiteSpace(_eneverToken))
-            {
-                _logger!.LogWarning("Enever token not configured — skipping gas price fetch. " +
-                                    "Add 'Enever:Token' to appsettings.json.");
-                return;
-            }
-
-            var gasPrice = await _gasPricesDataService.Get(async set =>
-            {
-                var result = set.Where(gp => gp.Date.Date == _timeZoneService.Now.Date).FirstOrDefault();
-
-                return await Task.FromResult(result);
-            });
-
-            double marketPrice = 0.00;
-
-            // Whether we ended up with a real price. Without this the failure paths below fall
-            // through to the tax calculation with marketPrice still 0.00 and publish taxes-only
-            // as the gas price — the opposite of what this method documents, and silent.
-            bool havePrice = false;
-
-            var today = _timeZoneService.Now.Date;
-
-            if (gasPrice == null)
-            {
-                try
-                {
-                    string url = $"{EneverGasApiUrl}?token={_eneverToken}";
-
-                    var client = _httpClientFactory.CreateClient();
-                    client.Timeout = TimeSpan.FromSeconds(30);
-
-                    var response = await client.GetAsync(url, cancellationToken);
-                    response.EnsureSuccessStatusCode();
-
-                    string body = await response.Content.ReadAsStringAsync(cancellationToken);
-
-                    // Expected JSON: {"status":"true","data":[{"datum":"...","prijsEGSI":"0.566598",...}]}
-                    using var doc = System.Text.Json.JsonDocument.Parse(body);
-                    var root = doc.RootElement;
-
-                    if (root.GetProperty("status").GetString() != "true")
-                    {
-                        _logger!.LogWarning("Enever gas price feed returned status != true.");
-                        await _notificationService.AddAsync(
-                            NotificationSeverity.Error, "Gas", "Gas price fetch failed",
-                            "Enever.nl returned status != true.", dedupKey: "gas-fetch-failed");
-                        return;
-                    }
-
-                    var data = root.GetProperty("data");
-
-                    if (data.GetArrayLength() == 0)
-                    {
-                        _logger!.LogWarning("Enever gas price feed returned empty data array.");
-                        await _notificationService.AddAsync(
-                            NotificationSeverity.Error, "Gas", "Gas price fetch failed",
-                            "Enever.nl returned an empty data array.", dedupKey: "gas-fetch-failed");
-                        return;
-                    }
-
-                    // Use "prijsEGSI" — the TTF wholesale (EGSI = End of Gas-Day Spot Index) price.
-                    string? rawPrice = data[0].GetProperty("prijsEGSI").GetString();
-
-                    if (double.TryParse(rawPrice, System.Globalization.NumberStyles.Any,
-                                        System.Globalization.CultureInfo.InvariantCulture, out marketPrice))
-                    {
-                        // Store the daily market price in the database (upsert — one record per day).
-                        await _gasPricesDataService.UpsertAsync(new SessyData.Model.GasPrice
-                        {
-                            Date = today,
-                            MarketPriceEurPerM3 = marketPrice
-                        });
-
-                        havePrice = true;
-                    }
-                    else
-                    {
-                        _logger!.LogWarning($"Could not parse Enever gas price value: '{rawPrice}'");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    // Also catches a missing "prijsEGSI" field: GetProperty throws rather than
-                    // returning null, so a feed that answers 200 with a different shape lands here.
-                    _logger!.LogWarning($"Could not fetch gas price from Enever.nl: {ex.Message}");
-                }
-            }
-            else
-            {
-                marketPrice = gasPrice.MarketPriceEurPerM3;
-                havePrice = true;
-            }
-
-            // Keep the last known price when the feed gave nothing usable. Publishing a price
-            // built on a market price of zero would show the heat-pump comparison a gas price of
-            // taxes alone, which is worse than showing yesterday's.
-            if (!havePrice)
-            {
-                await _notificationService.AddAsync(
-                    NotificationSeverity.Error, "Gas", "Gas price fetch failed",
-                    "Could not fetch a usable gas price from Enever.nl.", dedupKey: "gas-fetch-failed");
-                return;
-            }
-
-            // Apply gas energy tax (Energiebelasting) and VAT (BTW) from the Taxes table
-            // to convert the TTF market price to the all-in consumer price.
-            double? allInPrice = await _calculationService.CalculateGasPriceAsync(marketPrice);
-
-            CurrentGasPriceEurPerM3 = allInPrice ?? marketPrice;
-
-            _logger!.LogInformation(
-                $"Gas price fetched from Enever.nl: market={marketPrice:F4} EUR/m³, " +
-                $"all-in={CurrentGasPriceEurPerM3:F4} EUR/m³ (TTF EGSI + taxes)");
-
-            await _notificationService.ClearByKeyAsync("gas-fetch-failed");
+            // Gas price is fetched by the dedicated GasPriceService.
         }
 
         /// <summary>Which source last delivered prices — surfaced in Tips &amp; Checks.</summary>

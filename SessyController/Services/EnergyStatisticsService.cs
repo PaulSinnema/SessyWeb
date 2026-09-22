@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Options;
+﻿using Microsoft.Extensions.Options;
 using SessyCommon.Configurations;
 using SessyCommon.Enums;
 using SessyCommon.Services;
@@ -36,7 +36,7 @@ namespace SessyController.Services
         private Settings _settingsConfig;
         private readonly SettingsService _settingsService;
         private PowerSystemsConfig _powerSystemsConfig;
-        private readonly IEPEXPricesService _epexPricesService;
+        private readonly IGasPriceService _epexPricesService;
         private readonly IGasPricesDataService _gasPricesDataService;
         private readonly ConsumptionDataService _consumptionDataService;
         private readonly ICalculationService _calculationService;
@@ -62,7 +62,7 @@ namespace SessyController.Services
                                        IOptionsMonitor<HeatPumpConfig> heatPumpConfigMonitor,
                                        SettingsService settingsService,
                                        IOptionsMonitor<PowerSystemsConfig> powerSystemsConfigMonitor,
-                                       IEPEXPricesService epexPricesService,
+                                       IGasPriceService epexPricesService,
                                        IGasPricesDataService gasPricesDataService,
                                        ConsumptionDataService consumptionDataService,
                                        ICalculationService calculationService,
