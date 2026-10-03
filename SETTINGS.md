@@ -62,7 +62,8 @@ A **Reset to defaults** button restores this whole block. See [PLANNER.md](PLANN
 | --- | --- | --- |
 | **Record planner solve inputs** | Off | When on, the planner writes its exact solve input (prices, battery spec, options, SOC bounds) to the **Export directory** on every rebuild, so a plan that looks wrong can be replayed. The `SESSY_RECORD_SOLVE_INPUTS` environment variable forces it on regardless. The directory must exist (in Docker: a mounted volume), otherwise nothing is written and a Tips & Checks warning is raised — it is never auto-created. |
 | **Solve inputs to keep** | 20 | How many solve-input files to keep in the export directory; the oldest are pruned. 0 or less falls back to 20. |
-| **Export directory** | — | Absolute path solve-input files are written to. Must exist; in Docker it must be inside a mounted volume, otherwise files are lost when the container restarts. |
+| **Export directory** | `/SessyController/Data/exports` | Absolute path solve-input files are written to. Must exist; in Docker it must be inside a mounted volume, otherwise files are lost when the container restarts. |
+| **Developer options** | Off | Shows developer-only tooling. Off hides the whole **Plan dump** tab; on reveals it, including the past solve-input reconstruction. |
 
 ### Estimated home energy needs per month (kWh)
 
@@ -105,9 +106,11 @@ These tabs manage data or expose tools rather than plain settings:
   entry and show a ×N counter. Filter by **Severity** and **Category**; delete one, delete all, or
   mark all read. A badge on the tab and the Settings menu flags unread errors (red) or warnings
   (orange). Persisted, so events raised while nobody was watching survive a restart.
-- **Plan dump** — download a JSON snapshot for a chosen period with everything needed to analyse a
-  plan (settings, investments, derived cycle cost, EPEX prices, taxes, planned and actual quarters,
-  measured facts). Built in memory and offered as a download; never written to disk.
+- **Plan dump** (only shown when **Developer options** is on) — download a JSON snapshot for a chosen
+  period with everything needed to analyse a plan (settings, investments, derived cycle cost, EPEX
+  prices, taxes, planned and actual quarters, measured facts). Also reconstructs a past planner
+  solve-input for the same period for replay. Built in memory and offered as a download; never written
+  to disk.
 - **SQL Console** — run SQL against the database. Statements separated by semicolons run in order in
   one transaction (a failure rolls everything back). Take a backup before anything destructive.
 - **Container log** — the live application log in a scrollable window, with auto-scroll, a level

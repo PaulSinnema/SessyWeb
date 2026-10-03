@@ -559,6 +559,9 @@ namespace SessyData.Migrations
                     b.Property<string>("DatabaseBackupDirectory")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("DeveloperOptions")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("ExportDirectory")
                         .HasColumnType("TEXT");
 

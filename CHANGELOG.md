@@ -11,6 +11,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.141] — 2026-10-03
+
+### Added
+- **Reconstruct a past solve-input (Plan dump tab).** Rebuilds the planner's input for a chosen
+  period from the database — exact prices, net load and reserve floor from the stored plan, initial
+  SOC from the measurement — and downloads it, so a plan that ran before recording was switched on can
+  still be replayed. Approximate: the battery spec and planner options are the current ones, not as
+  they were then.
+- **Developer options toggle (Settings → Management → Diagnostics).** Off by default; hides the whole
+  **Plan dump** tab until switched on.
+
 ## [v1.0.140] — 2026-10-03
 
 ### Changed

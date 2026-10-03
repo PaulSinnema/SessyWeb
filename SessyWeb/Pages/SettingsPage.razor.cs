@@ -820,6 +820,10 @@ namespace SessyWeb.Pages
         // period and streams it to the browser. The file never touches disk.
 
         [Inject] private PlanDumpService? _planDumpService { get; set; }
+        [Inject] private SolveInputReconstructionService? _reconstructionService { get; set; }
+
+        private bool _reconstructBusy;
+        private string? _reconstructError;
 
         private DateTime? _dumpFrom;
         private DateTime? _dumpTo;
@@ -863,6 +867,47 @@ namespace SessyWeb.Pages
             finally
             {
                 _dumpBusy = false;
+                StateHasChanged();
+            }
+        }
+
+        private async Task DownloadReconstructedSolveInputAsync()
+        {
+            if (_reconstructionService == null || _js == null) return;
+
+            if (_dumpFrom == null || _dumpTo == null)
+            {
+                _reconstructError = "Pick a start and end date first.";
+                return;
+            }
+
+            if (_dumpTo <= _dumpFrom)
+            {
+                _reconstructError = "The end date must be after the start date.";
+                return;
+            }
+
+            _reconstructBusy = true;
+            _reconstructError = null;
+            StateHasChanged();
+
+            try
+            {
+                var json = await _reconstructionService.BuildJsonAsync(_dumpFrom.Value, _dumpTo.Value);
+                var bytes = System.Text.Encoding.UTF8.GetBytes(json);
+                using var stream = new System.IO.MemoryStream(bytes);
+                using var streamRef = new DotNetStreamReference(stream);
+
+                var fileName = $"solve-input-reconstructed_{_dumpFrom:yyyyMMdd_HHmm}_{_dumpTo:yyyyMMdd_HHmm}.json";
+                await _js.InvokeVoidAsync("downloadFileFromStream", fileName, streamRef);
+            }
+            catch (Exception ex)
+            {
+                _reconstructError = $"Reconstruction failed: {ex.Message}";
+            }
+            finally
+            {
+                _reconstructBusy = false;
                 StateHasChanged();
             }
         }

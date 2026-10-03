@@ -291,6 +291,11 @@ namespace SessyData.Model
         /// </summary>
         public int SolveInputKeepFiles { get; set; } = 20;
 
+        /// <summary>
+        /// Shows developer-only tooling in the UI (e.g. the Plan dump tab). Off by default.
+        /// </summary>
+        public bool DeveloperOptions { get; set; }
+
         public void Update(Settings updateInfo)
         {
             this.Copy(updateInfo);
