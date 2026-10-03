@@ -835,6 +835,36 @@
                 </RadzenTabsItem>
 
                 @* ── SQL Console ────────────────────────────────────────────── *@
+                <RadzenTabsItem Text="Plan dump" Icon="bug_report">
+                    <div style="display:flex; flex-direction:column; padding:1rem; gap:0.75rem; max-width:640px;">
+                        <RadzenText TextStyle="TextStyle.Caption" Style="opacity:0.7; margin:0;">
+                            Downloads a JSON snapshot with everything needed to analyse a plan for the chosen
+                            period: planner settings, EPEX prices, taxes, planned quarters, actual quarters and
+                            measured facts. The file is built in memory and offered for download — it is never
+                            written to disk.
+                        </RadzenText>
+                        <div style="display:flex; gap:1rem; flex-wrap:wrap; align-items:flex-end;">
+                            <div style="display:flex; flex-direction:column; gap:0.25rem;">
+                                <RadzenText TextStyle="TextStyle.Caption" Style="margin:0;">From</RadzenText>
+                                <RadzenDatePicker @bind-Value="_dumpFrom" ShowTime="true" DateFormat="yyyy-MM-dd HH:mm" />
+                            </div>
+                            <div style="display:flex; flex-direction:column; gap:0.25rem;">
+                                <RadzenText TextStyle="TextStyle.Caption" Style="margin:0;">To</RadzenText>
+                                <RadzenDatePicker @bind-Value="_dumpTo" ShowTime="true" DateFormat="yyyy-MM-dd HH:mm" />
+                            </div>
+                            <RadzenButton Text="Download dump" Icon="download"
+                                          ButtonStyle="ButtonStyle.Primary"
+                                          Click="@DownloadPlanDumpAsync"
+                                          IsBusy="@_dumpBusy" />
+                        </div>
+                        @if (_dumpError != null)
+                        {
+                            <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true">@_dumpError</RadzenAlert>
+                        }
+                    </div>
+                </RadzenTabsItem>
+
+                @* ── SQL Console ────────────────────────────────────────────── *@
                 <RadzenTabsItem Text="SQL Console" Icon="terminal">
                     <div style="display:flex; flex-direction:column; padding:1rem; gap:0.5rem;">
                         <RadzenText TextStyle="TextStyle.Caption" Style="opacity:0.7; margin:0;">

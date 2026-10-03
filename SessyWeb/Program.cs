@@ -132,6 +132,8 @@ builder.Services.AddSingleton<InvestmentGroupDataService>();
 // The one place a measured quarter is assembled — every reader of measured energy goes through it.
 builder.Services.AddScoped<QuarterlyFactsService>();
 builder.Services.AddScoped<EnergyStatisticsService>();
+// Builds an in-memory JSON snapshot for analysing a plan over a period (Settings tab).
+builder.Services.AddScoped<PlanDumpService>();
 builder.Services.AddSingleton<ThrottleAnalysisService>();
 builder.Services.AddSingleton<BatteryEfficiencyService>();
 builder.Services.AddSingleton<ReplacementCostService>();

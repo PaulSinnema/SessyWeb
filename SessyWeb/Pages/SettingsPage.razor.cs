@@ -355,6 +355,12 @@ namespace SessyWeb.Pages
                 _logText = _logBuffer?.Snapshot(_logMinLevel) ?? string.Empty;
                 _lastLogVersion = _logBuffer?.Version ?? -1;
                 StartLogRefresh();
+
+                // Default plan-dump period: today 00:00 through tomorrow 23:45 (local) — the usual
+                // planning horizon when a bad plan needs looking at.
+                var dumpToday = (_timeZoneService?.Now ?? DateTime.Now).Date;
+                _dumpFrom = dumpToday;
+                _dumpTo = dumpToday.AddDays(1).AddHours(23).AddMinutes(45);
             }
 
             // Each tab's grid ref becomes non-null the first time that tab renders.
@@ -807,6 +813,59 @@ namespace SessyWeb.Pages
         private List<string> _sqlColumns = [];
         private string? _sqlBackupMessage;
         private bool _sqlBackupBusy;
+
+        // ── Plan dump ─────────────────────────────────────────────────────────
+        //
+        // Writes an in-memory JSON snapshot of everything needed to analyse a plan for a chosen
+        // period and streams it to the browser. The file never touches disk.
+
+        [Inject] private PlanDumpService? _planDumpService { get; set; }
+
+        private DateTime? _dumpFrom;
+        private DateTime? _dumpTo;
+        private bool _dumpBusy;
+        private string? _dumpError;
+
+        private async Task DownloadPlanDumpAsync()
+        {
+            if (_planDumpService == null || _js == null) return;
+
+            if (_dumpFrom == null || _dumpTo == null)
+            {
+                _dumpError = "Pick a start and end date first.";
+                return;
+            }
+
+            if (_dumpTo <= _dumpFrom)
+            {
+                _dumpError = "The end date must be after the start date.";
+                return;
+            }
+
+            _dumpBusy = true;
+            _dumpError = null;
+            StateHasChanged();
+
+            try
+            {
+                var json = await _planDumpService.BuildJsonAsync(_dumpFrom.Value, _dumpTo.Value);
+                var bytes = System.Text.Encoding.UTF8.GetBytes(json);
+                using var stream = new System.IO.MemoryStream(bytes);
+                using var streamRef = new DotNetStreamReference(stream);
+
+                var fileName = $"plan_dump_{_dumpFrom:yyyyMMdd_HHmm}_{_dumpTo:yyyyMMdd_HHmm}.json";
+                await _js.InvokeVoidAsync("downloadFileFromStream", fileName, streamRef);
+            }
+            catch (Exception ex)
+            {
+                _dumpError = $"Plan dump failed: {ex.Message}";
+            }
+            finally
+            {
+                _dumpBusy = false;
+                StateHasChanged();
+            }
+        }
 
         /// <summary>
         /// Writes a VACUUM INTO backup to the configured backup directory — the same routine

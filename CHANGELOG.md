@@ -11,6 +11,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.138] — 2026-10-03
+
+### Added
+- **Plan dump (Settings → Plan dump).** A new tab lets you pick a period and download a single JSON
+  snapshot with everything needed to analyse a plan: planner settings, EPEX prices, taxes, planned
+  quarters, actual quarters and measured facts. The file is built entirely in memory and offered for
+  download — it is never written to disk. Handy for sending a bad plan over for analysis.
+
 ## [v1.0.137] — 2026-09-22
 
 ### Changed
