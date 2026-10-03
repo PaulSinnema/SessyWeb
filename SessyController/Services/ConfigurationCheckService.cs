@@ -170,6 +170,7 @@ namespace SessyController.Services
             CheckSettingsExtremes(checks);
             CheckPlannerLearning(checks);
             CheckBackupStatus(checks);
+            CheckSolveInputExport(checks);
             await CheckPlanStatus(checks).ConfigureAwait(false);
 
             int errors = checks.Count(c => c.Severity == CheckSeverity.Error);
@@ -1088,6 +1089,35 @@ namespace SessyController.Services
         /// Surfaces backup problems on the Tips & Checks tab. The nightly backup only logs its
         /// failures, so without this a broken or misconfigured backup stays invisible.
         /// </summary>
+        private void CheckSolveInputExport(List<ConfigurationCheck> checks)
+        {
+            var s = _settingsService.Current;
+
+            // Env var forces recording on regardless of the setting.
+            bool enabled = s.RecordSolveInputs ||
+                !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(
+                    Optimization.SolveInputRecorder.EnableVariable));
+
+            if (!enabled) return;
+
+            var dir = s.ExportDirectory;
+
+            if (string.IsNullOrWhiteSpace(dir) || !System.IO.Directory.Exists(dir))
+            {
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Warning,
+                    Title = "Solve-input export path missing",
+                    Description = $"Planner solve-input recording is on, but the export directory '{dir}' does not " +
+                                  "exist. Nothing can be written, and a mistyped path would otherwise land inside the " +
+                                  "container and be lost on restart. Set a valid, mounted export directory, or turn " +
+                                  "recording off.",
+                    ActionUrl = "/settings",
+                    ActionLabel = "Open settings"
+                });
+            }
+        }
+
         private void CheckBackupStatus(List<ConfigurationCheck> checks)
         {
             // A recorded failure from the nightly run is the clearest signal.

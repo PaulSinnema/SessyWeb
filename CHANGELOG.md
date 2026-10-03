@@ -11,6 +11,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.140] — 2026-10-03
+
+### Changed
+- **Default export directory is now `/SessyController/Data/exports`.** The old default `/data/exports`
+  is not a mounted volume in the Docker container, so solve-input and query exports landed nowhere (or
+  inside the container). The new default sits inside the mounted data volume. Existing installations
+  keep their configured value — clear the **Export directory** field to pick up the new default, or set
+  it to `/SessyController/Data/exports` by hand.
+
+## [v1.0.139] — 2026-10-03
+
+### Added
+- **Solve-input recording is now a setting (Settings → Management, "Diagnostics").** The planner can
+  write its exact solve input (prices, battery spec, options, SOC bounds) to the export directory on
+  every rebuild, for replaying a plan that looks wrong. Previously only switchable via the
+  `SESSY_RECORD_SOLVE_INPUTS` environment variable (which still forces it on). The number of files to
+  keep is configurable too (default 20), and the export directory is editable here.
+
+### Changed
+- **Solve-input recording no longer auto-creates the export directory.** A missing or unmounted path
+  used to be created silently inside the container, where the files are lost on restart. It now skips
+  writing and raises a Tips & Checks warning instead, the same way the backup directory does.
+
 ## [v1.0.138] — 2026-10-03
 
 ### Added

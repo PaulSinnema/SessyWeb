@@ -56,6 +56,14 @@ A **Reset to defaults** button restores this whole block. See [PLANNER.md](PLANN
 | **Replacement cost percentile** | 25 | Only shown with carry-forward on. Which percentile of those daily-cheapest prices becomes the replacement cost. Keep it low — set too high and charging is always attractive, so the battery ends up full and idle. Also capped at the window's median buy price. |
 | **Learn the discount and night reserve from measured forecast error** | Off | Nightly fit over 21 days of stored forecasts vs. what happened; overwrites **Future value discount** and the **night reserve** above. Discount from forecast drift with lead time; reserve from the 80th percentile of measured 21:00–07:00 draw. Writes nothing until it has enough history. A learned value hitting its bound is reported under Tips & Checks. **Last learned** shows when it last ran. |
 
+### Diagnostics
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| **Record planner solve inputs** | Off | When on, the planner writes its exact solve input (prices, battery spec, options, SOC bounds) to the **Export directory** on every rebuild, so a plan that looks wrong can be replayed. The `SESSY_RECORD_SOLVE_INPUTS` environment variable forces it on regardless. The directory must exist (in Docker: a mounted volume), otherwise nothing is written and a Tips & Checks warning is raised — it is never auto-created. |
+| **Solve inputs to keep** | 20 | How many solve-input files to keep in the export directory; the oldest are pruned. 0 or less falls back to 20. |
+| **Export directory** | — | Absolute path solve-input files are written to. Must exist; in Docker it must be inside a mounted volume, otherwise files are lost when the container restarts. |
+
 ### Estimated home energy needs per month (kWh)
 
 Twelve values, one per month — your household's expected monthly consumption. Used as the fallback
@@ -97,6 +105,9 @@ These tabs manage data or expose tools rather than plain settings:
   entry and show a ×N counter. Filter by **Severity** and **Category**; delete one, delete all, or
   mark all read. A badge on the tab and the Settings menu flags unread errors (red) or warnings
   (orange). Persisted, so events raised while nobody was watching survive a restart.
+- **Plan dump** — download a JSON snapshot for a chosen period with everything needed to analyse a
+  plan (settings, investments, derived cycle cost, EPEX prices, taxes, planned and actual quarters,
+  measured facts). Built in memory and offered as a download; never written to disk.
 - **SQL Console** — run SQL against the database. Statements separated by semicolons run in order in
   one transaction (a failure rolls everything back). Take a backup before anything destructive.
 - **Container log** — the live application log in a scrollable window, with auto-scroll, a level

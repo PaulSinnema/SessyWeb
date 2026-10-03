@@ -616,6 +616,9 @@ namespace SessyData.Migrations
                     b.Property<double>("PredictedPriceRiskMarginEur")
                         .HasColumnType("REAL");
 
+                    b.Property<bool>("RecordSolveInputs")
+                        .HasColumnType("INTEGER");
+
                     b.Property<double>("ReplacementCostPercentile")
                         .HasColumnType("REAL");
 
@@ -636,6 +639,9 @@ namespace SessyData.Migrations
 
                     b.Property<double>("SolarAnnualProductionKWh")
                         .HasColumnType("REAL");
+
+                    b.Property<int>("SolveInputKeepFiles")
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("StatisticsFromDate")
                         .HasColumnType("TEXT");

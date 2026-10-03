@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 
 namespace SessyController.Services.Optimization
 {
@@ -44,25 +44,33 @@ namespace SessyController.Services.Optimization
             BatterySpec spec,
             SessyOptions options,
             IReadOnlyList<SocBound> socBounds,
+            bool enabled,
+            int keepFiles,
             DateTime now,
             Action<string>? report = null)
         {
-            if (!IsEnabled) return null;
+            if (!enabled && !IsEnabled) return null;
 
             try
             {
                 var target = string.IsNullOrWhiteSpace(directory)
-                    ? Directory.GetCurrentDirectory()
+                    ? string.Empty
                     : directory;
 
-                Directory.CreateDirectory(target);
+                // Never auto-create: a mistyped or unmounted path would land inside the container
+                // and be silently lost on restart. Warn and skip instead.
+                if (string.IsNullOrWhiteSpace(target) || !Directory.Exists(target))
+                {
+                    report?.Invoke($"Solve input not recorded: export directory '{directory}' does not exist.");
+                    return null;
+                }
 
                 var path = Path.Combine(target, $"solve-input-{now:yyyyMMdd-HHmmss}.json");
                 var input = new SolveInput(now, pricePoints, spec, options, socBounds);
 
                 File.WriteAllText(path, JsonSerializer.Serialize(input, Json));
 
-                Prune(target);
+                Prune(target, keepFiles > 0 ? keepFiles : KeepFiles);
 
                 report?.Invoke($"Solve input recorded: {path}");
 
@@ -89,12 +97,12 @@ namespace SessyController.Services.Optimization
             }
         }
 
-        private static void Prune(string directory)
+        private static void Prune(string directory, int keepFiles)
         {
             var files = new DirectoryInfo(directory)
                 .GetFiles("solve-input-*.json")
                 .OrderByDescending(f => f.Name)
-                .Skip(KeepFiles)
+                .Skip(keepFiles)
                 .ToList();
 
             foreach (var file in files)

@@ -21,6 +21,8 @@ namespace SessyController.Services
         private readonly TaxesDataService _taxesService;
         private readonly SettingsDataService _settingsDataService;
         private readonly QuarterlyFactsService _factsService;
+        private readonly InvestmentDataService _investmentService;
+        private readonly SettingsService _settingsService;
 
         public PlanDumpService(
             PlannedQuarterDataService plannedService,
@@ -28,7 +30,9 @@ namespace SessyController.Services
             EPEXPricesDataService epexService,
             TaxesDataService taxesService,
             SettingsDataService settingsDataService,
-            QuarterlyFactsService factsService)
+            QuarterlyFactsService factsService,
+            InvestmentDataService investmentService,
+            SettingsService settingsService)
         {
             _plannedService = plannedService;
             _actualService = actualService;
@@ -36,6 +40,8 @@ namespace SessyController.Services
             _taxesService = taxesService;
             _settingsDataService = settingsDataService;
             _factsService = factsService;
+            _investmentService = investmentService;
+            _settingsService = settingsService;
         }
 
         private static readonly JsonSerializerOptions JsonOptions = new()
@@ -72,6 +78,10 @@ namespace SessyController.Services
 
             var measured = await _factsService.GetAsync(start, end);
 
+            // Battery investments drive the derived cycle (wear) cost, which gates all arbitrage.
+            var investments = await _investmentService.GetList(async set =>
+                await Task.FromResult(set.ToList()));
+
             var dump = new
             {
                 Meta = new
@@ -84,9 +94,14 @@ namespace SessyController.Services
                     ActualCount = actual.Count,
                     EpexPriceCount = epex.Count,
                     MeasuredCount = measured.Count,
-                    Note = "In-memory plan dump for analysis. Times are in the configured local timezone."
+                    InvestmentCount = investments.Count,
+                    DerivedCycleCostEurPerKWh = _settingsService.CycleCost,
+                    Note = "In-memory plan dump for analysis. Times are in the configured local timezone. " +
+                           "DerivedCycleCostEurPerKWh is the raw wear cost from the battery investments; " +
+                           "the Balanced strategy multiplies it by 1.5 inside the planner."
                 },
                 Settings = settings,
+                Investments = investments,
                 Taxes = taxes,
                 EpexPrices = epex,
                 PlannedQuarters = planned,

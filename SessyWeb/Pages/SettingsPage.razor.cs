@@ -1048,7 +1048,7 @@ namespace SessyWeb.Pages
         private string GetExportDirectory()
         {
             var dir = _settings?.ExportDirectory;
-            if (string.IsNullOrWhiteSpace(dir)) dir = "/data/exports";
+            if (string.IsNullOrWhiteSpace(dir)) dir = "/SessyController/Data/exports";
             if (!System.IO.Directory.Exists(dir))
                 System.IO.Directory.CreateDirectory(dir);
             return dir;

@@ -167,7 +167,7 @@ namespace SessyController.Services
 
             if (string.IsNullOrWhiteSpace(record.ExportDirectory))
             {
-                record.ExportDirectory = "/data/exports";
+                record.ExportDirectory = "/SessyController/Data/exports";
                 dirty = true;
             }
 
@@ -202,7 +202,7 @@ namespace SessyController.Services
                 ManualOverride = false,
                 SolarAnnualProductionKWh = 0.0,
                 StatisticsFromDate = null,
-                ExportDirectory = "/data/exports",
+                ExportDirectory = "/SessyController/Data/exports",
             };
 
             defaults.ManualChargingHoursArray = [];

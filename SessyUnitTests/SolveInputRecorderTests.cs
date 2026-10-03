@@ -1,4 +1,4 @@
-using SessyController.Services.Items;
+﻿using SessyController.Services.Items;
 using SessyController.Services.Optimization;
 using Xunit;
 
@@ -51,7 +51,7 @@ namespace SessyTests.Services
 
             var (points, spec, options, bounds) = Sample();
 
-            Assert.Null(SolveInputRecorder.TryWrite(_directory, points, spec, options, bounds, Now));
+            Assert.Null(SolveInputRecorder.TryWrite(_directory, points, spec, options, bounds, enabled: false, keepFiles: 20, Now));
             Assert.False(Directory.Exists(_directory));
         }
 
@@ -64,7 +64,9 @@ namespace SessyTests.Services
             {
                 var (points, spec, options, bounds) = Sample();
 
-                var path = SolveInputRecorder.TryWrite(_directory, points, spec, options, bounds, Now);
+                // The recorder no longer auto-creates the directory — it must exist first.
+                Directory.CreateDirectory(_directory);
+                var path = SolveInputRecorder.TryWrite(_directory, points, spec, options, bounds, enabled: true, keepFiles: 20, Now);
                 Assert.NotNull(path);
 
                 var read = SolveInputRecorder.Read(path!);

@@ -291,6 +291,7 @@ namespace SessyController.Services
                 // reconstructed from the columns that happen to be persisted.
                 SolveInputRecorder.TryWrite(
                     _settingsConfig.ExportDirectory, pricePoints, spec, opt, socBounds,
+                    _settingsConfig.RecordSolveInputs, _settingsConfig.SolveInputKeepFiles,
                     _timeZoneService.Now, message => _logger.LogWarning(message));
 
                 var sw = System.Diagnostics.Stopwatch.StartNew();

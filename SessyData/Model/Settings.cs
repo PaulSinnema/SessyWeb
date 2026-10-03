@@ -276,6 +276,21 @@ namespace SessyData.Model
         /// </summary>
         public double PredictedPriceRiskMarginEur { get; set; } = 0.05;
 
+        // ── Diagnostics ───────────────────────────────────────────────────────
+
+        /// <summary>
+        /// When true, the planner writes its exact solve input (prices, battery spec, options, SOC
+        /// bounds) to the export directory on every rebuild, for replaying a suspect plan. The
+        /// SESSY_RECORD_SOLVE_INPUTS environment variable forces it on regardless.
+        /// </summary>
+        public bool RecordSolveInputs { get; set; }
+
+        /// <summary>
+        /// How many solve-input files to keep in the export directory; the oldest are pruned.
+        /// 0 or less falls back to 20.
+        /// </summary>
+        public int SolveInputKeepFiles { get; set; } = 20;
+
         public void Update(Settings updateInfo)
         {
             this.Copy(updateInfo);

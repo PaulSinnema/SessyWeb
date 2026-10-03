@@ -151,6 +151,39 @@
                             </RadzenFieldset>
 
                             @* ── Planner tuning parameters ────────────────────── *@
+                            <RadzenFieldset Text="Diagnostics">
+                                <RadzenRow Gap="1rem">
+                                    <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Record planner solve inputs" />
+                                        <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">
+                                            Default: Off. Writes one JSON file per rebuild to the export directory.
+                                            <InfoTipComponent Text="When on, the planner saves its exact solve input (prices, battery spec, options, SOC bounds) to the export directory on every rebuild, so a suspect plan can be replayed. The export directory must exist and, in Docker, be a mounted volume — otherwise the files land inside the container and are lost on restart. The SESSY_RECORD_SOLVE_INPUTS environment variable forces this on regardless of this switch." />
+                                        </RadzenText>
+                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
+                                            <RadzenCheckBox @bind-Value="_settings.RecordSolveInputs" />
+                                            <RadzenLabel Text="Enabled" />
+                                        </RadzenStack>
+                                    </RadzenColumn>
+                                    <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Solve inputs to keep" />
+                                        <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">
+                                            Oldest files are pruned. Default: 20.
+                                            <InfoTipComponent Text="How many solve-input files to keep in the export directory; the oldest are deleted beyond this count. 0 or less falls back to 20." />
+                                        </RadzenText>
+                                        <RadzenNumeric @bind-Value="_settings.SolveInputKeepFiles" Min="1" Max="500" Style="width:100%" />
+                                    </RadzenColumn>
+                                    <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Export directory" />
+                                        <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">
+                                            Where solve inputs are written. In Docker: a mounted volume.
+                                            <InfoTipComponent Text="Absolute path the planner writes solve-input files to. It must exist; in Docker it must be inside a mounted volume, otherwise the files are lost when the container restarts." />
+                                        </RadzenText>
+                                        <RadzenTextBox @bind-Value="_settings.ExportDirectory" Style="width:100%" />
+                                    </RadzenColumn>
+                                </RadzenRow>
+                            </RadzenFieldset>
+
+                            @* ── Planner tuning parameters ────────────────────── *@
                             <RadzenFieldset Text="Advanced planning parameters">
                                 <RadzenRow Gap="1rem">
                                     <RadzenColumn Size="12" SizeMD="4">
