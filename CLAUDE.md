@@ -190,6 +190,19 @@ aan = afgeleid uit investeringen (huidig gedrag), uit = vaste `FixedCycleCostEur
 planner handelt op elke rendabele spread). De override zit in `ApplyDerivedCycleCostAsync`, zodat álle lezers
 (planner, runtime-guards, stats, checks) dezelfde waarde krijgen. Instelbaar op de Settings-pagina onder Advanced planning parameters.
 
+**Zon-forecast — performance-factor (bevinding v1.0.144).** Het basismodel (`SolarService.CalculateSolarPowerPerQuarterHour`)
+rekent met GHI × `GetSolarFactor` = `max(0, cos θ_incidentie)` — **alleen directe straling, geen diffuus**. Een globale
+schaalfactor `_smoothedPerformanceFactor` = realized/base over 14-30 d corrigeert dat (geklemd op [0,2, 3,0], per dag gereset
+naar de historische waarde; `BatteriesService` is singleton en captured de Scoped `SolarService`, dus die state persisteert).
+Gemeten op productie: factor ≈ **1,76, niet geklemd** (Realized 120,9 / Forecast 68,8 kWh over 14 d) — het 14-daags totaal
+klopt dus al. De fout is conditie-afhankelijk (vórm, niet magnitude): benodigde factor ≈ **4,1 bij bewolking (kt<0,3),
+1,5 heiig, 1,3 helder** — één scalar is te hoog op heldere en te laag op bewolkte dagen (de ~1,5-2× die gebruikers soms zien).
+Onderzocht en **bewust verworpen**: (a) clamp verhogen — doet niets, hij bindt niet; (b) isotrope diffuus-transpositie
+(Erbs-splitsing + POA) — ruilt de bias om, schiet door op heldere dagen; (c) clearness-afhankelijke factor per kt-bucket —
+out-of-sample slechts ~1% MAE-winst (46%→45%), want de uurfout wordt gedomineerd door ruis + de stralingsforecast-fout zelf.
+Conclusie: globale factor houden. De factor-logregels ("Historical performance factor" met realized/forecast-totalen,
+"Performance factor applied") staan sinds v1.0.144 op Warning (vuren 1×/dag).
+
 ## Belangrijke mechanismen (huidige staat)
 - **ControlModeService** — `ControlMode` = SessyWeb/Manual/Charged/Provider, prioriteit leverancier > Charged > manual > wij. `WeMayDriveTheBatteries` is de enige schrijf-conditie op de hardware; **manual override = SessyWeb die een ander plan schrijft**, geen andere bestuurder. Lezers zijn ongeguard (`GetScheduleAsync`, identieke GET voor beide richtingen). Weigeren logt op Warning.
 - **Anti-flapping** (state machine) — `MinimumModeDwell` (120 s) in `EnergySystemStateMachine`, klok uit `EnergySystemInput.Now` (`DateTime.MinValue` = geen klok in de snapshot). Asymmetrisch: wissel naar een minder actieve modus mag altijd direct; her-inschakelen/wisselen tussen even actieve modi zit de dwell uit. Guards: `GuardHolds(...)` met `GuardReleaseFactor = 4`; idle: `SelectIdleMode` met `NetLoadDeadbandWh = 50`. Deadband schaalt mee: `MinimumUsefulEnergyWh(capWh) = max(25, capWh × 0,005)`.
@@ -202,18 +215,12 @@ planner handelt op elke rendabele spread). De override zit in `ApplyDerivedCycle
 - **SystemCapabilitiesService / HasSolar** — één definitie of er zon is (minstens één omvormer). De UI verbergt zon-afhankelijke kaarten, menu-items en zinsneden als er geen zon is. Precedent: `HeatPumpIsConfigured`.
 - **Tips & Checks** — `ConfigurationCheckService` draait de checks periodiek en houdt een samenvatting vast (`EnsureSummaryAsync`, 5 min, single-flight); een notificatiestip (rood/oranje) staat op het menu-item en de tab Settings, aangestuurd via `data-sessy-badge` (Radzen overschrijft een meegegeven `class`).
 
-## In uitvoering — nog niet in productie
-
-**(Ont)laden via P1 grid target i.p.v. batterij-setpoint (fase 1).** Build + tests groen, nog niet
-in productie gedraaid. Batterijvermogen gaat niet meer via `SetPowerSetpointAsync` maar via de grid
-target op de P1-meter (`P1MeterService.SetGridTargetAsync`, `POST /api/v1/meter/grid_target`); de
-batterijen draaien daarvoor in NOM, want alleen dan luistert de Sessy naar de P1-grid-target.
-
-- Mechanisme: in NOM houdt de Sessy `net = grid_target`, dus `batterij = huisnetto − grid_target`, met `huisnetto = P1net + batterij` (per cyclus herrekend). Tekens: grid target import +, export −; `P1Details.PowerTotal` import +, export −; batterij ontladen +, laden −.
-- Mode-mapping: Charging → NOM + `grid_target = huisnetto + P`; Discharging → NOM + `huisnetto − P`; ZeroNetHome → NOM + `grid_target = 0`; Disabled → API + `SetPowerSetpointAsync(0)`.
-- `GridTargetCalculator` (pure omrekening + clamp op nameplate), `GridTargetService` (5 s-refresher, deadband 50 W, `weDrive`-gate). In DEBUG geen POST — `LastComputedTargetW` toont de would-be waarde op `BatteriesPage`. FORCE_CHARGE/ZERO_EXPORT lopen gedwongen mee door dit pad.
-- **Werkwijze bij deze ombouw:** in de services wordt géén code verwijderd — vervangen methoden (`StartCharging`/`StartDisharging`, het setpoint-pad voor (ont)laden) blijven als dode code staan. Buiten de services mag dode code wel weg.
-- **Fase 2 (te doen):** de omvormer-kant van curtailment reconciliëren; checken of `GridTargetService` en `InverterCurtailmentService` niet botsen op de P1; DI-graaf en echt gedrag in een draaiende app verifiëren (let op `GridTargetService started ...` en of de batterij op de gewenste P uitkomt).
+- **(Ont)laden via P1 grid target** (in productie sinds de P1-ombouw; vervangt het oude batterij-setpoint-pad). Batterijvermogen loopt via de grid target op de P1-meter (`P1MeterService.SetGridTargetAsync`, `POST /api/v1/meter/grid_target`); de batterijen draaien in NOM, want alleen dan volgt de Sessy de P1-grid-target — die balanceert het vermogen automatisch over alle batterijen en volgt het echte huisnetto realtime. In NOM houdt de Sessy `net = grid_target`, dus `batterij = huisnetto − grid_target` (`huisnetto = P1net + batterij`, per cyclus herrekend). Tekens: grid target import +, export −; `P1Details.PowerTotal` import +, export −; batterij ontladen +, laden −. Mode-mapping: Charging → NOM + `grid_target = huisnetto + P`; Discharging → NOM + `huisnetto − P`; ZeroNetHome → NOM + `grid_target = 0`; **Disabled → Idle (`POWER_STRATEGY_IDLE`, sinds v1.0.143)** — zie de aparte Idle-regel hieronder. `GridTargetCalculator` (pure omrekening + clamp op nameplate), `GridTargetService` (5 s-refresher, deadband 50 W, `weDrive`-gate); in DEBUG geen POST, `LastComputedTargetW` toont de would-be waarde op `BatteriesPage`. FORCE_CHARGE/ZERO_EXPORT lopen gedwongen mee door dit pad. De vervangen methoden (`StartCharging`/`StartDisharging`, het setpoint-pad voor (ont)laden) blijven als dode code in de services staan. Open aandachtspunt: samenloop van `GridTargetService` en `InverterCurtailmentService` op de P1 (omvormer-kant van curtailment).
+- **Day-ahead prijzen — merge over álle batterijen** (v1.0.143). `EPEXPricesService.FetchDayAheadPricesAsync` las vroeger alleen de eerste batterij (`Batteries.FirstOrDefault`). Batterijen lopen hun prijsvenster onafhankelijk bij: de één gaf nog gisteren+vandaag terwijl een ander al vandaag+morgen had — dan werd morgen nooit opgeslagen (géén exception, de call slaagt met een ouder venster) en bleef de grafiek "Prices are predicted" tonen. Nu worden de `energy_prices` van álle batterijen samengevoegd (`TryAdd` houdt de eerste die een slot biedt, latere vullen gaten zoals morgen); een trage/offline batterij blokkeert de rest niet (`continue` i.p.v. `return`). Gediagnosticeerd op Paul's systeem: .241 (Battery 1, de `FirstOrDefault`) liep een dag achter, .243 had morgen wél.
+- **"Day-ahead prices fetched"-melding** (v1.0.143). Vuurde vroeger bij elke battery-fetch met prijzen — ook een venster met alleen vandaag — en daarna nooit meer door de `PriceSource != "Sessy"`-guard, dus je werd nooit geïnformeerd als morgen later binnenkwam. Nu alleen als de set morgen echt dekt, 1×/dag (`CoversTomorrow` + `_lastDayAheadNotifiedForDate`).
+- **SOC-prognose herankert elke cyclus** (v1.0.144). `MilpServiceBase.WriteBackSocSimulationAsync` plakte binnen de solver-horizon de absolute `_planSocWhByTime` (van de laatste rebuild); tussen rebuilds liep de getekende "charge remaining"-lijn weg van de gemeten SOC zodra verbruik/zon afweek. Nu wordt per kwartier de solver-**delta** op de lopende, op de gemeten SOC verankerde `soc` toegepast (seed `prevSolverSoc` uit het kwartier vóór `nowQuarter`). Het vastgelegde plan (`_plannedSocByQuarter`) blijft de bron voor `GetCurrentSocDeviationPct` en de rebuild-trigger (`SocDeviationThresholdPct` = 20%), dus besturing ongewijzigd — puur de weergave.
+- **Disabled draait op native Idle** (v1.0.143). `BatteryContainer.StopAll` → `Battery.SetActivePowerStrategyToIdle` (`POWER_STRATEGY_IDLE`) i.p.v. open API + setpoint 0. `BatteriesService.ExpectedStrategy(Disabled)` = `POWER_STRATEGY_IDLE`. Veilig: de schrijfguard keyt op eigenaarschap, niet op strategie. (Let op: de P1-grid-target-ombouw hieronder beschrijft nog de oude mapping `Disabled → API + setpoint 0`; dat is een apart, nog-niet-productie pad.)
+- **Notificatie-datum schuift al mee** (bevinding, geen wijziging). `NotificationDataService.IncrementAsync` zet bij een dedup-herhaling `CreatedAt = now` (+ `Count++`); de datum toont dus de laatst ontvangen. Dat de EPEX-"ok" "vast" leek op één tijd, komt doordat die 1×/dag vuurt, niet door een bug (bewijs: `backup-ok` Count=4 met datum = de back-up van vandaag).
 
 ## Valkuilen / eenheden
 - `SolarPowerPerQuarterInWatts` is **Wh per kwartier** (`=> SolarPowerPerQuarterHour * 1000.0`), niet W. Met W×0,25 gerekend lijkt de zonforecast een factor 4 te laag.
@@ -276,20 +283,9 @@ selecteert dat juist de stille takken — zoek daar eerst.
    de echte productie. De simultane vergelijking kan niet meer via de config (óf-óf-regel sluit SolarEdge
    uit); wél: één zonnige dag terug op SolarEdge en de batterijen er los naast bemonsteren met
    `GET /api/v1/power/status` (zelfde kwartieren, beide bronnen).
-10. **De view toont niet 1-op-1 het berekende plan — lossy conversie + reconstructie in de view.**
-    Het plan (`PlanStep`: aparte `ChargeKW`/`DischargeKW` + `ActionMode`) wordt onderweg twee keer
-    platgeslagen: `ApplySolveResult` → `PlanAction { Mode, PowerW }` (bij ZeroNetHome is `PowerW`
-    alléén het ontlaadvermogen; een ZeroNetHome die zon opslaat verliest de laadwaarde hier al), en
-    `SavePlan` → DB-`PlannedQuarter { PlannedMode (string), PlannedPowerW (één signed getal) }`.
-    Vervolgens **reconstrueert** `QuarterlyInfoView` (~r90) laden/ontladen uit de mode-string met een
-    switch die alléén "Charging"/"Discharging" kent — dus elke ZeroNetHome/Disabled valt op 0, en
-    zelfconsumptie-ontlading (mode ZeroNetHome, kan meerdere kWh zijn) wordt als 0 getoond. De
-    live-tak (`plannedQuarter == null`) leest wél `qi.PlannedDischargePowerW` correct → zelfde
-    kwartier, twee uitkomsten afhankelijk van de bron. Bevestigd via replay (02-09): greedy plant
-    5,56 kWh ontlading (46 kw ZeroNetHome-zelfconsumptie, 0 actief export, 1 laadkwartier van
-    1,11 kWh = de "1 kwartier geladen") — de planner is dus niet stuk, de view verliest het onderweg.
-    Richting single-source-of-truth: `PlannedQuarter` twee aparte vermogensvelden geven zoals de
-    planner ze levert, de view die rechtstreeks lezen, de mode-string alleen voor label/kleur, en één
-    projectie `PlanStep → (chargeW, dischargeW, mode)` die zowel de live- als de DB-tak voedt.
-    v1.0.115 trok alleen de overlay (`ChargingHoursChartComponent.PlanPowerVisualFor`) gelijk; de
-    hoofdoorzaak (reconstructie uit de mode-string in `QuarterlyInfoView`) staat nog open.
+11. **Solar-opbrengst ophalen via de Sessy API.** Nu komt de gemeten zonproductie van SolarEdge
+    (`InverterMeasurements`, `ProviderName="SolarEdge"`). Onderzoeken of de werkelijke opbrengst ook
+    rechtstreeks via de Sessy kan (`GET /api/v1/power/status` → `renewable_energy_phase*`, som over de
+    batterijen), zodat de SolarEdge-afhankelijkheid kan vervallen. Hangt samen met Openstaande punten 7
+    en 9 (de Sessy-zonbron is gebouwd maar nog niet tegen een referentie bevestigd, en meet mogelijk
+    alleen batterij 1).
