@@ -14,6 +14,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 ## [v1.0.143] — 2026-10-05
 
 ### Fixed
+- **Day-ahead prices are now merged across all batteries.** The price fetch read the schedule of
+  only the first configured battery. When that battery's schedule window lagged a day (it returned
+  yesterday+today while another battery already carried today+tomorrow), tomorrow's real prices were
+  never stored, so the chart kept showing tomorrow as predicted even though the prices were available
+  on another battery. The fetch now queries every battery and unions their energy prices, keeping the
+  widest coverage; a battery that fails or lags no longer blocks the others.
 - **"Day-ahead prices fetched" notification no longer fires without tomorrow's prices.** The
   notification used to fire whenever the batteries returned any prices, even a schedule that held
   only today — so it could announce success while the price chart still showed tomorrow as
