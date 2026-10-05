@@ -230,6 +230,13 @@ namespace SessyController.Services.Items
             await SetActivePowerStrategy(new ActivePowerStrategy { Strategy = PowerStrategies.POWER_STRATEGY_API.ToString() });
         }
 
+        public async Task SetActivePowerStrategyToIdle()
+        {
+            _logger.LogInformation("Setting strategy to Idle");
+
+            await SetActivePowerStrategy(new ActivePowerStrategy { Strategy = PowerStrategies.POWER_STRATEGY_IDLE.ToString() });
+        }
+
         public async Task SetActivePowerStrategyToZeroNetHome()
         {
             _logger.LogInformation("Setting strategy to Net Zero Home");

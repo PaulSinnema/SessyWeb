@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.Extensions.Logging.Abstractions;
 using SessyCommon.Enums;
 using SessyController.Services;
 using SessyController.Services.StateMachine;
@@ -199,11 +199,11 @@ namespace SessyTests.Services
         }
 
         [Fact]
-        public void Only_Disabled_is_executed_through_the_open_api()
+        public void Only_Disabled_is_executed_through_the_idle_strategy()
         {
-            // Disabled is the one API path left: it goes out as API with setpoint 0, so a flip to or
-            // from Disabled is the only strategy rewrite.
-            Assert.Equal("POWER_STRATEGY_API", BatteriesService.ExpectedStrategy(Modes.Disabled));
+            // Disabled is the one strategy rewrite left: it goes out as Idle, so a flip to or
+            // from Disabled is the only strategy rewrite the planner triggers.
+            Assert.Equal("POWER_STRATEGY_IDLE", BatteriesService.ExpectedStrategy(Modes.Disabled));
         }
 
         // ══════════════════════════════════════════════════════════════════════

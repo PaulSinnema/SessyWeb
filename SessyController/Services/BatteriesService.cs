@@ -432,12 +432,12 @@ namespace SessyController.Services
 
         /// <summary>
         /// The Sessy power strategy a mode is executed as. Charging, Discharging and ZeroNetHome all
-        /// run through NOM now — the P1 grid target sets the power. Only Disabled goes through the
-        /// open API (setpoint 0), so that boundary is the only one that rewrites the strategy.
+        /// run through NOM now — the P1 grid target sets the power. Only Disabled goes to Idle,
+        /// Sessy's native hold strategy, so that boundary is the only one that rewrites the strategy.
         /// </summary>
         internal static string ExpectedStrategy(Modes mode) =>
             mode == Modes.Disabled
-                ? ActivePowerStrategy.PowerStrategies.POWER_STRATEGY_API.ToString()
+                ? ActivePowerStrategy.PowerStrategies.POWER_STRATEGY_IDLE.ToString()
                 : ActivePowerStrategy.PowerStrategies.POWER_STRATEGY_NOM.ToString();
 
         /// <summary>

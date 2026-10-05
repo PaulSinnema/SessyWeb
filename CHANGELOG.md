@@ -24,6 +24,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
   now would pay more). A footer lists every planner parameter that shaped the plan. Read-only and
   heuristic; built from the stored plan and current settings.
 
+### Changed
+- **Disabled mode now uses Sessy's native Idle strategy.** Previously Disabled was executed by
+  switching the battery to the open API with a setpoint of 0 W. It now hands the battery to Sessy's
+  own `POWER_STRATEGY_IDLE`, so it holds without an API setpoint. Behaviour is the same (no charge or
+  discharge), but it is one native strategy instead of an API override.
+
 ## [v1.0.141] — 2026-10-03
 
 ### Added

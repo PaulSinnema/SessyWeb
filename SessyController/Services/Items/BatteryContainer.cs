@@ -207,14 +207,14 @@ namespace SessyController.Services.Items
         }
 
         /// <summary>
-        /// Stop charging.
+        /// Stop charging. The battery is handed to Sessy's native Idle strategy, so it holds without
+        /// an API setpoint. (Was open API with setpoint 0.)
         /// </summary>
         public async Task StopAll()
         {
             foreach (var bat in Batteries)
             {
-                await bat.SetActivePowerStrategyToOpenAPI();
-                await bat.SetPowerSetpointAsync(GetSetpoint(bat, 0));
+                await bat.SetActivePowerStrategyToIdle();
             }
         }
 
