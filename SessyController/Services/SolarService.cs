@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Options;
+﻿using Microsoft.Extensions.Options;
 using SessyCommon.Configurations;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
@@ -443,7 +443,7 @@ namespace SessyController.Services
                 return 1.0;
 
             double factor = totalRealized / totalForecast;
-            _logger.LogInformation($"Solar: Historical performance factor = {factor:F2} " +
+            _logger.LogWarning($"Solar: Historical performance factor = {factor:F2} " +
                 $"(Realized={totalRealized:F1} kWh, Forecast={totalForecast:F1} kWh, {HistoricalFactorLookbackDays} days)");
             return Math.Max(0.2, Math.Min(3.0, factor));
         }
@@ -517,7 +517,7 @@ namespace SessyController.Services
 #endif
             if (newDay || significantChange)
             {
-                _logger.LogInformation($"Solar: Performance factor applied: {factor:F2} (historical, last {HistoricalFactorLookbackDays} days)");
+                _logger.LogWarning($"Solar: Performance factor applied: {factor:F2} (historical, last {HistoricalFactorLookbackDays} days)");
                 _lastLoggedPerformanceFactor = factor;
                 _lastLoggedPerformanceDate = now.Date;
             }

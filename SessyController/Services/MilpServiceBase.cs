@@ -1000,6 +1000,19 @@ namespace SessyController.Services
             static double Clamp(double v, double min, double max)
                 => v < min ? min : (v > max ? max : v);
 
+            // Re-anchor the displayed SOC forecast on the measured SOC every cycle, not only on a
+            // rebuild. The committed plan (_plannedSocByQuarter / _planSocWhByTime) stays the single
+            // source of truth for the deviation metric and the rebuild trigger; here we only shape
+            // the forward line, applying the solver's per-quarter SOC deltas onto the live measured
+            // SOC so the forecast starts where the battery actually is and tracks the plan's intent
+            // from there. prevSolverSoc seeds from the solver SOC entering the first projected
+            // quarter so the first delta has the right reference.
+            double? prevSolverSoc = null;
+            if (_planSocWhByTime.TryGetValue(nowQuarter.AddMinutes(-15), out var socBeforeNow))
+                prevSolverSoc = socBeforeNow;
+            else if (_planStartQuarter == nowQuarter)
+                prevSolverSoc = _planStartSocWh;
+
             foreach (var qi in _quarterlyInfos.OrderBy(q => q.Time).Where(q => q.Time >= nowQuarter))
             {
                 if (!_planByTime.TryGetValue(qi.Time, out var act))
@@ -1014,12 +1027,16 @@ namespace SessyController.Services
 
                 double netLoadWh = qi.NetLoadWh;
 
-                // Prefer the SOC computed by the solver itself (single source of truth);
-                // only simulate for quarters the solver did not cover (e.g. predicted-price
-                // window beyond the horizon).
+                // Within the solver horizon, follow the solver's per-quarter SOC delta
+                // (re-anchored onto the measured SOC above); beyond it (predicted-price
+                // window) simulate the step from the running SOC.
                 if (_planSocWhByTime.TryGetValue(qi.Time, out var solverSoc))
                 {
-                    soc = Clamp(solverSoc, 0.0, capWh);
+                    if (prevSolverSoc.HasValue)
+                        soc = Clamp(soc + (solverSoc - prevSolverSoc.Value), 0.0, capWh);
+                    else
+                        soc = Clamp(solverSoc, 0.0, capWh); // no delta reference — fall back to absolute
+                    prevSolverSoc = solverSoc;
                     qi.SetChargeNeeded(act.Mode == Modes.Charging ? maxSocWh : minSocWh);
                 }
                 else if (act.Mode == Modes.Charging)

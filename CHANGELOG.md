@@ -11,7 +11,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.144] — 2026-10-05
+
+### Changed
+- **SOC forecast re-anchors on the measured SOC every cycle.** The forward "charge remaining" line
+  used the solver's absolute SOC from the last rebuild, so between rebuilds it drifted away from the
+  real SOC as soon as actual consumption or solar deviated from the forecast. It now applies the
+  plan's per-quarter SOC deltas onto the live measured SOC each cycle, so the forecast starts where
+  the battery actually is and shows the plan's intent from there. The committed plan stays the
+  reference for the deviation metric and the rebuild trigger, so control behaviour is unchanged.
+- **Solar performance factor is now logged at Warning level.** The daily "Historical performance
+  factor" (realized vs forecast kWh, raw ratio) and "Performance factor applied" lines were at
+  Information and therefore invisible at the usual log level. They now surface once per day, so the
+  solar-forecast correction factor can be seen without lowering the log level.
+
 ## [v1.0.143] — 2026-10-05
+
 
 ### Fixed
 - **Day-ahead prices are now merged across all batteries.** The price fetch read the schedule of
