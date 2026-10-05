@@ -27,6 +27,9 @@ namespace SessyWeb.Shared
         [Inject]
         private NavigationManager Navigation { get; set; } = default!;
 
+        /// <summary>Gates the developer-only sidebar items (e.g. Planner analyse).</summary>
+        private bool DeveloperOptions => SettingsService.Current?.DeveloperOptions ?? false;
+
         // ── Tips & Checks indicator ──────────────────────────────────────────
         //
         // The checks only ran when the tab was opened, so a real problem could sit there unseen for

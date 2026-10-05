@@ -1,0 +1,142 @@
+﻿@page "/planneranalysis"
+@inherits PageBase
+
+@using Radzen
+@using Radzen.Blazor
+@using SessyController.Services
+
+<div class="rz-p-2" style="display:flex; flex-direction:column; gap:1rem;">
+
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem">
+        <RadzenText TextStyle="TextStyle.H5" Style="margin:0;">Planner analysis</RadzenText>
+        <RadzenButton Text="Refresh" Icon="refresh" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                      Click="@LoadAsync" IsBusy="@_busy" />
+    </RadzenStack>
+
+    @if (_analysis == null)
+    {
+        <RadzenText>Loading…</RadzenText>
+    }
+    else if (!_analysis.HasPlan)
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Info" ShowIcon="true" AllowClose="false">
+            There is no planned quarter from now. Wait for the next planner cycle.
+        </RadzenAlert>
+    }
+    else
+    {
+        @* ── Summary ─────────────────────────────────────────────── *@
+        <RadzenCard>
+            <RadzenText TextStyle="TextStyle.Subtitle1" Style="margin:0 0 0.5rem 0;">Summary</RadzenText>
+            <RadzenText Style="margin:0 0 0.75rem 0;">@_analysis.Description</RadzenText>
+            <RadzenText TextStyle="TextStyle.Caption" Style="opacity:0.7;">
+                Period @_analysis.PeriodStart?.ToString("dd-MM-yyyy HH:mm") –
+                @_analysis.PeriodEnd?.ToString("dd-MM-yyyy HH:mm") · capacity @_analysis.CapacityKWh.ToString("F1") kWh
+            </RadzenText>
+            <RadzenStack Orientation="Orientation.Horizontal" Wrap="FlexWrap.Wrap" Gap="0.5rem" Style="margin-top:0.75rem;">
+                <RadzenBadge BadgeStyle="BadgeStyle.Info" Style="color:#212529;" Text="@($"Charge {_analysis.Totals.ChargingQuarters}")" />
+                <RadzenBadge BadgeStyle="BadgeStyle.Success" Style="color:#212529;" Text="@($"Discharge→grid {_analysis.Totals.DischargingQuarters}")" />
+                <RadzenBadge BadgeStyle="BadgeStyle.Base" Text="@($"ZeroNetHome {_analysis.Totals.ZeroNetHomeQuarters}")" />
+                <RadzenBadge BadgeStyle="BadgeStyle.Base" Text="@($"Off {_analysis.Totals.DisabledQuarters}")" />
+                <RadzenBadge BadgeStyle="@(_analysis.Totals.RemarkCount > 0 ? BadgeStyle.Warning : BadgeStyle.Success)"
+                             Style="color:#212529;"
+                             Text="@($"Improvements {_analysis.Totals.RemarkCount}")" />
+            </RadzenStack>
+        </RadzenCard>
+
+        @* ── Plan per quarter ────────────────────────────────────── *@
+        <RadzenText TextStyle="TextStyle.Subtitle1" Style="margin:0;">Plan per quarter</RadzenText>
+        <RadzenText TextStyle="TextStyle.Caption" Style="opacity:0.7; margin:0;">
+            Expand a row for the reason, the improvement points and the calculations of that quarter.
+        </RadzenText>
+
+        <RadzenDataGrid Data="@_analysis.Quarters" TItem="PlannerQuarterAnalysis"
+                        AllowColumnResize="true" AllowSorting="true" AllowPaging="true" PageSize="24"
+                        ExpandMode="DataGridExpandMode.Single" Style="width:100%;">
+            <Template Context="q">
+                <RadzenStack Gap="0.5rem" class="rz-p-3">
+                    <RadzenText TextStyle="TextStyle.Subtitle2" Style="margin:0;">Why this mode</RadzenText>
+                    <RadzenText Style="margin:0;">@q.Reason</RadzenText>
+
+                    @if (!string.IsNullOrEmpty(q.SolarExportNote))
+                    {
+                        <RadzenText TextStyle="TextStyle.Subtitle2" Style="margin:0.5rem 0 0 0;">Solar export</RadzenText>
+                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Style="margin:0;">
+                            <RadzenIcon Icon="wb_sunny" Style="color: var(--rz-warning);" />
+                            <RadzenText Style="margin:0;">@q.SolarExportNote</RadzenText>
+                        </RadzenStack>
+                    }
+
+                    @if (q.Remarks.Count > 0)
+                    {
+                        <RadzenText TextStyle="TextStyle.Subtitle2" Style="margin:0.5rem 0 0 0;">Improvement points</RadzenText>
+                        @foreach (var r in q.Remarks)
+                        {
+                            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Style="margin:0;">
+                                <RadzenIcon Icon="warning" Style="color: var(--rz-warning);" />
+                                <RadzenText Style="margin:0;">@r</RadzenText>
+                            </RadzenStack>
+                        }
+                    }
+
+                    <RadzenText TextStyle="TextStyle.Subtitle2" Style="margin:0.5rem 0 0 0;">Calculations &amp; data</RadzenText>
+                    <RadzenRow Gap="1rem">
+                        <RadzenColumn Size="12" SizeMD="6">
+                            <RadzenDataList Data="@QuarterFacts(q)" TItem="PlannerParam" Style="margin:0;">
+                                <Template Context="f">
+                                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" Style="width:100%;">
+                                        <RadzenText TextStyle="TextStyle.Body2" Style="opacity:0.7; margin:0;">@f.Name</RadzenText>
+                                        <RadzenText TextStyle="TextStyle.Body2" Style="margin:0;">@f.Value</RadzenText>
+                                    </RadzenStack>
+                                </Template>
+                            </RadzenDataList>
+                        </RadzenColumn>
+                    </RadzenRow>
+                </RadzenStack>
+            </Template>
+            <Columns>
+                <RadzenDataGridColumn TItem="PlannerQuarterAnalysis" Title="Time" Width="70px">
+                    <Template Context="q">@q.Time.ToString("HH:mm")</Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="PlannerQuarterAnalysis" Title="Mode" Width="120px">
+                    <Template Context="q">
+                        <RadzenBadge BadgeStyle="@ModeBadge(q.Mode)" Style="@BadgeTextStyle(ModeBadge(q.Mode))" Text="@q.Mode" IsPill="true" />
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="PlannerQuarterAnalysis" Title="Price" Width="95px">
+                    <Template Context="q">
+                        <RadzenBadge BadgeStyle="@PriceBadge(q.PricePosition)" Style="@BadgeTextStyle(PriceBadge(q.PricePosition))" Text="@q.PricePosition" IsPill="true" />
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="PlannerQuarterAnalysis" Property="BuyPrice" Title="Buy €" FormatString="{0:F3}" Width="80px" />
+                <RadzenDataGridColumn TItem="PlannerQuarterAnalysis" Property="SellPrice" Title="Sell €" FormatString="{0:F3}" Width="80px" />
+                <RadzenDataGridColumn TItem="PlannerQuarterAnalysis" Property="ChargePowerW" Title="Charge W" FormatString="{0:F0}" Width="90px" />
+                <RadzenDataGridColumn TItem="PlannerQuarterAnalysis" Property="DischargePowerW" Title="Discharge W" FormatString="{0:F0}" Width="100px" />
+                <RadzenDataGridColumn TItem="PlannerQuarterAnalysis" Property="SocPct" Title="SOC %" FormatString="{0:F0}" Width="75px" />
+                <RadzenDataGridColumn TItem="PlannerQuarterAnalysis" Property="SolarForecastWh" Title="Solar Wh" FormatString="{0:F0}" Width="90px" />
+                <RadzenDataGridColumn TItem="PlannerQuarterAnalysis" Property="ConsumptionForecastW" Title="Cons. W" FormatString="{0:F0}" Width="90px" />
+                <RadzenDataGridColumn TItem="PlannerQuarterAnalysis" Property="NetLoadWh" Title="Net load Wh" FormatString="{0:F0}" Width="100px" />
+                <RadzenDataGridColumn TItem="PlannerQuarterAnalysis" Title="Remarks" Width="80px" Sortable="false">
+                    <Template Context="q">
+                        @if (q.Remarks.Count > 0)
+                        {
+                            <RadzenBadge BadgeStyle="BadgeStyle.Warning" Style="color:#212529;" IsPill="true" Text="@q.Remarks.Count.ToString()" />
+                        }
+                    </Template>
+                </RadzenDataGridColumn>
+            </Columns>
+        </RadzenDataGrid>
+
+        @* ── Footer: planner parameters ──────────────────────────── *@
+        <RadzenFieldset Text="Planner parameters that produced this plan">
+            <RadzenDataGrid Data="@_analysis.Parameters" TItem="PlannerParam"
+                            AllowColumnResize="true" Density="Density.Compact" Style="width:100%;">
+                <Columns>
+                    <RadzenDataGridColumn TItem="PlannerParam" Property="Group" Title="Group" Width="130px" />
+                    <RadzenDataGridColumn TItem="PlannerParam" Property="Name" Title="Parameter" />
+                    <RadzenDataGridColumn TItem="PlannerParam" Property="Value" Title="Value" />
+                </Columns>
+            </RadzenDataGrid>
+        </RadzenFieldset>
+    }
+</div>

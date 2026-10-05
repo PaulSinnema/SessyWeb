@@ -11,6 +11,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.142] — 2026-10-05
+
+### Added
+- **Planner analysis page (sidebar, developer-only).** A new page — second in the sidebar, shown only
+  when **Developer options** is on — that analyses the current plan. It has a summary, a per-quarter
+  grid (mode, price position, buy/sell, charge/discharge power, SOC, estimated solar, estimated
+  consumption, net load, remark count) and an expandable detail per quarter with: why that mode was
+  chosen, a motivation of why solar is or is not exported (storing for a dearer later moment versus
+  exporting now), the relevant data and calculations, and improvement remarks where the plan looks
+  sub-optimal (e.g. discharging cheap while a dearer hour is ahead, or keeping solar while exporting
+  now would pay more). A footer lists every planner parameter that shaped the plan. Read-only and
+  heuristic; built from the stored plan and current settings.
+
 ## [v1.0.141] — 2026-10-03
 
 ### Added

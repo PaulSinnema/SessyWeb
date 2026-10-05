@@ -80,6 +80,13 @@
                                      Path="charginghours"
                                      Click="@CollapseMenu"
                                      Icon="bolt" />
+                @if (DeveloperOptions)
+                {
+                    <RadzenPanelMenuItem Text="Planner analysis"
+                                         Path="planneranalysis"
+                                         Click="@CollapseMenu"
+                                         Icon="analytics" />
+                }
                 @* No inverter configured means no measurements to show — see SystemCapabilitiesService. *@
                 @if (Capabilities.HasSolar)
                 {

@@ -136,6 +136,8 @@ builder.Services.AddScoped<EnergyStatisticsService>();
 builder.Services.AddScoped<PlanDumpService>();
 // Rebuilds a past solve-input from the database for replay (developer tooling).
 builder.Services.AddSingleton<SolveInputReconstructionService>();
+// Read-only analysis of the current plan for the developer "Planner analyse" page.
+builder.Services.AddSingleton<PlannerAnalysisService>();
 builder.Services.AddSingleton<ThrottleAnalysisService>();
 builder.Services.AddSingleton<BatteryEfficiencyService>();
 builder.Services.AddSingleton<ReplacementCostService>();
