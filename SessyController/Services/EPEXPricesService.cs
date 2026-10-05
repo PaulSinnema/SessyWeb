@@ -230,8 +230,21 @@ namespace SessyController.Services
         /// Assigning only on success is the point: the previous version overwrote _prices with the
         /// result unconditionally, so one failed fetch wiped every price it had.
         /// </summary>
+        // Tracks the tomorrow-date a day-ahead fetch was last announced for, so the notification
+        // fires once when tomorrow's prices actually arrive, not on every poll or source flip.
+        private DateTime? _lastDayAheadNotifiedForDate;
+
+        // True when the price set already covers tomorrow. A fetch that returns only today is not a
+        // day-ahead fetch, so claiming one would contradict the chart (tomorrow still predicted).
+        private static bool CoversTomorrow(IEnumerable<DateTime> times, DateTime tomorrow)
+        {
+            return times.Any(t => t >= tomorrow && t < tomorrow.AddDays(1));
+        }
+
         private async Task FetchPricesFromSources(CancellationToken cancellationToken)
         {
+            var tomorrow = _timeZoneService.Now.AddDays(1).Date;
+
             var fromBatteries = await FetchDayAheadPricesAsync().ConfigureAwait(false);
 
             if (fromBatteries != null && fromBatteries.Count > 0)
@@ -239,8 +252,10 @@ namespace SessyController.Services
                 _prices = fromBatteries;
                 PricesAvailable = true;
 
-                if (PriceSource != "Sessy")
+                if (CoversTomorrow(fromBatteries.Keys, tomorrow) && _lastDayAheadNotifiedForDate != tomorrow)
                 {
+                    _lastDayAheadNotifiedForDate = tomorrow;
+
                     _logger.LogWarning($"Day-ahead prices now come from the batteries ({fromBatteries.Count} quarters).");
 
                     await _notificationService.AddAsync(
@@ -263,8 +278,10 @@ namespace SessyController.Services
                 _prices = fromEntsoe;
                 PricesAvailable = true;
 
-                if (PriceSource != "ENTSO-E")
+                if (CoversTomorrow(fromEntsoe.Keys, tomorrow) && _lastDayAheadNotifiedForDate != tomorrow)
                 {
+                    _lastDayAheadNotifiedForDate = tomorrow;
+
                     _logger.LogWarning($"Day-ahead prices now come from ENTSO-E ({fromEntsoe.Count} quarters). " +
                                        "Sessy's own planned power is unavailable from this source.");
 
@@ -644,40 +661,44 @@ namespace SessyController.Services
         {
             var list = new ConcurrentDictionary<DateTime, DynamichSchedule>();
 
-            var battery = _batteryContainer.Batteries?.FirstOrDefault();
+            var batteries = _batteryContainer.Batteries;
 
-            if (battery == null)
+            if (batteries == null || !batteries.Any())
             {
                 _logger.LogWarning("No batteries configured — cannot read day-ahead prices from them.");
                 return list;
             }
 
-            SessyScheduleResponse? dynamicSchedule;
-
-            try
+            // Merge every battery's energy prices. Their schedule windows can differ: one battery may
+            // still return yesterday+today while another already carries today+tomorrow. Reading only
+            // the first battery (the old behaviour) then misses tomorrow, so union them all and keep
+            // the widest coverage — TryAdd keeps the first battery that offers a slot, later batteries
+            // only fill the gaps.
+            foreach (var battery in batteries)
             {
-                dynamicSchedule = await battery.GetScheduleAsync();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning($"Could not read the schedule from battery {battery.Id}: {ex.Message}");
-                return list;
-            }
+                SessyScheduleResponse? dynamicSchedule;
 
-            if (dynamicSchedule?.EnergyPrices == null)
-                return list;
-
-            foreach (var ep in dynamicSchedule.EnergyPrices)
-            {
-                var ds = new DynamichSchedule { Price = ep.Price / 100000.0 };
-
-                ds.Power = dynamicSchedule.DynamicSchedule?
-                    .FirstOrDefault(d => d.StartTime == ep.StartTime)?.Power ?? 0.0;
-
-                if (!list.TryAdd(ep.StartTime, ds))
+                try
                 {
-                    list[ep.StartTime].Price = ds.Price;
-                    list[ep.StartTime].Power = ds.Power;
+                    dynamicSchedule = await battery.GetScheduleAsync();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning($"Could not read the schedule from battery {battery.Id}: {ex.Message}");
+                    continue;
+                }
+
+                if (dynamicSchedule?.EnergyPrices == null)
+                    continue;
+
+                foreach (var ep in dynamicSchedule.EnergyPrices)
+                {
+                    var ds = new DynamichSchedule { Price = ep.Price / 100000.0 };
+
+                    ds.Power = dynamicSchedule.DynamicSchedule?
+                        .FirstOrDefault(d => d.StartTime == ep.StartTime)?.Power ?? 0.0;
+
+                    list.TryAdd(ep.StartTime, ds);
                 }
             }
 

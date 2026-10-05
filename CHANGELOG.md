@@ -11,6 +11,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.143] — 2026-10-05
+
+### Fixed
+- **"Day-ahead prices fetched" notification no longer fires without tomorrow's prices.** The
+  notification used to fire whenever the batteries returned any prices, even a schedule that held
+  only today — so it could announce success while the price chart still showed tomorrow as
+  predicted. It now fires only when the fetched set actually covers tomorrow, and once per day, so
+  the notification and the chart agree.
+
 ## [v1.0.142] — 2026-10-05
 
 ### Added
