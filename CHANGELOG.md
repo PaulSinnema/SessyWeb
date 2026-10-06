@@ -11,6 +11,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.146] — 2026-10-06
+
+### Fixed
+- **Plan no longer overestimates charge power above ~40% SOC.** Measured over 15-09..06-10, the
+  plan expected 4.7-5.4 kW there while the batteries sustained 3.2-3.9 kW, so charging delivered
+  ~75% of the planned energy and the real SOC fell behind the forecast. The old estimate kept the
+  highest momentary power reading per SOC band. The planner now uses the median power the
+  batteries actually stored per quarter, per 10% SOC band, over the last 60 days (only quarters
+  that requested full power and followed another charging quarter). Bands without enough data
+  keep the old estimate. Effect: charging is spread over more cheap quarters instead of assuming
+  power that never arrives.
+
 ## [v1.0.145] — 2026-10-06
 
 ### Fixed

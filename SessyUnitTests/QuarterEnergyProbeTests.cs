@@ -52,6 +52,132 @@ namespace SessyTests.Services
             return rows;
         }
 
+        /// <summary>
+        /// Charging quarters by SOC band: planned power, power snapshots at the start (ActualQuarter)
+        /// and end (QuarterlyMeasurement) of the quarter, and the SOC change. Separates "the bank
+        /// took less AC power" from "the energy did not show up in the SOC".
+        /// </summary>
+        [Fact]
+        public void Probe_charge_power_by_soc()
+        {
+            if (!File.Exists(DatabasePath)) return;
+
+            var rows = new List<(double PrevSoc, double PlanW, double StartW, double EndW, double DeltaWh)>();
+            using (var connection = new SqliteConnection($"Data Source={DatabasePath};Mode=ReadOnly"))
+            {
+                connection.Open();
+                using var command = connection.CreateCommand();
+                command.CommandText =
+                    @"select prev.BatteryStateOfChargeWh, p.PlannedChargePowerW, a.ActualPowerW,
+                             m.BatteryPowerWatts, m.BatteryStateOfChargeWh - prev.BatteryStateOfChargeWh
+                      from PlannedQuarters p
+                      join QuarterlyMeasurements m on m.Time = p.Time
+                      join QuarterlyMeasurements prev on prev.Time = datetime(p.Time, '-15 minutes')
+                      join ActualQuarters a on a.Time = p.Time
+                      where p.Time >= $start and p.Time < $end
+                        and p.PlannedMode = 'Charging' and m.BatteryMode = 1
+                        and m.IsReliable = 1 and prev.IsReliable = 1";
+                command.Parameters.AddWithValue("$start", Start.ToString("yyyy-MM-dd HH:mm:ss"));
+                command.Parameters.AddWithValue("$end", End.ToString("yyyy-MM-dd HH:mm:ss"));
+                using var reader = command.ExecuteReader();
+                while (reader.Read())
+                    rows.Add((reader.GetDouble(0), reader.GetDouble(1), Math.Abs(reader.GetDouble(2)),
+                              Math.Abs(reader.GetDouble(3)), reader.GetDouble(4)));
+            }
+
+            _output.WriteLine($"{rows.Count} charging quarters. W = mean power; eff = SOC gain / mean snapshot energy");
+            foreach (var band in rows.GroupBy(r => Math.Min((int)(r.PrevSoc / 16200.0 * 10), 9)).OrderBy(g => g.Key))
+            {
+                var b = band.ToList();
+                double plan = b.Average(r => r.PlanW);
+                double start = b.Average(r => r.StartW);
+                double end = b.Average(r => r.EndW);
+                double dcW = b.Average(r => r.DeltaWh * 4.0);
+                double eff = dcW / ((start + end) / 2.0);
+                _output.WriteLine(
+                    $"SOC {band.Key * 10,2}-{band.Key * 10 + 10,3}%: {b.Count,3} q  plan {plan,5:F0}  start {start,5:F0}  " +
+                    $"end {end,5:F0}  SOC-gain {dcW,5:F0} W  end/plan {end / plan,4:P0}  eff {eff:F2}");
+
+                // Spread of the quarter's average power (SOC gain / 0.93): limit or variation?
+                var avg = b.Select(r => r.DeltaWh * 4.0 / 0.93).OrderBy(v => v).ToList();
+                double P(double q) => avg[(int)Math.Min(avg.Count - 1, Math.Round(q * (avg.Count - 1)))];
+                _output.WriteLine($"      avg AC p10 {P(0.1),5:F0}  p50 {P(0.5),5:F0}  p90 {P(0.9),5:F0}  max {avg[^1],5:F0}");
+            }
+        }
+
+        /// <summary>
+        /// Charge power at 40-80% SOC per month, from SOC gain only (no plan needed), to see
+        /// whether it changed when (dis)charging moved to the P1 grid target (v1.0.12x, early Sept).
+        /// </summary>
+        [Fact]
+        public void Probe_charge_power_history()
+        {
+            if (!File.Exists(DatabasePath)) return;
+
+            var rows = new List<(DateTime Time, double GainWh, double EndW)>();
+            using (var connection = new SqliteConnection($"Data Source={DatabasePath};Mode=ReadOnly"))
+            {
+                connection.Open();
+                using var command = connection.CreateCommand();
+                command.CommandText =
+                    @"select m.Time, m.BatteryStateOfChargeWh - prev.BatteryStateOfChargeWh, m.BatteryPowerWatts
+                      from QuarterlyMeasurements m
+                      join QuarterlyMeasurements prev on prev.Time = datetime(m.Time, '-15 minutes')
+                      where m.BatteryMode = 1 and prev.BatteryMode = 1
+                        and m.IsReliable = 1 and prev.IsReliable = 1
+                        and prev.BatteryStateOfChargeWh between 6480 and 12960
+                        and m.Time < $end
+                      order by m.Time";
+                command.Parameters.AddWithValue("$end", End.ToString("yyyy-MM-dd HH:mm:ss"));
+                using var reader = command.ExecuteReader();
+                while (reader.Read())
+                    rows.Add((DateTime.Parse(reader.GetString(0)), reader.GetDouble(1), Math.Abs(reader.GetDouble(2))));
+            }
+
+            _output.WriteLine("Charging quarters (previous quarter also charging), SOC 40-80%:");
+            foreach (var g in rows.GroupBy(r => new DateTime(r.Time.Year, r.Time.Month, r.Time.Day < 16 ? 1 : 16)))
+            {
+                var gain = g.Select(r => r.GainWh * 4.0).OrderBy(v => v).ToList();
+                double P(double q) => gain[(int)Math.Min(gain.Count - 1, Math.Round(q * (gain.Count - 1)))];
+                _output.WriteLine($"{g.Key:yyyy-MM-dd}: {g.Count(),4} q  SOC-gain W p10 {P(0.1),5:F0}  p50 {P(0.5),5:F0}  " +
+                                  $"p90 {P(0.9),5:F0}  end snapshot mean {g.Average(r => r.EndW),5:F0}");
+            }
+        }
+
+        /// <summary>What the charge taper fits on: snapshot power / PlannedUnthrottledPowerW, per SOC band.</summary>
+        [Fact]
+        public void Probe_taper_ratio_inputs()
+        {
+            if (!File.Exists(DatabasePath)) return;
+
+            var rows = new List<(double Soc, double UnthrottledW, double PlanW, double EndW)>();
+            using (var connection = new SqliteConnection($"Data Source={DatabasePath};Mode=ReadOnly"))
+            {
+                connection.Open();
+                using var command = connection.CreateCommand();
+                command.CommandText =
+                    @"select m.BatteryStateOfChargeWh, p.PlannedUnthrottledPowerW, p.PlannedChargePowerW, m.BatteryPowerWatts
+                      from PlannedQuarters p join QuarterlyMeasurements m on m.Time = p.Time
+                      where p.Time >= $start and p.Time < $end and m.BatteryMode = 1
+                        and p.PlannedUnthrottledPowerW > 0";
+                command.Parameters.AddWithValue("$start", End.AddDays(-31).ToString("yyyy-MM-dd HH:mm:ss"));
+                command.Parameters.AddWithValue("$end", End.ToString("yyyy-MM-dd HH:mm:ss"));
+                using var reader = command.ExecuteReader();
+                while (reader.Read())
+                    rows.Add((reader.GetDouble(0), reader.GetDouble(1), reader.GetDouble(2), Math.Abs(reader.GetDouble(3))));
+            }
+
+            _output.WriteLine($"{rows.Count} charging quarters with PlannedUnthrottledPowerW (31 days)");
+            foreach (var band in rows.GroupBy(r => Math.Min((int)(r.Soc / 16200.0 * 10), 9)).OrderBy(g => g.Key))
+            {
+                var ratios = band.Select(r => Math.Min(r.EndW / r.UnthrottledW, 1.02)).OrderByDescending(v => v).ToList();
+                _output.WriteLine(
+                    $"SOC {band.Key * 10,2}%: {band.Count(),3} q  unthrottled {band.Average(r => r.UnthrottledW),5:F0}  " +
+                    $"plan {band.Average(r => r.PlanW),5:F0}  end {band.Average(r => r.EndW),5:F0}  " +
+                    $"ratio top {ratios[0]:F2}  median {ratios[ratios.Count / 2]:F2}");
+            }
+        }
+
         [Fact]
         public void Probe_planned_vs_measured_quarter_energy()
         {

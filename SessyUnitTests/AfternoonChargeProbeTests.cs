@@ -97,6 +97,38 @@ namespace SessyTests.Services
             Run("today only (no predicted tomorrow)", opt, Spec(0.467, capability),
                 points.Where(p => p.Start.Date == HorizonStart.Date).ToList(),
                 bounds.Where(b => b.Time.Date == HorizonStart.Date).ToList());
+
+            // v1.0.146: sustained charge capability from SOC gain, same filter as the service.
+            var chargeCapability = ThrottleAnalysisService.FitChargeCapability(SustainedChargeSamples());
+            _output.WriteLine("");
+            _output.WriteLine($"charge capability (DC W) per 10% bin: {string.Join(" ", chargeCapability.BinPowerW.Select(w => w.ToString("F0")))}");
+            Run("+ measured charge capability", opt, Spec(0.467, capability) with { ChargeCapability = chargeCapability }, points, bounds);
+        }
+
+        private static List<(double Soc, double PowerW)> SustainedChargeSamples()
+        {
+            var samples = new List<(double, double)>();
+            using var connection = new SqliteConnection($"Data Source={DatabasePath};Mode=ReadOnly");
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText =
+                @"select prev.BatteryStateOfChargeWh, m.BatteryStateOfChargeWh - prev.BatteryStateOfChargeWh
+                  from QuarterlyMeasurements m
+                  join QuarterlyMeasurements prev on prev.Time = datetime(m.Time, '-15 minutes')
+                  join PlannedQuarters p on p.Time = m.Time
+                  where m.Time >= $start and m.Time < $end
+                    and m.BatteryMode = 1 and prev.BatteryMode = 1
+                    and m.IsReliable = 1 and prev.IsReliable = 1
+                    and p.PlannedUnthrottledPowerW >= 0.9 * 6600";
+            command.Parameters.AddWithValue("$start", HorizonStart.AddDays(-60).ToString("yyyy-MM-dd HH:mm:ss"));
+            command.Parameters.AddWithValue("$end", HorizonStart.ToString("yyyy-MM-dd HH:mm:ss"));
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                double gain = reader.GetDouble(1);
+                if (gain > 0) samples.Add((reader.GetDouble(0) / (CapacityKWh * 1000.0), gain * 4.0));
+            }
+            return samples;
         }
 
         private void Run(string label, SessyOptions opt, BatterySpec spec, List<PricePoint> points, List<SocBound> bounds)

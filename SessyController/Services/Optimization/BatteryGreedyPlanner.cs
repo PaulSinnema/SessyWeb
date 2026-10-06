@@ -184,6 +184,7 @@ namespace SessyController.Services.Optimization
             public required double[] MinSocFrom { get; init; }
             public required ChargeTaper Taper { get; init; }
             public required ChargeCapabilityFloor ChargeFloor { get; init; }
+            public required ChargeCapability ChargeCapability { get; init; }
             public required DischargeCapability DischargeCapability { get; init; }
 
             /// <summary>
@@ -215,6 +216,15 @@ namespace SessyController.Services.Optimization
                 if (Capacity <= 0.0) return cap;
 
                 double socFraction = socStartKWh / Capacity;
+
+                // Measured sustained power wins where this SOC bin has it; taper and floor below
+                // only fill bins without data. Stored as DC (SOC gain), converted back to AC here.
+                double measuredDcW = ChargeCapability.PowerW(socFraction);
+                if (measuredDcW > 0.0)
+                {
+                    double dcKWh = measuredDcW / 1000.0 * Dt;
+                    return Math.Min(cap, dcKWh / ChEffFor(dcKWh));
+                }
 
                 double tapered = cap;
                 if (Taper.Samples > 0)
@@ -329,6 +339,7 @@ namespace SessyController.Services.Optimization
                 MaxSoc = maxSoc,
                 Taper = spec.ChargeTaper ?? ChargeTaper.None,
                 ChargeFloor = spec.ChargeFloor ?? ChargeCapabilityFloor.None,
+                ChargeCapability = spec.ChargeCapability ?? ChargeCapability.None,
                 DischargeCapability = spec.DischargeCapability ?? DischargeCapability.None,
                 DiscountAt = discountAt
             };

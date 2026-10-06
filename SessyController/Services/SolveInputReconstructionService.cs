@@ -88,6 +88,8 @@ namespace SessyController.Services
                 .GetDischargeCapabilityAsync(cfg.TotalRawDischargingCapacity);
             var chargeFloor = await _throttleService
                 .GetChargeCapabilityFloorAsync(cfg.TotalRawChargingCapacity);
+            var chargeCapability = await _throttleService
+                .GetChargeCapabilityAsync(cfg.TotalRawChargingCapacity);
 
             var spec = new BatterySpec(
                 CapacityKWh: capKWh,
@@ -99,7 +101,8 @@ namespace SessyController.Services
                 ChargeTaper: chargeTaper,
                 Efficiency: efficiencyCurve,
                 DischargeCapability: dischargeCapability,
-                ChargeFloor: chargeFloor);
+                ChargeFloor: chargeFloor,
+                ChargeCapability: chargeCapability);
 
             double replacementCost = await _replacementCostService.GetReplacementCostAsync();
             if (replacementCost <= 0.0)

@@ -162,6 +162,19 @@ namespace SessyController.Services
                         $"(taper says {chargeTaper.Ratio(0.5) * maxChargeKW * 1000.0:F0} W and " +
                         $"{chargeTaper.Ratio(0.8) * maxChargeKW * 1000.0:F0} W).");
 
+                // Sustained charge power from SOC gain. Where a SOC bin has it, it replaces taper
+                // and floor: both keep the top of momentary snapshots and overstated the bank.
+                var chargeCapability = await _throttleAnalysisService
+                    .GetChargeCapabilityAsync(_sessyBatteryConfig.TotalRawChargingCapacity)
+                    .ConfigureAwait(false);
+
+                if (chargeCapability.Samples > 0)
+                    _logger.LogInformation(
+                        $"Charge capability measured on {chargeCapability.Samples} quarters in " +
+                        $"{chargeCapability.CoveredBins} SOC bins: " +
+                        $"{chargeCapability.PowerW(0.3):F0} W at 30% SOC, {chargeCapability.PowerW(0.5):F0} W at 50%, " +
+                        $"{chargeCapability.PowerW(0.8):F0} W at 80% (DC).");
+
                 // Temperatures for the heat build-up term: measured history for the part of the
                 // 48-hour window that lies in the past, forecast for the rest.
                 var temperatureByHour = await BuildTemperatureSeriesAsync(quarters, nowQuarter)
@@ -260,7 +273,8 @@ namespace SessyController.Services
                     ChargeTaper: chargeTaper,
                     Efficiency: efficiencyCurve,
                     DischargeCapability: dischargeCapability,
-                    ChargeFloor: chargeFloor);
+                    ChargeFloor: chargeFloor,
+                    ChargeCapability: chargeCapability);
 
                 // What replacing a kWh will cost, measured over a trailing window. It prices both
                 // the floor under selling stock and the option of keeping energy past the end of

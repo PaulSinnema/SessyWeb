@@ -572,6 +572,131 @@ namespace SessyController.Services
             return used == 0 ? ChargeCapabilityFloor.None : new ChargeCapabilityFloor(floors, used);
         }
 
+        // ── Sustained charge capability ───────────────────────────────────────
+
+        /// <summary>SOC bins for the sustained charge capability — 10% wide, enough samples per bin.</summary>
+        private const int ChargeCapabilityBins = 10;
+
+        /// <summary>Below this a bin's median is noise.</summary>
+        private const int MinSamplesPerChargeCapabilityBin = 8;
+
+        /// <summary>Recent window: the measured limit drifts with season and battery state.</summary>
+        private const int ChargeCapabilityDays = 60;
+
+        /// <summary>Only quarters that asked at least this share of nameplate measure the hardware.</summary>
+        private const double ChargeCapabilityMinRequestShare = 0.9;
+
+        private ChargeCapability? _cachedChargeCapability;
+        private DateTime _cachedChargeCapabilityAt = DateTime.MinValue;
+
+        /// <summary>
+        /// Sustained charge power per SOC bin from SOC gain — see <see cref="ChargeCapability"/>.
+        /// Cached like the taper.
+        /// </summary>
+        /// <param name="nameplateW">Combined nameplate charge power; only full requests count.</param>
+        public async Task<ChargeCapability> GetChargeCapabilityAsync(double nameplateW)
+        {
+            var now = _timeZoneService.Now;
+
+            if (_cachedChargeCapability != null && now - _cachedChargeCapabilityAt < TaperCacheTime)
+                return _cachedChargeCapability;
+
+            double capacity = _batteryContainer.GetTotalCapacity();
+
+            var capability = capacity <= 0.0 || nameplateW <= 0.0
+                ? ChargeCapability.None
+                : FitChargeCapability(await CollectSustainedChargeSamplesAsync(now, capacity, nameplateW).ConfigureAwait(false));
+
+            _cachedChargeCapability = capability;
+            _cachedChargeCapabilityAt = now;
+
+            return capability;
+        }
+
+        /// <summary>
+        /// (SOC fraction at the start, DC watts stored) for every quarter that charged at a full
+        /// request, executed by us, with the quarter before it charging too.
+        ///
+        /// Full request only: a quarter planned below its cap measures the request, not the bank,
+        /// and a median over those would sink with every lower plan — the loop SelectEnvelope was
+        /// written against. A quarter planned at its cap requests nameplate, so it measures the
+        /// hardware whatever the estimate was.
+        /// </summary>
+        private async Task<List<(double Soc, double PowerW)>> CollectSustainedChargeSamplesAsync(
+            DateTime now, double capacity, double nameplateW)
+        {
+            var from = now.AddDays(-ChargeCapabilityDays);
+
+            var measurements = await _measurementDataService.GetList(async set =>
+                await Task.FromResult(set
+                    .Where(m => m.Time >= from.AddMinutes(-15) && m.Time <= now)
+                    .ToList()));
+
+            var plans = await _plannedQuarterDataService.GetList(async set =>
+                await Task.FromResult(set
+                    .Where(p => p.Time >= from && p.Time <= now && p.PlannedUnthrottledPowerW > 0.0)
+                    .ToList()));
+
+            var foreignQuarters = await LoadForeignQuartersAsync(from, now).ConfigureAwait(false);
+
+            var byTime = measurements.GroupBy(m => m.Time).ToDictionary(g => g.Key, g => g.First());
+            var requestByTime = plans.GroupBy(p => p.Time).ToDictionary(g => g.Key, g => g.First().PlannedUnthrottledPowerW);
+
+            var samples = new List<(double, double)>();
+
+            foreach (var m in byTime.Values)
+            {
+                if (m.Time < from || m.BatteryMode != Modes.Charging || !m.IsReliable) continue;
+                if (foreignQuarters.Contains(m.Time)) continue;
+                if (!requestByTime.TryGetValue(m.Time, out var requestedW)) continue;
+                if (requestedW < ChargeCapabilityMinRequestShare * nameplateW) continue;
+
+                // Previous quarter charging too: no ramp-up inside this one.
+                if (!byTime.TryGetValue(m.Time.AddMinutes(-15), out var prev)) continue;
+                if (prev.BatteryMode != Modes.Charging || !prev.IsReliable) continue;
+
+                double gainWh = m.BatteryStateOfChargeWh - prev.BatteryStateOfChargeWh;
+                if (gainWh <= 0.0) continue;
+
+                double socFraction = prev.BatteryStateOfChargeWh / capacity;
+                if (socFraction < 0.0 || socFraction > 1.0) continue;
+
+                samples.Add((socFraction, gainWh * 4.0));   // Wh per quarter → W
+            }
+
+            return samples;
+        }
+
+        /// <summary>Median per SOC bin; thin bins stay 0 so the planner falls back there. Pure for tests.</summary>
+        internal static ChargeCapability FitChargeCapability(IReadOnlyList<(double Soc, double PowerW)> samples)
+        {
+            if (samples == null || samples.Count == 0) return ChargeCapability.None;
+
+            var perBin = new List<double>[ChargeCapabilityBins];
+
+            foreach (var (soc, powerW) in samples)
+            {
+                if (powerW <= 0.0) continue;
+
+                int bin = Math.Min((int)(Math.Max(0.0, soc) * ChargeCapabilityBins), ChargeCapabilityBins - 1);
+                (perBin[bin] ??= []).Add(powerW);
+            }
+
+            var bins = new double[ChargeCapabilityBins];
+            int used = 0;
+
+            for (int bin = 0; bin < ChargeCapabilityBins; bin++)
+            {
+                var values = perBin[bin];
+                if (values == null || values.Count < MinSamplesPerChargeCapabilityBin) continue;
+
+                bins[bin] = Median(values);
+                used += values.Count;
+            }
+
+            return used == 0 ? ChargeCapability.None : new ChargeCapability(bins, used);
+        }
+
         private static double Median(List<double> values)
         {
             var sorted = values.OrderBy(v => v).ToList();
