@@ -239,6 +239,7 @@ namespace SessyController.Services
                 CostBasisEur = p.ProjectedCostBasisEurKWh,
                 PricePosition = pricePosition,
                 MaxBuyAheadEur = maxBuyAhead > double.MinValue ? maxBuyAhead : 0.0,
+                SpreadEur = maxBuyAhead > double.MinValue ? maxBuyAhead - p.BuyingPriceEurKWh : 0.0,
                 Reason = reason,
                 SolarExportNote = solarExportNote,
                 Remarks = remarks
@@ -384,6 +385,9 @@ namespace SessyController.Services
         public double CostBasisEur { get; init; }
         public string PricePosition { get; init; } = string.Empty;
         public double MaxBuyAheadEur { get; init; }
+
+        /// <summary>Dearest later buy price minus this quarter's buy price; 0 for the last quarter.</summary>
+        public double SpreadEur { get; init; }
         public string Reason { get; init; } = string.Empty;
         public string SolarExportNote { get; init; } = string.Empty;
         public List<string> Remarks { get; init; } = new();

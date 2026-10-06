@@ -11,15 +11,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.148] — 2026-10-06
+
+### Added
+- **Spread column on the Planner analysis page.** Per quarter: the dearest buy price later in the
+  plan minus this quarter's buy price — what charging here could earn at most. 0 for the last quarter.
+
 ## [v1.0.147] — 2026-10-06
 
 ### Fixed
-- **Plan no longer overestimates discharge power.** Same cause on the way out: the discharge
-  plateau was the highest momentary reading per SOC band (4.67 kW), while full-power discharge
-  quarters delivered a median of ~3.7 kW, so full-power discharging reached ~82% of plan. The
-  plateau is now the median of sustained full-request discharge quarters over the last 60 days, and
-  the knee (where power starts to fall with SOC) is re-read on those medians: 20% instead of 30%.
-  The plateau is only ever lowered by this, never raised.
 - **"Solar: Performance factor applied" no longer floods the log in debug builds.** Debug builds
   wrote it every cycle; it now logs only on a new day or when the factor changes, as in release.
 
@@ -34,7 +34,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
   that requested full power and followed another charging quarter). Bands without enough data
   keep the old estimate. Effect: charging is spread over more cheap quarters instead of assuming
   power that never arrives.
-
+- **Plan no longer overestimates discharge power.** Same cause on the way out: the discharge
+  plateau was the highest momentary reading per SOC band (4.67 kW), while full-power discharge
+  quarters delivered a median of ~3.7 kW, so full-power discharging reached ~82% of plan. The
+  plateau is now the median of sustained full-request discharge quarters over the last 60 days, and
+  the knee (where power starts to fall with SOC) is re-read on those medians: 20% instead of 30%.
+  The plateau is only ever lowered by this, never raised.
 
 ## [v1.0.145] — 2026-10-06
 
