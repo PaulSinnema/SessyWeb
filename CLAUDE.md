@@ -289,3 +289,18 @@ selecteert dat juist de stille takken — zoek daar eerst.
     batterijen), zodat de SolarEdge-afhankelijkheid kan vervallen. Hangt samen met Openstaande punten 7
     en 9 (de Sessy-zonbron is gebouwd maar nog niet tegen een referentie bevestigd, en meet mogelijk
     alleen batterij 1).
+12. **De accept-guard van de speculatieve solve staat uit bij negatieve winst.** `ObjectiveEur` is
+    verwachte winst (hoger = beter), maar `RebuildIfNeededAsync` wijst alleen af bij
+    `previousRate > 0 && newRate <= previousRate`. Op een netto-kosten-dag (objective negatief) wordt
+    dus élke speculatieve solve geaccepteerd, ook een slechtere — 06-10 12:45: −3,53 → −3,64 EUR, het
+    lege-batterij-plan verving het 12:30-plan mét middaglading. Niet blind `previousRate > 0` weghalen:
+    na een onverwachte drain is de nieuwe solve legitiem slechter (minder energie), en dan mag het oude,
+    onhaalbaar geworden plan niet blijven staan. Vergelijking moet rekening houden met het verschil in
+    start-SOC.
+13. **De runtime levert onder de reserve door.** De nachtreserve (`MinSocWh`) bestaat alleen in de
+    planner; in NOM dekt de Sessy elke last tot de batterij leeg is. 06-10: onverwachte ~2,5 kW-lasten
+    (00:15-01:15 en 12:15-12:45, forecast ~400 W) trokken de batterij in goedkope uren (€0,31) leeg tot
+    0 Wh, vóór een avondpiek van €0,62. Opties: bij SOC ≤ reserve naar Idle i.p.v. doorleveren, of in
+    goedkope uren met een dure piek in het vooruitzicht grote onvoorspelde lasten van het net laten komen.
+    (De planner-deadlock die daarop volgde — DisCap 0 bij SOC 0 blokkeerde kandidaat B — is opgelost met
+    `EmptyBatteryDeadlockTests`.)

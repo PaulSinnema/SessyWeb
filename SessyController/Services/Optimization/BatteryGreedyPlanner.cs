@@ -597,7 +597,7 @@ namespace SessyController.Services.Optimization
 
         /// <summary>Charge at an earlier quarter i, discharge at j.</summary>
         private static void TryCandidateB(
-            Context ctx, State state, Scratch scratch, int j, double valueJ, double dischargeHeadroom, double valueLimit, Candidate best)
+            Context ctx, State state, Scratch scratch, int j, double valueJ, double dischargeHeadroom, double disEffJ, double valueLimit, Candidate best)
         {
             for (int i = 0; i < j; i++)
             {
@@ -626,8 +626,8 @@ namespace SessyController.Services.Optimization
                 // Round trip of THIS pair, both sides read at the power the quarter can sustain
                 // rather than at the sliver being placed — the decision uses the cap and the
                 // bookkeeping further down (AllocateBlock) uses the fill.
-                double pairRoundTrip = scratch.ChEffCap[i] * scratch.DisEffCap[j];
-                double pairDisEff = scratch.DisEffCap[j];
+                double pairRoundTrip = scratch.ChEffCap[i] * disEffJ;
+                double pairDisEff = disEffJ;
 
                 double profitPerKWh = valueJ - costI / pairRoundTrip - ctx.CycleCost;
                 if (profitPerKWh <= best.ProfitPerKWh + Eps) continue;
@@ -827,15 +827,29 @@ namespace SessyController.Services.Optimization
             // to the ZeroNetHome baseline, forever.
             for (int j = 0; j < ctx.N; j++)
             {
+                // A and D drain energy already on the path: cap at the path's SOC.
                 double dischargeHeadroom = scratch.DisCap[j] - state.DischargeKWh[j];
-                if (dischargeHeadroom <= Eps) continue;
+
+                // B charges first, so at j the SOC includes the pair's own charge. Reading the cap at
+                // the path's SOC deadlocks an empty battery (cap 0 at SOC 0, no first block ever fits).
+                double pairDisCap = ctx.CappedDischargeKWh(j, scratch.SocAtStart[j] + BlockKWh);
+                double pairHeadroom = pairDisCap - state.DischargeKWh[j];
+
+                if (dischargeHeadroom <= Eps && pairHeadroom <= Eps) continue;
 
                 if (!TryGetDischargeValue(ctx, state, j, out double valueJ, out double valueLimit)) continue;
 
-                TryCandidateA(ctx, scratch, j, valueJ, dischargeHeadroom, valueLimit, best);
-                FillRoomMinTo(scratch, j);
-                TryCandidateB(ctx, state, scratch, j, valueJ, dischargeHeadroom, valueLimit, best);
-                TryCandidateD(ctx, state, scratch, j, valueJ, dischargeHeadroom, valueLimit, best);
+                if (dischargeHeadroom > Eps)
+                    TryCandidateA(ctx, scratch, j, valueJ, dischargeHeadroom, valueLimit, best);
+
+                if (pairHeadroom > Eps)
+                {
+                    FillRoomMinTo(scratch, j);
+                    TryCandidateB(ctx, state, scratch, j, valueJ, pairHeadroom, ctx.DisEffFor(pairDisCap), valueLimit, best);
+                }
+
+                if (dischargeHeadroom > Eps)
+                    TryCandidateD(ctx, state, scratch, j, valueJ, dischargeHeadroom, valueLimit, best);
             }
 
             TryCandidateC(ctx, state, scratch, best);

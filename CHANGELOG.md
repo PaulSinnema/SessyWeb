@@ -11,6 +11,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.145] — 2026-10-06
+
+### Fixed
+- **Planner no longer gives up when the battery is empty.** When the battery reached 0 Wh on a day
+  without solar surplus, the plan stayed idle for the rest of the day — no cheap charging, nothing
+  left for the evening peak. Below about 20% the deliverable discharge power falls to 0 at 0 Wh, and
+  the planner checked that limit before counting the energy a charge-then-discharge trade would add
+  itself, so no trade could ever start. It now checks the limit including that energy. Above ~20% SOC
+  plans are unchanged.
+
 ## [v1.0.144] — 2026-10-05
 
 ### Changed
