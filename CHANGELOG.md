@@ -14,8 +14,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 ## [v1.0.148] — 2026-10-06
 
 ### Added
-- **Spread column on the Planner analysis page.** Per quarter: the dearest buy price later in the
-  plan minus this quarter's buy price — what charging here could earn at most. 0 for the last quarter.
+- **Spread column on the Planner analysis page.** Per quarter, the margin per delivered kWh of the
+  energy that quarter buys or sells, paired by FIFO (the same layer bookkeeping as the cost basis):
+  sale value (avoided buy price for the house, sell price for export) minus what that energy cost.
+  A charge quarter shows the margin of the sales its energy ends up in; a discharge quarter the
+  margin over the layers it empties, including stock from before the plan. Empty when nothing is
+  paired within the plan.
 
 ## [v1.0.147] — 2026-10-06
 

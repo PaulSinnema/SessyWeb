@@ -221,6 +221,44 @@ namespace SessyTests.Services
             }
         }
 
+        /// <summary>
+        /// FIFO reach of the stored plan: for every quarter that stores energy, how much has to be
+        /// sold afterwards before its layer is reached, and how much the plan sells after it.
+        /// </summary>
+        [Fact]
+        public void Probe_fifo_reach_of_plan()
+        {
+            if (!File.Exists(DatabasePath)) return;
+
+            var rows = new List<(DateTime Time, double SocWh)>();
+            using (var connection = new SqliteConnection($"Data Source={DatabasePath};Mode=ReadOnly"))
+            {
+                connection.Open();
+                using var command = connection.CreateCommand();
+                command.CommandText = "select Time, PlannedChargeLeftWh from PlannedQuarters where Time >= $start order by Time";
+                command.Parameters.AddWithValue("$start", new DateTime(2026, 10, 6, 17, 15, 0).ToString("yyyy-MM-dd HH:mm:ss"));
+                using var reader = command.ExecuteReader();
+                while (reader.Read())
+                    rows.Add((DateTime.Parse(reader.GetString(0)), reader.GetDouble(1)));
+            }
+
+            _output.WriteLine($"plan {rows[0].Time:dd-MM HH:mm} .. {rows[^1].Time:dd-MM HH:mm}, end SOC {rows[^1].SocWh:F0} Wh");
+            for (int i = 1; i < rows.Count; i++)
+            {
+                double gain = rows[i].SocWh - rows[i - 1].SocWh;
+                if (gain <= 1.0) continue;
+
+                // FIFO: this layer is reached once everything stored before it has been sold.
+                double ahead = rows[i - 1].SocWh;
+                double soldAfter = 0.0;
+                for (int k = i + 1; k < rows.Count; k++)
+                    soldAfter += Math.Max(0.0, rows[k - 1].SocWh - rows[k].SocWh);
+
+                _output.WriteLine($"{rows[i].Time:dd-MM HH:mm} +{gain,4:F0} Wh  ahead {ahead,5:F0}  sold after {soldAfter,5:F0}  " +
+                                  $"{(soldAfter > ahead ? "reached" : "NOT reached")}");
+            }
+        }
+
         [Fact]
         public void Probe_planned_vs_measured_quarter_energy()
         {

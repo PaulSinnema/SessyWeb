@@ -19,14 +19,17 @@ namespace SessyController.Services
         private readonly BatteryContainer _batteryContainer;
         private readonly TaxesDataService _taxesService;
         private readonly TimeZoneService _timeZoneService;
+        private readonly ChargeCostBasisService _costBasisService;
 
         public PlannerAnalysisService(
             PlannedQuarterDataService plannedService,
             SettingsService settingsService,
             BatteryContainer batteryContainer,
             TaxesDataService taxesService,
-            TimeZoneService timeZoneService)
+            TimeZoneService timeZoneService,
+            ChargeCostBasisService costBasisService)
         {
+            _costBasisService = costBasisService;
             _plannedService = plannedService;
             _settingsService = settingsService;
             _batteryContainer = batteryContainer;
@@ -81,11 +84,13 @@ namespace SessyController.Services
             double cycleCostEff = _settingsService.CycleCost * (cfg.Strategy == OptimizationStrategy.Balanced ? 1.5 : 1.0);
 
             var quarters = new List<PlannerQuarterAnalysis>(n);
+            var spreadByTime = FifoSpreads(planned, _costBasisService.LastProjection?.Consumptions);
 
             for (int i = 0; i < n; i++)
             {
                 var p = planned[i];
-                var q = Analyse(p, capacityWh, medianBuy, p75Buy, maxBuyAhead[i], bestFutureAhead[i], roundTrip, cycleCostEff);
+                var q = Analyse(p, capacityWh, medianBuy, p75Buy, maxBuyAhead[i], bestFutureAhead[i], roundTrip, cycleCostEff,
+                    spreadByTime.TryGetValue(p.Time, out var spread) ? spread : null);
                 quarters.Add(q);
             }
 
@@ -123,7 +128,7 @@ namespace SessyController.Services
 
         private PlannerQuarterAnalysis Analyse(
             PlannedQuarter p, double capacityWh, double medianBuy, double p75Buy, double maxBuyAhead,
-            double bestFutureAhead, double roundTrip, double cycleCostEff)
+            double bestFutureAhead, double roundTrip, double cycleCostEff, double? spreadEur)
         {
             double socPct = capacityWh > 0 ? p.PlannedChargeLeftWh / capacityWh * 100.0 : 0.0;
             bool charging = p.PlannedChargePowerW > 1.0;
@@ -239,11 +244,57 @@ namespace SessyController.Services
                 CostBasisEur = p.ProjectedCostBasisEurKWh,
                 PricePosition = pricePosition,
                 MaxBuyAheadEur = maxBuyAhead > double.MinValue ? maxBuyAhead : 0.0,
-                SpreadEur = maxBuyAhead > double.MinValue ? maxBuyAhead - p.BuyingPriceEurKWh : 0.0,
+                SpreadEur = spreadEur,
                 Reason = reason,
                 SolarExportNote = solarExportNote,
                 Remarks = remarks
             };
+        }
+
+        /// <summary>
+        /// FIFO spread per quarter from the cost-basis projection: every pop pairs a sale with
+        /// the layer that fed it. Margin = sale value − layer cost per delivered kWh, weighted by
+        /// Wh, credited to both the selling and the charging quarter.
+        /// </summary>
+        internal static Dictionary<DateTime, double> FifoSpreads(
+            IReadOnlyList<PlannedQuarter> planned,
+            IReadOnlyList<ChargeCostBasisService.LayerConsumption>? consumptions)
+        {
+            var result = new Dictionary<DateTime, double>();
+            if (consumptions == null || consumptions.Count == 0) return result;
+
+            var byTime = planned.GroupBy(p => p.Time).ToDictionary(g => g.Key, g => g.First());
+            var sums = new Dictionary<DateTime, (double Wh, double MarginWh)>();
+
+            void Add(DateTime t, double wh, double margin)
+            {
+                var s = sums.GetValueOrDefault(t);
+                sums[t] = (s.Wh + wh, s.MarginWh + wh * margin);
+            }
+
+            foreach (var c in consumptions)
+            {
+                if (!byTime.TryGetValue(c.SoldAt, out var sold)) continue;
+
+                double margin = DeliveryValue(sold) - c.CostEurPerKWhDelivered;
+                Add(c.SoldAt, c.StoredWh, margin);
+                if (c.ChargedAt.HasValue) Add(c.ChargedAt.Value, c.StoredWh, margin);
+            }
+
+            foreach (var (t, s) in sums)
+                if (s.Wh > 1.0) result[t] = s.MarginWh / s.Wh;
+
+            return result;
+        }
+
+        /// <summary>Value per delivered kWh: avoided buy for the house deficit, sell price for the export.</summary>
+        private static double DeliveryValue(PlannedQuarter p)
+        {
+            double deliveredWh = p.PlannedDischargePowerW * 0.25;
+            if (deliveredWh <= 1.0) return p.BuyingPriceEurKWh;
+
+            double houseWh = Math.Min(Math.Max(p.NetLoadWh, 0.0), deliveredWh);
+            return (houseWh * p.BuyingPriceEurKWh + (deliveredWh - houseWh) * p.SellingPriceEurKWh) / deliveredWh;
         }
 
         private static string BuildDescription(PlanTotals t, int count)
@@ -386,8 +437,12 @@ namespace SessyController.Services
         public string PricePosition { get; init; } = string.Empty;
         public double MaxBuyAheadEur { get; init; }
 
-        /// <summary>Dearest later buy price minus this quarter's buy price; 0 for the last quarter.</summary>
-        public double SpreadEur { get; init; }
+        /// <summary>
+        /// Margin per delivered kWh of the energy this quarter sells or buys, paired by FIFO:
+        /// sale value minus the cost of the layers it consumes. Null when nothing is paired
+        /// within the plan (no (dis)charge, or energy carried past the horizon).
+        /// </summary>
+        public double? SpreadEur { get; init; }
         public string Reason { get; init; } = string.Empty;
         public string SolarExportNote { get; init; } = string.Empty;
         public List<string> Remarks { get; init; } = new();

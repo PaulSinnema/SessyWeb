@@ -1,4 +1,4 @@
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using SessyCommon.Services;
 using SessyController.Interfaces;
 using SessyData.Model;
@@ -79,6 +79,7 @@ namespace SessyController.Services
         {
             public double Wh;               // remaining stored (DC) energy in this layer
             public double CostEurPerKWh;    // acquisition cost per stored kWh (0 for solar)
+            public DateTime? ChargedAt;     // planned quarter that charged it; null for measured stock
         }
 
         /// <summary>
@@ -110,6 +111,17 @@ namespace SessyController.Services
             double SolarSurplusWh,
             double BuyEurPerKWh);
 
+        /// <summary>
+        /// One FIFO pop in the projection: which charge quarter's energy (null = stock from before
+        /// the plan) leaves the battery in which quarter, and what it cost per delivered kWh.
+        /// Pairs every planned discharge with the purchase that fed it.
+        /// </summary>
+        public sealed record LayerConsumption(
+            DateTime SoldAt,
+            DateTime? ChargedAt,
+            double StoredWh,
+            double CostEurPerKWhDelivered);
+
         /// <summary>Projected cost basis of the battery contents at one quarter.</summary>
         public sealed record ProjectedQuarterCost(
             DateTime Time,
@@ -129,7 +141,8 @@ namespace SessyController.Services
             double PlannedGridChargeCostEur,
             double PlannedAverageBuyEurPerKWh,
             double EndOfHorizonStoredEurPerKWh,
-            double EndOfHorizonDeliveredEurPerKWh);
+            double EndOfHorizonDeliveredEurPerKWh,
+            IReadOnlyList<LayerConsumption>? Consumptions = null);
 
         /// <summary>Most recent projection, kept so the UI can show it without a re-solve.</summary>
         public CostBasisProjection? LastProjection { get; private set; }
@@ -232,6 +245,7 @@ namespace SessyController.Services
                 layers.AddLast(new ChargeLayer { Wh = l.Wh, CostEurPerKWh = l.CostEurPerKWh });
 
             var quarters = new List<ProjectedQuarterCost>(steps.Count);
+            var consumptions = new List<LayerConsumption>();
             double gridChargeKWh = 0.0;
             double gridChargeCostEur = 0.0;
             double prevSoc = currentSocWh;
@@ -250,7 +264,8 @@ namespace SessyController.Services
                     PushCharge(layers,
                         freeAcWh * chargeEfficiency,
                         gridAcWh * chargeEfficiency,
-                        Stored(step.BuyEurPerKWh, chargeEfficiency));
+                        Stored(step.BuyEurPerKWh, chargeEfficiency),
+                        step.Time);
 
                     gridChargeKWh += gridAcWh / 1000.0;
                     gridChargeCostEur += gridAcWh / 1000.0 * step.BuyEurPerKWh;
@@ -258,7 +273,9 @@ namespace SessyController.Services
                 else if (delta < -MinLayerWh)
                 {
                     // The delta is already stored energy, so no efficiency correction here.
-                    RemoveOldest(layers, -delta);
+                    var soldAt = step.Time;
+                    RemoveOldest(layers, -delta, (wh, layer) => consumptions.Add(new LayerConsumption(
+                        soldAt, layer.ChargedAt, wh, Delivered(layer.CostEurPerKWh, dischargeEfficiency))));
                 }
 
                 var (totalWh, totalCost) = Totals(layers);
@@ -279,7 +296,8 @@ namespace SessyController.Services
                 PlannedGridChargeCostEur: gridChargeCostEur,
                 PlannedAverageBuyEurPerKWh: gridChargeKWh > 0.0 ? gridChargeCostEur / gridChargeKWh : 0.0,
                 EndOfHorizonStoredEurPerKWh: endAvg,
-                EndOfHorizonDeliveredEurPerKWh: Delivered(endAvg, dischargeEfficiency));
+                EndOfHorizonDeliveredEurPerKWh: Delivered(endAvg, dischargeEfficiency),
+                Consumptions: consumptions);
         }
 
         // ── Measured history ─────────────────────────────────────────────────
@@ -505,16 +523,18 @@ namespace SessyController.Services
             LinkedList<ChargeLayer> layers,
             double freeStoredWh,
             double gridStoredWh,
-            double gridCostPerStoredKWh)
+            double gridCostPerStoredKWh,
+            DateTime? chargedAt = null)
         {
             if (freeStoredWh > MinLayerWh)
-                layers.AddLast(new ChargeLayer { Wh = freeStoredWh, CostEurPerKWh = 0.0 });
+                layers.AddLast(new ChargeLayer { Wh = freeStoredWh, CostEurPerKWh = 0.0, ChargedAt = chargedAt });
             if (gridStoredWh > MinLayerWh)
-                layers.AddLast(new ChargeLayer { Wh = gridStoredWh, CostEurPerKWh = gridCostPerStoredKWh });
+                layers.AddLast(new ChargeLayer { Wh = gridStoredWh, CostEurPerKWh = gridCostPerStoredKWh, ChargedAt = chargedAt });
         }
 
         /// <summary>Removes the requested stored Wh from the front (oldest) of the queue.</summary>
-        private static void RemoveOldest(LinkedList<ChargeLayer> layers, double wh)
+        private static void RemoveOldest(LinkedList<ChargeLayer> layers, double wh,
+            Action<double, ChargeLayer>? onConsumed = null)
         {
             double remaining = wh;
             while (remaining > MinLayerWh && layers.First != null)
@@ -525,11 +545,13 @@ namespace SessyController.Services
                 // leaves dust layers behind that never drain and skew the average.
                 if (layer.Wh - remaining <= MinLayerWh)
                 {
+                    onConsumed?.Invoke(layer.Wh, layer);
                     remaining -= layer.Wh;
                     layers.RemoveFirst();
                 }
                 else
                 {
+                    onConsumed?.Invoke(remaining, layer);
                     layer.Wh -= remaining;
                     remaining = 0.0;
                 }
