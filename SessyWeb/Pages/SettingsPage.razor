@@ -311,6 +311,18 @@
                                     }
                                 </RadzenRow>
 
+                                @* ── Shift discharge ─────────────────────────── *@
+                                <RadzenRow Gap="1rem">
+                                    <RadzenColumn Size="12" SizeMD="8">
+                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
+                                            <RadzenCheckBox @bind-Value="_settings.ShiftDischargeEnabled" />
+                                            <RadzenLabel Text="Allow moving discharge between quarters" />
+                                            <InfoTipComponent Text="Lets the planner sell stored energy in an expensive quarter and, in return, not cover the house from the battery in a cheaper quarter later (the house then imports). The energy is already stored, so no round trip is lost; the planner only does it when it pays at least 1 cent per kWh after the efficiency loss of low-power quarters. Side effect: the battery reaches the night reserve more often and earlier in the evening, and quarters given up show as Off. Off unless you switch it on." />
+                                        </RadzenStack>
+                                        <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">Sell in the peak, import for the house when it is cheaper. Default: off.</RadzenText>
+                                    </RadzenColumn>
+                                </RadzenRow>
+
                                 @* ── Self-learning ───────────────────────────── *@
                                 <RadzenRow Gap="1rem">
                                     <RadzenColumn Size="12" SizeMD="8">

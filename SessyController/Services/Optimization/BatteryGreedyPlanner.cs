@@ -117,6 +117,16 @@ namespace SessyController.Services.Optimization
         /// <summary>Sentinel target: the energy flows through the knee-limited quarters after the charge (Candidate E).</summary>
         private const int TailTarget = -4;
 
+        /// <summary>Sentinel target: discharge moved from a later quarter to ShiftTo (Candidate F).</summary>
+        private const int ShiftTarget = -5;
+
+        /// <summary>
+        /// Minimum gain for Candidate F. A ZeroNetHome quarter covers the whole house at runtime,
+        /// so a shifted quarter is only executed exactly when it ends up fully idle; the margin
+        /// keeps F from chasing differences that execution would eat.
+        /// </summary>
+        private const double ShiftMarginEurPerKWh = 0.01;
+
         /// <param name="trace">
         /// Diagnostic sink, normally null. When set, the planner reports per quarter why it did not
         /// sell there — see <see cref="ExplainWhyNotSold"/>. Null costs nothing: that step is skipped
@@ -358,6 +368,7 @@ namespace SessyController.Services.Optimization
             public double[] ImportKWh { get; }       // grid import remaining after the battery
             public double[] ExportKWh { get; }       // grid export remaining after the battery
             public double[] SocEnd { get; }          // store level at the end of each quarter
+            public bool[] Held { get; }              // discharge moved away by Candidate F: battery idle on purpose
 
             public State(int n)
             {
@@ -367,6 +378,7 @@ namespace SessyController.Services.Optimization
                 ImportKWh = new double[n];
                 ExportKWh = new double[n];
                 SocEnd = new double[n];
+                Held = new bool[n];
             }
         }
 
@@ -514,6 +526,7 @@ namespace SessyController.Services.Optimization
             public bool IsRebuy;   // Candidate D: the charge quarter comes AFTER the discharge
             public double Store;   // Candidate E: store added at I
             public int TailStart;  // Candidate E: first quarter that drains
+            public int ShiftTo;    // Candidate F: quarter that gets the discharge (I gives it up)
 
             public bool Found => I != NoSource;
         }
@@ -839,6 +852,171 @@ namespace SessyController.Services.Optimization
         }
 
         /// <summary>
+        /// Discharge more at j by covering less of a later quarter k from the battery: the energy
+        /// is already stored, so moving it costs no round trip. Candidate D can only refill by
+        /// charging from the grid and so never sees this; on 07-10 that left 18:45 unsold at €0,396
+        /// while the same energy covered the house at €0,34 later that night. The baseline pass
+        /// assigns the house cover first and no other candidate ever takes a discharge away.
+        ///
+        /// The SOC dips over [j, k) only — same feasibility as D. A quarter whose discharge is
+        /// moved away entirely is marked Held, so it executes as Disabled (idle) instead of
+        /// ZeroNetHome, which would cover the house from the battery anyway.
+        /// </summary>
+        private static void TryCandidateF(
+            Context ctx, State state, Scratch scratch, int j, double valueJ, double dischargeHeadroom, double valueLimit, Candidate best)
+        {
+            double disEffJ = scratch.DisEffCap[j];
+
+            // Later quarters: the SOC dips over [j, k).
+            double dipSlack = double.MaxValue;
+            for (int k = j + 1; k < ctx.N; k++)
+            {
+                dipSlack = Math.Min(dipSlack, scratch.Slack[k - 1]);
+                if (dipSlack <= Eps) break;   // the path cannot dip any further from here on
+
+                TryShiftFrom(ctx, state, j, k, valueJ, dischargeHeadroom, valueLimit, disEffJ, dipSlack, best);
+            }
+
+            // Earlier quarters: the energy stays in over [k, j), so the SOC rises there. Lets the
+            // greedy undo an early export once a later quarter turns out to be worth more.
+            double room = double.MaxValue;
+            for (int k = j - 1; k >= 0; k--)
+            {
+                room = Math.Min(room, scratch.Room[k]);
+                if (room <= Eps) break;
+
+                TryShiftFrom(ctx, state, j, k, valueJ, dischargeHeadroom, valueLimit, disEffJ, room, best);
+            }
+        }
+
+        /// <summary>One (j, k) pair of Candidate F; limitStore is the dip slack or the room in between.</summary>
+        private static void TryShiftFrom(
+            Context ctx, State state, int j, int k, double valueJ, double dischargeHeadroom, double valueLimit,
+            double disEffJ, double limitStore, Candidate best)
+        {
+            {
+                double heldKWh = state.DischargeKWh[k];
+                if (heldKWh <= Eps) return;
+
+                // Marginal kWh at k: export first if it exports, else the house cover.
+                double deficitK = Math.Max(0.0, ctx.PricePoints[k].NetLoadWh / 1000.0);
+                double coveredK = Math.Max(0.0, deficitK - state.ImportKWh[k]);
+                bool exportsAtK = heldKWh > coveredK + Eps;
+                double lossK = (exportsAtK ? ctx.PricePoints[k].SellEurPerKWh : ctx.PricePoints[k].BuyEurPerKWh)
+                             * ctx.DiscountAt[k];
+
+                // Quick bound at cap efficiencies before the exact check below.
+                double ratio = ctx.DisEffFor(heldKWh) / disEffJ;
+                double profitPerKWh = valueJ - lossK * ratio;
+                if (profitPerKWh <= Math.Max(best.ProfitPerKWh, ShiftMarginEurPerKWh) + Eps) return;
+
+                // Exact, as the rebuild drains: the efficiency curve charges a fixed overhead per
+                // quarter, so moving a sliver between two low-power quarters can cost more stored
+                // energy at j than it frees at k. Approximating this let the SOC path run 2.6 kWh
+                // below the reserve on the 07-10 replay.
+                double block = Math.Min(BlockKWh, Math.Min(dischargeHeadroom, valueLimit));
+
+                // The store k can give back within its price tier, and what the path can dip.
+                double floorKWh = exportsAtK ? coveredK : 0.0;
+                double maxStore = Math.Min(Drain(ctx, heldKWh) - Drain(ctx, floorKWh), limitStore);
+                if (maxStore <= Eps) return;
+
+                double oldJ = state.DischargeKWh[j];
+                double baseJ = Drain(ctx, oldJ);
+                double store = Drain(ctx, oldJ + block) - baseJ;
+                if (store > maxStore)
+                {
+                    block = InverseDrain(ctx, baseJ + maxStore, oldJ + block) - oldJ;
+                    store = Drain(ctx, oldJ + block) - baseJ;
+                }
+                if (block < MinPairBlockKWh) return;
+
+                double lostK = heldKWh - InverseDrain(ctx, Drain(ctx, heldKWh) - store, heldKWh);
+                profitPerKWh = (valueJ * block - lossK * lostK) / block;
+                if (profitPerKWh <= Math.Max(best.ProfitPerKWh, ShiftMarginEurPerKWh) + Eps) return;
+
+                best.ProfitPerKWh = profitPerKWh;
+                best.I = k;
+                best.J = ShiftTarget;
+                best.ShiftTo = j;
+                best.Block = block;
+                best.IsRebuy = false;
+            }
+        }
+
+        /// <summary>Commits a Candidate F block: more discharge at ShiftTo, less at I, SOC dips in between.</summary>
+        private static void AllocateShift(Context ctx, State state, Candidate best)
+        {
+            int j = best.ShiftTo, k = best.I;
+            double deliver = best.Block;
+
+            // Exact drains, as the rebuild computes them: a reduction at k must free exactly what
+            // j now drains, or the SOC path drifts above the rebuilt one with every shift.
+            double oldJ = state.DischargeKWh[j];
+            double store = Drain(ctx, oldJ + deliver) - Drain(ctx, oldJ);
+
+            double heldK = state.DischargeKWh[k];
+            double targetDrainK = Math.Max(0.0, Drain(ctx, heldK) - store);
+            double newK = InverseDrain(ctx, targetDrainK, heldK);
+            double reduceK = heldK - newK;
+
+            state.DischargeKWh[j] += deliver;
+            if (state.ImportKWh[j] > Eps)
+                state.ImportKWh[j] = Math.Max(0.0, state.ImportKWh[j] - deliver);
+
+            // Export goes first at k, the rest is imported instead.
+            double deficitK = Math.Max(0.0, ctx.PricePoints[k].NetLoadWh / 1000.0);
+            double exportPartK = Math.Max(0.0, heldK - Math.Max(0.0, deficitK - state.ImportKWh[k]));
+            double fromHouse = Math.Max(0.0, reduceK - exportPartK);
+
+            state.DischargeKWh[k] = heldK - reduceK;
+            state.ImportKWh[k] += fromHouse;
+            if (state.DischargeKWh[k] <= Eps)
+            {
+                state.DischargeKWh[k] = 0.0;
+                state.Held[k] = true;
+            }
+
+            // What k actually frees (equals store unless k ran out).
+            double freed = Drain(ctx, heldK) - Drain(ctx, state.DischargeKWh[k]);
+
+            if (k > j)
+            {
+                // Sold earlier: the path dips until k gives it back.
+                for (int t = j; t < k; t++)
+                    state.SocEnd[t] -= store;
+                for (int t = k; t < ctx.N; t++)
+                    state.SocEnd[t] -= store - freed;
+            }
+            else
+            {
+                // Sold later: the energy k no longer takes stays in until j.
+                for (int t = k; t < j; t++)
+                    state.SocEnd[t] += freed;
+                for (int t = j; t < ctx.N; t++)
+                    state.SocEnd[t] += freed - store;
+            }
+        }
+
+        /// <summary>Stored kWh a quarter drains to deliver this much AC, as the rebuild computes it.</summary>
+        private static double Drain(Context ctx, double deliveredKWh)
+            => deliveredKWh <= Eps ? 0.0 : deliveredKWh / ctx.DisEffFor(deliveredKWh);
+
+        /// <summary>Delivered kWh in [0, max] whose drain equals targetDrain (Drain is increasing).</summary>
+        private static double InverseDrain(Context ctx, double targetDrain, double max)
+        {
+            if (targetDrain <= Eps) return 0.0;
+
+            double lo = 0.0, hi = max;
+            for (int i = 0; i < 40; i++)
+            {
+                double mid = (lo + hi) / 2.0;
+                if (Drain(ctx, mid) < targetDrain) lo = mid; else hi = mid;
+            }
+            return (lo + hi) / 2.0;
+        }
+
+        /// <summary>
         /// Per quarter k, what one extra kWh of store entering k is worth to the knee-limited
         /// quarters from k onward. Below the knee a quarter can deliver only a slice of a higher
         /// SOC, so the rest flows on to the next quarter. Backward recurrence, O(N).
@@ -1023,6 +1201,8 @@ namespace SessyController.Services.Optimization
                     TryCandidateB(ctx, state, scratch, j, valueJ, dischargeHeadroom, scratch.DisEffCap[j], valueLimit, best);
 
                     TryCandidateD(ctx, state, scratch, j, valueJ, dischargeHeadroom, valueLimit, best);
+                    if (ctx.Opt.AllowShift)
+                        TryCandidateF(ctx, state, scratch, j, valueJ, dischargeHeadroom, valueLimit, best);
                 }
                 else
                 {
@@ -1121,6 +1301,8 @@ namespace SessyController.Services.Optimization
 
                 if (best.J == TailTarget)
                     AllocateTail(ctx, state, scratch, best);
+                else if (best.J == ShiftTarget)
+                    AllocateShift(ctx, state, best);
                 else
                     AllocateBlock(ctx, state, best);
             }
@@ -1222,6 +1404,9 @@ namespace SessyController.Services.Optimization
                     // ZeroNetHome, so the plan reflects "export the PV". The runtime honours this
                     // as Modes.Disabled instead of forcing the surplus back into storage.
                     (state.ExportKWh[t] > Eps && state.ChargeKWh[t] <= Eps && state.DischargeKWh[t] <= Eps)
+                        ? ActionMode.Disabled :
+                    // House cover moved to an earlier sale (Candidate F): idle, the house imports.
+                    (state.Held[t] && state.ChargeKWh[t] <= Eps && state.DischargeKWh[t] <= Eps)
                         ? ActionMode.Disabled :
                     ActionMode.ZeroNetHome;
 

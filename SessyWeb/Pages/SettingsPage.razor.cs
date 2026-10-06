@@ -698,6 +698,7 @@ namespace SessyWeb.Pages
             _settings.PlanningHorizonHours = 0;
             _settings.FutureValueDiscountPerHour = 0.003;
             _settings.CarryForwardEnabled = false;
+            _settings.ShiftDischargeEnabled = false;
             _settings.ReplacementCostWindowDays = 30;
             _settings.ReplacementCostPercentile = 25.0;
             _settings.SelfLearningEnabled = false;

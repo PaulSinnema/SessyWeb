@@ -637,6 +637,9 @@ namespace SessyData.Migrations
                     b.Property<double>("RoundTripEfficiencyFallbackPct")
                         .HasColumnType("REAL");
 
+                    b.Property<bool>("ShiftDischargeEnabled")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("SelfLearningEnabled")
                         .HasColumnType("INTEGER");
 

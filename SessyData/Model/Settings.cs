@@ -153,6 +153,14 @@ namespace SessyData.Model
         public bool CarryForwardEnabled { get; set; }
 
         /// <summary>
+        /// Whether the planner may move a discharge between quarters — e.g. sell stored energy in
+        /// the evening peak and let the house import later at a lower price instead of covering
+        /// it from the battery. Runs the battery down to the reserve more often. Off by default:
+        /// it changes when the battery is emptied, so it is switched on deliberately.
+        /// </summary>
+        public bool ShiftDischargeEnabled { get; set; }
+
+        /// <summary>
         /// Trailing window (days) over which the replacement cost is measured. 0 = default (30).
         /// </summary>
         public int ReplacementCostWindowDays { get; set; } = 30;

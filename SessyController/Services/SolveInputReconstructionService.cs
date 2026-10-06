@@ -117,7 +117,8 @@ namespace SessyController.Services
                 CycleCostEurPerKWh: _settingsService.CycleCost,
                 FutureValueDiscountPerHour: s.FutureValueDiscountPerHour,
                 ReservationPriceEurPerKWh: replacementCost,
-                AllowCarryForward: s.CarryForwardEnabled);
+                AllowCarryForward: s.CarryForwardEnabled,
+                AllowShift: s.ShiftDischargeEnabled);
 
             // Prices, net load and reserve floor are exact from the stored plan. Solar surplus is
             // the negative part of net load, exactly as the live planner derives it.

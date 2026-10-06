@@ -342,6 +342,7 @@ namespace SessyController.Services
                 new("Arbitrage", "Predicted price risk margin", $"€ {s.PredictedPriceRiskMarginEur:F3}/kWh"),
                 new("Arbitrage", "Planning horizon (hours)", s.PlanningHorizonHours == 0 ? "0 (no limit)" : s.PlanningHorizonHours.ToString()),
                 new("Arbitrage", "Carry-forward", s.CarryForwardEnabled ? "On" : "Off"),
+                new("Arbitrage", "Shift discharge", s.ShiftDischargeEnabled ? "On" : "Off"),
                 new("Arbitrage", "Replacement cost window (days)", s.ReplacementCostWindowDays.ToString()),
                 new("Arbitrage", "Replacement cost percentile", $"{s.ReplacementCostPercentile:F0}"),
 

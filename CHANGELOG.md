@@ -20,6 +20,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
   A charge quarter shows the margin of the sales its energy ends up in; a discharge quarter the
   margin over the layers it empties, including stock from before the plan. Empty when nothing is
   paired within the plan.
+- **Optional: sell stored energy in the peak instead of covering cheaper house load later.**
+  New setting "Allow moving discharge between quarters" (Settings → planner, default off). Without
+  it the plan assigns the battery to covering the house through the evening and night first, and
+  nothing takes that back — on 07-10 18:45 (sell €0,396) stayed unsold while the same energy
+  covered the house at ~€0,34 later. With it on, the planner moves a discharge between quarters
+  (earlier or later) when that pays at least €0,01/kWh, counting the efficiency loss of low-power
+  quarters exactly. A quarter whose house cover is moved away is planned as Off (the house imports),
+  not Zero Net Home, which would drain the battery anyway. Side effect: the battery reaches the
+  night reserve more often and earlier. Shown as "Shift discharge" in the Planner analysis parameters.
 
 ## [v1.0.147] — 2026-10-06
 

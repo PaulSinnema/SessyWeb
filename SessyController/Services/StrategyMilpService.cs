@@ -295,7 +295,8 @@ namespace SessyController.Services
                     CycleCostEurPerKWh: _settingsService.CycleCost,
                     FutureValueDiscountPerHour: _settingsConfig.FutureValueDiscountPerHour,
                     ReservationPriceEurPerKWh: replacementCost,
-                    AllowCarryForward: _settingsConfig.CarryForwardEnabled);
+                    AllowCarryForward: _settingsConfig.CarryForwardEnabled,
+                    AllowShift: _settingsConfig.ShiftDischargeEnabled);
 
                 var context = new SolveContext(pricePoints, spec, opt, socBounds,
                     Trace: null); // trace disabled — re-enable with: message => _logger.LogWarning(message)

@@ -81,7 +81,8 @@ namespace SessyController.Services.Optimization
         bool AllowExport = true,
         double FutureValueDiscountPerHour = 0.0,
         double ReservationPriceEurPerKWh = 0.0,
-        bool AllowCarryForward = false
+        bool AllowCarryForward = false,
+        bool AllowShift = true
     );
 
     /// <summary>Allowed state-of-charge window at the end of a quarter.</summary>
