@@ -178,6 +178,49 @@ namespace SessyTests.Services
             }
         }
 
+        /// <summary>
+        /// Discharge quarters at a full request, previous quarter discharging too: SOC drop (DC W),
+        /// end snapshot and planned power per 10% SOC band, last 60 days.
+        /// </summary>
+        [Fact]
+        public void Probe_discharge_power_by_soc()
+        {
+            if (!File.Exists(DatabasePath)) return;
+
+            var rows = new List<(double PrevSoc, double PlanW, double EndW, double DropWh)>();
+            using (var connection = new SqliteConnection($"Data Source={DatabasePath};Mode=ReadOnly"))
+            {
+                connection.Open();
+                using var command = connection.CreateCommand();
+                command.CommandText =
+                    @"select prev.BatteryStateOfChargeWh, p.PlannedDischargePowerW, m.BatteryPowerWatts,
+                             prev.BatteryStateOfChargeWh - m.BatteryStateOfChargeWh
+                      from QuarterlyMeasurements m
+                      join QuarterlyMeasurements prev on prev.Time = datetime(m.Time, '-15 minutes')
+                      join PlannedQuarters p on p.Time = m.Time
+                      where m.Time >= $start and m.Time < $end
+                        and m.BatteryMode = 2 and prev.BatteryMode = 2
+                        and m.IsReliable = 1 and prev.IsReliable = 1
+                        and p.PlannedUnthrottledPowerW <= -0.9 * 5100";
+                command.Parameters.AddWithValue("$start", End.AddDays(-60).ToString("yyyy-MM-dd HH:mm:ss"));
+                command.Parameters.AddWithValue("$end", End.ToString("yyyy-MM-dd HH:mm:ss"));
+                using var reader = command.ExecuteReader();
+                while (reader.Read())
+                    rows.Add((reader.GetDouble(0), reader.GetDouble(1), Math.Abs(reader.GetDouble(2)), reader.GetDouble(3)));
+            }
+
+            _output.WriteLine($"{rows.Count} sustained full-request discharge quarters (60 days)");
+            foreach (var band in rows.GroupBy(r => Math.Min((int)(r.PrevSoc / 16200.0 * 10), 9)).OrderBy(g => g.Key))
+            {
+                var drop = band.Select(r => r.DropWh * 4.0).OrderBy(v => v).ToList();
+                var end = band.Select(r => r.EndW).OrderBy(v => v).ToList();
+                _output.WriteLine(
+                    $"SOC {band.Key * 10,2}%: {band.Count(),3} q  plan {band.Average(r => r.PlanW),5:F0}  " +
+                    $"SOC-drop DC p50 {drop[drop.Count / 2],5:F0} (p10 {drop[drop.Count / 10],5:F0}, p90 {drop[drop.Count * 9 / 10],5:F0})  " +
+                    $"end snapshot p50 {end[end.Count / 2],5:F0} max {end[^1],5:F0}");
+            }
+        }
+
         [Fact]
         public void Probe_planned_vs_measured_quarter_energy()
         {

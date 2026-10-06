@@ -511,7 +511,8 @@ namespace SessyController.Services
 
             bool newDay = now.Date != _lastLoggedPerformanceDate;
 #if DEBUG
-            bool significantChange = true;
+            // Same gate as Release: logging every cycle flooded the log (the factor moves once a day).
+            bool significantChange = Math.Abs(factor - _lastLoggedPerformanceFactor) >= PerformanceFactorLogThreshold;
 #else
             bool significantChange = Math.Abs(factor - _lastLoggedPerformanceFactor) >= PerformanceFactorLogThreshold;
 #endif

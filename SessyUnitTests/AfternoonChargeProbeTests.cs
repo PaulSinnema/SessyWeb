@@ -103,6 +103,35 @@ namespace SessyTests.Services
             _output.WriteLine("");
             _output.WriteLine($"charge capability (DC W) per 10% bin: {string.Join(" ", chargeCapability.BinPowerW.Select(w => w.ToString("F0")))}");
             Run("+ measured charge capability", opt, Spec(0.467, capability) with { ChargeCapability = chargeCapability }, points, bounds);
+
+            var sustained = ThrottleAnalysisService.WithSustainedPlateau(capability, SustainedDischargeSamples());
+            _output.WriteLine("");
+            _output.WriteLine($"sustained discharge plateau: {sustained.PlateauW:F0} W knee {sustained.KneeSoc:P0} (envelope {capability.PlateauW:F0} W knee {capability.KneeSoc:P0})");
+            Run("+ measured charge capability + sustained discharge plateau", opt,
+                Spec(0.467, sustained) with { ChargeCapability = chargeCapability }, points, bounds);
+        }
+
+        private static List<(double Soc, double PowerW)> SustainedDischargeSamples()
+        {
+            var samples = new List<(double, double)>();
+            using var connection = new SqliteConnection($"Data Source={DatabasePath};Mode=ReadOnly");
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText =
+                @"select prev.BatteryStateOfChargeWh, abs(m.BatteryPowerWatts)
+                  from QuarterlyMeasurements m
+                  join QuarterlyMeasurements prev on prev.Time = datetime(m.Time, '-15 minutes')
+                  join PlannedQuarters p on p.Time = m.Time
+                  where m.Time >= $start and m.Time < $end
+                    and m.BatteryMode = 2 and prev.BatteryMode = 2
+                    and m.IsReliable = 1 and prev.IsReliable = 1
+                    and p.PlannedUnthrottledPowerW <= -0.9 * 5100";
+            command.Parameters.AddWithValue("$start", HorizonStart.AddDays(-60).ToString("yyyy-MM-dd HH:mm:ss"));
+            command.Parameters.AddWithValue("$end", HorizonStart.ToString("yyyy-MM-dd HH:mm:ss"));
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+                samples.Add((reader.GetDouble(0) / (CapacityKWh * 1000.0), reader.GetDouble(1)));
+            return samples;
         }
 
         private static List<(double Soc, double PowerW)> SustainedChargeSamples()

@@ -10,6 +10,54 @@ namespace SessyTests.Services
     /// 4.7-5.4 kW above 40% SOC where the bank sustained 3.2-3.9 kW: taper and floor keep the top
     /// of momentary snapshots. The median SOC gain per bin is what the plan should expect.
     /// </summary>
+    public class SustainedDischargePlateauTests
+    {
+        private static readonly DischargeCapability Envelope = new(PlateauW: 4669, KneeSoc: 0.30, Samples: 20);
+
+        private static List<(double Soc, double PowerW)> Steady(double soc, double powerW, int count)
+            => Enumerable.Repeat((soc, powerW), count).ToList();
+
+        [Fact]
+        public void Plateau_drops_to_the_median_of_sustained_quarters()
+        {
+            var samples = Steady(0.6, 3570, 30);
+            samples.Add((0.7, 5100));   // one momentary peak
+
+            var capability = ThrottleAnalysisService.WithSustainedPlateau(Envelope, samples);
+
+            Assert.Equal(3570.0, capability.PlateauW, 3);
+            Assert.Equal(0.30, capability.KneeSoc, 6);   // too few bins to re-read the knee
+        }
+
+        [Fact]
+        public void Knee_is_re_read_on_the_sustained_medians()
+        {
+            // 06-10 shape: plateau ~3.6 kW down to 20%, ~2.3 kW at 10%.
+            var samples = Steady(0.15, 2340, 10);
+            samples.AddRange(Steady(0.25, 3250, 10));
+            samples.AddRange(Steady(0.45, 3590, 20));
+            samples.AddRange(Steady(0.65, 3570, 20));
+
+            var capability = ThrottleAnalysisService.WithSustainedPlateau(Envelope, samples);
+
+            Assert.Equal(0.20, capability.KneeSoc, 6);
+            Assert.InRange(capability.PlateauW, 3560, 3600);
+        }
+
+        [Fact]
+        public void Too_few_or_only_below_the_knee_keeps_the_envelope()
+        {
+            Assert.Equal(4669.0, ThrottleAnalysisService.WithSustainedPlateau(Envelope, Steady(0.6, 3500, 10)).PlateauW, 3);
+            Assert.Equal(4669.0, ThrottleAnalysisService.WithSustainedPlateau(Envelope, Steady(0.2, 3000, 40)).PlateauW, 3);
+        }
+
+        [Fact]
+        public void Never_raises_the_plateau()
+        {
+            Assert.Equal(4669.0, ThrottleAnalysisService.WithSustainedPlateau(Envelope, Steady(0.6, 5000, 40)).PlateauW, 3);
+        }
+    }
+
     public class ChargeCapabilityTests
     {
         private static List<(double Soc, double PowerW)> Bin(double soc, params double[] powers)

@@ -348,6 +348,10 @@ namespace SessyController.Services
                     await CollectDischargeSamplesAsync(now, capacity).ConfigureAwait(false),
                     nameplateW);
 
+            if (capability.Samples > 0)
+                capability = WithSustainedPlateau(capability,
+                    await CollectSustainedDischargeSamplesAsync(now, capacity, nameplateW).ConfigureAwait(false));
+
             _cachedDischarge = capability;
             _cachedDischargeAt = now;
 
@@ -446,6 +450,118 @@ namespace SessyController.Services
             if (kneeSoc < 0.0) return DischargeCapability.None;
 
             return new DischargeCapability(plateau, kneeSoc, bins.Count);
+        }
+
+        /// <summary>Fewer sustained quarters above the knee than this: keep the envelope plateau.</summary>
+        private const int MinSustainedPlateauSamples = 20;
+
+        /// <summary>
+        /// Lowers the plateau to the median power of sustained full-request discharge quarters
+        /// above the knee. The envelope plateau is the median of per-bin MAXIMA of momentary
+        /// snapshots: on 07-08..06-10 it said 4.67 kW while those quarters delivered a median of
+        /// ~3.6 kW (cross-checked: SOC drop ~3.9 kW DC), so full-power discharging reached ~82%
+        /// of plan. Only lowers, never raises; the knee stays as fitted. Pure for tests.
+        /// </summary>
+        internal static DischargeCapability WithSustainedPlateau(
+            DischargeCapability capability, IReadOnlyList<(double Soc, double PowerW)> sustained)
+        {
+            if (capability.Samples == 0 || sustained == null) return capability;
+
+            var above = sustained
+                .Where(s => s.Soc >= capability.KneeSoc && s.PowerW > 0.0)
+                .Select(s => s.PowerW)
+                .ToList();
+
+            if (above.Count < MinSustainedPlateauSamples) return capability;
+
+            double plateau = Median(above);
+            if (plateau >= capability.PlateauW) return capability;
+
+            // The envelope knee marks where the per-bin MAXIMUM reaches the old plateau; against a
+            // lower plateau it sits too high and the linear fall-off below it is too steep (06-10:
+            // knee 30% → 1.8 kW modelled at 15% SOC, ~2.3-3.1 kW measured). Re-read the knee on the
+            // sustained medians: the lowest 10% bin from which every covered bin reaches the plateau.
+            double kneeSoc = SustainedKnee(sustained, plateau) ?? capability.KneeSoc;
+
+            return capability with { PlateauW = plateau, KneeSoc = kneeSoc };
+        }
+
+        /// <summary>Bins below this many sustained quarters say nothing about the knee.</summary>
+        private const int MinSustainedKneeBinSamples = 5;
+
+        /// <summary>"At plateau" for the sustained knee; looser than the envelope's 0.9 — medians are noisier at low SOC.</summary>
+        private const double SustainedKneeRatio = 0.85;
+
+        private static double? SustainedKnee(IReadOnlyList<(double Soc, double PowerW)> sustained, double plateau)
+        {
+            var bins = sustained
+                .Where(s => s.PowerW > 0.0)
+                .GroupBy(s => Math.Min((int)(Math.Max(0.0, s.Soc) * 10), 9))
+                .Where(g => g.Count() >= MinSustainedKneeBinSamples)
+                .ToDictionary(g => g.Key, g => Median(g.Select(s => s.PowerW).ToList()));
+
+            if (bins.Count < 3) return null;
+
+            int? knee = null;
+            for (int bin = 9; bin >= 0; bin--)
+            {
+                if (!bins.TryGetValue(bin, out var median)) continue;
+                if (median < SustainedKneeRatio * plateau) break;
+                knee = bin;
+            }
+
+            return knee.HasValue ? knee.Value / 10.0 : null;
+        }
+
+        /// <summary>
+        /// (SOC fraction at the start, delivered watts) for discharge quarters at a full request,
+        /// executed by us, with the quarter before discharging too — same filter as the charge side,
+        /// see CollectSustainedChargeSamplesAsync. Snapshot watts, not SOC drop: the cap is AC and
+        /// the median of steady quarters needs no efficiency conversion.
+        /// </summary>
+        private async Task<List<(double Soc, double PowerW)>> CollectSustainedDischargeSamplesAsync(
+            DateTime now, double capacity, double nameplateW)
+        {
+            var from = now.AddDays(-ChargeCapabilityDays);
+
+            var measurements = await _measurementDataService.GetList(async set =>
+                await Task.FromResult(set
+                    .Where(m => m.Time >= from.AddMinutes(-15) && m.Time <= now)
+                    .ToList()));
+
+            // Plan stores discharge requests negative.
+            var plans = await _plannedQuarterDataService.GetList(async set =>
+                await Task.FromResult(set
+                    .Where(p => p.Time >= from && p.Time <= now && p.PlannedUnthrottledPowerW < 0.0)
+                    .ToList()));
+
+            var foreignQuarters = await LoadForeignQuartersAsync(from, now).ConfigureAwait(false);
+
+            var byTime = measurements.GroupBy(m => m.Time).ToDictionary(g => g.Key, g => g.First());
+            var requestByTime = plans.GroupBy(p => p.Time).ToDictionary(g => g.Key, g => -g.First().PlannedUnthrottledPowerW);
+
+            var samples = new List<(double, double)>();
+
+            foreach (var m in byTime.Values)
+            {
+                if (m.Time < from || m.BatteryMode != Modes.Discharging || !m.IsReliable) continue;
+                if (foreignQuarters.Contains(m.Time)) continue;
+                if (!requestByTime.TryGetValue(m.Time, out var requestedW)) continue;
+                if (requestedW < ChargeCapabilityMinRequestShare * nameplateW) continue;
+
+                if (!byTime.TryGetValue(m.Time.AddMinutes(-15), out var prev)) continue;
+                if (prev.BatteryMode != Modes.Discharging || !prev.IsReliable) continue;
+
+                double socFraction = prev.BatteryStateOfChargeWh / capacity;
+                if (socFraction < 0.0 || socFraction > 1.0) continue;
+
+                double powerW = Math.Abs(m.BatteryPowerWatts);
+                if (powerW <= 0.0) continue;
+
+                samples.Add((socFraction, powerW));
+            }
+
+            return samples;
         }
 
         // ── Charge capability floor ───────────────────────────────────────────
