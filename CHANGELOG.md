@@ -16,10 +16,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 ### Fixed
 - **Planner no longer gives up when the battery is empty.** When the battery reached 0 Wh on a day
   without solar surplus, the plan stayed idle for the rest of the day — no cheap charging, nothing
-  left for the evening peak. Below about 20% the deliverable discharge power falls to 0 at 0 Wh, and
-  the planner checked that limit before counting the energy a charge-then-discharge trade would add
-  itself, so no trade could ever start. It now checks the limit including that energy. Above ~20% SOC
-  plans are unchanged.
+  left for the evening peak. Below the discharge knee the deliverable power falls to 0 at 0 Wh, and
+  a single charge-then-discharge trade could never fit in one quarter.
+- **Planner charges enough for the evening peak when SOC drops below the discharge knee.** Below the
+  knee (~30% SOC) each quarter can only deliver a slice of any extra charge, so the planner credited
+  extra afternoon charging with almost nothing and stopped at ~8 kWh, leaving the peak half-used. It
+  now values a charge by everything it delivers over the following knee-limited quarters. On the
+  06-10 13:00 plan: 11 kWh charged instead of 8, full power through the peak for longer.
+- **Planned discharge no longer exceeds the measured discharge capability.** Some evening quarters
+  were planned up to ~5% above what the batteries can deliver at that SOC.
+- **Plan calculation much faster.** Below the knee the search crept on in ever smaller steps until
+  its 5000-iteration safety limit.
+- **No false "Something else is changing the battery power strategy" under Manual override.** The
+  manual charge/discharge hours run through the open API (POWER_STRATEGY_API), while the check still
+  expected the plan's strategy (NOM). The check is now skipped while Manual override is on. Now it ends normally (local test: 15 s → 1.2 s for
+  seven solves).
 
 ## [v1.0.144] — 2026-10-05
 

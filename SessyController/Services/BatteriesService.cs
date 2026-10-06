@@ -271,7 +271,10 @@ namespace SessyController.Services
                     // ── Execute ───────────────────────────────────────────────────────
                     await ExecuteAction(action.BatteryMode, action.BatterySetpointW).ConfigureAwait(false);
 
-                    WatchStrategy(_systemInput.NowQuarter, action.BatteryMode);
+                    // Manual override (or no prices yet) runs the manual hours via the open API, not
+                    // the plan's mode, so the expected strategy would be wrong: no watch then.
+                    if (!_settingsConfig.ManualOverride && _epexPricesService.IsInitialized())
+                        WatchStrategy(_systemInput.NowQuarter, action.BatteryMode);
                 }
                 else
                 {

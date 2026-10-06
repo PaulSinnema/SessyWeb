@@ -87,6 +87,9 @@ namespace SessyController.Services.Optimization
         /// </summary>
         private const double BlockKWh = 0.20;
 
+        /// <summary>Smallest Candidate B block worth allocating (kWh delivered).</summary>
+        private const double MinPairBlockKWh = 0.01;
+
         /// <summary>Safety valve so a pathological input can never spin forever.</summary>
         private const int MaxIterations = 5000;
 
@@ -110,6 +113,9 @@ namespace SessyController.Services.Optimization
 
         /// <summary>Sentinel target: the energy is kept past the end of the horizon, not discharged.</summary>
         private const int CarryTarget = -3;
+
+        /// <summary>Sentinel target: the energy flows through the knee-limited quarters after the charge (Candidate E).</summary>
+        private const int TailTarget = -4;
 
         /// <param name="trace">
         /// Diagnostic sink, normally null. When set, the planner reports per quarter why it did not
@@ -463,6 +469,10 @@ namespace SessyController.Services.Optimization
             public double[] MinSlackFrom { get; } // suffix minimum of slack, for Candidate A
             public double[] MinRoomFrom { get; }  // suffix minimum of room, for Candidate C
             public double[] RoomMinTo { get; }    // per j: minimum of room over [i, j), for Candidate B
+            public double[] TailDrain { get; }    // Candidate E: share of the extra store drained at k
+            public double[] TailValue { get; }    // Candidate E: value of one kWh store entering at k
+            public double[] TailDelivered { get; }// Candidate E: AC kWh delivered from one kWh store entering at k
+            public double[] TailRoom { get; }     // Candidate E: max store entering at k that fits the room
 
             public Scratch(int n)
             {
@@ -476,6 +486,10 @@ namespace SessyController.Services.Optimization
                 MinSlackFrom = new double[n];
                 MinRoomFrom = new double[n];
                 RoomMinTo = new double[n];
+                TailDrain = new double[n + 1];
+                TailValue = new double[n + 1];
+                TailDelivered = new double[n + 1];
+                TailRoom = new double[n + 1];
             }
         }
 
@@ -487,6 +501,8 @@ namespace SessyController.Services.Optimization
             public double Block;
             public double ProfitPerKWh;
             public bool IsRebuy;   // Candidate D: the charge quarter comes AFTER the discharge
+            public double Store;   // Candidate E: store added at I
+            public int TailStart;  // Candidate E: first quarter that drains
 
             public bool Found => I != NoSource;
         }
@@ -649,7 +665,10 @@ namespace SessyController.Services.Optimization
                     storeDelta = allowed;
                     block = storeDelta * pairDisEff;
                 }
-                if (block <= Eps) continue;
+                // Below the knee each B block lifts the cap of its own and earlier quarters by a
+                // fraction, so B would creep on in shrinking crumbs until MaxIterations and starve
+                // Candidate E, which sells the same energy across the tail.
+                if (block < MinPairBlockKWh) continue;
 
                 best.ProfitPerKWh = profitPerKWh;
                 best.I = i;
@@ -809,12 +828,155 @@ namespace SessyController.Services.Optimization
         }
 
         /// <summary>
+        /// Per quarter k, what one extra kWh of store entering k is worth to the knee-limited
+        /// quarters from k onward. Below the knee a quarter can deliver only a slice of a higher
+        /// SOC, so the rest flows on to the next quarter. Backward recurrence, O(N).
+        /// </summary>
+        private static void FillTail(Context ctx, State state, Scratch scratch)
+        {
+            int n = ctx.N;
+            scratch.TailDrain[n] = 0.0;
+            scratch.TailValue[n] = 0.0;
+            scratch.TailDelivered[n] = 0.0;
+            scratch.TailRoom[n] = double.MaxValue;
+
+            for (int k = n - 1; k >= 0; k--)
+            {
+                double drain = 0.0, eff = 1.0, value = 0.0;
+
+                // Only quarters already running at their SOC-dependent cap take a slice. An empty
+                // battery counts too (cap 0, discharge 0): that is the 06-10 deadlock case.
+                if (state.DischargeKWh[k] >= scratch.DisCap[k] - Eps
+                    && TryGetDischargeValue(ctx, state, k, out value, out double valueLimit))
+                {
+                    double slope = (ctx.CappedDischargeKWh(k, scratch.SocAtStart[k] + BlockKWh) - scratch.DisCap[k]) / BlockKWh;
+                    if (slope > Eps && valueLimit >= slope * BlockKWh)
+                    {
+                        eff = scratch.DisEffCap[k];
+                        drain = Math.Min(1.0, slope / eff);
+                    }
+                }
+
+                double keep = 1.0 - drain;
+                scratch.TailDrain[k] = drain;
+                scratch.TailValue[k] = drain * eff * value + keep * scratch.TailValue[k + 1];
+                scratch.TailDelivered[k] = drain * eff + keep * scratch.TailDelivered[k + 1];
+                scratch.TailRoom[k] = keep <= Eps
+                    ? double.MaxValue
+                    : Math.Min(scratch.Room[k], scratch.TailRoom[k + 1]) / keep;
+            }
+        }
+
+        /// <summary>
+        /// Charge at i, carry the store to j, then let it flow through the knee-limited quarters
+        /// from j onward. Candidate B credits one discharge quarter only; below the knee that
+        /// quarter can take only a slice of a higher SOC, so B stops (or, on an empty battery,
+        /// never starts) while the energy would be sold across the whole tail.
+        /// Whatever the tail leaves stays in the battery and is valued at zero here.
+        /// </summary>
+        private static void TryCandidateE(Context ctx, State state, Scratch scratch, int j, Candidate best)
+        {
+            if (ctx.DischargeCapability.Samples == 0 || ctx.Capacity <= 0.0) return;
+
+            // The tail starts at j; [i, j) only carries the store.
+            double delivered = scratch.TailDelivered[j];
+            if (delivered <= Eps) return;
+            double tailValue = scratch.TailValue[j] / delivered;
+
+            for (int i = 0; i < j; i++)
+            {
+                if (ctx.PricePoints[i].ReserveOnly) continue;      // no grid charging on predicted quarters
+
+                double chargeHeadroom = scratch.ChargeCap[i] - state.ChargeKWh[i];
+                if (chargeHeadroom <= Eps) continue;
+
+                double costI;
+                double costLimit;
+
+                if (state.ExportKWh[i] > Eps)
+                {
+                    costI = ctx.PricePoints[i].SellEurPerKWh;      // forgone export revenue
+                    costLimit = state.ExportKWh[i];
+                }
+                else
+                {
+                    costI = ctx.PricePoints[i].BuyEurPerKWh;       // imported from grid
+                    costLimit = double.MaxValue;
+                }
+                costI *= ctx.DiscountAt[i];
+
+                // Per kWh delivered, same basis as Candidate B.
+                double chEff = scratch.ChEffCap[i];
+                double profitPerKWh = tailValue - costI / (chEff * delivered) - ctx.CycleCost;
+                if (profitPerKWh <= best.ProfitPerKWh + Eps) continue;
+
+                // Store added at i; small enough for the linear slope to hold.
+                double store = BlockKWh;
+                store = Math.Min(store, chargeHeadroom * chEff);
+                store = Math.Min(store, costLimit * chEff);
+                store = Math.Min(store, Math.Min(scratch.RoomMinTo[i], scratch.TailRoom[j]));
+                if (store <= Eps) continue;
+
+                best.ProfitPerKWh = profitPerKWh;
+                best.I = i;
+                best.J = TailTarget;
+                best.Block = store * delivered;
+                best.Store = store;
+                best.TailStart = j;
+                best.IsRebuy = false;
+            }
+        }
+
+        /// <summary>
+        /// Commits a Candidate E block: charge at I, then drain each tail quarter's share of what
+        /// is still flowing. Uses the TailDrain filled in the same iteration.
+        /// </summary>
+        private static void AllocateTail(Context ctx, State state, Scratch scratch, Candidate best)
+        {
+            double store = best.Store;
+            double acCharge = store / ctx.ChEffFor(state.ChargeKWh[best.I] + store);
+
+            state.ChargeKWh[best.I] += acCharge;
+            if (state.ExportKWh[best.I] > Eps)
+            {
+                double fromSolar = Math.Min(acCharge, state.ExportKWh[best.I]);
+                state.SolarChargeKWh[best.I] += fromSolar;
+                state.ExportKWh[best.I] -= fromSolar;
+            }
+
+            // Carried untouched over [I, TailStart), then each tail quarter drains its share.
+            double flowing = store;
+            for (int k = best.I; k < ctx.N; k++)
+            {
+                double drain = k >= best.TailStart ? scratch.TailDrain[k] * flowing : 0.0;
+                if (drain > Eps)
+                {
+                    double deliver = drain * scratch.DisEffCap[k];
+                    // Drain at the efficiency the rebuild will use, so the SOC path stays consistent.
+                    drain = Math.Min(flowing, deliver / ctx.DisEffFor(state.DischargeKWh[k] + deliver));
+
+                    state.DischargeKWh[k] += deliver;
+                    if (state.ImportKWh[k] > Eps)
+                        state.ImportKWh[k] = Math.Max(0.0, state.ImportKWh[k] - deliver);
+
+                    flowing -= drain;
+                }
+                state.SocEnd[k] += flowing;
+            }
+        }
+
+        /// <summary>
         /// One arbitrage iteration: evaluates Candidates A, B and D for every discharge quarter j,
-        /// then Candidate C once for the whole horizon, and returns whichever pairing scored best.
+        /// then Candidates C and E once for the whole horizon, and returns whichever pairing scored best.
         /// </summary>
         private static Candidate FindBestCandidate(Context ctx, State state, Scratch scratch)
         {
             var best = new Candidate();
+
+            // Candidate E only exists with a measured discharge knee.
+            bool tailEnabled = ctx.DischargeCapability.Samples > 0 && ctx.Capacity > 0.0;
+            if (tailEnabled)
+                FillTail(ctx, state, scratch);
 
             // j starts at 0: Candidate A discharges energy already in the battery and needs no
             // earlier charge quarter, so index 0 is a valid discharge target. Candidate B does
@@ -830,26 +992,34 @@ namespace SessyController.Services.Optimization
                 // A and D drain energy already on the path: cap at the path's SOC.
                 double dischargeHeadroom = scratch.DisCap[j] - state.DischargeKWh[j];
 
-                // B charges first, so at j the SOC includes the pair's own charge. Reading the cap at
-                // the path's SOC deadlocks an empty battery (cap 0 at SOC 0, no first block ever fits).
-                double pairDisCap = ctx.CappedDischargeKWh(j, scratch.SocAtStart[j] + BlockKWh);
-                double pairHeadroom = pairDisCap - state.DischargeKWh[j];
+                // v1.0.145 read B's cap at SocAtStart + BlockKWh against the empty-battery deadlock.
+                // That overstated the cap whenever the pair's store was smaller than a block, so
+                // discharges ran above the knee and B crept toward the cap in ever smaller blocks
+                // until MaxIterations. Candidate E now covers that case; B is back on the path's SOC.
+                //double pairDisCap = ctx.CappedDischargeKWh(j, scratch.SocAtStart[j] + BlockKWh);
+                //double pairHeadroom = pairDisCap - state.DischargeKWh[j];
 
-                if (dischargeHeadroom <= Eps && pairHeadroom <= Eps) continue;
+                bool tail = tailEnabled && scratch.TailDrain[j] > Eps;
+                if (dischargeHeadroom <= Eps && !tail) continue;
 
                 if (!TryGetDischargeValue(ctx, state, j, out double valueJ, out double valueLimit)) continue;
 
                 if (dischargeHeadroom > Eps)
+                {
                     TryCandidateA(ctx, scratch, j, valueJ, dischargeHeadroom, valueLimit, best);
 
-                if (pairHeadroom > Eps)
+                    FillRoomMinTo(scratch, j);
+                    TryCandidateB(ctx, state, scratch, j, valueJ, dischargeHeadroom, scratch.DisEffCap[j], valueLimit, best);
+
+                    TryCandidateD(ctx, state, scratch, j, valueJ, dischargeHeadroom, valueLimit, best);
+                }
+                else
                 {
                     FillRoomMinTo(scratch, j);
-                    TryCandidateB(ctx, state, scratch, j, valueJ, pairHeadroom, ctx.DisEffFor(pairDisCap), valueLimit, best);
                 }
 
-                if (dischargeHeadroom > Eps)
-                    TryCandidateD(ctx, state, scratch, j, valueJ, dischargeHeadroom, valueLimit, best);
+                if (tail)
+                    TryCandidateE(ctx, state, scratch, j, best);
             }
 
             TryCandidateC(ctx, state, scratch, best);
@@ -938,7 +1108,10 @@ namespace SessyController.Services.Optimization
                 var best = FindBestCandidate(ctx, state, scratch);
                 if (!best.Found || best.Block <= Eps) break;   // nothing profitable left
 
-                AllocateBlock(ctx, state, best);
+                if (best.J == TailTarget)
+                    AllocateTail(ctx, state, scratch, best);
+                else
+                    AllocateBlock(ctx, state, best);
             }
 
             finalScratch = scratch;
