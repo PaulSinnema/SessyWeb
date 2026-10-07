@@ -26,7 +26,7 @@
         @if (ChargedHasTheAreas)
         {
             <text>
-                <b>Charged</b> is in control — the <span style="color:#7fd1ff;">blue areas</span> are
+                <b>Charged</b> is in control — the <span class="sessy-text-charged">blue areas</span> are
                 the batteries' own schedule.
             </text>
         }
@@ -51,7 +51,7 @@
         @if (ShowChargedShadow)
         {
             <text>
-                The dashed <span style="color:#7fd1ff;">blue line</span> is what Charged would have done.
+                The dashed <span class="sessy-text-charged">blue line</span> is what Charged would have done.
             </text>
         }
 
@@ -86,8 +86,8 @@
         <RadzenColumnSeries Data="@QuarterlyInfos"
                             CategoryProperty="Time"
                             Title="Buying price (€/kWh)"
-                            Fill="#324ab2"
-                            Stroke="#324ab2"
+                            Fill="var(--sessy-buy)"
+                            Stroke="var(--sessy-buy-line)"
                             ValueProperty="BuyingPrice">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
@@ -101,7 +101,7 @@
                                             Text="↑ Prices are predicted, plan will be calculated after EPEX prices arrive →"
                                             OffsetX="220"
                                             OffsetY="300"
-                                            Fill="orange" />
+                                            Fill="var(--sessy-predicted-text)" />
                 }
                 @if (ShowAll && NowQuarter != null)
                 {
@@ -109,7 +109,7 @@
                                             Text="← now"
                                             OffsetX="50"
                                             OffsetY="-150"
-                                            Fill="white" />
+                                            Fill="var(--rz-text-color)" />
                 }
             </ChildContent>
         </RadzenColumnSeries>
@@ -117,8 +117,8 @@
         <RadzenColumnSeries Data="@QuarterlyInfos"
                             CategoryProperty="Time"
                             Title="Selling price (€/kWh)"
-                            Fill="#00aae4"
-                            Stroke="#00aae4"
+                            Fill="var(--sessy-sell)"
+                            Stroke="var(--sessy-sell-line)"
                             LineType="LineType.Dashed"
                             ValueProperty="SellingPrice">
             <TooltipTemplate Context="data">
@@ -133,8 +133,8 @@
         <RadzenColumnSeries Data="@QuarterlyInfos"
                             CategoryProperty="Time"
                             Title="Cost basis delivered (€/kWh)"
-                            Fill="#9b59b6"
-                            Stroke="#9b59b6"
+                            Fill="var(--sessy-cost-basis)"
+                            Stroke="var(--sessy-cost-basis-line)"
                             ValueProperty="ProjectedCostBasisDeliveredEur">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
@@ -146,8 +146,8 @@
 
         <RadzenColumnSeries Visible="@WeAreInControl"
                             Data="@QuarterlyInfos"
-                            Stroke="green"
-                            Fill="orange"
+                            Stroke="var(--sessy-revenue-line)"
+                            Fill="var(--sessy-revenue)"
                             Title="Revenue (€/quarter)"
                             CategoryProperty="Time"
                             ValueProperty="Profit">
@@ -167,7 +167,7 @@
                                                     OffsetX="12"
                                                     OffsetY="@(item.Profit > 0.00 ? -16 : 16)"
                                                     Text="@(String.Format(CultureInfo.CurrentCulture, "{0:0.00}", item.Profit))"
-                                                    Fill="orange" />
+                                                    Fill="var(--sessy-revenue-text)" />
                         }
                     }
                 }
@@ -180,8 +180,8 @@
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Fill="rgba(255, 215, 0, 0.5)"
-                          Stroke="#ffd700"
+                          Fill="var(--sessy-znh-area)"
+                          Stroke="var(--sessy-znh-line)"
                           Title="Zero net home"
                           ValueProperty="ZeroNetHomeVisual">
             <TooltipTemplate Context="data">
@@ -197,8 +197,8 @@
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Fill="rgba(76, 175, 80, 0.45)"
-                          Stroke="#4caf50"
+                          Fill="var(--sessy-solar-only-area)"
+                          Stroke="var(--sessy-solar-only-line)"
                           Title="Solar only"
                           ValueProperty="SolarOnlyVisual">
             <TooltipTemplate Context="data">
@@ -214,8 +214,8 @@
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Fill="rgba(255, 0, 0, 0.45)"
-                          Stroke="red"
+                          Fill="var(--sessy-throttle-area)"
+                          Stroke="var(--sessy-throttle-line)"
                           StrokeWidth="1.5"
                           Title="Throttle loss charge (kW)"
                           ValueProperty="UnthrottledChargePowerVisual">
@@ -232,8 +232,8 @@
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Fill="rgba(255, 0, 0, 0.45)"
-                          Stroke="red"
+                          Fill="var(--sessy-throttle-area)"
+                          Stroke="var(--sessy-throttle-line)"
                           StrokeWidth="1.5"
                           Title="Throttle loss discharge (kW)"
                           ValueProperty="UnthrottledDischargePowerVisual">
@@ -253,8 +253,8 @@
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Fill="rgba(255, 102, 0, 0.5)"
-                          Stroke="#ff6600"
+                          Fill="var(--sessy-charge-area)"
+                          Stroke="var(--sessy-charge-line)"
                           Title="Planned charge (kW)"
                           ValueProperty="PlannedChargePowerVisual">
             <TooltipTemplate Context="data">
@@ -270,8 +270,8 @@
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Fill="rgba(0, 204, 68, 0.5)"
-                          Stroke="#00cc44"
+                          Fill="var(--sessy-discharge-area)"
+                          Stroke="var(--sessy-discharge-line)"
                           Title="Planned discharge (kW)"
                           ValueProperty="PlannedDischargePowerVisual">
             <TooltipTemplate Context="data">
@@ -289,8 +289,8 @@
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Fill="rgba(127, 209, 255, 0.45)"
-                          Stroke="#7fd1ff"
+                          Fill="var(--sessy-charged-area)"
+                          Stroke="var(--sessy-charged-line)"
                           Title="⟨Charged⟩ charge (kW)"
                           ValueProperty="ChargedChargePowerVisual">
             <TooltipTemplate Context="data">
@@ -306,8 +306,8 @@
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Fill="rgba(127, 209, 255, 0.45)"
-                          Stroke="#7fd1ff"
+                          Fill="var(--sessy-charged-area)"
+                          Stroke="var(--sessy-charged-line)"
                           Title="⟨Charged⟩ discharge (kW)"
                           ValueProperty="ChargedDischargePowerVisual">
             <TooltipTemplate Context="data">
@@ -325,7 +325,7 @@
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Stroke="#7fd1ff"
+                          Stroke="var(--sessy-charged-line)"
                           StrokeWidth="2"
                           LineType="LineType.Dashed"
                           Title="⟨Charged⟩ charge (kW)"
@@ -343,7 +343,7 @@
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Stroke="#7fd1ff"
+                          Stroke="var(--sessy-charged-line)"
                           StrokeWidth="2"
                           LineType="LineType.Dotted"
                           Title="⟨Charged⟩ discharge (kW)"
@@ -362,7 +362,7 @@
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Stroke="#ff6600"
+                          Stroke="var(--sessy-charge-line)"
                           StrokeWidth="1"
                           LineType="LineType.Dashed"
                           Title="⟨SessyWeb⟩ charge (kW)"
@@ -380,7 +380,7 @@
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Stroke="#00cc44"
+                          Stroke="var(--sessy-discharge-line)"
                           StrokeWidth="1"
                           LineType="LineType.Dashed"
                           Title="⟨SessyWeb⟩ discharge (kW)"
@@ -400,8 +400,8 @@
         <RadzenAreaSeries Data="@ActualPowerPoints"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Fill="rgba(255, 102, 0, 0.5)"
-                          Stroke="#ff6600"
+                          Fill="var(--sessy-charge-area)"
+                          Stroke="var(--sessy-charge-line)"
                           Title="Charge power actual (kW)"
                           ValueProperty="ChargePowerVisual">
             <TooltipTemplate Context="data">
@@ -418,8 +418,8 @@
         <RadzenAreaSeries Data="@ActualPowerPoints"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Fill="rgba(0, 204, 68, 0.5)"
-                          Stroke="#00cc44"
+                          Fill="var(--sessy-discharge-area)"
+                          Stroke="var(--sessy-discharge-line)"
                           Title="Discharge power actual (kW)"
                           ValueProperty="DischargePowerVisual">
             <TooltipTemplate Context="data">
@@ -434,7 +434,7 @@
         <RadzenLineSeries Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Stroke="#324ab2"
+                          Stroke="var(--sessy-buy-line)"
                           Title="Smoothed buying price (€/kWh)"
                           LineType="LineType.Solid"
                           ValueProperty="SmoothedBuyingPrice">
@@ -450,7 +450,7 @@
         <RadzenLineSeries Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Stroke="#00aae4"
+                          Stroke="var(--sessy-sell-line)"
                           Title="Smoothed selling price (€/kWh)"
                           LineType="LineType.Solid"
                           ValueProperty="SmoothedSellingPrice">
@@ -473,7 +473,7 @@
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Stroke="@(ShowOurShadow ? "#7fd1ff" : "red")"
+                          Stroke="@(ShowOurShadow ? "var(--sessy-charged-line)" : "var(--sessy-soc-line)")"
                           LineType="@(ShowOurShadow ? LineType.Dotted : LineType.Solid)"
                           Title="⟨SessyWeb⟩ charge remaining (kWh)"
                           ValueProperty="ChargeLeftVisual">
@@ -490,7 +490,7 @@
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Stroke="@(ChargedHasTheAreas ? "red" : "#7fd1ff")"
+                          Stroke="@(ChargedHasTheAreas ? "var(--sessy-soc-line)" : "var(--sessy-charged-line)")"
                           LineType="@(ChargedHasTheAreas ? LineType.Solid : LineType.Dotted)"
                           Title="⟨Charged⟩ charge remaining (kWh)"
                           ValueProperty="ChargedChargeLeftVisual">
@@ -506,7 +506,7 @@
         <RadzenLineSeries Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Stroke="gold"
+                          Stroke="var(--sessy-solar-line)"
                           Title="Solar power (kWh/quarter)"
                           LineType="LineType.Solid"
                           ValueProperty="SmoothedSolarPowerVisual">
@@ -523,7 +523,7 @@
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Stroke="#b06500"
+                          Stroke="var(--sessy-reserve-line)"
                           Title="Charge needed (kWh)"
                           LineType="LineType.Solid"
                           ValueProperty="ChargeNeededVisual">
@@ -539,7 +539,7 @@
         <RadzenLineSeries Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Stroke="#9575cd"
+                          Stroke="var(--sessy-consumption-line)"
                           Title="Est. consumption (W)"
                           LineType="LineType.Solid"
                           ValueProperty="SmoothedConsumptionVisual">
@@ -555,7 +555,7 @@
         <RadzenLineSeries Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Stroke="#90a4ae"
+                          Stroke="var(--sessy-delta-line)"
                           Title="Delta lowest price (€/kWh)"
                           LineType="LineType.Solid"
                           ValueProperty="DeltaLowestPrice">
@@ -572,7 +572,7 @@
                           Data="@PlanPoints"
                           Smooth="true"
                           CategoryProperty="Time"
-                          Stroke="#ff33cc"
+                          Stroke="var(--sessy-plan-history-line)"
                           StrokeWidth="3.5"
                           LineType="LineType.Solid"
                           Title="Plan history (kW)"
@@ -589,8 +589,8 @@
             <RadzenColumnSeries Data="@(new[] { NowQuarter })"
                                 CategoryProperty="Time"
                                 ValueProperty="NowLineHeight"
-                                Fill="rgba(255,255,255,0.3)"
-                                Stroke="white"
+                                Fill="var(--sessy-now)"
+                                Stroke="var(--sessy-now)"
                                 StrokeWidth="1">
                 <ChildContent>
                     <RadzenSeriesDataLabels Visible="false" />

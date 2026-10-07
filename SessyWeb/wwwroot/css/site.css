@@ -1,4 +1,4 @@
-@import url('open-iconic/font/css/open-iconic-bootstrap.min.css');
+﻿@import url('open-iconic/font/css/open-iconic-bootstrap.min.css');
 
 html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
@@ -99,12 +99,12 @@ a, .btn-link {
     align-items: flex-start;
 }
 
-/* Binnenste kolommen */
+/* Inner columns */
 .section-column {
-    flex: 1 1 200px; /* Basisbreedte van 200px, krimpbaar */
+    flex: 1 1 200px; /* 200px base width, can shrink */
 }
 
-/* Portret op mobiel: kolommen onder elkaar */
+/* Portrait on mobile: columns stacked */
 @media (max-width: 600px) and (orientation: portrait) {
     .section-stack {
         flex-direction: column;
@@ -115,22 +115,22 @@ a, .btn-link {
     }
 }
 
-/* ---- Mobiele responsiveness (telefoon) ---- */
+/* ---- Mobile responsiveness (phone) ---- */
 @media (max-width: 767.98px) {
-    /* Win horizontale ruimte terug: de grote body-padding (rz-p-4) is te fors op telefoon */
+    /* Win back horizontal space: the large body padding (rz-p-4) is too much on a phone */
     .rz-body .rz-p-4 {
         padding: 0.75rem !important;
     }
 
-    /* Voorkom dat kaarten/panelen met een vaste min-width breder worden dan het scherm */
+    /* Keep cards/panels with a fixed min-width from getting wider than the screen */
     .rz-card,
     .rz-panel {
         max-width: 100%;
         box-sizing: border-box;
     }
 
-    /* Brede inhoud (charts, tabellen) mag binnen de eigen container scrollen
-       i.p.v. de hele pagina horizontaal te laten scrollen */
+    /* Wide content (charts, tables) scrolls inside its own container
+       instead of scrolling the whole page horizontally */
     .rz-card,
     .rz-panel {
         overflow-x: auto;
@@ -138,22 +138,22 @@ a, .btn-link {
 }
 
 
-/* ── Attentiestip (Tips & Checks) ─────────────────────────────────────────────
-   Een iOS-achtige notificatiestip rechtsboven op een icoon: rood bij errors,
-   oranje bij warnings. Drie dingen die niet vanzelf goed gaan:
+/* ── Attention dot (Tips & Checks) ────────────────────────────────────────────
+   An iOS-style notification dot top-right on an icon: red for errors, orange for
+   warnings. Three things that do not work out by themselves:
 
-   1. De stip hangt aan het ICOON, niet aan het menu-item. Het menu klapt in tot
-      50 px (alleen iconen) en uit tot 200 px, dus het icoon verschuift — de stip
-      rijdt zo vanzelf mee en klopt in beide standen.
-   2. Aangestuurd via data-sessy-badge en niet via een eigen class: Radzen zet
-      class= ná @attributes op zowel het <li> van het menu-item als de <button>
-      van de tabkop, dus een meegegeven class wordt overschreven.
-   3. Alleen de waarden "error" en "warning" tekenen iets. Zo hoeft de code geen
-      attribuut weg te laten en is er geen kale [data-sessy-badge]-selector die
-      per ongeluk op iets anders aanslaat.
+   1. The dot hangs on the ICON, not on the menu item. The menu collapses to 50 px
+      (icons only) and expands to 200 px, so the icon moves — the dot rides along
+      and is right in both states.
+   2. Driven by data-sessy-badge, not by a class of its own: Radzen sets class=
+      after @attributes on both the menu item's <li> and the tab header's <button>,
+      so a class passed in is overwritten.
+   3. Only the values "error" and "warning" draw anything. The code never has to
+      drop the attribute, and there is no bare [data-sessy-badge] selector that
+      could hit something else by accident.
 
-   De ring eromheen (box-shadow) is wat de stip van het icoon losmaakt; hij volgt
-   het thema-oppervlak, net als .sessy-tooltip hieronder. */
+   The ring around it (box-shadow) is what separates the dot from the icon; it
+   follows the theme surface, like .sessy-tooltip below. */
 [data-sessy-badge="error"] .rz-navigation-item-icon,
 [data-sessy-badge="warning"] .rz-navigation-item-icon,
 [data-sessy-badge="error"] .rz-tabview-icon,
@@ -187,13 +187,13 @@ a, .btn-link {
     background: var(--rz-warning);
 }
 
-/* ── Info-tooltips (InfoTipComponent) ─────────────────────────────────────────
-   Het thema schildert tooltips met --rz-info als achtergrond (#2cc8c8) en witte
-   tekst: contrast ~1,9:1 en het lijkt op niets anders in de app. Deze volgen het
-   oppervlak van kaarten en panelen, met de meest contrastrijke tekstkleur die het
-   thema heeft — licht ~13,5:1, donker ~8,6:1.
-   De pijl erft background-color van dit element, dus de achtergrond hier zetten
-   verft de pijl mee; border-bottom/right erven ook, wat de pijl netjes omlijnt. */
+/* ── Info tooltips (InfoTipComponent) ─────────────────────────────────────────
+   The theme paints tooltips with --rz-info as background (#2cc8c8) and white text:
+   contrast ~1.9:1, and it looks like nothing else in the app. These follow the
+   surface of cards and panels, with the theme's highest-contrast text colour —
+   light ~13.5:1, dark ~8.6:1.
+   The arrow inherits background-color from this element, so setting the background
+   here paints the arrow too; border-bottom/right inherit as well and outline it. */
 .sessy-tooltip .rz-tooltip-content {
     background: var(--rz-panel-background-color);
     color: var(--rz-text-title-color);
@@ -203,3 +203,136 @@ a, .btn-link {
     text-align: left;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
+
+
+/* ── SessyWeb colour palette ──────────────────────────────────────────────────
+   One source for every colour in the GUI; pages and charts refer to these.
+   Works under every Radzen theme (light and dark):
+   - --sessy-x        base hue, for fills (mostly translucent via color-mix)
+   - --sessy-x-line   lines/borders: 30% theme text colour mixed in → ≥3:1 on light and dark
+   - --sessy-x-text   text: 40% theme text colour mixed in → ~4.5:1 on light and dark
+   The theme text colour (--rz-text-color) is light on a dark theme and dark on a light
+   theme, so the mix pulls every hue the right way by itself. */
+:root {
+    --sessy-mix-base: var(--rz-text-color, #888);
+
+    /* Prices */
+    --sessy-buy: #324ab2;
+    --sessy-sell: #00aae4;
+    --sessy-cost-basis: #9b59b6;
+    --sessy-revenue: #ff9800;
+    --sessy-predicted: #ff9800;
+
+    /* Battery energy flows */
+    --sessy-charge: #ff6600;
+    --sessy-discharge: #00cc44;
+    --sessy-soc: #e53935;
+    --sessy-reserve: #b06500;
+    --sessy-throttle: #e53935;
+    --sessy-charged: #7fd1ff;
+    --sessy-plan-history: #ff33cc;
+
+    /* Modes */
+    --sessy-znh: #ffd700;
+    --sessy-solar-only: #26a69a;
+
+    /* Solar, consumption, weather */
+    --sessy-solar: #ffc400;
+    --sessy-consumption: #9575cd;
+    --sessy-delta: #90a4ae;
+    --sessy-humidity: #43a047;
+    --sessy-temperature: #ffb300;
+
+    /* Plan versus actual */
+    --sessy-planned: #6366f1;
+    --sessy-actual: #22c55e;
+
+    /* Status (follows the theme) */
+    --sessy-positive: var(--rz-success, #22c55e);
+    --sessy-negative: var(--rz-danger, #e53935);
+    --sessy-warning: var(--rz-warning, #ffb300);
+    --sessy-accent: var(--rz-primary, #3f51b5);
+
+    /* Text on a bright (yellow/green/cyan) background: always dark */
+    --sessy-on-bright: #1a1a1a;
+
+    /* Other */
+    --sessy-logo-bg: beige;
+    --sessy-terminal-bg: #1e1e1e;
+    --sessy-terminal-fg: #d4d4d4;
+    --sessy-now: color-mix(in srgb, var(--sessy-mix-base) 35%, transparent);
+    --sessy-zebra: color-mix(in srgb, var(--sessy-mix-base) 6%, transparent);
+
+    /* Line variants (70% hue + 30% theme text colour) */
+    --sessy-buy-line: color-mix(in srgb, var(--sessy-buy) 70%, var(--sessy-mix-base));
+    --sessy-sell-line: color-mix(in srgb, var(--sessy-sell) 70%, var(--sessy-mix-base));
+    --sessy-cost-basis-line: color-mix(in srgb, var(--sessy-cost-basis) 70%, var(--sessy-mix-base));
+    --sessy-revenue-line: color-mix(in srgb, var(--sessy-revenue) 70%, var(--sessy-mix-base));
+    --sessy-charge-line: color-mix(in srgb, var(--sessy-charge) 70%, var(--sessy-mix-base));
+    --sessy-discharge-line: color-mix(in srgb, var(--sessy-discharge) 70%, var(--sessy-mix-base));
+    --sessy-soc-line: color-mix(in srgb, var(--sessy-soc) 70%, var(--sessy-mix-base));
+    --sessy-reserve-line: color-mix(in srgb, var(--sessy-reserve) 70%, var(--sessy-mix-base));
+    --sessy-throttle-line: color-mix(in srgb, var(--sessy-throttle) 70%, var(--sessy-mix-base));
+    --sessy-charged-line: color-mix(in srgb, var(--sessy-charged) 70%, var(--sessy-mix-base));
+    --sessy-plan-history-line: color-mix(in srgb, var(--sessy-plan-history) 70%, var(--sessy-mix-base));
+    --sessy-znh-line: color-mix(in srgb, var(--sessy-znh) 70%, var(--sessy-mix-base));
+    --sessy-solar-only-line: color-mix(in srgb, var(--sessy-solar-only) 70%, var(--sessy-mix-base));
+    --sessy-solar-line: color-mix(in srgb, var(--sessy-solar) 70%, var(--sessy-mix-base));
+    --sessy-consumption-line: color-mix(in srgb, var(--sessy-consumption) 70%, var(--sessy-mix-base));
+    --sessy-delta-line: color-mix(in srgb, var(--sessy-delta) 70%, var(--sessy-mix-base));
+    --sessy-humidity-line: color-mix(in srgb, var(--sessy-humidity) 70%, var(--sessy-mix-base));
+    --sessy-temperature-line: color-mix(in srgb, var(--sessy-temperature) 70%, var(--sessy-mix-base));
+    --sessy-planned-line: color-mix(in srgb, var(--sessy-planned) 70%, var(--sessy-mix-base));
+    --sessy-actual-line: color-mix(in srgb, var(--sessy-actual) 70%, var(--sessy-mix-base));
+
+    /* Text variants (60% hue + 40% theme text colour) */
+    --sessy-revenue-text: color-mix(in srgb, var(--sessy-revenue) 60%, var(--sessy-mix-base));
+    --sessy-predicted-text: color-mix(in srgb, var(--sessy-predicted) 60%, var(--sessy-mix-base));
+    --sessy-charge-text: color-mix(in srgb, var(--sessy-charge) 60%, var(--sessy-mix-base));
+    --sessy-discharge-text: color-mix(in srgb, var(--sessy-discharge) 60%, var(--sessy-mix-base));
+    --sessy-charged-text: color-mix(in srgb, var(--sessy-charged) 60%, var(--sessy-mix-base));
+    --sessy-positive-text: color-mix(in srgb, var(--sessy-positive) 60%, var(--sessy-mix-base));
+    --sessy-negative-text: color-mix(in srgb, var(--sessy-negative) 60%, var(--sessy-mix-base));
+    --sessy-warning-text: color-mix(in srgb, var(--sessy-warning) 60%, var(--sessy-mix-base));
+    --sessy-accent-text: color-mix(in srgb, var(--sessy-accent) 60%, var(--sessy-mix-base));
+
+    /* Fill variants */
+    --sessy-buy-faded: color-mix(in srgb, var(--sessy-buy) 33%, transparent);
+    --sessy-sell-faded: color-mix(in srgb, var(--sessy-sell) 33%, transparent);
+    --sessy-charge-area: color-mix(in srgb, var(--sessy-charge) 50%, transparent);
+    --sessy-discharge-area: color-mix(in srgb, var(--sessy-discharge) 50%, transparent);
+    --sessy-throttle-area: color-mix(in srgb, var(--sessy-throttle) 45%, transparent);
+    --sessy-charged-area: color-mix(in srgb, var(--sessy-charged) 45%, transparent);
+    --sessy-znh-area: color-mix(in srgb, var(--sessy-znh) 50%, transparent);
+    --sessy-solar-only-area: color-mix(in srgb, var(--sessy-solar-only) 45%, transparent);
+    --sessy-consumption-area: color-mix(in srgb, var(--sessy-consumption) 60%, transparent);
+    --sessy-solar-area: color-mix(in srgb, var(--sessy-solar) 60%, transparent);
+    --sessy-humidity-area: color-mix(in srgb, var(--sessy-humidity) 60%, transparent);
+    --sessy-temperature-area: color-mix(in srgb, var(--sessy-temperature) 60%, transparent);
+}
+
+/* ── Contrast on bright badges and buttons ────────────────────────────────────
+   The themes put white text on warning/info/success (yellow, cyan, light green):
+   often below 2:1. Filled variants get dark text; outlined/text variants draw in
+   the colour itself and are left alone. */
+.rz-badge.rz-badge-warning:not(.rz-variant-outlined):not(.rz-variant-text),
+.rz-badge.rz-badge-info:not(.rz-variant-outlined):not(.rz-variant-text),
+.rz-badge.rz-badge-success:not(.rz-variant-outlined):not(.rz-variant-text),
+.rz-button.rz-warning:not(.rz-variant-outlined):not(.rz-variant-text),
+.rz-button.rz-info:not(.rz-variant-outlined):not(.rz-variant-text),
+.rz-button.rz-success:not(.rz-variant-outlined):not(.rz-variant-text) {
+    color: var(--sessy-on-bright);
+}
+
+/* Danger keeps white text — even if a page passed something else. */
+.rz-badge.rz-badge-danger:not(.rz-variant-outlined):not(.rz-variant-text) {
+    color: #fff;
+}
+
+/* ── Helper classes for coloured text ─────────────────────────────────────── */
+.sessy-text-charge { color: var(--sessy-charge-text); }
+.sessy-text-discharge { color: var(--sessy-discharge-text); }
+.sessy-text-charged { color: var(--sessy-charged-text); }
+.sessy-text-positive { color: var(--sessy-positive-text); }
+.sessy-text-negative { color: var(--sessy-negative-text); }
+.sessy-text-warning { color: var(--sessy-warning-text); }

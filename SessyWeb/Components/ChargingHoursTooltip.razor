@@ -5,12 +5,7 @@
     string fmt(double? v, string f = "0.00") => (v ?? 0).ToString(f, System.Globalization.CultureInfo.GetCultureInfo("nl-NL"));
 
     // State accent color.
-    string stateColor = q?.DisplayState switch
-    {
-        "Charging" => "#ffaa33",
-        "Discharging" => "#66ff99",
-        _ => "var(--rz-text-color, #9aa)"
-    };
+    string stateColor = SessyColors.ModeTextColor(q?.DisplayState);
 
     bool hasPlan = !string.IsNullOrEmpty(q?.PlannedDisplayState);
     bool hasDeviation = !string.IsNullOrEmpty(q?.PlanDeviationReason);
@@ -60,11 +55,11 @@
         <span class="sw-tt-v">
             @if (charging)
             {
-                <span style="color:#ffaa33;">charge @fmt(q?.ChargePowerW, "0") W</span>
+                <span class="sessy-text-charge">charge @fmt(q?.ChargePowerW, "0") W</span>
             }
             else if (discharging)
             {
-                <span style="color:#66ff99;">discharge @fmt(q?.DischargePowerW, "0") W</span>
+                <span class="sessy-text-discharge">discharge @fmt(q?.DischargePowerW, "0") W</span>
             }
             else
             {
@@ -79,11 +74,11 @@
                 @q?.PlannedDisplayState
                 @if ((q?.PlannedChargePowerW ?? 0) > 10)
                 {
-                    <text> · </text><span style="color:#ffaa33;">@fmt(q?.PlannedChargePowerW, "0") W</span>
+                    <text> · </text><span class="sessy-text-charge">@fmt(q?.PlannedChargePowerW, "0") W</span>
                 }
                 else if ((q?.PlannedDischargePowerW ?? 0) > 10)
                 {
-                    <text> · </text><span style="color:#66ff99;">@fmt(q?.PlannedDischargePowerW, "0") W</span>
+                    <text> · </text><span class="sessy-text-discharge">@fmt(q?.PlannedDischargePowerW, "0") W</span>
                 }
             </span>
 
@@ -99,11 +94,11 @@
             <span class="sw-tt-v">
                 @if (q!.ChargedChargePowerW > 10)
                 {
-                    <text>charging · </text><span style="color:#ffaa33;">@fmt(q.ChargedChargePowerW, "0") W</span>
+                    <text>charging · </text><span class="sessy-text-charge">@fmt(q.ChargedChargePowerW, "0") W</span>
                 }
                 else
                 {
-                    <text>discharging · </text><span style="color:#66ff99;">@fmt(q.ChargedDischargePowerW, "0") W</span>
+                    <text>discharging · </text><span class="sessy-text-discharge">@fmt(q.ChargedDischargePowerW, "0") W</span>
                 }
             </span>
 
@@ -181,7 +176,7 @@
     .sw-tt-why {
         margin-top: 6px;
         padding-top: 5px;
-        border-top: 1px solid rgba(150, 150, 150, .25);
+        border-top: 1px solid var(--rz-border-color, rgba(150, 150, 150, .25));
     }
 
     .sw-tt-why-plain {

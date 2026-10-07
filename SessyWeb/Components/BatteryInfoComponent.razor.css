@@ -8,8 +8,8 @@ table {
     border-radius: 8px;
     overflow: hidden;
     box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
-    background-color: #1E1E1E; /* Donkere achtergrond */
-    color: white;
+    background-color: var(--rz-base-background-color);
+    color: var(--rz-text-color);
 }
 
 /* Stijlen voor de tabelkop */
@@ -19,23 +19,23 @@ th, td {
 }
 
 thead {
-    background-color: #007BFF;
-    color: white;
+    background-color: var(--sessy-accent);
+    color: var(--rz-on-primary, #fff);
     font-weight: bold;
 }
 
 /* Om-en-om achtergrondkleuren */
 tbody tr {
-    border-bottom: 1px solid #444;
+    border-bottom: 1px solid var(--rz-border-color, #444);
 }
 
     tbody tr:nth-child(even) {
-        background-color: #2A2A2A;
+        background-color: var(--sessy-zebra);
     }
 
     tbody tr:hover {
-        background-color: #007BFF;
-        color: white;
+        background-color: var(--sessy-accent);
+        color: var(--rz-on-primary, #fff);
     }
 
 /* Responsieve weergave: Scrollbare tabel op kleine schermen */
@@ -57,10 +57,10 @@ tbody tr {
 
     tr {
         margin-bottom: 15px;
-        border: 1px solid #444;
+        border: 1px solid var(--rz-border-color, #444);
         border-radius: 12px;
         padding: 15px;
-        background: #222;
+        background: var(--rz-panel-background-color);
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Betere schaduw voor visueel effect */
         transition: transform 0.2s ease-in-out;
     }
@@ -74,7 +74,7 @@ tbody tr {
         justify-content: space-between;
         padding: 12px;
         font-size: 16px;
-        border-bottom: 1px solid #444;
+        border-bottom: 1px solid var(--rz-border-color, #444);
         position: relative;
     }
 
@@ -87,7 +87,7 @@ tbody tr {
             content: attr(data-label);
             font-weight: bold;
             text-transform: uppercase;
-            color: #007BFF;
+            color: var(--sessy-accent-text);
             flex: 1; /* Zorgt ervoor dat het label netjes wordt uitgelijnd */
         }
 

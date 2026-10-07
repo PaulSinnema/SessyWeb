@@ -221,13 +221,13 @@ namespace SessyWeb.Components
         private string GetBuyingPriceFill(object obj)
         {
             var qi = (QuarterlyInfo)obj;
-            return qi.IsPriceExpected ? "#324ab255" : "#324ab2";
+            return qi.IsPriceExpected ? "var(--sessy-buy-faded)" : "var(--sessy-buy)";
         }
 
         private string GetSellingPriceFill(object obj)
         {
             var qi = (QuarterlyInfo)obj;
-            return qi.IsPriceExpected ? "#00aae455" : "#00aae4";
+            return qi.IsPriceExpected ? "var(--sessy-sell-faded)" : "var(--sessy-sell)";
         }
 
         private bool IsExpected(List<QuarterlyInfoView> quarterlyInfos)

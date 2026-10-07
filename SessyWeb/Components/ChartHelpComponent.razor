@@ -4,11 +4,11 @@
 
 <style>
     .help-wrap {
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
-        color: #e0e0e0;
+        background: var(--rz-panel-background-color);
+        color: var(--rz-text-color);
         padding: 20px;
         border-radius: 12px;
-        border: 1px solid #2a2a4a;
+        border: 1px solid var(--rz-border-color);
         font-size: 13px;
         line-height: 1.5;
         width: 100%;
@@ -21,7 +21,7 @@
         display: flex;
         align-items: center;
         gap: 12px;
-        border-bottom: 1px solid #2a2a4a;
+        border-bottom: 1px solid var(--rz-border-color);
         padding-bottom: 12px;
         margin-bottom: 16px;
     }
@@ -46,12 +46,12 @@
     .help-section-title {
         font-size: 11px;
         font-weight: 700;
-        color: #8888ff;
+        color: var(--sessy-accent-text);
         text-transform: uppercase;
         letter-spacing: 1.2px;
         margin-bottom: 6px;
         padding-bottom: 3px;
-        border-bottom: 1px solid #2a2a4a;
+        border-bottom: 1px solid var(--rz-border-color);
     }
 
     .help-table {
@@ -67,7 +67,7 @@
 
         .help-table td {
             padding: 5px 4px;
-            border-bottom: 1px solid #1e1e38;
+            border-bottom: 1px solid var(--sessy-zebra);
             vertical-align: middle;
         }
 
@@ -78,13 +78,13 @@
 
         .help-table .c-label {
             width: 160px;
-            color: #f0f0f0;
+            color: var(--rz-text-title-color, var(--rz-text-color));
             font-weight: 600;
             white-space: nowrap;
         }
 
         .help-table .c-desc {
-            color: #9999bb;
+            color: var(--rz-text-secondary-color);
         }
 </style>
 
@@ -93,8 +93,8 @@
     <div class="help-header" style="padding-left: 48px;">
         <span style="font-size:30px;">📊</span>
         <div>
-            <div style="font-size:17px; font-weight:bold; color:#f0c040; line-height:1.2;">Chart Guide</div>
-            <div style="font-size:11px; color:#666;">SessyWeb — Home Energy Management</div>
+            <div style="font-size:17px; font-weight:bold; color:var(--sessy-accent-text); line-height:1.2;">Chart Guide</div>
+            <div style="font-size:11px; color:var(--rz-text-secondary-color);">SessyWeb — Home Energy Management</div>
         </div>
     </div>
 
@@ -102,8 +102,8 @@
     {
         <div class="help-section-title">🧠 Why this plan</div>
         <div style="margin-bottom:16px; font-size:13px;">
-            <div style="font-weight:600; color:#f0f0f0; margin-bottom:6px;">@PlanWhy.Plain</div>
-            <ul style="margin:0; padding-left:18px; color:#9999bb;">
+            <div style="font-weight:600; color:var(--rz-text-title-color, var(--rz-text-color)); margin-bottom:6px;">@PlanWhy.Plain</div>
+            <ul style="margin:0; padding-left:18px; color:var(--rz-text-secondary-color);">
                 @foreach (var line in PlanWhy.Technical)
                 {
                     <li>@line</li>
@@ -118,24 +118,26 @@
         <div>
             <div class="help-section-title">💰 Price Series</div>
             <table class="help-table">
-                @Row("#324ab2", "Buying price", "Tariff paid per kWh from grid (incl. taxes &amp; transport)")
-                @Row("#00aae4", "Selling price", "Tariff received per kWh exported to the grid")
-                @Row("#324ab2", "Smoothed buying", "Rolling average of the price, shown to make the trend easier to read")
-                @Row("#00aae4", "Smoothed selling", "Rolling average of selling price")
-                @Row("orange", "Prices predicted →", "Day-Ahead forecast from this point onward")
+                @Row("var(--sessy-buy-line)", "Buying price", "Tariff paid per kWh from grid (incl. taxes &amp; transport)")
+                @Row("var(--sessy-sell-line)", "Selling price", "Tariff received per kWh exported to the grid")
+                @Row("var(--sessy-buy-line)", "Smoothed buying", "Rolling average of the price, shown to make the trend easier to read")
+                @Row("var(--sessy-sell-line)", "Smoothed selling", "Rolling average of selling price")
+                @Row("var(--sessy-predicted-text)", "Prices predicted →", "Day-Ahead forecast from this point onward")
+                @Row("var(--sessy-cost-basis-line)", "Cost basis delivered", "What the stored energy cost per delivered kWh")
             </table>
 
             <div class="help-section-title">☀️ Solar &amp; Consumption</div>
             <table class="help-table">
-                @Row("gold", "Solar power", "Measured (past) or forecast (future) solar production")
-                @Row("#888", "Est. consumption", "Forecast home consumption per quarter-hour")
-                @Row("#ffd700", "Zero net home", "Battery balances home load — net grid flow ≈ 0")
+                @Row("var(--sessy-solar-line)", "Solar power", "Measured (past) or forecast (future) solar production")
+                @Row("var(--sessy-consumption-line)", "Est. consumption", "Forecast home consumption per quarter-hour")
+                @Row("var(--sessy-znh-line)", "Zero net home", "Battery balances home load — net grid flow ≈ 0")
+                @Row("var(--sessy-solar-only-line)", "Solar only", "Battery stores solar surplus but does not cover the house")
             </table>
 
             <div class="help-section-title">📌 Other</div>
             <table class="help-table">
-                @Row("#555", "Delta lowest price", "Gap between current price and the day's lowest price")
-                @Row("white", "Now  ▏", "Current quarter marker — visible in Show All mode")
+                @Row("var(--sessy-delta-line)", "Delta lowest price", "Gap between current price and the day's lowest price")
+                @Row("var(--sessy-now)", "Now  ▏", "Current quarter marker — visible in Show All mode")
             </table>
         </div>
 
@@ -143,11 +145,14 @@
         <div>
             <div class="help-section-title">🔋 Battery &amp; Plan</div>
             <table class="help-table">
-                @Row("red", "Charge remaining", "Planned State of Charge (SOC) curve over time")
-                @Row("#b06500", "Charge needed", "Minimum SOC to cover future home consumption")
-                @Row("#ff6600", "Charge power", "Planned charging energy per quarter-hour (kWh)")
-                @Row("#00cc44", "Discharge power", "Planned discharging energy per quarter-hour (kWh)")
-                @Row("orange", "Revenue per quarter", "Realised arbitrage profit per 15-min slot (€)")
+                @Row("var(--sessy-soc-line)", "Charge remaining", "Planned State of Charge (SOC) curve over time")
+                @Row("var(--sessy-reserve-line)", "Charge needed", "Minimum SOC to cover future home consumption")
+                @Row("var(--sessy-charge-line)", "Charge power", "Planned charging energy per quarter-hour (kWh)")
+                @Row("var(--sessy-discharge-line)", "Discharge power", "Planned discharging energy per quarter-hour (kWh)")
+                @Row("var(--sessy-revenue-line)", "Revenue per quarter", "Realised arbitrage profit per 15-min slot (€)")
+                @Row("var(--sessy-throttle-line)", "Throttle loss", "Power the battery could not take or give because of throttling")
+                @Row("var(--sessy-charged-line)", "⟨Charged⟩", "What the batteries plan for themselves (Charged)")
+                @Row("var(--sessy-plan-history-line)", "Plan history", "Earlier plans for the same quarters")
             </table>
 
             <div class="help-section-title">🖥️ Header Indicators</div>
@@ -184,7 +189,7 @@
     {
         b.OpenElement(0, "tr");
         b.OpenElement(1, "td"); b.AddAttribute(2, "class", "c-swatch");
-        b.AddMarkupContent(3, "<span style='color:#8888ff;font-size:13px;'>⬡</span>");
+        b.AddMarkupContent(3, "<span style='color:var(--sessy-accent-text);font-size:13px;'>⬡</span>");
         b.CloseElement();
         b.OpenElement(4, "td"); b.AddAttribute(5, "class", "c-label");
         b.AddContent(6, label);

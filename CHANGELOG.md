@@ -11,6 +11,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.153] — 2026-10-07
+
+### Changed
+- **One colour palette for the whole GUI.** Every page, chart, tooltip and badge now takes its
+  colours from one set in `site.css`, so the same thing has the same colour everywhere:
+  consumption is purple on every page (was blue on the Consumption page, the colour of the buying
+  price), charging orange and discharging green also in the tooltip, the throttle chart and the
+  Planner analysis badges, and the mode badges match the chart (Zero net home gold, Solar only
+  teal). Solar only moved from green to teal so it no longer looks like discharging.
+- **Readable on light and dark themes.** Line and text colours blend in the theme's text colour,
+  so they keep their contrast on every theme. Yellow, cyan and green badges and buttons get dark
+  text instead of white; the "now" line, the help close button and the temperature line no longer
+  disappear on a light theme. The Chart Guide and the battery table follow the chosen theme
+  instead of a fixed dark style, and the Chart Guide lists the series that were missing (cost
+  basis, Solar only, throttle loss, Charged, plan history).
+
 ## [v1.0.152] — 2026-10-07
 
 ### Fixed

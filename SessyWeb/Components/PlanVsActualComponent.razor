@@ -44,7 +44,7 @@
                                   CategoryProperty="@nameof(PlanVsActualChartPoint.Time)"
                                   ValueProperty="@nameof(PlanVsActualChartPoint.PlannedSocPct)"
                                   Title="Planned SOC (%)"
-                                  Stroke="#6366f1"
+                                  Stroke="var(--sessy-planned-line)"
                                   StrokeWidth="2"
                                   LineType="LineType.Dashed" />
 
@@ -52,7 +52,7 @@
                                   CategoryProperty="@nameof(PlanVsActualChartPoint.Time)"
                                   ValueProperty="@nameof(PlanVsActualChartPoint.ActualSocPct)"
                                   Title="Actual SOC (%)"
-                                  Stroke="#22c55e"
+                                  Stroke="var(--sessy-actual-line)"
                                   StrokeWidth="2" />
 
                 <RadzenCategoryAxis FormatString="{0:dd-MM HH:mm}"

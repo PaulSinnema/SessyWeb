@@ -42,9 +42,9 @@
                     <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
 
                     <RadzenAreaSeries Data="@ConsumptionDayData"
-                    Stroke="blue"
+                    Stroke="var(--sessy-consumption-line)"
                     StrokeWidth="2"
-                    Fill="blue"
+                    Fill="var(--sessy-consumption-area)"
                     Title="Consumption"
                     CategoryProperty="Time"
                     ValueProperty="ConsumptionKWh"
@@ -73,9 +73,9 @@
                 <RadzenChart Style="@GraphStyle" @ref=GlobalRadiationChart>
                     <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
                     <RadzenAreaSeries Data="@ConsumptionDayData"
-                    Stroke="orange"
+                    Stroke="var(--sessy-solar-line)"
                     StrokeWidth="2"
-                    Fill="orange"
+                    Fill="var(--sessy-solar-area)"
                     Title="Global radiation"
                     CategoryProperty="Time"
                     ValueProperty="GlobalRadiation"
@@ -106,9 +106,9 @@
                     <RadzenAreaSeries Data="@ConsumptionDayData"
                     Title="Humidity"
                     CategoryProperty="Time"
-                    Stroke="green"
+                    Stroke="var(--sessy-humidity-line)"
                     StrokeWidth="2"
-                    Fill="green"
+                    Fill="var(--sessy-humidity-area)"
                     ValueProperty="Humidity"
                     Smooth="true"
                     LineType="LineType.Solid">
@@ -135,9 +135,9 @@
                 <RadzenChart Style="@GraphStyle" @ref=TemperatureChart>
                     <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
                     <RadzenAreaSeries Data="@ConsumptionDayData"
-                    Stroke="yellow"
+                    Stroke="var(--sessy-temperature-line)"
                     StrokeWidth="2"
-                    Fill="yellow"
+                    Fill="var(--sessy-temperature-area)"
                     Title="Temperature"
                     CategoryProperty="Time"
                     ValueProperty="Temperature"
@@ -167,9 +167,9 @@
                     <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
 
                     <RadzenColumnSeries Data="@ConsumptionWeekData"
-                    Stroke="blue"
+                    Stroke="var(--sessy-consumption-line)"
                     StrokeWidth="2"
-                    Fill="blue"
+                    Fill="var(--sessy-consumption-area)"
                     Title="Consumption"
                     CategoryProperty="DayOfWeek"
                     ValueProperty="ConsumptionKWh"
@@ -197,9 +197,9 @@
                     <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
 
                     <RadzenColumnSeries Data="@ConsumptionMonthData"
-                                        Stroke="blue"
+                                        Stroke="var(--sessy-consumption-line)"
                                         StrokeWidth="2"
-                                        Fill="blue"
+                                        Fill="var(--sessy-consumption-area)"
                                         Title="Consumption"
                                         CategoryProperty="DayOfWeek"
                                         ValueProperty="ConsumptionKWh"
@@ -228,9 +228,9 @@
                     <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
 
                     <RadzenColumnSeries Data="@ConsumptionYearData"
-                                        Stroke="blue"
+                                        Stroke="var(--sessy-consumption-line)"
                                         StrokeWidth="2"
-                                        Fill="blue"
+                                        Fill="var(--sessy-consumption-area)"
                                         Title="Consumption"
                                         CategoryProperty="MonthOfYear"
                                         ValueProperty="ConsumptionKWh"
@@ -259,9 +259,9 @@
                     <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
 
                     <RadzenColumnSeries Data="@ConsumptionAllData"
-                                        Stroke="blue"
+                                        Stroke="var(--sessy-consumption-line)"
                                         StrokeWidth="2"
-                                        Fill="blue"
+                                        Fill="var(--sessy-consumption-area)"
                                         Title="Consumption"
                                         CategoryProperty="Year"
                                         ValueProperty="ConsumptionKWh"
@@ -289,9 +289,9 @@
                     <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
 
                     <RadzenColumnSeries Data="@ConsumptionCustomData"
-                                        Stroke="blue"
+                                        Stroke="var(--sessy-consumption-line)"
                                         StrokeWidth="2"
-                                        Fill="blue"
+                                        Fill="var(--sessy-consumption-area)"
                                         Title="Consumption"
                                         CategoryProperty="X"
                                         ValueProperty="ConsumptionKWh"

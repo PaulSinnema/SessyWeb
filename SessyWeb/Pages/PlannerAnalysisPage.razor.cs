@@ -33,14 +33,6 @@ namespace SessyWeb.Pages
             }
         }
 
-        private static BadgeStyle ModeBadge(string mode) => mode switch
-        {
-            "Charging" => BadgeStyle.Info,
-            "Discharging" => BadgeStyle.Success,
-            "SolarOnly" => BadgeStyle.Warning,
-            _ => BadgeStyle.Base
-        };
-
         private static BadgeStyle PriceBadge(string position) => position switch
         {
             "Cheap" => BadgeStyle.Success,
@@ -48,13 +40,7 @@ namespace SessyWeb.Pages
             _ => BadgeStyle.Base
         };
 
-        // Light-ish badge fills (info/success/warning) get white text from the theme — force dark
-        // text on those for contrast. Base (dark) and Danger (deep red) keep the light text.
-        private static string? BadgeTextStyle(BadgeStyle style) => style switch
-        {
-            BadgeStyle.Info or BadgeStyle.Success or BadgeStyle.Warning => "color:#212529;",
-            _ => null
-        };
+        // Mode badges use SessyColors (chart colours); dark text on bright badges comes from site.css.
 
         // Per-quarter facts and calculations for the expanded row detail.
         private static List<PlannerParam> QuarterFacts(PlannerQuarterAnalysis q)

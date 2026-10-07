@@ -9,7 +9,6 @@
         @if (Dashboard!.UsesProjection)
         {
             <RadzenBadge BadgeStyle="BadgeStyle.Warning"
-                         Style="color: black;"
                          Text="@($"Projection from {Dashboard.DataAvailableFrom:dd-MM-yyyy}")"
                          title="Insufficient historical data — savings before this date are extrapolated using seasonal monthly averages." />
         }

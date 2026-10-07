@@ -5,7 +5,7 @@
 <RadzenCard Style="@($"padding: 8px; background: {(Highlight ? "var(--rz-success-lighter)" : "inherit")}")">
     <RadzenText TextStyle="TextStyle.Caption" style="color: var(--rz-text-secondary-color);">@Title</RadzenText>
     <div style="display: flex; align-items: center; gap: 6px;">
-        <RadzenText TextStyle="TextStyle.H6" style="@(Highlight ? "color: var(--rz-success);" : "")">@Value</RadzenText>
+        <RadzenText TextStyle="TextStyle.H6" style="@(Highlight ? "color: var(--sessy-positive-text);" : "")">@Value</RadzenText>
         @if (!string.IsNullOrEmpty(InfoTooltip))
         {
             <RadzenIcon Icon="info" Style="font-size: 14px; opacity: 0.6; cursor: help;"

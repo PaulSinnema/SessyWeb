@@ -132,6 +132,8 @@ Never use `DateTime.Now`. Use `TimeZoneService.Now` (configured timezone, `virtu
 
 Blazor Server, Radzen components, `.razor` + `.razor.cs` code-behind pairs. Pages inherit `PageBase`, components inherit `BaseComponent` — both inject `BatteryContainer`/`BatteriesService` and expose `IsManualOverride`, `WeAreInControl`, `ChargedInControl`, a cascading `ScreenInfo` (mobile/landscape detection via BlazorSize) and `GetFormatProvider()` (hardcoded `nl-NL`). `PageBase` additionally cascades `SetIsBusy` for the global spinner and sets `HideId` from the DEBUG flag. Swagger is exposed at `/swagger`. Verify Radzen APIs against `raw.githubusercontent.com/radzenhq/radzen-blazor/master/...` before use.
 
+**Colours**: one palette in `wwwroot/css/site.css` (`--sessy-*` tokens). Never hard-code a colour in a page or chart: use `var(--sessy-x)` for fills (`-area`/`-faded` for translucent), `var(--sessy-x-line)` for chart strokes and `var(--sessy-x-text)` for coloured text — the `-line`/`-text` variants mix in `--rz-text-color`, so they keep contrast on light and dark themes. C#-built markup uses `Helpers/SessyColors` (mode badges, mode text). Bright badges/buttons (warning/info/success) get dark text globally from site.css — don't add per-page `color:` overrides. Give every chart series an explicit colour (Radzen's default palette runs out and then draws nothing).
+
 ## Deployment
 
 `SessyWeb/Dockerfile` builds and publishes SessyWeb. Container expects volumes at `/SessyController/Config` (appsettings.json) and `/SessyController/Data` (SQLite DB + backups), ports 80/443, and `CONFIG_PATH=/SessyController/Config`. See README.md for the full Synology Container Manager setup.
@@ -157,6 +159,7 @@ Er draaien ook instanties bij anderen — meldingen komen als GitHub-issues binn
 - Code-behind boven `@code`-blokken. Radzen Blazor overal. Radzen API's verifiëren via `raw.githubusercontent.com/radzenhq/radzen-blazor/master/...` (rendering-pad én crosshair/tooltip-pad — `CartesianSeries.DataAt/TooltipY` unwrapt `double?` hard).
 - Na codegeneratie altijd zelf reviewen op syntax/naamfouten/dubbele code/missing usings. Braces + code-parens balanceren (comments negeren bij paren-telling).
 - **Versie ophogen bij ELKE wijziging, plus een CHANGELOG-regel** — één afspraak, hierboven onder "Repository conventions". Niet hier herhalen; twee kopieën lopen uit elkaar.
+- **Bestandsnamen: altijd het origineel, exact zoals het op schijf staat (incl. hoofd/kleine letters).** Nooit de schrijfwijze uit docs of verwijzingen overnemen — eerst de map bekijken. Windows is hoofdletter-ongevoelig, Git niet: een bestand wegschrijven als `Settings.md` hernoemde `SETTINGS.md` stil, waarna de Git-index beide namen had en er altijd één als 'D' stond (v1.0.152; alleen op te lossen door verwijderen, beide deletes committen en opnieuw toevoegen). Een bewuste hoofdletterwijziging alleen via `git mv`.
 
 ## Omgeving
 - Broncode én werkkopie: `C:\Projects\Sessy` (Windows, PowerShell, dotnet aanwezig — bouwen en testen kan direct).

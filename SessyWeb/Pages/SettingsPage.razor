@@ -386,7 +386,7 @@
                                                   IsBusy="@_settingsSaving" />
                                     @if (_settingsSaved)
                                     {
-                                        <RadzenText TextStyle="TextStyle.Caption" Style="margin-left:1rem; color:var(--rz-success);">
+                                        <RadzenText TextStyle="TextStyle.Caption" Style="margin-left:1rem; color:var(--sessy-positive-text);">
                                             ✓ Saved
                                         </RadzenText>
                                     }
@@ -430,7 +430,7 @@
                                                   IsBusy="@_settingsSaving" />
                                     @if (_settingsSaved)
                                     {
-                                        <RadzenText TextStyle="TextStyle.Caption" Style="margin-left:1rem; color:var(--rz-success);">
+                                        <RadzenText TextStyle="TextStyle.Caption" Style="margin-left:1rem; color:var(--sessy-positive-text);">
                                             ✓ Saved
                                         </RadzenText>
                                     }
@@ -1121,7 +1121,7 @@
                             <RadzenButton Text="Export" Icon="download" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" Click="@ExportLog" />
                             <RadzenButton Text="Clear" Icon="delete" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" Click="@ClearLog" />
                         </RadzenStack>
-                        <pre @ref="_logContainer" style="flex: 1 1 auto; min-height: 0; overflow: auto; background: #1e1e1e; color: #d4d4d4; font-family: Consolas, 'Courier New', monospace; font-size: 12px; line-height: 1.35; padding: 8px; margin: 0; white-space: pre; border-radius: 4px;">@_logText</pre>
+                        <pre @ref="_logContainer" style="flex: 1 1 auto; min-height: 0; overflow: auto; background: var(--sessy-terminal-bg); color: var(--sessy-terminal-fg); font-family: Consolas, 'Courier New', monospace; font-size: 12px; line-height: 1.35; padding: 8px; margin: 0; white-space: pre; border-radius: 4px;">@_logText</pre>
                     </RadzenStack>
                 </RadzenTabsItem>
 
