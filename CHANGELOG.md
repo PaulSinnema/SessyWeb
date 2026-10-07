@@ -11,6 +11,35 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.150] — 2026-10-07
+
+### Changed
+- **Execution follows the plan strictly.** Zero Net Home and Disabled quarters run exactly as
+  planned; the runtime no longer swaps them on net load or cycle cost.
+- **Charts show "Solar only"** as its own green band, and a quiet battery in a Solar only or
+  Disabled quarter no longer counts as a plan deviation.
+
+### Fixed
+- **Zero Net Home only where the plan covers the whole house.** The plan labelled quarters Zero
+  Net Home while it covered none or part of the house load there, but Zero Net Home covers all of
+  it at runtime — in the 06-10 replay 1,16 kWh more than planned, ending below the reserve. Such
+  quarters are now "Solar only", and house cover that arbitrage made possible afterwards is added
+  back to the plan where the battery has room above the reserve for the rest of the horizon,
+  dearest quarters first.
+- **Battery stops at the reserve when the house uses more than forecast.** As soon as the measured
+  SOC reaches the reserve during a Zero Net Home quarter the plan is rebuilt (within a minute) and
+  the quarter becomes "Solar only", instead of covering the house below the reserve until the next
+  quarter. The switch to "Solar only" is no longer held back by the 2-minute mode dwell.
+- **Calculated night reserve: tonight's house load is covered again.** The plan kept the highest
+  reserve anywhere in the horizon from the first quarter on — with a calculated reserve that is the
+  full night reserve at the end of tomorrow — so the battery stayed idle overnight while tomorrow's
+  sun refills it anyway. The house is now covered down to the reserve each later quarter still needs
+  after the solar in between. A fixed reserve plans exactly as before.
+- **Runtime guards hold the energy.** When a charge quarter finds the battery full or the target
+  reached, or a discharge quarter finds nothing left above the reserve, the battery now goes to
+  "Solar only" instead of Zero Net Home — which covered the house from energy just bought, or
+  below the reserve.
+
 ## [v1.0.149] — 2026-10-07
 
 ### Added

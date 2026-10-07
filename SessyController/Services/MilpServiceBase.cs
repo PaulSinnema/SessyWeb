@@ -58,6 +58,9 @@ namespace SessyController.Services
         // Battery SOC (Wh) at the end of each quarter, taken directly from the solver so
         // the displayed SOC matches the plan exactly (single source of truth).
         private Dictionary<DateTime, double> _planSocWhByTime = new();
+
+        /// <summary>The planner's reserve floor per quarter (Wh) from the last accepted solve.</summary>
+        private Dictionary<DateTime, double> _planFloorWhByTime = new();
         private Dictionary<DateTime, double> _plannedSocByQuarter = new();
 
         // SOC the current plan started from, and the quarter it starts at. The horizon begins at
@@ -588,6 +591,7 @@ namespace SessyController.Services
             bool newPricesArrived = currentKnownTimes.Any(t => !_lastKnownPriceTimes.Contains(t));
 
             bool forced = false;
+            bool reserveTriggered = false;
             string? reason = null;
 
             if (_planByTime.Count == 0)
@@ -616,6 +620,19 @@ namespace SessyController.Services
                 // time the gap reopens. The plan stays fresh on the quarterly speculative solve.
                 reason = $"SOC deviation exceeded {SocDeviationThresholdPct}%"; forced = true;
             }
+            else if (_controlMode.WeMayDriveTheBatteries
+                     && _reserveRebuildQuarter != nowQuarter
+                     && ReserveReachedUnderCover(
+                            _planByTime.TryGetValue(nowQuarter, out var nowAct) ? nowAct.Mode : Modes.Unknown,
+                            currentSocWh,
+                            _planFloorWhByTime.TryGetValue(nowQuarter, out var floorWh) ? floorWh : 0.0))
+            {
+                // House used more than forecast: ZNH would cover it below the reserve until the
+                // next quarter. The planner re-decides from the measured SOC (→ SolarOnly).
+                // The floor is the planner's own (ReserveFloor), so both sides agree on "at reserve".
+                reserveTriggered = true;
+                reason = "SOC at reserve while the plan covers the house"; forced = true;
+            }
             else if (_lastSpeculativeSolveQuarter != nowQuarter)
             {
                 reason = "Quarterly speculative solve"; forced = false;
@@ -630,6 +647,7 @@ namespace SessyController.Services
             // so keep a copy: a rejected solve must not stay in control of the batteries.
             var previousPlanByTime = new Dictionary<DateTime, PlanAction>(_planByTime);
             var previousPlanSocWhByTime = new Dictionary<DateTime, double>(_planSocWhByTime);
+            var previousPlanFloorWhByTime = new Dictionary<DateTime, double>(_planFloorWhByTime);
             var previousPlanStartQuarter = _planStartQuarter;
             double previousPlanStartSocWh = _planStartSocWh;
 
@@ -644,6 +662,11 @@ namespace SessyController.Services
                 _logger.LogWarning("MILP solve failed — keeping previous plan.");
                 return false;
             }
+
+            // Once per quarter, and only after a solve that went through: should the planner keep
+            // ZNH, rebuilding again will not change it; a failed solve may retry next cycle.
+            if (reserveTriggered)
+                _reserveRebuildQuarter = nowQuarter;
 
             // Compare EUR/quarter, not the raw total: the horizon shrinks as the day progresses,
             // so a later solve's total is smaller even when it is strictly better.
@@ -660,6 +683,7 @@ namespace SessyController.Services
 
                     _planByTime = previousPlanByTime;
                     _planSocWhByTime = previousPlanSocWhByTime;
+                    _planFloorWhByTime = previousPlanFloorWhByTime;
                     _lastPlanObjectiveEur = previousObjective;
                     _lastPlanQuarterCount = previousQuarterCount;
                     _planStartQuarter = previousPlanStartQuarter;
@@ -683,6 +707,42 @@ namespace SessyController.Services
             _lastRebuildReason = reason;
             return true;
         }
+
+        /// <summary>Same slack as the planner's reserve check (5 Wh), so a rebuild cannot loop.</summary>
+        private const double ReserveToleranceWh = 5.0;
+
+        /// <summary>Quarter of the last reserve-triggered rebuild, so it fires at most once per quarter.</summary>
+        private DateTime? _reserveRebuildQuarter;
+
+        /// <summary>
+        /// Measured SOC has reached the planner's floor while the plan still says ZeroNetHome.
+        /// The planner turns such a quarter into SolarOnly, so after one rebuild this is false.
+        /// </summary>
+        internal static bool ReserveReachedUnderCover(Modes plannedMode, double socWh, double floorWh)
+            => plannedMode == Modes.ZeroNetHome
+               && floorWh > 0.0
+               && socWh <= floorWh + ReserveToleranceWh;
+
+        /// <summary>
+        /// Superseded by the planner's own ReserveFloor (_planFloorWhByTime); kept for reference.
+        /// The reserve the planner holds from now on: the highest one still to come within its
+        /// horizon (BatteryGreedyPlanner.MinSocFrom), e.g. the bridge reserve. This quarter's
+        /// own reserve alone can be lower, which made the trigger fire too late.
+        /// </summary>
+        internal static double PlannerFloorWh(IReadOnlyDictionary<DateTime, double> minSocWhByTime, DateTime nowQuarter, DateTime horizonEnd)
+        {
+            double floor = 0.0;
+            foreach (var kv in minSocWhByTime)
+                if (kv.Key >= nowQuarter && kv.Key < horizonEnd && kv.Value > floor)
+                    floor = kv.Value;
+            return floor;
+        }
+
+        /// <summary>Same horizon as StrategyMilpService.BuildMilpPlanAsync. Superseded with PlannerFloorWh.</summary>
+        private DateTime PlanningHorizonEnd(DateTime nowQuarter)
+            => _settingsConfig.PlanningHorizonHours > 0
+                ? nowQuarter.AddHours(_settingsConfig.PlanningHorizonHours)
+                : DateTime.MaxValue;
 
         private static long CalculatePriceSignature(List<QuarterlyInfo> infos)
         {
@@ -745,6 +805,7 @@ namespace SessyController.Services
 
             var newPlan = new Dictionary<DateTime, PlanAction>();
             var newSoc = new Dictionary<DateTime, double>();
+            var newFloor = new Dictionary<DateTime, double>();
 
             foreach (var p in result.Plan)
             {
@@ -784,6 +845,7 @@ namespace SessyController.Services
 
                 newPlan[p.Start] = new PlanAction { Mode = mode, PowerW = powerW, RequestedPowerW = requestedW };
                 newSoc[p.Start] = p.SocEndKWh * 1000.0;
+                newFloor[p.Start] = p.ReserveFloorKWh * 1000.0;
             }
 
             foreach (var qi in _quarterlyInfos)
@@ -798,6 +860,7 @@ namespace SessyController.Services
 
             _planByTime = newPlan;
             _planSocWhByTime = newSoc;
+            _planFloorWhByTime = newFloor;
             _lastPlanObjectiveEur = result.ObjectiveEur;
             _lastPlanQuarterCount = quarterCount;
             _planStartQuarter = newSoc.Count > 0 ? newSoc.Keys.Min() : DateTime.MinValue;
@@ -1087,6 +1150,17 @@ namespace SessyController.Services
 
         // ── Runtime action ───────────────────────────────────────────────────
 
+        /// <summary>Off: planned ZeroNetHome/Disabled are no longer remapped at runtime.</summary>
+        private static readonly bool RemapIdleModes = false;
+
+        /// <summary>A guard stops the planned flow: hold the energy, store live surplus only.</summary>
+        internal static PlanAction HoldAction(QuarterlyInfo? qi)
+        {
+            qi?.SetMode(Modes.SolarOnly);
+            qi?.SetPlanPower(0, 0);
+            return new PlanAction { Mode = Modes.SolarOnly, PowerW = 0 };
+        }
+
         private async Task<PlanAction> GetExecutableActionAsync(DateTime nowQuarter)
         {
             if (!_planByTime.TryGetValue(nowQuarter, out var planned))
@@ -1120,13 +1194,11 @@ namespace SessyController.Services
                     // Once per engagement — this method runs on every heartbeat and every UI refresh.
                     if (!roomGuardWasHeld)
                         _logger.LogWarning(
-                            $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: GUARD_CHARGE_NO_ROOM → ZeroNetHome " +
+                            $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: GUARD_CHARGE_NO_ROOM → SolarOnly " +
                             $"(socWh={socWh:F0}, maxSocWh={maxSocWh:F0}, roomWh={roomWh:F0}, releaseWh={releaseWh:F0})");
 
-                    var nzh = new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
-                    qi?.SetMode(Modes.ZeroNetHome);
-                    qi?.SetPlanPower(0, 0);
-                    return nzh;
+                    // Was ZeroNetHome: covered the house from just-bought energy or below the reserve.
+                    return HoldAction(qi);
                 }
 
                 // Ask for the plan's REQUEST, not its tapered expectation. The batteries clamp
@@ -1146,13 +1218,11 @@ namespace SessyController.Services
                 {
                     if (!targetGuardWasHeld)
                         _logger.LogWarning(
-                            $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: GUARD_CHARGE_TARGET_REACHED → ZeroNetHome " +
+                            $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: GUARD_CHARGE_TARGET_REACHED → SolarOnly " +
                             $"(socWh={socWh:F0}, limitWh={limitWh:F0}, releaseWh={releaseWh:F0})");
 
-                    var nzh = new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
-                    qi?.SetMode(Modes.ZeroNetHome);
-                    qi?.SetPlanPower(0, 0);
-                    return nzh;
+                    // Was ZeroNetHome: covered the house from just-bought energy or below the reserve.
+                    return HoldAction(qi);
                 }
 
                 double chargeW = ChargeSetpointW(requestedW, qi?.NetLoadWh ?? 0.0, limitWh);
@@ -1205,13 +1275,11 @@ namespace SessyController.Services
                 {
                     if (!dischargeGuardWasHeld)
                         _logger.LogWarning(
-                            $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: GUARD_DISCHARGE_NO_ENERGY → ZeroNetHome " +
+                            $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: GUARD_DISCHARGE_NO_ENERGY → SolarOnly " +
                             $"(socWh={socWh:F0}, minSocWh={minSocWh:F0}, availableWh={availableWh:F0}, releaseWh={releaseWh:F0})");
 
-                    var nzh = new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
-                    qi?.SetMode(Modes.ZeroNetHome);
-                    qi?.SetPlanPower(0, 0);
-                    return nzh;
+                    // Was ZeroNetHome: covered the house from just-bought energy or below the reserve.
+                    return HoldAction(qi);
                 }
 
                 if (requiredWh > availableWh)
@@ -1257,10 +1325,12 @@ namespace SessyController.Services
                 return planned;
             }
 
+            // Superseded: the plan is the single truth, ZeroNetHome and Disabled run as planned.
+            // The remap below (ZNH ↔ Disabled on net load and cycle cost) is kept for reference.
             // ZeroNetHome — choose between ZNH (store surplus) and Disabled (battery off).
             // Uses the measured NetLoad of the last completed quarter: the current quarter's
             // forecast can be badly wrong and would wrongly Disable the battery.
-            if (qi != null)
+            if (RemapIdleModes && qi != null)
             {
                 var prevQuarter = _quarterlyInfos
                     .Where(q => q.Time < nowQuarter)

@@ -132,7 +132,8 @@ namespace SessyController.Services.Optimization
         double SocStartKWh,
         double SocEndKWh,
         double RequestedChargeKW = 0.0,
-        double RequestedDischargeKW = 0.0
+        double RequestedDischargeKW = 0.0,
+        double ReserveFloorKWh = 0.0   // SOC the planner keeps at the end of this quarter (0 = unknown)
     );
 
     /// <summary>

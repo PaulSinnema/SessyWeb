@@ -114,6 +114,8 @@ namespace SessyController.Services.StateMachine
         {
             if (candidate == current) return true;
             if (current == Modes.Unknown) return true;
+            // SolarOnly never discharges and stays on NOM: entering it is a stop, never delayed.
+            if (candidate == Modes.SolarOnly) return true;
             if (ActivityRank(candidate) < ActivityRank(current)) return true;
 
             return now - modeSince >= dwell;

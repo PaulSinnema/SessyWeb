@@ -197,6 +197,23 @@
                           Data="@QuarterlyInfos"
                           Smooth="true"
                           CategoryProperty="Time"
+                          Fill="rgba(76, 175, 80, 0.45)"
+                          Stroke="#4caf50"
+                          Title="Solar only"
+                          ValueProperty="SolarOnlyVisual">
+            <TooltipTemplate Context="data">
+                <ChargingHoursTooltip QuarterlyInfo=@data />
+            </TooltipTemplate>
+            <ChildContent>
+                <RadzenMarkers Visible="false" />
+                <RadzenSeriesDataLabels Visible="false" />
+            </ChildContent>
+        </RadzenAreaSeries>
+
+        <RadzenAreaSeries Visible="@WeAreInControl"
+                          Data="@QuarterlyInfos"
+                          Smooth="true"
+                          CategoryProperty="Time"
                           Fill="rgba(255, 0, 0, 0.45)"
                           Stroke="red"
                           StrokeWidth="1.5"

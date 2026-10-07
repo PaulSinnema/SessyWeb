@@ -145,8 +145,11 @@ namespace SessyController.Services.Optimization
             if (pricePoints == null || pricePoints.Count == 0) return null;
 
             var ctx = BuildContext(pricePoints, spec, opt, socBounds);
+            ctx.ReserveFloor = ComputeReserveFloor(ctx);
             var state = RunBaselinePass(ctx);
             var scratch = RunArbitragePass(ctx, state, out var lastFilledScratch);
+
+            RecoverHouseCover(ctx, state);
 
             if (trace != null)
                 ExplainWhyNotSold(ctx, state, lastFilledScratch, trace);
@@ -195,6 +198,15 @@ namespace SessyController.Services.Optimization
             /// that arrives later. Every discharge must respect this suffix maximum instead.
             /// </summary>
             public required double[] MinSocFrom { get; init; }
+
+            /// <summary>
+            /// The SOC each quarter has to keep so every later reserve is still met, counting the
+            /// solar the baseline stores in between. Supersedes <see cref="MinSocFrom"/> for the
+            /// house cover: with a calculated reserve the last quarters of the horizon carry a full
+            /// night reserve, and the suffix maximum held that tonight already although tomorrow's
+            /// sun refills it. See <see cref="ComputeReserveFloor"/>.
+            /// </summary>
+            public double[] ReserveFloor { get; set; } = Array.Empty<double>();
             public required ChargeTaper Taper { get; init; }
             public required ChargeCapabilityFloor ChargeFloor { get; init; }
             public required ChargeCapability ChargeCapability { get; init; }
@@ -372,7 +384,7 @@ namespace SessyController.Services.Optimization
             public double[] ExportKWh { get; }       // grid export remaining after the battery
             public double[] SocEnd { get; }          // store level at the end of each quarter
             public bool[] Held { get; }              // discharge moved away by Candidate F: battery idle on purpose
-            public bool[] AtReserve { get; }         // reserve reached: SolarOnly, never discharge
+            public bool[] AtReserve { get; }         // reserve reached or house not fully covered: SolarOnly, never discharge
 
             public State(int n)
             {
@@ -392,6 +404,62 @@ namespace SessyController.Services.Optimization
         // ══════════════════════════════════════════════════════════════════
 
         /// <summary>
+        /// Best per-kWh value any later quarter can give stored energy: avoiding a future import
+        /// (buy) or exporting later (sell), whichever is higher. Suffix maximum, so the
+        /// store-vs-export choice is O(1) per quarter.
+        /// </summary>
+        private static double[] BestFutureValue(Context ctx)
+        {
+            var bestFutureValue = new double[ctx.N];
+            for (int tt = ctx.N - 2; tt >= 0; tt--)
+            {
+                double valNext = Math.Max(ctx.PricePoints[tt + 1].BuyEurPerKWh, ctx.PricePoints[tt + 1].SellEurPerKWh);
+                bestFutureValue[tt] = Math.Max(valNext, bestFutureValue[tt + 1]);
+            }
+            return bestFutureValue;
+        }
+
+        /// <summary>
+        /// Baseline export-vs-store choice for a solar quarter. Arbitrage (phase 2) stores solar
+        /// when sell &lt; roundTrip*(bestFutureValue - cycle); this matches that break-even plus a
+        /// margin, so surplus exported here is never worth re-storing to the arbitrage pass.
+        /// </summary>
+        private static bool BaselineExports(Context ctx, double[] bestFutureValue, int t)
+            => ctx.PricePoints[t].SellEurPerKWh
+               > ctx.ReplacementRoundTrip * (bestFutureValue[t] - ctx.CycleCost) + ExportDecisionMarginEurPerKWh;
+
+        /// <summary>
+        /// Backward: F[t] = max(MinSoc[t], F[t+1] - solar the baseline stores in t+1). A deficit
+        /// quarter passes the floor on unchanged (its cover stops at the floor), a solar quarter
+        /// lowers it by what it refills. The taper is read at F[t+1], above the SOC the quarter
+        /// really starts at, so the refill is never overstated.
+        /// </summary>
+        private static double[] ComputeReserveFloor(Context ctx)
+        {
+            int n = ctx.N;
+            var floor = new double[n];
+            if (n == 0) return floor;
+
+            var bestFutureValue = BestFutureValue(ctx);
+            floor[n - 1] = ctx.MinSoc[n - 1];
+
+            for (int t = n - 2; t >= 0; t--)
+            {
+                int next = t + 1;
+                double gain = 0.0;
+                double surplus = Math.Max(0.0, -ctx.PricePoints[next].NetLoadWh / 1000.0);
+                if (surplus > Eps && !BaselineExports(ctx, bestFutureValue, next))
+                {
+                    double absorb = Math.Min(surplus, ctx.TaperedChargeKWh(next, floor[next]));
+                    gain = absorb * ctx.ChEffFor(absorb);
+                }
+                floor[t] = Math.Max(ctx.MinSoc[t], floor[next] - gain);
+            }
+
+            return floor;
+        }
+
+        /// <summary>
         /// Solar surplus charges the battery, household deficit is served from the battery, both
         /// within SOC bounds and power limits. Whatever remains is exported / imported. This is
         /// the ZeroNetHome behaviour that arbitrage (phase 2) then layers trades on top of.
@@ -401,15 +469,7 @@ namespace SessyController.Services.Optimization
             var state = new State(ctx.N);
             double soc = Clamp(ctx.Spec.InitialSocKWh, 0.0, ctx.Capacity);
 
-            // Best per-kWh value any later quarter can give stored energy: avoiding a future import
-            // (buy) or exporting later (sell), whichever is higher. Suffix maximum, so the
-            // store-vs-export choice below is O(1) per quarter.
-            var bestFutureValue = new double[ctx.N];
-            for (int tt = ctx.N - 2; tt >= 0; tt--)
-            {
-                double valNext = Math.Max(ctx.PricePoints[tt + 1].BuyEurPerKWh, ctx.PricePoints[tt + 1].SellEurPerKWh);
-                bestFutureValue[tt] = Math.Max(valNext, bestFutureValue[tt + 1]);
-            }
+            var bestFutureValue = BestFutureValue(ctx);
 
             for (int t = 0; t < ctx.N; t++)
             {
@@ -424,13 +484,7 @@ namespace SessyController.Services.Optimization
                     // (phase 2) can still store it later when a genuinely better use appears, but
                     // this default never keeps solar that is worth more sold now — the old
                     // unconditional store did exactly that, which biased the plan toward ZeroNetHome.
-                    double exportValue = ctx.PricePoints[t].SellEurPerKWh;
-                    // Arbitrage (phase 2) stores solar when sell < roundTrip*(bestFutureValue - cycle).
-                    // Match that break-even exactly, plus a margin, so surplus exported here is never
-                    // worth re-storing to the arbitrage pass.
-                    double storeBreakeven = ctx.ReplacementRoundTrip * (bestFutureValue[t] - ctx.CycleCost);
-
-                    if (exportValue > storeBreakeven + ExportDecisionMarginEurPerKWh)
+                    if (BaselineExports(ctx, bestFutureValue, t))
                     {
                         state.ExportKWh[t] = surplus;
                     }
@@ -458,7 +512,7 @@ namespace SessyController.Services.Optimization
                     // known-price quarter can jump above the quarters around it — so draining to
                     // the current quarter's reserve alone can leave the battery below a higher
                     // reserve that arrives later, which then blocks all stock sales for the day.
-                    double availableStore = Math.Max(0.0, soc - ctx.MinSocFrom[t]);
+                    double availableStore = Math.Max(0.0, soc - ctx.ReserveFloor[t]);
                     double deficitEff = ctx.DisEffFor(deficit);
                     double deliver = Math.Min(deficit, Math.Min(availableStore * deficitEff, ctx.CappedDischargeKWh(t, soc)));
                     if (deliver > Eps)
@@ -1003,6 +1057,111 @@ namespace SessyController.Services.Optimization
             }
         }
 
+        /// <summary>
+        /// Re-adds house cover the baseline dropped. The baseline covers the house on the SOC path
+        /// before arbitrage; arbitrage then charges more and the path rises, but the import stays.
+        /// Zero Net Home covers the whole house at runtime, so that left energy unplanned (replay
+        /// 06-10 17:15: 1,16 kWh, ending below the reserve). Full cover only, within the slack of
+        /// the rest of the path, so no planned sale or reserve is touched.
+        /// </summary>
+        private static void RecoverHouseCover(Context ctx, State state)
+        {
+            int n = ctx.N;
+            double initial = Clamp(ctx.Spec.InitialSocKWh, 0.0, ctx.Capacity);
+            double soc = initial;
+
+            // 1. Partial cover cannot be executed (ZNH covers all): drop it, the store stays in.
+            //    Candidate F reduces cover in blocks and leaves such remainders behind.
+            for (int t = 0; t < n; t++)
+            {
+                double deficit = Math.Max(0.0, ctx.PricePoints[t].NetLoadWh / 1000.0);
+                double dis = state.DischargeKWh[t];
+                if (deficit > Eps && state.ChargeKWh[t] <= Eps && dis > Eps
+                    && dis < Math.Min(deficit, ctx.CappedDischargeKWh(t, soc)) - ReserveToleranceKWh)
+                {
+                    state.ImportKWh[t] += dis;
+                    state.DischargeKWh[t] = 0.0;
+                    dis = 0.0;
+                }
+
+                soc = Clamp(
+                    soc + state.ChargeKWh[t] * ctx.ChEffFor(state.ChargeKWh[t]) - Drain(ctx, dis),
+                    0.0, ctx.Capacity);
+            }
+
+            // 2. SOC path exactly as BuildPlanAndClassify computes it.
+            var socEnd = new double[n];
+            soc = initial;
+            for (int t = 0; t < n; t++)
+            {
+                soc = Clamp(
+                    soc + state.ChargeKWh[t] * ctx.ChEffFor(state.ChargeKWh[t]) - Drain(ctx, state.DischargeKWh[t]),
+                    0.0, ctx.Capacity);
+                socEnd[t] = soc;
+            }
+
+            // Stored energy left at the end is worth the reservation price when carry-forward is on.
+            double keepValue = ctx.Opt.AllowCarryForward && ctx.Opt.ReservationPriceEurPerKWh > 0.0
+                ? ctx.Opt.ReservationPriceEurPerKWh / ctx.Efficiency.ChargeAt(Math.Max(0.1, ctx.Spec.MaxChargeKW))
+                : 0.0;
+
+            // 3. Dearest quarters first: leftover energy is worth most where buying costs most.
+            //    Held quarters too: F emptied them for an earlier sale, the slack keeps that sale.
+            var order = new List<int>();
+            for (int t = 0; t < n; t++)
+            {
+                double deficit = Math.Max(0.0, ctx.PricePoints[t].NetLoadWh / 1000.0);
+                if (deficit > Eps && state.ChargeKWh[t] <= Eps && state.DischargeKWh[t] < deficit - Eps)
+                    order.Add(t);
+            }
+            order.Sort((a, b) =>
+            {
+                int byPrice = ctx.PricePoints[b].BuyEurPerKWh.CompareTo(ctx.PricePoints[a].BuyEurPerKWh);
+                return byPrice != 0 ? byPrice : a.CompareTo(b);
+            });
+
+            foreach (int t in order)
+            {
+                double deficit = Math.Max(0.0, ctx.PricePoints[t].NetLoadWh / 1000.0);
+                double oldDis = state.DischargeKWh[t];
+
+                double socStart = t == 0 ? initial : socEnd[t - 1];
+                double target = Math.Min(deficit, ctx.CappedDischargeKWh(t, socStart));
+                if (target <= oldDis + Eps) continue;
+
+                double extraDrain = Drain(ctx, target) - Drain(ctx, oldDis);
+
+                // Room above the reserve over the rest of the horizon.
+                double slack = double.MaxValue;
+                for (int u = t; u < n; u++)
+                    slack = Math.Min(slack, socEnd[u] - ctx.ReserveFloor[u]);
+                if (extraDrain > slack - 2.0 * ReserveToleranceKWh) continue;
+
+                // Below the knee the cap follows the SOC: a lower path must not push a later
+                // planned discharge (or an earlier top-up) above its cap.
+                bool capsHold = true;
+                for (int u = t + 1; u < n && capsHold; u++)
+                {
+                    if (state.DischargeKWh[u] <= Eps) continue;
+                    capsHold = ctx.CappedDischargeKWh(u, socEnd[u - 1] - extraDrain) >= state.DischargeKWh[u] - Eps;
+                }
+                if (!capsHold) continue;
+
+                double delta = target - oldDis;
+                double gain = delta * (ctx.PricePoints[t].BuyEurPerKWh - ctx.CycleCost) - extraDrain * keepValue;
+                if (gain <= Eps) continue;
+
+                state.DischargeKWh[t] = target;
+                state.ImportKWh[t] = Math.Max(0.0, state.ImportKWh[t] - delta);
+                state.Held[t] = false;
+                for (int u = t; u < n; u++)
+                {
+                    socEnd[u] -= extraDrain;
+                    state.SocEnd[u] -= extraDrain;
+                }
+            }
+        }
+
         /// <summary>Stored kWh a quarter drains to deliver this much AC, as the rebuild computes it.</summary>
         private static double Drain(Context ctx, double deliveredKWh)
             => deliveredKWh <= Eps ? 0.0 : deliveredKWh / ctx.DisEffFor(deliveredKWh);
@@ -1392,13 +1551,27 @@ namespace SessyController.Services.Optimization
                 // and ran to 0% overnight. Grid charging and export keep their own mode.
                 double houseDeficit = Math.Max(0.0, ctx.PricePoints[t].NetLoadWh / 1000.0);
                 double gridChargeAtT = Math.Max(0.0, state.ChargeKWh[t] - state.SolarChargeKWh[t]);
-                bool atReserve = socStart <= ctx.MinSocFrom[t] + ReserveToleranceKWh;
+                // What ZNH actually delivers: the house, up to what the battery can give.
+                double coverCap = Math.Min(houseDeficit, ctx.CappedDischargeKWh(t, socStart));
+                bool atReserve = socStart <= ctx.ReserveFloor[t] + ReserveToleranceKWh;
                 bool coverCrossesReserve = houseDeficit > Eps
-                    && socStart - Drain(ctx, houseDeficit) < ctx.MinSocFrom[t] - ReserveToleranceKWh;
+                    && socStart - Drain(ctx, coverCap) < ctx.ReserveFloor[t] - ReserveToleranceKWh;
 
                 if ((atReserve || coverCrossesReserve)
                     && gridChargeAtT <= Eps
                     && state.DischargeKWh[t] <= houseDeficit + Eps)   // not exporting
+                {
+                    state.ImportKWh[t] += state.DischargeKWh[t];
+                    state.DischargeKWh[t] = 0.0;
+                    state.AtReserve[t] = true;
+                }
+
+                // ZNH covers the whole house at runtime, so a quarter the plan covers only partly
+                // (or not at all) cannot be ZNH: it becomes SolarOnly and covers nothing.
+                if (!state.AtReserve[t]
+                    && houseDeficit > Eps
+                    && gridChargeAtT <= Eps
+                    && state.DischargeKWh[t] < coverCap - ReserveToleranceKWh)
                 {
                     state.ImportKWh[t] += state.DischargeKWh[t];
                     state.DischargeKWh[t] = 0.0;
@@ -1474,7 +1647,8 @@ namespace SessyController.Services.Optimization
                     SocStartKWh: socStart,
                     SocEndKWh: soc,
                     RequestedChargeKW: requestedChargeKWh / ctx.Dt,
-                    RequestedDischargeKW: requestedDischargeKWh / ctx.Dt));
+                    RequestedDischargeKW: requestedDischargeKWh / ctx.Dt,
+                    ReserveFloorKWh: ctx.ReserveFloor[t]));
             }
 
             // Energy left in the battery is worth what buying it again would cost. Without this

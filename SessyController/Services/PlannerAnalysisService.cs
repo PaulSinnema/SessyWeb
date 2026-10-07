@@ -150,7 +150,7 @@ namespace SessyController.Services
                 "ZeroNetHome" =>
                     "Battery idle (no deficit to cover, or at the reserve floor).",
                 "SolarOnly" =>
-                    "Reserve reached: stores solar surplus when there is any, never discharges; the house imports otherwise.",
+                    "Battery holds its energy (reserve reached, or the plan keeps it for later): stores solar surplus when there is any, never discharges; the house imports otherwise.",
                 "Disabled" when surplus =>
                     "Off: solar surplus goes to the grid (storing does not pay here).",
                 "Disabled" =>

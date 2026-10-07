@@ -238,6 +238,9 @@ namespace SessyWeb.Pages
         public double ZeroNetHomeVisual =>
             DisplayState == "Zero net home" ? 0.03 : 0.0;
 
+        public double SolarOnlyVisual =>
+            DisplayState == "Solar only" ? 0.03 : 0.0;
+
         // ── Plan deviation ────────────────────────────────────────────────────
         private static string DeterminePlanDeviationReason(
             string displayState, double chargePowerW, double dischargePowerW,
@@ -249,6 +252,14 @@ namespace SessyWeb.Pages
             string plannedMode = string.IsNullOrEmpty(plannedDisplayState) ? "ZeroNetHome" : plannedDisplayState;
 
             if (string.Equals(actualMode, plannedMode, StringComparison.OrdinalIgnoreCase))
+                return string.Empty;
+
+            // SolarOnly: idle or storing surplus is as planned. Disabled: idle is as planned.
+            bool plannedSolarOnly = string.Equals(plannedMode, "SolarOnly", StringComparison.OrdinalIgnoreCase)
+                                 || string.Equals(plannedMode, "Solar only", StringComparison.OrdinalIgnoreCase);
+            if (plannedSolarOnly)
+                return actualDischarging ? "Solar only planned, but the battery discharged." : string.Empty;
+            if (string.Equals(plannedMode, "Disabled", StringComparison.OrdinalIgnoreCase) && !actualCharging && !actualDischarging)
                 return string.Empty;
 
             if (string.Equals(plannedMode, "Discharging", StringComparison.OrdinalIgnoreCase) && !actualDischarging)
