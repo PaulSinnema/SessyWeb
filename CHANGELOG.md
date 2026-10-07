@@ -11,6 +11,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.151] — 2026-10-07
+
+### Fixed
+- **"Est. consumption" line visible again on the charging hours chart.** It had no colour of its
+  own and took one from the chart's default palette; with the new "Solar only" band it ran past
+  the end of that palette and was drawn without a line. It now has a fixed colour, and so does
+  "Delta lowest price", which had the same problem.
+
 ## [v1.0.150] — 2026-10-07
 
 ### Changed
