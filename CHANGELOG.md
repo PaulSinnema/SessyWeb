@@ -11,6 +11,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.152] — 2026-10-07
+
+### Fixed
+- **Plan explanation knows "Solar only".** The chart guide's "why this plan" now explains Solar
+  only quarters (at the reserve, or energy kept for later), a battery that is off because its energy
+  went to an earlier sale, and notes when a sale makes later quarters import for the house. Zero
+  Net Home quarters are now also counted when the plan comes from the display fallback.
+
 ## [v1.0.151] — 2026-10-07
 
 ### Fixed

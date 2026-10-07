@@ -21,7 +21,8 @@ namespace SessyWeb.Services
     /// <remarks>
     /// KEEP IN SYNC WITH THE PLANNER. This mirrors BatteryGreedyPlanner's decision logic — the
     /// baseline export-vs-store threshold, the arbitrage comparisons, the meaning of each
-    /// mode/ActionMode, and the price / round-trip / cycle-cost trade-offs. If the planner changes
+    /// mode/ActionMode (incl. SolarOnly: hold energy, never discharge; ZeroNetHome only where the
+    /// house is covered in full), and the price / round-trip / cycle-cost trade-offs. If the planner changes
     /// (a new mode, a different threshold, a changed price build-up), update this explainer too, or
     /// "Why this plan?" will describe behaviour the planner no longer follows.
     /// </remarks>
@@ -32,8 +33,11 @@ namespace SessyWeb.Services
         private static string Euro(double v) => $"€{v:0.000}/kWh";
         private static double ChargeKWh(QuarterlyInfoView q) => q.PlannedChargePowerW * QuarterHours / 1000.0;
         private static double DischargeKWh(QuarterlyInfoView q) => q.PlannedDischargePowerW * QuarterHours / 1000.0;
+        // PlannedMode ("ZeroNetHome", "SolarOnly") and the display fallback ("Zero net home",
+        // "Solar only") differ only in spaces and case.
         private static bool Is(QuarterlyInfoView q, string mode) =>
-            (q.PlannedDisplayState ?? string.Empty).Equals(mode, StringComparison.OrdinalIgnoreCase);
+            (q.PlannedDisplayState ?? string.Empty).Replace(" ", string.Empty)
+                .Equals(mode.Replace(" ", string.Empty), StringComparison.OrdinalIgnoreCase);
 
         private static string Ord(int rank)
         {
@@ -83,12 +87,24 @@ namespace SessyWeb.Services
                 string t = $"Discharge {dischargeKWh:0.00} kWh @ {Euro(q.SellingPrice)} (feed-in) — {Ord(dearSellRank)} most expensive of {n}.";
                 if (maxFutureSell is double ms2)
                     t += $" Holding does not pay: the best later feed-in is {Euro(ms2)}.";
+
+                // Candidate F (shift discharge): later house cover gives way to this sale.
+                int givenUp = future.Count(x => Is(x, "SolarOnly") && x.BuyingPrice < q.SellingPrice);
+                if (givenUp > 0)
+                    t += $" {givenUp} later quarter(s) import for the house instead, where buying is cheaper than this sale.";
                 return new QuarterWhy(
                     "Sold to the grid: this is one of the most expensive hours, and selling now earns more than holding the energy.",
                     t);
             }
 
             // ── Battery off: solar surplus exported straight to the grid ──
+            double solarKWh = q.SolarPowerPerQuarterHour;
+            double houseKWh = q.EstimatedConsumptionPerQuarterHour * QuarterHours / 1000.0;
+            if (Is(q, "Disabled") && solarKWh <= houseKWh)
+                return new QuarterWhy(
+                    "Battery off: its energy went to a more expensive sale earlier, so the house imports here.",
+                    $"No surplus to export; import @ {Euro(q.BuyingPrice)} is cheaper than the sale this energy was used for.");
+
             if (Is(q, "Disabled"))
             {
                 string t = $"Solar export @ {Euro(q.SellingPrice)}.";
@@ -96,6 +112,24 @@ namespace SessyWeb.Services
                     t += $" Storing would only pay off later (up to {Euro(mb2)}), and after round-trip losses and wear that is less than selling now.";
                 return new QuarterWhy(
                     "Surplus solar goes straight to the grid: selling it now is better than storing it for later.",
+                    t);
+            }
+
+            // ── SolarOnly: hold the energy, store live surplus, never discharge ──
+            if (Is(q, "SolarOnly"))
+            {
+                double socKWh = q.PlannedChargeLeftWh / 1000.0;
+                double reserveKWh = q.ChargeNeeded / 1000.0;
+                string t = socKWh <= reserveKWh + 0.05
+                    ? $"SOC {socKWh:0.00} kWh is at the reserve ({reserveKWh:0.00} kWh): covering the house would go below it."
+                    : $"SOC {socKWh:0.00} kWh is kept for later" +
+                      (maxFutureSell is double ms3 ? $" (feed-in up to {Euro(ms3)}" : " (") +
+                      (maxFutureBuy is double mb4 ? $", house cover up to {Euro(mb4)})" : ")") +
+                      $"; importing now costs {Euro(q.BuyingPrice)}.";
+                if (chargeKWh > 0.01)
+                    t += $" Surplus solar is still stored ({chargeKWh:0.00} kWh).";
+                return new QuarterWhy(
+                    "Solar only: the battery stores surplus solar if there is any, but does not cover the house — that energy is kept back, so the house imports.",
                     t);
             }
 
@@ -137,6 +171,7 @@ namespace SessyWeb.Services
             var sells = scope.Where(x => Is(x, "Discharging") && DischargeKWh(x) > 0.01 && x.SellingPrice >= 0.0).ToList();
             var selfUse = scope.Where(x => Is(x, "ZeroNetHome") && DischargeKWh(x) > 0.01).ToList();
             var solarExport = scope.Where(x => Is(x, "Disabled")).ToList();
+            var holding = scope.Where(x => Is(x, "SolarOnly")).ToList();
 
             double chargeKWh = charges.Sum(ChargeKWh);
             double sellKWh = sells.Sum(DischargeKWh);
@@ -158,6 +193,7 @@ namespace SessyWeb.Services
                 $"sells {sellKWh:0.0} kWh in the most expensive (avg {Euro(avgSell)}). " +
                 $"It also covers {selfKWh:0.0} kWh of household use from the battery" +
                 (solarExport.Count > 0 ? $" and feeds surplus solar straight back in {solarExport.Count} quarters" : "") +
+                (holding.Count > 0 ? $"; in {holding.Count} quarters it holds its energy (solar only) and the house imports" : "") +
                 $". At the end of the window {endSocKWh:0.0} kWh is left in the battery as reserve. " +
                 "In short: buy when it is cheap, sell when it is expensive, and use the rest to avoid importing.";
 
@@ -167,7 +203,8 @@ namespace SessyWeb.Services
                 $"Grid charge: {chargeKWh:0.0} kWh @ avg {Euro(avgBuy)} (cost €{chargeCost:0.00}) across {charges.Count} quarters.",
                 $"Sold: {sellKWh:0.0} kWh @ avg {Euro(avgSell)} (revenue €{sellRevenue:0.00}) across {sells.Count} quarters.",
                 $"Self-consumption: {selfKWh:0.0} kWh (avoided import ≈ €{selfSaving:0.00}) across {selfUse.Count} quarters.",
-                $"Solar export (battery off): {solarExport.Count} quarters.",
+                $"Solar export / battery off: {solarExport.Count} quarters.",
+                $"Solar only (hold energy, store surplus, no house cover): {holding.Count} quarters.",
                 $"End SOC (reserve): {endSocKWh:0.0} kWh.",
                 $"Rough trade margin (sold − charged): €{(sellRevenue - chargeCost):0.00}, plus ≈ €{selfSaving:0.00} saved via self-consumption."
             };
