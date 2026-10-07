@@ -181,6 +181,8 @@ namespace SessyController.Services.StateMachine
                 {
                     BatteryMode = input.PlannedMode == Modes.Charging
                                             ? Modes.Charging
+                                            // SolarOnly stores surplus too, and never discharges.
+                                            : input.PlannedMode == Modes.SolarOnly ? Modes.SolarOnly
                                             : Modes.ZeroNetHome,
                     BatterySetpointW = input.PlannedMode == Modes.Charging
                                             ? input.PlannedSetpointW
@@ -253,6 +255,13 @@ namespace SessyController.Services.StateMachine
                     BatterySetpointW = input.PlannedSetpointW,
                     CurtailmentMode = CurtailmentMode.None,
                     Reason = $"MILP: Discharging at {input.PlannedSetpointW:F0}W"
+                },
+
+                Modes.SolarOnly => new EnergySystemAction
+                {
+                    BatteryMode = Modes.SolarOnly,
+                    CurtailmentMode = CurtailmentMode.None,
+                    Reason = "MILP: Solar only"
                 },
 
                 Modes.ZeroNetHome => new EnergySystemAction

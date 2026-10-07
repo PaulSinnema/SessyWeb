@@ -11,6 +11,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.149] — 2026-10-07
+
+### Added
+- **New battery mode "Solar only".** Stores solar surplus when there is any (surplus > 0) and never
+  discharges (surplus <= 0: the house imports). Runs on Zero Net Home (NOM) with a P1 grid target
+  that follows the live net load every 5 seconds, so it reacts to the actual surplus, not the
+  forecast. Shown as a yellow "SolarOnly" badge on the Planner analysis page.
+
+### Fixed
+- **Batteries no longer run below the reserve overnight.** On 06-10 → 07-10 the plan held the
+  reserve (810 Wh) but labelled the quarters at the reserve Zero Net Home, which covers the whole
+  house at runtime whatever was planned — the batteries went to 0% at 04:00. The planner now plans
+  "Solar only" for every quarter in which the reserve is reached: the SOC sits on it, or covering
+  that quarter's house load would cross it. Grid charging and export keep their own modes.
+
 ## [v1.0.148] — 2026-10-06
 
 ### Added

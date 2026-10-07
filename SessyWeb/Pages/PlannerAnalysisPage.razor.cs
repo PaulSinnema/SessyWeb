@@ -37,6 +37,7 @@ namespace SessyWeb.Pages
         {
             "Charging" => BadgeStyle.Info,
             "Discharging" => BadgeStyle.Success,
+            "SolarOnly" => BadgeStyle.Warning,
             _ => BadgeStyle.Base
         };
 

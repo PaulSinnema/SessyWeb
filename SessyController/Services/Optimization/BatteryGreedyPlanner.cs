@@ -127,6 +127,9 @@ namespace SessyController.Services.Optimization
         /// </summary>
         private const double ShiftMarginEurPerKWh = 0.01;
 
+        /// <summary>Rounding slack on the reserve check in the classification (kWh).</summary>
+        private const double ReserveToleranceKWh = 0.005;
+
         /// <param name="trace">
         /// Diagnostic sink, normally null. When set, the planner reports per quarter why it did not
         /// sell there — see <see cref="ExplainWhyNotSold"/>. Null costs nothing: that step is skipped
@@ -369,6 +372,7 @@ namespace SessyController.Services.Optimization
             public double[] ExportKWh { get; }       // grid export remaining after the battery
             public double[] SocEnd { get; }          // store level at the end of each quarter
             public bool[] Held { get; }              // discharge moved away by Candidate F: battery idle on purpose
+            public bool[] AtReserve { get; }         // reserve reached: SolarOnly, never discharge
 
             public State(int n)
             {
@@ -379,6 +383,7 @@ namespace SessyController.Services.Optimization
                 ExportKWh = new double[n];
                 SocEnd = new double[n];
                 Held = new bool[n];
+                AtReserve = new bool[n];
             }
         }
 
@@ -1380,6 +1385,26 @@ namespace SessyController.Services.Optimization
             {
                 double socStart = soc;
 
+                // SOC leads. Zero Net Home covers the whole house at runtime whatever was planned,
+                // so once the reserve is reached — the SOC sits on it, or covering this quarter
+                // would cross it — the quarter is SolarOnly: store live surplus, never discharge.
+                // 06-10: planned 0-8 W but labelled Zero Net Home, the batteries covered the house
+                // and ran to 0% overnight. Grid charging and export keep their own mode.
+                double houseDeficit = Math.Max(0.0, ctx.PricePoints[t].NetLoadWh / 1000.0);
+                double gridChargeAtT = Math.Max(0.0, state.ChargeKWh[t] - state.SolarChargeKWh[t]);
+                bool atReserve = socStart <= ctx.MinSocFrom[t] + ReserveToleranceKWh;
+                bool coverCrossesReserve = houseDeficit > Eps
+                    && socStart - Drain(ctx, houseDeficit) < ctx.MinSocFrom[t] - ReserveToleranceKWh;
+
+                if ((atReserve || coverCrossesReserve)
+                    && gridChargeAtT <= Eps
+                    && state.DischargeKWh[t] <= houseDeficit + Eps)   // not exporting
+                {
+                    state.ImportKWh[t] += state.DischargeKWh[t];
+                    state.DischargeKWh[t] = 0.0;
+                    state.AtReserve[t] = true;
+                }
+
                 // Same efficiencies the allocation used, read at the power this quarter ended up
                 // with — otherwise the SOC path drifts away from the objective it was chosen on.
                 soc = Clamp(
@@ -1405,6 +1430,9 @@ namespace SessyController.Services.Optimization
                     // as Modes.Disabled instead of forcing the surplus back into storage.
                     (state.ExportKWh[t] > Eps && state.ChargeKWh[t] <= Eps && state.DischargeKWh[t] <= Eps)
                         ? ActionMode.Disabled :
+                    // Reserve reached: store live surplus only, never discharge.
+                    (state.AtReserve[t] && state.DischargeKWh[t] <= Eps)
+                        ? ActionMode.SolarOnly :
                     // House cover moved to an earlier sale (Candidate F): idle, the house imports.
                     (state.Held[t] && state.ChargeKWh[t] <= Eps && state.DischargeKWh[t] <= Eps)
                         ? ActionMode.Disabled :

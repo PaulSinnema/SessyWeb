@@ -12,6 +12,13 @@
         Charging = 1,
         Discharging = 2,
         ZeroNetHome = 3,
-        Disabled = 4
+        Disabled = 4,
+
+        /// <summary>
+        /// Store solar surplus, never discharge: runs on NOM with a P1 target that follows the live
+        /// net load, so surplus &gt; 0 charges the battery and surplus &lt;= 0 leaves it idle. Planned
+        /// once the reserve is reached, so a forecast error cannot drain the battery below it.
+        /// </summary>
+        SolarOnly = 5
     }
 }

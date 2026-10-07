@@ -18,6 +18,8 @@ namespace SessyController.Services.Items
                     return "Zero net home";
                 case Modes.Disabled:
                     return "Disabled";
+                case Modes.SolarOnly:
+                    return "Solar only";
                 default:
                     return "?";
             }

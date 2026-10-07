@@ -101,7 +101,8 @@ namespace SessyController.Services
 
             if (action.BatteryMode != Modes.Charging &&
                 action.BatteryMode != Modes.Discharging &&
-                action.BatteryMode != Modes.ZeroNetHome)
+                action.BatteryMode != Modes.ZeroNetHome &&
+                action.BatteryMode != Modes.SolarOnly)
             {
                 // Disabled/Unknown run on API; forget the last target so re-entry always posts.
 #if !DEBUG

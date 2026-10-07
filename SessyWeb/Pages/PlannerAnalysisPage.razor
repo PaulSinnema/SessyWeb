@@ -38,6 +38,7 @@
                 <RadzenBadge BadgeStyle="BadgeStyle.Success" Style="color:#212529;" Text="@($"Discharge→grid {_analysis.Totals.DischargingQuarters}")" />
                 <RadzenBadge BadgeStyle="BadgeStyle.Base" Text="@($"ZeroNetHome {_analysis.Totals.ZeroNetHomeQuarters}")" />
                 <RadzenBadge BadgeStyle="BadgeStyle.Base" Text="@($"Off {_analysis.Totals.DisabledQuarters}")" />
+                <RadzenBadge BadgeStyle="BadgeStyle.Warning" Style="color:#212529;" Text="@($"Solar only {_analysis.Totals.SolarOnlyQuarters}")" />
                 <RadzenBadge BadgeStyle="@(_analysis.Totals.RemarkCount > 0 ? BadgeStyle.Warning : BadgeStyle.Success)"
                              Style="color:#212529;"
                              Text="@($"Improvements {_analysis.Totals.RemarkCount}")" />

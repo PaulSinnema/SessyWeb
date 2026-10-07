@@ -378,6 +378,8 @@ namespace SessyController.Services
                         await _batteryContainer.StartNetZeroHome().ConfigureAwait(false);
                         break;
 
+                    // SolarOnly also runs on NOM; GridTargetService keeps the battery from discharging.
+                    case Modes.SolarOnly:
                     case Modes.ZeroNetHome:
                         await _batteryContainer.StartNetZeroHome().ConfigureAwait(false);
                         break;

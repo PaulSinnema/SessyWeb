@@ -106,6 +106,7 @@ namespace SessyController.Services
                 DischargingQuarters = quarters.Count(q => q.Mode == "Discharging"),
                 ZeroNetHomeQuarters = quarters.Count(q => q.Mode == "ZeroNetHome"),
                 DisabledQuarters = quarters.Count(q => q.Mode == "Disabled"),
+                SolarOnlyQuarters = quarters.Count(q => q.Mode == "SolarOnly"),
                 MinBuyEur = minBuy,
                 MaxBuyEur = maxBuy,
                 MedianBuyEur = medianBuy,
@@ -148,6 +149,8 @@ namespace SessyController.Services
                     "Self-consumption from the battery: household deficit covered, SOC above the reserve.",
                 "ZeroNetHome" =>
                     "Battery idle (no deficit to cover, or at the reserve floor).",
+                "SolarOnly" =>
+                    "Reserve reached: stores solar surplus when there is any, never discharges; the house imports otherwise.",
                 "Disabled" when surplus =>
                     "Off: solar surplus goes to the grid (storing does not pay here).",
                 "Disabled" =>
@@ -411,6 +414,7 @@ namespace SessyController.Services
         public int DischargingQuarters { get; init; }
         public int ZeroNetHomeQuarters { get; init; }
         public int DisabledQuarters { get; init; }
+        public int SolarOnlyQuarters { get; init; }
         public double MinBuyEur { get; init; }
         public double MaxBuyEur { get; init; }
         public double MedianBuyEur { get; init; }

@@ -15,7 +15,9 @@ namespace SessyController.Services.Optimization
         /// <summary>Actively discharging to the grid (export).</summary>
         Discharge = 2,
         /// <summary>Self-regulating: storing solar surplus and/or covering the house load.</summary>
-        ZeroNetHome = 3
+        ZeroNetHome = 3,
+        /// <summary>Store live solar surplus only, never discharge — the reserve is reached.</summary>
+        SolarOnly = 4
         // (Disabled is value 0 at the top of this enum; there is no separate "Idle".)
     }
 

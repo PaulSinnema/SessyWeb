@@ -764,6 +764,10 @@ namespace SessyController.Services
                         powerW = Math.Round(p.DischargeKW * 1000.0, 0);
                         requestedW = Math.Round(p.RequestedDischargeKW * 1000.0, 0);
                         break;
+                    case ActionMode.SolarOnly:
+                        mode = Modes.SolarOnly;
+                        powerW = 0.0;
+                        break;
                     case ActionMode.Disabled:
                         mode = Modes.Disabled;
                         powerW = 0.0;
@@ -1053,7 +1057,8 @@ namespace SessyController.Services
                 }
                 else
                 {
-                    soc = Clamp(soc - netLoadWh, 0.0, capWh);
+                    // SolarOnly stores surplus only, never covers a deficit.
+                    soc = Clamp(soc - (act.Mode == Modes.SolarOnly ? Math.Min(netLoadWh, 0.0) : netLoadWh), 0.0, capWh);
                     qi.SetChargeNeeded(minSocWh);
                 }
 
@@ -1241,6 +1246,15 @@ namespace SessyController.Services
                     PowerW = requestedW,
                     RequestedPowerW = requestedW
                 };
+            }
+
+            // SolarOnly is executed as planned: the P1 target already decides per moment between
+            // storing surplus and idling, so no remapping here.
+            if (planned.Mode == Modes.SolarOnly)
+            {
+                qi?.SetMode(Modes.SolarOnly);
+                qi?.SetPlanPower(0, 0);
+                return planned;
             }
 
             // ZeroNetHome — choose between ZNH (store surplus) and Disabled (battery off).
