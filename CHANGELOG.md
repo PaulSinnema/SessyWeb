@@ -11,6 +11,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.154] — 2026-10-07
+
+### Changed
+- **Main chart back to its familiar colours.** After v1.0.153 the main chart showed very
+  different colours (pink, light blue). It uses its original fixed colours again, Solar only is
+  green again there, and the Chart Guide swatches match the chart. Other pages keep the v1.0.153
+  palette.
+
 ## [v1.0.153] — 2026-10-07
 
 ### Changed

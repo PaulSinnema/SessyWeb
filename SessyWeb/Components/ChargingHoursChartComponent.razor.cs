@@ -221,13 +221,13 @@ namespace SessyWeb.Components
         private string GetBuyingPriceFill(object obj)
         {
             var qi = (QuarterlyInfo)obj;
-            return qi.IsPriceExpected ? "var(--sessy-buy-faded)" : "var(--sessy-buy)";
+            return qi.IsPriceExpected ? "#324ab255" : "#324ab2";
         }
 
         private string GetSellingPriceFill(object obj)
         {
             var qi = (QuarterlyInfo)obj;
-            return qi.IsPriceExpected ? "var(--sessy-sell-faded)" : "var(--sessy-sell)";
+            return qi.IsPriceExpected ? "#00aae455" : "#00aae4";
         }
 
         private bool IsExpected(List<QuarterlyInfoView> quarterlyInfos)
@@ -332,4 +332,4 @@ namespace SessyWeb.Components
 
         private DateTime _taxesForDate = DateTime.MinValue;
     }
-}
+}
