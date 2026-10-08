@@ -110,12 +110,20 @@ namespace SessyWeb.Shared
             // clicking around does not re-run the checks.
             Navigation.LocationChanged += OnLocationChanged;
 
+            // And on a timer: without navigation a resolved check kept its dot until Settings was opened.
+            _checkTimer = new System.Threading.Timer(_ => RefreshCheckSummary(), null, CheckPollInterval, CheckPollInterval);
+
             RefreshCheckSummary();
 
             return base.OnInitializedAsync();
         }
 
         private void OnLocationChanged(object? sender, LocationChangedEventArgs e) => RefreshCheckSummary();
+
+        /// <summary>Cheap: EnsureSummaryAsync only re-runs the checks once its five-minute age has passed.</summary>
+        private static readonly TimeSpan CheckPollInterval = TimeSpan.FromMinutes(1);
+
+        private System.Threading.Timer? _checkTimer;
 
         /// <summary>
         /// Off the dispatcher: the checks query the database, and component code runs on the
@@ -230,6 +238,7 @@ namespace SessyWeb.Shared
             CheckService.ChecksChanged -= OnChecksChanged;
             NotificationService.Changed -= OnChecksChanged;
             Navigation.LocationChanged -= OnLocationChanged;
+            _checkTimer?.Dispose();
         }
     }
 }

@@ -11,6 +11,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.161] — 2026-10-08
+
+### Fixed
+- **Red dot on Settings no longer sticks.** Tips & Checks only re-ran on navigation or when Settings was
+  opened, so a problem that had already resolved kept its dot while you stayed on one page. The
+  sidebar now re-checks in the background every few minutes and clears the dot on its own.
+
 ## [v1.0.160] — 2026-10-08
 
 ### Changed
