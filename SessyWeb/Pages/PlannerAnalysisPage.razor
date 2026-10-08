@@ -38,7 +38,7 @@
                 <RadzenBadge BadgeStyle="BadgeStyle.Base" Style="@SessyColors.ModeBadgeStyle("Discharging")" Text="@($"Discharge→grid {_analysis.Totals.DischargingQuarters}")" />
                 <RadzenBadge BadgeStyle="BadgeStyle.Base" Style="@SessyColors.ModeBadgeStyle("ZeroNetHome")" Text="@($"ZeroNetHome {_analysis.Totals.ZeroNetHomeQuarters}")" />
                 <RadzenBadge BadgeStyle="BadgeStyle.Base" Text="@($"Off {_analysis.Totals.DisabledQuarters}")" />
-                <RadzenBadge BadgeStyle="BadgeStyle.Base" Style="@SessyColors.ModeBadgeStyle("SolarOnly")" Text="@($"Solar only {_analysis.Totals.SolarOnlyQuarters}")" />
+                <RadzenBadge BadgeStyle="BadgeStyle.Base" Style="@SessyColors.ModeBadgeStyle("HoldReserve")" Text="@($"Hold reserve {_analysis.Totals.HoldReserveQuarters}")" />
                 <RadzenBadge BadgeStyle="@(_analysis.Totals.RemarkCount > 0 ? BadgeStyle.Warning : BadgeStyle.Success)"
                              Text="@($"Improvements {_analysis.Totals.RemarkCount}")" />
             </RadzenStack>

@@ -11,7 +11,7 @@ namespace SessyWeb.Helpers
         {
             "Charging" => Filled("--sessy-charge"),
             "Discharging" => Filled("--sessy-discharge"),
-            "SolarOnly" or "Solar only" => Filled("--sessy-solar-only"),
+            "HoldReserve" or "Hold reserve" => Filled("--sessy-hold-reserve"),
             "ZeroNetHome" or "Zero net home" => Filled("--sessy-znh"),
             _ => null
         };

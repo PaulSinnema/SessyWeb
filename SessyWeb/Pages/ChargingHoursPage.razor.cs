@@ -173,6 +173,15 @@ namespace SessyWeb.Pages
             {
                 try
                 {
+                    await RefreshHeartbeatAsync();
+                }
+                catch
+                {
+                    // never let the heart stop the status loop
+                }
+
+                try
+                {
                     var newStatuses = new List<BatteryWithStatus>();
 
                     foreach (var battery in batteryContainer!.Batteries!)
@@ -297,17 +306,23 @@ namespace SessyWeb.Pages
         /// </summary>
         private async Task HeartBeat()
         {
-            await InvokeAsync(async () =>
-            {
-                IsBeating = true;
-                await InvokeAsync(StateHasChanged);
+            if (IsBeating) return;
 
-                await Task.Delay(3000).ContinueWith(async _ =>
-                {
-                    IsBeating = false;
-                    await InvokeAsync(StateHasChanged);
-                });
-            });
+            IsBeating = true;
+            await InvokeAsync(StateHasChanged);
+        }
+
+        /// <summary>
+        /// The heart stays visible while beats keep coming and disappears only after a missed
+        /// beat (BatteriesService.HeartbeatTimeoutSeconds). Checked by the 5-second status loop.
+        /// </summary>
+        private async Task RefreshHeartbeatAsync()
+        {
+            bool alive = _batteriesService?.HeartbeatAlive ?? false;
+            if (alive == IsBeating) return;
+
+            IsBeating = alive;
+            await InvokeAsync(StateHasChanged);
         }
 
         private bool IsBeating = false;

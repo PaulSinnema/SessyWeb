@@ -129,6 +129,20 @@ namespace SessyController.Services
             return base.StopAsync(cancellationToken);
         }
 
+        /// <summary>Control-loop interval once a plan exists; the UI heartbeat shows this long.</summary>
+#if DEBUG
+        public const int HeartbeatIntervalSeconds = 10;
+#else
+        public const int HeartbeatIntervalSeconds = 60;
+#endif
+
+        /// <summary>No beat for this long (one missed beat) means the control loop has stalled.</summary>
+        public const int HeartbeatTimeoutSeconds = 2 * HeartbeatIntervalSeconds;
+
+        /// <summary>True while beats keep coming.</summary>
+        public bool HeartbeatAlive =>
+            LastHeartbeatUtc.HasValue && (DateTime.UtcNow - LastHeartbeatUtc.Value).TotalSeconds < HeartbeatTimeoutSeconds;
+
         // True once Process has actually built a plan (not bailed out on a not-yet-ready
         // dependency). Used to retry quickly on a cold start until the first plan exists.
         private bool _planBuiltThisCycle;
@@ -163,9 +177,9 @@ namespace SessyController.Services
                     // flicker into a strategy write per second. The UI gets an immediate cycle
                     // through OnHeartBeat; it does not need a faster loop.
 #if DEBUG
-                    delaySeconds = _planBuiltThisCycle ? 10 : 2;
+                    delaySeconds = _planBuiltThisCycle ? HeartbeatIntervalSeconds : 2;
 #else
-                    delaySeconds = _planBuiltThisCycle ? 60 : 5;
+                    delaySeconds = _planBuiltThisCycle ? HeartbeatIntervalSeconds : 5;
 #endif
 
                     if (DataChanged != null)
@@ -378,8 +392,8 @@ namespace SessyController.Services
                         await _batteryContainer.StartNetZeroHome().ConfigureAwait(false);
                         break;
 
-                    // SolarOnly also runs on NOM; GridTargetService keeps the battery from discharging.
-                    case Modes.SolarOnly:
+                    // HoldReserve also runs on NOM; GridTargetService keeps the battery from discharging.
+                    case Modes.HoldReserve:
                     case Modes.ZeroNetHome:
                         await _batteryContainer.StartNetZeroHome().ConfigureAwait(false);
                         break;

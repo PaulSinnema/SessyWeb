@@ -50,8 +50,8 @@ namespace SessyTests.Services
             // Quarters already at the reserve were never covered and stay ZeroNetHome.
             var idle = plan.Plan.Skip(1).Where(p => p.DischargeKW <= 1e-6 && p.SocStartKWh > 0.82).ToList();
             Assert.NotEmpty(idle);
-            // Off where the cover was moved away, SolarOnly once the reserve is reached — never ZNH.
-            Assert.All(idle, p => Assert.Contains(p.Mode, new[] { ActionMode.Disabled, ActionMode.SolarOnly }));
+            // Off where the cover was moved away, HoldReserve once the reserve is reached — never ZNH.
+            Assert.All(idle, p => Assert.Contains(p.Mode, new[] { ActionMode.Disabled, ActionMode.HoldReserve }));
         }
 
         [Fact]

@@ -114,8 +114,8 @@ namespace SessyController.Services.StateMachine
         {
             if (candidate == current) return true;
             if (current == Modes.Unknown) return true;
-            // SolarOnly never discharges and stays on NOM: entering it is a stop, never delayed.
-            if (candidate == Modes.SolarOnly) return true;
+            // HoldReserve never discharges and stays on NOM: entering it is a stop, never delayed.
+            if (candidate == Modes.HoldReserve) return true;
             if (ActivityRank(candidate) < ActivityRank(current)) return true;
 
             return now - modeSince >= dwell;
@@ -183,8 +183,8 @@ namespace SessyController.Services.StateMachine
                 {
                     BatteryMode = input.PlannedMode == Modes.Charging
                                             ? Modes.Charging
-                                            // SolarOnly stores surplus too, and never discharges.
-                                            : input.PlannedMode == Modes.SolarOnly ? Modes.SolarOnly
+                                            // HoldReserve stores surplus too, and never discharges.
+                                            : input.PlannedMode == Modes.HoldReserve ? Modes.HoldReserve
                                             : Modes.ZeroNetHome,
                     BatterySetpointW = input.PlannedMode == Modes.Charging
                                             ? input.PlannedSetpointW
@@ -259,11 +259,11 @@ namespace SessyController.Services.StateMachine
                     Reason = $"MILP: Discharging at {input.PlannedSetpointW:F0}W"
                 },
 
-                Modes.SolarOnly => new EnergySystemAction
+                Modes.HoldReserve => new EnergySystemAction
                 {
-                    BatteryMode = Modes.SolarOnly,
+                    BatteryMode = Modes.HoldReserve,
                     CurtailmentMode = CurtailmentMode.None,
-                    Reason = "MILP: Solar only"
+                    Reason = "MILP: Hold reserve"
                 },
 
                 Modes.ZeroNetHome => new EnergySystemAction

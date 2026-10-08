@@ -11,6 +11,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.156] — 2026-10-08
+
+### Changed
+- **"Solar only" is now called "Hold reserve".** The mode mostly runs at night, when there is no
+  sun: the battery keeps its energy and only stores surplus solar if there is any. Chart, badges,
+  tooltips and the plan explanation use the new name; stored plans are migrated.
+- **Heartbeat stays on while the control loop runs.** The heart on the Charging hours page
+  disappears only after a missed beat (two control intervals without one), and shows right away
+  when the page opens.
+- **"Saved" on the Settings page disappears after 3 seconds**, so the next save shows it again.
+
 ## [v1.0.155] — 2026-10-08
 
 ### Fixed

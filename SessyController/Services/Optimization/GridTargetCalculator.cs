@@ -28,8 +28,8 @@ namespace SessyController.Services.Optimization
                     return (int)Math.Round(houseNetW + ClampPower(powerW, maxChargeW));
                 case Modes.Discharging:
                     return (int)Math.Round(houseNetW - ClampPower(powerW, maxDischargeW));
-                case Modes.SolarOnly:
-                    return SolarOnlyTargetW(houseNetW);
+                case Modes.HoldReserve:
+                    return HoldReserveTargetW(houseNetW);
                 case Modes.ZeroNetHome:
                     return 0;
                 default:
@@ -51,11 +51,11 @@ namespace SessyController.Services.Optimization
         }
 
         /// <summary>
-        /// SolarOnly: surplus &gt; 0 → target 0, the battery stores it (NOM); surplus &lt;= 0 → target
+        /// HoldReserve: surplus &gt; 0 → target 0, the battery stores it (NOM); surplus &lt;= 0 → target
         /// = house net, the battery delivers nothing (Off). Surplus is -houseNet; zero counts as no
         /// surplus, so the battery never covers a deficit.
         /// </summary>
-        public static int SolarOnlyTargetW(double houseNetW)
+        public static int HoldReserveTargetW(double houseNetW)
         {
             double surplusW = -houseNetW;
             return surplusW > 0.0 ? 0 : (int)Math.Round(houseNetW);

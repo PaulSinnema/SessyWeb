@@ -557,7 +557,7 @@ namespace SessyController.Services.Optimization
             public double[] ExportKWh { get; }       // grid export remaining after the battery
             public double[] SocEnd { get; }          // store level at the end of each quarter
             public bool[] Held { get; }              // discharge moved away by Candidate F: battery idle on purpose
-            public bool[] AtReserve { get; }         // reserve reached or house not fully covered: SolarOnly, never discharge
+            public bool[] AtReserve { get; }         // reserve reached or house not fully covered: HoldReserve, never discharge
 
             public State(int n)
             {
@@ -1761,7 +1761,7 @@ namespace SessyController.Services.Optimization
 
                 // SOC leads. Zero Net Home covers the whole house at runtime whatever was planned,
                 // so once the reserve is reached — the SOC sits on it, or covering this quarter
-                // would cross it — the quarter is SolarOnly: store live surplus, never discharge.
+                // would cross it — the quarter is HoldReserve: store live surplus, never discharge.
                 // 06-10: planned 0-8 W but labelled Zero Net Home, the batteries covered the house
                 // and ran to 0% overnight. Grid charging and export keep their own mode.
                 double houseDeficit = Math.Max(0.0, ctx.PricePoints[t].NetLoadWh / 1000.0);
@@ -1782,7 +1782,7 @@ namespace SessyController.Services.Optimization
                 }
 
                 // ZNH covers the whole house at runtime, so a quarter the plan covers only partly
-                // (or not at all) cannot be ZNH: it becomes SolarOnly and covers nothing.
+                // (or not at all) cannot be ZNH: it becomes HoldReserve and covers nothing.
                 if (!state.AtReserve[t]
                     && houseDeficit > Eps
                     && gridChargeAtT <= Eps
@@ -1820,7 +1820,7 @@ namespace SessyController.Services.Optimization
                         ? ActionMode.Disabled :
                     // Reserve reached: store live surplus only, never discharge.
                     (state.AtReserve[t] && state.DischargeKWh[t] <= Eps)
-                        ? ActionMode.SolarOnly :
+                        ? ActionMode.HoldReserve :
                     // House cover moved to an earlier sale (Candidate F): idle, the house imports.
                     (state.Held[t] && state.ChargeKWh[t] <= Eps && state.DischargeKWh[t] <= Eps)
                         ? ActionMode.Disabled :

@@ -628,7 +628,7 @@ namespace SessyController.Services
                             _planFloorWhByTime.TryGetValue(nowQuarter, out var floorWh) ? floorWh : 0.0))
             {
                 // House used more than forecast: ZNH would cover it below the reserve until the
-                // next quarter. The planner re-decides from the measured SOC (→ SolarOnly).
+                // next quarter. The planner re-decides from the measured SOC (→ HoldReserve).
                 // The floor is the planner's own (ReserveFloor), so both sides agree on "at reserve".
                 reserveTriggered = true;
                 reason = "SOC at reserve while the plan covers the house"; forced = true;
@@ -716,7 +716,7 @@ namespace SessyController.Services
 
         /// <summary>
         /// Measured SOC has reached the planner's floor while the plan still says ZeroNetHome.
-        /// The planner turns such a quarter into SolarOnly, so after one rebuild this is false.
+        /// The planner turns such a quarter into HoldReserve, so after one rebuild this is false.
         /// </summary>
         internal static bool ReserveReachedUnderCover(Modes plannedMode, double socWh, double floorWh)
             => plannedMode == Modes.ZeroNetHome
@@ -825,8 +825,8 @@ namespace SessyController.Services
                         powerW = Math.Round(p.DischargeKW * 1000.0, 0);
                         requestedW = Math.Round(p.RequestedDischargeKW * 1000.0, 0);
                         break;
-                    case ActionMode.SolarOnly:
-                        mode = Modes.SolarOnly;
+                    case ActionMode.HoldReserve:
+                        mode = Modes.HoldReserve;
                         powerW = 0.0;
                         break;
                     case ActionMode.Disabled:
@@ -1120,8 +1120,8 @@ namespace SessyController.Services
                 }
                 else
                 {
-                    // SolarOnly stores surplus only, never covers a deficit.
-                    soc = Clamp(soc - (act.Mode == Modes.SolarOnly ? Math.Min(netLoadWh, 0.0) : netLoadWh), 0.0, capWh);
+                    // HoldReserve stores surplus only, never covers a deficit.
+                    soc = Clamp(soc - (act.Mode == Modes.HoldReserve ? Math.Min(netLoadWh, 0.0) : netLoadWh), 0.0, capWh);
                     qi.SetChargeNeeded(minSocWh);
                 }
 
@@ -1156,9 +1156,9 @@ namespace SessyController.Services
         /// <summary>A guard stops the planned flow: hold the energy, store live surplus only.</summary>
         internal static PlanAction HoldAction(QuarterlyInfo? qi)
         {
-            qi?.SetMode(Modes.SolarOnly);
+            qi?.SetMode(Modes.HoldReserve);
             qi?.SetPlanPower(0, 0);
-            return new PlanAction { Mode = Modes.SolarOnly, PowerW = 0 };
+            return new PlanAction { Mode = Modes.HoldReserve, PowerW = 0 };
         }
 
         private async Task<PlanAction> GetExecutableActionAsync(DateTime nowQuarter)
@@ -1194,7 +1194,7 @@ namespace SessyController.Services
                     // Once per engagement — this method runs on every heartbeat and every UI refresh.
                     if (!roomGuardWasHeld)
                         _logger.LogWarning(
-                            $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: GUARD_CHARGE_NO_ROOM → SolarOnly " +
+                            $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: GUARD_CHARGE_NO_ROOM → HoldReserve " +
                             $"(socWh={socWh:F0}, maxSocWh={maxSocWh:F0}, roomWh={roomWh:F0}, releaseWh={releaseWh:F0})");
 
                     // Was ZeroNetHome: covered the house from just-bought energy or below the reserve.
@@ -1218,7 +1218,7 @@ namespace SessyController.Services
                 {
                     if (!targetGuardWasHeld)
                         _logger.LogWarning(
-                            $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: GUARD_CHARGE_TARGET_REACHED → SolarOnly " +
+                            $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: GUARD_CHARGE_TARGET_REACHED → HoldReserve " +
                             $"(socWh={socWh:F0}, limitWh={limitWh:F0}, releaseWh={releaseWh:F0})");
 
                     // Was ZeroNetHome: covered the house from just-bought energy or below the reserve.
@@ -1275,7 +1275,7 @@ namespace SessyController.Services
                 {
                     if (!dischargeGuardWasHeld)
                         _logger.LogWarning(
-                            $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: GUARD_DISCHARGE_NO_ENERGY → SolarOnly " +
+                            $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: GUARD_DISCHARGE_NO_ENERGY → HoldReserve " +
                             $"(socWh={socWh:F0}, minSocWh={minSocWh:F0}, availableWh={availableWh:F0}, releaseWh={releaseWh:F0})");
 
                     // Was ZeroNetHome: covered the house from just-bought energy or below the reserve.
@@ -1316,11 +1316,11 @@ namespace SessyController.Services
                 };
             }
 
-            // SolarOnly is executed as planned: the P1 target already decides per moment between
+            // HoldReserve is executed as planned: the P1 target already decides per moment between
             // storing surplus and idling, so no remapping here.
-            if (planned.Mode == Modes.SolarOnly)
+            if (planned.Mode == Modes.HoldReserve)
             {
-                qi?.SetMode(Modes.SolarOnly);
+                qi?.SetMode(Modes.HoldReserve);
                 qi?.SetPlanPower(0, 0);
                 return planned;
             }

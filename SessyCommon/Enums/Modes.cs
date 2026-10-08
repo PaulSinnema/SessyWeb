@@ -19,6 +19,6 @@
         /// net load, so surplus &gt; 0 charges the battery and surplus &lt;= 0 leaves it idle. Planned
         /// once the reserve is reached, so a forecast error cannot drain the battery below it.
         /// </summary>
-        SolarOnly = 5
+        HoldReserve = 5
     }
 }

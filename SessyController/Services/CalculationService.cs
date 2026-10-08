@@ -322,7 +322,7 @@ namespace SessyController.Services
                     roomInWatt = Math.Min(roomInWatt, dischargingCapacityW);
                     break;
 
-                case Modes.SolarOnly:   // never discharges
+                case Modes.HoldReserve:   // never discharges
                 case Modes.Disabled:
                 default:
                     roomInWatt = 0.0;

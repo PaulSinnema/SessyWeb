@@ -69,7 +69,7 @@ namespace SessyTests.Services
                             _output.WriteLine($"   BELOW MIN {s.Start:dd-MM HH:mm} {s.Mode} socEnd {s.SocEndKWh:F3} min {minSoc:F3}");
                         }
 
-                        if ((s.Mode == ActionMode.SolarOnly || s.Mode == ActionMode.Disabled) && dis > 1e-6)
+                        if ((s.Mode == ActionMode.HoldReserve || s.Mode == ActionMode.Disabled) && dis > 1e-6)
                         {
                             idleWithDischarge++;
                             _output.WriteLine($"   IDLE WITH DISCHARGE {s.Start:dd-MM HH:mm} {s.Mode} dis {dis:F3}");

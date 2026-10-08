@@ -251,6 +251,7 @@ namespace SessyWeb.Pages
         public override void Dispose()
         {
             _checksTimer?.Dispose();
+            _savedCts?.Cancel();
             _checksTimer = null;
             _logTimer?.Dispose();
             _logTimer = null;
@@ -705,6 +706,10 @@ namespace SessyWeb.Pages
         }
         private bool _settingsSaving;
         private bool _settingsSaved;
+        private CancellationTokenSource? _savedCts;
+
+        /// <summary>How long "Saved" stays visible after a save.</summary>
+        private const int SavedVisibleSeconds = 3;
         private bool _settingsInitialised;
 
         // Multi-select bindings for manual hours.
@@ -799,6 +804,29 @@ namespace SessyWeb.Pages
                 _settingsSaving = false;
                 StateHasChanged();
             }
+
+            if (_settingsSaved)
+                _ = HideSavedAsync();
+        }
+
+        /// <summary>Hides "Saved" after a few seconds; a new save restarts the timer.</summary>
+        private async Task HideSavedAsync()
+        {
+            _savedCts?.Cancel();
+            var cts = new CancellationTokenSource();
+            _savedCts = cts;
+
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(SavedVisibleSeconds), cts.Token);
+            }
+            catch (TaskCanceledException)
+            {
+                return;
+            }
+
+            _settingsSaved = false;
+            await InvokeAsync(StateHasChanged);
         }
         // ── SQL Console ───────────────────────────────────────────────────────
 

@@ -65,7 +65,7 @@ namespace SessyTests.Services
             Assert.All(plan.Plan.Where(p => p.Start <= bridge),
                 p => Assert.True(p.SocEndKWh >= 2.5 - 0.01, $"{p.Start:HH:mm} ends at {p.SocEndKWh:F2} below the bridge reserve"));
             Assert.Contains(plan.Plan, p => p.Mode == ActionMode.ZeroNetHome);
-            Assert.Contains(plan.Plan, p => p.Mode == ActionMode.SolarOnly);
+            Assert.Contains(plan.Plan, p => p.Mode == ActionMode.HoldReserve);
         }
 
         [Fact]

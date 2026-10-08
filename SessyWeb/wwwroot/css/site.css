@@ -234,7 +234,7 @@ a, .btn-link {
 
     /* Modes */
     --sessy-znh: #ffd700;
-    --sessy-solar-only: #26a69a;
+    --sessy-hold-reserve: #26a69a;
 
     /* Solar, consumption, weather */
     --sessy-solar: #ffc400;
@@ -276,7 +276,7 @@ a, .btn-link {
     --sessy-charged-line: color-mix(in srgb, var(--sessy-charged) 70%, var(--sessy-mix-base));
     --sessy-plan-history-line: color-mix(in srgb, var(--sessy-plan-history) 70%, var(--sessy-mix-base));
     --sessy-znh-line: color-mix(in srgb, var(--sessy-znh) 70%, var(--sessy-mix-base));
-    --sessy-solar-only-line: color-mix(in srgb, var(--sessy-solar-only) 70%, var(--sessy-mix-base));
+    --sessy-hold-reserve-line: color-mix(in srgb, var(--sessy-hold-reserve) 70%, var(--sessy-mix-base));
     --sessy-solar-line: color-mix(in srgb, var(--sessy-solar) 70%, var(--sessy-mix-base));
     --sessy-consumption-line: color-mix(in srgb, var(--sessy-consumption) 70%, var(--sessy-mix-base));
     --sessy-delta-line: color-mix(in srgb, var(--sessy-delta) 70%, var(--sessy-mix-base));
@@ -304,7 +304,7 @@ a, .btn-link {
     --sessy-throttle-area: color-mix(in srgb, var(--sessy-throttle) 45%, transparent);
     --sessy-charged-area: color-mix(in srgb, var(--sessy-charged) 45%, transparent);
     --sessy-znh-area: color-mix(in srgb, var(--sessy-znh) 50%, transparent);
-    --sessy-solar-only-area: color-mix(in srgb, var(--sessy-solar-only) 45%, transparent);
+    --sessy-hold-reserve-area: color-mix(in srgb, var(--sessy-hold-reserve) 45%, transparent);
     --sessy-consumption-area: color-mix(in srgb, var(--sessy-consumption) 60%, transparent);
     --sessy-solar-area: color-mix(in srgb, var(--sessy-solar) 60%, transparent);
     --sessy-humidity-area: color-mix(in srgb, var(--sessy-humidity) 60%, transparent);

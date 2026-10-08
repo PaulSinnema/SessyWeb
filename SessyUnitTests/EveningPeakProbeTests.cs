@@ -328,7 +328,7 @@ namespace SessyTests.Services
             "Charging" or "Charge" => "C",
             "Discharging" or "Discharge" => "D",
             "ZeroNetHome" => "Z",
-            "SolarOnly" => "S",
+            "HoldReserve" => "S",
             _ => mode.Substring(0, 1)
         };
     }

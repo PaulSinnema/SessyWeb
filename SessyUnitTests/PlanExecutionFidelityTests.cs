@@ -10,7 +10,7 @@ namespace SessyTests.Services
     /// <summary>
     /// v1.0.150: execution follows the plan. Zero Net Home covers the whole house at runtime, so the
     /// plan may only say ZNH where it covers the whole house; leftover energy goes to the house; at
-    /// the reserve the runtime replans, guards hold the energy, and SolarOnly is entered at once.
+    /// the reserve the runtime replans, guards hold the energy, and HoldReserve is entered at once.
     /// </summary>
     public class PlanExecutionFidelityTests
     {
@@ -84,11 +84,11 @@ namespace SessyTests.Services
 
         [Theory]
         [MemberData(nameof(Scenarios))]
-        public void SolarOnly_never_discharges(double soc, bool shift, bool knee)
+        public void HoldReserve_never_discharges(double soc, bool shift, bool knee)
         {
             var plan = Solve(soc, shift, knee ? Knee : null);
 
-            Assert.All(plan.Plan.Where(p => p.Mode == ActionMode.SolarOnly),
+            Assert.All(plan.Plan.Where(p => p.Mode == ActionMode.HoldReserve),
                 p => Assert.Equal(0.0, p.DischargeKW, 6));
         }
 
@@ -128,23 +128,23 @@ namespace SessyTests.Services
         [InlineData(Modes.Disabled)]
         [InlineData(Modes.Charging)]
         [InlineData(Modes.Discharging)]
-        public void SolarOnly_is_entered_without_dwell(Modes current)
+        public void HoldReserve_is_entered_without_dwell(Modes current)
         {
-            Assert.True(EnergySystemStateMachine.MayChangeMode(current, Modes.SolarOnly, T0, T0.AddSeconds(1), Dwell));
+            Assert.True(EnergySystemStateMachine.MayChangeMode(current, Modes.HoldReserve, T0, T0.AddSeconds(1), Dwell));
         }
 
         [Fact]
-        public void Leaving_SolarOnly_still_waits_out_the_dwell()
+        public void Leaving_HoldReserve_still_waits_out_the_dwell()
         {
-            Assert.False(EnergySystemStateMachine.MayChangeMode(Modes.SolarOnly, Modes.ZeroNetHome, T0, T0.AddSeconds(1), Dwell));
-            Assert.True(EnergySystemStateMachine.MayChangeMode(Modes.SolarOnly, Modes.ZeroNetHome, T0, T0.Add(Dwell), Dwell));
+            Assert.False(EnergySystemStateMachine.MayChangeMode(Modes.HoldReserve, Modes.ZeroNetHome, T0, T0.AddSeconds(1), Dwell));
+            Assert.True(EnergySystemStateMachine.MayChangeMode(Modes.HoldReserve, Modes.ZeroNetHome, T0, T0.Add(Dwell), Dwell));
         }
 
         [Theory]
         [InlineData(Modes.ZeroNetHome, 815.0, 810.0, true)]      // within 5 Wh of the floor
         [InlineData(Modes.ZeroNetHome, 500.0, 810.0, true)]      // below the floor
         [InlineData(Modes.ZeroNetHome, 816.0, 810.0, false)]     // still above
-        [InlineData(Modes.SolarOnly, 500.0, 810.0, false)]       // already holding
+        [InlineData(Modes.HoldReserve, 500.0, 810.0, false)]       // already holding
         [InlineData(Modes.Discharging, 500.0, 810.0, false)]     // guard handles it
         [InlineData(Modes.ZeroNetHome, 0.0, 0.0, false)]         // no reserve to protect
         public void Reserve_rebuild_fires_only_for_ZNH_at_the_floor(Modes planned, double socWh, double floorWh, bool expected)
@@ -173,7 +173,7 @@ namespace SessyTests.Services
         {
             var action = MilpServiceBase.HoldAction(null);
 
-            Assert.Equal(Modes.SolarOnly, action.Mode);
+            Assert.Equal(Modes.HoldReserve, action.Mode);
             Assert.Equal(0.0, action.PowerW);
         }
     }
