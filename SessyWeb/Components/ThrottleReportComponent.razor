@@ -1,0 +1,155 @@
+﻿@using Radzen
+@using Radzen.Blazor
+@using SessyController.Services.Items
+@inherits BaseComponent
+
+<RadzenCard>
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px" Wrap="FlexWrap.Wrap" Style="margin-bottom: 8px;">
+        <RadzenText TextStyle="TextStyle.H6" Style="margin:0;">📉 Throttling report</RadzenText>
+        <RadzenSelectBar @bind-Value="_days" TValue="int" Change="@OnRangeChangedAsync">
+            <Items>
+                <RadzenSelectBarItem Text="30d" Value="30" />
+                <RadzenSelectBarItem Text="60d" Value="60" />
+                <RadzenSelectBarItem Text="90d" Value="90" />
+                <RadzenSelectBarItem Text="All" Value="0" />
+            </Items>
+        </RadzenSelectBar>
+    </RadzenStack>
+
+    <RadzenText TextStyle="TextStyle.Body2" Style="margin-bottom: 8px;">
+        How much power the batteries really deliver when SessyWeb asks for (nearly) full power. Only quarters
+        count in which SessyWeb was in control, asked at least 90% of nameplate, and the quarter before was
+        already in the same mode, so a slow start or another controller does not count against the batteries.
+        Power is the batteries' own AC reading: per SOC band the median, as a percentage of nameplate
+        (@Watts(batteryContainer?.GetChargingCapacityInWattsPerHour()) charging,
+        @Watts(batteryContainer?.GetDischargingCapacityInWattsPerHour()) discharging). 100% means no throttling.
+        <b>Full charge / discharge</b> is the time a 0-100% pass takes at the measured powers, next to the
+        time it would take at nameplate.
+    </RadzenText>
+
+    @if (_loading)
+    {
+        <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+    }
+    else if (!_report.HasData)
+    {
+        <RadzenText TextStyle="TextStyle.Body2" Style="opacity: 0.6;">
+            No full-power quarters in this period.
+        </RadzenText>
+    }
+    else
+    {
+        @* ── Summary ─────────────────────────────────────────────── *@
+        <RadzenRow Gap="8px" Style="margin-bottom: 8px;">
+            <RadzenColumn Size="6" SizeMD="3">
+                <StatCardComponent Title="Charge delivered" Value="@Pct(_report.Charge.Share)"
+                                   InfoTooltip="Delivered over requested energy in full-power charging quarters." />
+            </RadzenColumn>
+            <RadzenColumn Size="6" SizeMD="3">
+                <StatCardComponent Title="Discharge delivered" Value="@Pct(_report.Discharge.Share)"
+                                   InfoTooltip="Delivered over requested energy in full-power discharging quarters." />
+            </RadzenColumn>
+            <RadzenColumn Size="6" SizeMD="3">
+                <StatCardComponent Title="Full charge (measured / nameplate)"
+                                   Value="@($"{Hours(_report.Charge.FullCycleHours)} / {Hours(_report.Charge.NameplateCycleHours)}")" />
+            </RadzenColumn>
+            <RadzenColumn Size="6" SizeMD="3">
+                <StatCardComponent Title="Full discharge (measured / nameplate)"
+                                   Value="@($"{Hours(_report.Discharge.FullCycleHours)} / {Hours(_report.Discharge.NameplateCycleHours)}")" />
+            </RadzenColumn>
+        </RadzenRow>
+
+        @* ── Per SOC band ────────────────────────────────────────── *@
+        <div style="width: 100%; overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem; white-space: nowrap;">
+                <thead>
+                    <tr style="text-align: right; color: var(--rz-text-secondary-color);">
+                        <th style="text-align: left; padding: 4px 8px;">SOC</th>
+                        <th style="padding: 4px 8px;">Charge quarters</th>
+                        <th style="padding: 4px 8px;">Charge W</th>
+                        <th style="padding: 4px 8px;">% of @Watts(_report.ChargeNameplateW)</th>
+                        <th style="padding: 4px 8px;">Discharge quarters</th>
+                        <th style="padding: 4px 8px;">Discharge W</th>
+                        <th style="padding: 4px 8px;">% of @Watts(_report.DischargeNameplateW)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var b in _report.Bands)
+                    {
+                        <tr style="text-align: right; border-top: 1px solid var(--rz-base-300);">
+                            <td style="text-align: left; padding: 4px 8px;">@b.Label</td>
+                            <td style="padding: 4px 8px;">@b.ChargeQuarters</td>
+                            <td style="padding: 4px 8px;">@Watts(b.ChargeMedianW)</td>
+                            <td style="padding: 4px 8px;">@Pct(b.ChargeShare)</td>
+                            <td style="padding: 4px 8px;">@b.DischargeQuarters</td>
+                            <td style="padding: 4px 8px;">@Watts(b.DischargeMedianW)</td>
+                            <td style="padding: 4px 8px;">@Pct(b.DischargeShare)</td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
+                    <tr style="text-align: right; font-weight: 600; border-top: 2px solid var(--rz-base-400);">
+                        <td style="text-align: left; padding: 4px 8px;">All</td>
+                        <td style="padding: 4px 8px;">@_report.Charge.Quarters</td>
+                        <td style="padding: 4px 8px;">–</td>
+                        <td style="padding: 4px 8px;">@Pct(_report.Charge.Share)</td>
+                        <td style="padding: 4px 8px;">@_report.Discharge.Quarters</td>
+                        <td style="padding: 4px 8px;">–</td>
+                        <td style="padding: 4px 8px;">@Pct(_report.Discharge.Share)</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <RadzenChart Style="height: 260px; width: 100%;" class="rz-mt-2">
+            <RadzenColumnSeries Data="@_chargePoints"
+                                CategoryProperty="@nameof(ChartPoint.Band)"
+                                ValueProperty="@nameof(ChartPoint.Pct)"
+                                Title="Charge"
+                                Fill="var(--sessy-charge-line)" />
+            <RadzenColumnSeries Data="@_dischargePoints"
+                                CategoryProperty="@nameof(ChartPoint.Band)"
+                                ValueProperty="@nameof(ChartPoint.Pct)"
+                                Title="Discharge"
+                                Fill="var(--sessy-discharge-line)" />
+            <RadzenColumnOptions Radius="2" Margin="2" />
+            <RadzenCategoryAxis>
+                <RadzenAxisTitle Text="State of charge" />
+            </RadzenCategoryAxis>
+            <RadzenValueAxis Min="0" Max="100" Step="20" FormatString="{0:F0} %">
+                <RadzenGridLines Visible="true" />
+                <RadzenAxisTitle Text="% of nameplate" />
+            </RadzenValueAxis>
+            <RadzenLegend Position="LegendPosition.Bottom" />
+        </RadzenChart>
+
+        @* ── Loss per full cycle ─────────────────────────────────── *@
+        <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mt-3" Style="margin-bottom: 4px;">
+            Loss per full cycle (@_report.CapacityKWh.ToString("F1") kWh)
+        </RadzenText>
+        <RadzenText TextStyle="TextStyle.Body2" Style="margin-bottom: 8px;">
+            One cycle is the battery charged from empty to full and discharged again. <b>Efficiency</b> is energy
+            really lost as heat while charging and discharging (the measured round trip over the same period).
+            <b>Throttling</b> is not lost energy: it is the part of a full charge or discharge that does not fit
+            in the time nameplate power would need. That is capacity you cannot use when a cheap or an expensive
+            price window is short. The <b>total</b> therefore shows how much of each cycle you miss, not what it costs.
+        </RadzenText>
+        <RadzenRow Gap="8px">
+            <RadzenColumn Size="6" SizeMD="3">
+                <StatCardComponent Title="@($"Efficiency (round trip {Pct(_roundTrip, 1)})")" Value="@KWh(_loss?.EfficiencyKWh)"
+                                   InfoTooltip="Energy really lost in charging and discharging." />
+            </RadzenColumn>
+            <RadzenColumn Size="6" SizeMD="3">
+                <StatCardComponent Title="Charge throttling" Value="@KWh(_loss?.ChargeThrottleKWh)"
+                                   InfoTooltip="Energy not stored in the time nameplate power needs for a full charge." />
+            </RadzenColumn>
+            <RadzenColumn Size="6" SizeMD="3">
+                <StatCardComponent Title="Discharge throttling" Value="@KWh(_loss?.DischargeThrottleKWh)"
+                                   InfoTooltip="Energy not delivered in the time nameplate power needs for a full discharge." />
+            </RadzenColumn>
+            <RadzenColumn Size="6" SizeMD="3">
+                <StatCardComponent Title="Total" Value="@KWh(_loss?.TotalKWh)" />
+            </RadzenColumn>
+        </RadzenRow>
+    }
+</RadzenCard>

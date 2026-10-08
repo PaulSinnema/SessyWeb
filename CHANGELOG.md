@@ -11,6 +11,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.158] — 2026-10-08
+
+### Added
+- **Throttling report** on the Statistics page, to see — and report to Sessy — how much power the
+  batteries hold back. Over 30 days (default), 60, 90 days or all history: delivered versus
+  requested power per 20% SOC band for charging and discharging (table and bar chart, as % of
+  nameplate), how long a full charge and a full discharge take compared with nameplate power, and
+  the loss per full cycle: efficiency (round trip over the same period) plus charge and discharge
+  throttling and the total. Only quarters where SessyWeb itself asked for at least 90% of nameplate
+  count.
+
 ## [v1.0.157] — 2026-10-08
 
 ### Added

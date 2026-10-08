@@ -1181,5 +1181,118 @@ namespace SessyController.Services
             if (bucket == null) return 1.0;
             return discharge ? bucket.DischargeRatio : bucket.ChargeRatio;
         }
+
+        // ── Throttle report ───────────────────────────────────────────────────
+
+        /// <summary>SOC bands of the throttle report, 20% wide.</summary>
+        private const int ReportBands = 5;
+
+        /// <summary>
+        /// Delivered versus requested power per SOC band, for the Statistics page and for reporting
+        /// to Sessy. Same sample rule as the capability fits: full request (>= 90% of nameplate),
+        /// executed by us, previous quarter in the same mode. Snapshot AC watts, comparable with
+        /// the nameplate. Null days means the whole history.
+        /// </summary>
+        public async Task<ThrottleReport> GetThrottleReportAsync(int? days, double chargeNameplateW, double dischargeNameplateW)
+        {
+            double capacity = _batteryContainer.GetTotalCapacity();
+            if (capacity <= 0.0 || chargeNameplateW <= 0.0 || dischargeNameplateW <= 0.0)
+                return ThrottleReport.Empty;
+
+            var now = _timeZoneService.Now;
+            var from = days.HasValue ? now.AddDays(-days.Value) : DateTime.MinValue;
+            var fetchFrom = days.HasValue ? from.AddMinutes(-15) : DateTime.MinValue;
+
+            var measurements = await _measurementDataService.GetList(async set =>
+                await Task.FromResult(set
+                    .Where(m => m.Time >= fetchFrom && m.Time <= now)
+                    .ToList()));
+
+            var plans = await _plannedQuarterDataService.GetList(async set =>
+                await Task.FromResult(set
+                    .Where(p => p.Time >= from && p.Time <= now && p.PlannedUnthrottledPowerW != 0.0)
+                    .ToList()));
+
+            var foreignQuarters = await LoadForeignQuartersAsync(from, now).ConfigureAwait(false);
+
+            var byTime = measurements.GroupBy(m => m.Time).ToDictionary(g => g.Key, g => g.First());
+            var requestByTime = plans.GroupBy(p => p.Time).ToDictionary(g => g.Key, g => g.First().PlannedUnthrottledPowerW);
+
+            var charge = new List<ThrottleSample>();
+            var discharge = new List<ThrottleSample>();
+
+            foreach (var m in byTime.Values)
+            {
+                if (m.Time < from || !m.IsReliable || foreignQuarters.Contains(m.Time)) continue;
+
+                bool charging = m.BatteryMode == Modes.Charging;
+                if (!charging && m.BatteryMode != Modes.Discharging) continue;
+
+                // Plan sign: charge positive, discharge negative.
+                if (!requestByTime.TryGetValue(m.Time, out var planW)) continue;
+                double requestedW = charging ? planW : -planW;
+                double nameplateW = charging ? chargeNameplateW : dischargeNameplateW;
+                if (requestedW < ChargeCapabilityMinRequestShare * nameplateW) continue;
+
+                // Previous quarter in the same mode: no ramp inside this one.
+                if (!byTime.TryGetValue(m.Time.AddMinutes(-15), out var prev)) continue;
+                if (prev.BatteryMode != m.BatteryMode || !prev.IsReliable) continue;
+
+                double socFraction = prev.BatteryStateOfChargeWh / capacity;
+                if (socFraction < 0.0 || socFraction > 1.0) continue;
+
+                double deliveredW = Math.Abs(m.BatteryPowerWatts);
+                if (deliveredW <= 0.0) continue;
+
+                (charging ? charge : discharge).Add(new ThrottleSample(socFraction, requestedW, deliveredW));
+            }
+
+            return BuildThrottleReport(charge, discharge, chargeNameplateW, dischargeNameplateW, capacity);
+        }
+
+        /// <summary>Bands, totals and full-pass times from the samples. Pure for tests.</summary>
+        internal static ThrottleReport BuildThrottleReport(
+            IReadOnlyList<ThrottleSample> charge, IReadOnlyList<ThrottleSample> discharge,
+            double chargeNameplateW, double dischargeNameplateW, double capacityWh)
+        {
+            static int Band(double soc) => Math.Min((int)(soc * ReportBands), ReportBands - 1);
+
+            var bands = new List<ThrottleBand>();
+
+            for (int b = 0; b < ReportBands; b++)
+            {
+                var c = charge.Where(s => Band(s.Soc) == b).Select(s => s.DeliveredW).ToList();
+                var d = discharge.Where(s => Band(s.Soc) == b).Select(s => s.DeliveredW).ToList();
+                double? chargeW = c.Count > 0 ? Median(c) : null;
+                double? dischargeW = d.Count > 0 ? Median(d) : null;
+
+                bands.Add(new ThrottleBand(
+                    b * 100 / ReportBands, (b + 1) * 100 / ReportBands,
+                    c.Count, chargeW, chargeW / chargeNameplateW,
+                    d.Count, dischargeW, dischargeW / dischargeNameplateW));
+            }
+
+            return new ThrottleReport(
+                bands,
+                SummarizeDirection(charge, bands.Select(x => x.ChargeMedianW), chargeNameplateW, capacityWh),
+                SummarizeDirection(discharge, bands.Select(x => x.DischargeMedianW), dischargeNameplateW, capacityWh),
+                capacityWh / 1000.0, chargeNameplateW, dischargeNameplateW);
+        }
+
+        private static ThrottleDirection SummarizeDirection(
+            IReadOnlyList<ThrottleSample> samples, IEnumerable<double?> bandMedians, double nameplateW, double capacityWh)
+        {
+            // Hours for a full 0-100% pass at the band medians; null while any band lacks data.
+            double? hours = 0.0;
+            foreach (var w in bandMedians)
+                hours = hours.HasValue && w is > 0.0 ? hours + capacityWh / ReportBands / w.Value : null;
+
+            return new ThrottleDirection(
+                samples.Count,
+                samples.Sum(s => s.RequestedW) * 0.25 / 1000.0,
+                samples.Sum(s => s.DeliveredW) * 0.25 / 1000.0,
+                hours,
+                capacityWh / nameplateW);
+        }
     }
 }

@@ -65,25 +65,29 @@ namespace SessyController.Services
         /// </summary>
         public async Task<double> GetRoundTripEfficiencyAsync()
         {
-            double fallback = Fallback();
-
             var now = _timeZoneService.Now;
-            var start = now.AddDays(-LookbackDays);
+            return await MeasureRoundTripAsync(now.AddDays(-LookbackDays), now).ConfigureAwait(false) ?? Fallback();
+        }
 
+        /// <summary>
+        /// Measured round-trip efficiency over a window, or null when it holds too little reliable data.
+        /// </summary>
+        public async Task<double?> MeasureRoundTripAsync(DateTime from, DateTime to)
+        {
             var measurements = await _measurementDataService.GetList(async set =>
                 await Task.FromResult(set
-                    .Where(m => m.Time >= start && m.Time <= now && m.IsReliable)
+                    .Where(m => m.Time >= from && m.Time <= to && m.IsReliable)
                     .OrderBy(m => m.Time)
                     .ToList())).ConfigureAwait(false);
 
             if (measurements == null || measurements.Count < 2)
-                return fallback;
+                return null;
 
             double chargedKWh = measurements.Sum(m => m.BatteryChargedKWh);
             double dischargedKWh = measurements.Sum(m => m.BatteryDischargedKWh);
 
             if (chargedKWh < MinChargedKWh || dischargedKWh <= 0.0)
-                return fallback;
+                return null;
 
             // Correct for energy that is still in the battery at the end of the window.
             double startSocKWh = measurements.First().BatteryStateOfChargeWh / 1000.0;
@@ -92,7 +96,7 @@ namespace SessyController.Services
             double roundTrip = (dischargedKWh - (endSocKWh - startSocKWh)) / chargedKWh;
 
             if (roundTrip < MinPlausibleRoundTrip || roundTrip > MaxPlausibleRoundTrip)
-                return fallback;
+                return null;
 
             return roundTrip;
         }
