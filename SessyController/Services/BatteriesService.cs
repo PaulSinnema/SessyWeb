@@ -1,15 +1,13 @@
 ﻿using Microsoft.Extensions.Options;
-using SessyCommon.Enums;
 using SessyCommon.Configurations;
+using SessyCommon.Enums;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
 using SessyController.Interfaces;
 using SessyController.Services.Items;
-using SessyController.Services.Optimization;
 using SessyController.Services.StateMachine;
 using SessyData.Model;
 using SessyData.Services;
-using static SessyController.Services.Items.ChargingModes;
 using static SessyData.Model.SessyWebControl;
 
 namespace SessyController.Services
@@ -383,17 +381,40 @@ namespace SessyController.Services
                     return;
                 }
 
+                bool viaSetpoint = _settingsConfig.BatteryControlMethod == BatteryControlMethod.BatterySetpoint;
+
                 switch (mode)
                 {
-                    // (Dis)charging now runs through NOM; the P1 grid target (GridTargetService) sets
-                    // the power. StartCharging/StartDisharging stay as dead code, no longer called.
+                    // P1 grid target: (dis)charging runs through NOM and GridTargetService sets the
+                    // power. Battery setpoint: Open API with a setpoint per battery, as before the P1 path.
                     case Modes.Charging:
-                    case Modes.Discharging:
-                        await _batteryContainer.StartNetZeroHome().ConfigureAwait(false);
+                        if (viaSetpoint)
+                            await _batteryContainer.StartCharging(Math.Abs(powerW)).ConfigureAwait(false);
+                        else
+                            await _batteryContainer.StartNetZeroHome().ConfigureAwait(false);
                         break;
 
-                    // HoldReserve also runs on NOM; GridTargetService keeps the battery from discharging.
+                    case Modes.Discharging:
+                        if (viaSetpoint)
+                            await _batteryContainer.StartDisharging(Math.Abs(powerW)).ConfigureAwait(false);
+                        else
+                            await _batteryContainer.StartNetZeroHome().ConfigureAwait(false);
+                        break;
+
+                    // HoldReserve: NOM + grid target, or Open API with a setpoint that follows the
+                    // solar surplus. Both are kept up to date every 5 s by GridTargetService.
                     case Modes.HoldReserve:
+                        if (viaSetpoint)
+                        {
+                            var gridTarget = _scope.ServiceProvider.GetService<GridTargetService>();
+                            if (gridTarget != null)
+                                await gridTarget.ApplyForCurrentActionAsync().ConfigureAwait(false);
+                        }
+                        else
+                            await _batteryContainer.StartNetZeroHome().ConfigureAwait(false);
+                        break;
+
+                    // ZeroNetHome is NOM in both methods (grid target 0).
                     case Modes.ZeroNetHome:
                         await _batteryContainer.StartNetZeroHome().ConfigureAwait(false);
                         break;
@@ -450,14 +471,21 @@ namespace SessyController.Services
         public string? LastCommandedStrategy { get; private set; }
 
         /// <summary>
-        /// The Sessy power strategy a mode is executed as. Charging, Discharging and ZeroNetHome all
-        /// run through NOM now — the P1 grid target sets the power. Only Disabled goes to Idle,
-        /// Sessy's native hold strategy, so that boundary is the only one that rewrites the strategy.
+        /// The Sessy power strategy a mode is executed as. With the P1 grid target everything but
+        /// Disabled runs through NOM (Disabled goes to Idle). With battery setpoints Charging,
+        /// Discharging and HoldReserve run on the Open API; ZeroNetHome stays NOM.
         /// </summary>
-        internal static string ExpectedStrategy(Modes mode) =>
-            mode == Modes.Disabled
-                ? ActivePowerStrategy.PowerStrategies.POWER_STRATEGY_IDLE.ToString()
-                : ActivePowerStrategy.PowerStrategies.POWER_STRATEGY_NOM.ToString();
+        internal static string ExpectedStrategy(Modes mode, BatteryControlMethod method = BatteryControlMethod.P1GridTarget)
+        {
+            if (mode == Modes.Disabled)
+                return ActivePowerStrategy.PowerStrategies.POWER_STRATEGY_IDLE.ToString();
+
+            if (method == BatteryControlMethod.BatterySetpoint &&
+                mode is Modes.Charging or Modes.Discharging or Modes.HoldReserve)
+                return ActivePowerStrategy.PowerStrategies.POWER_STRATEGY_API.ToString();
+
+            return ActivePowerStrategy.PowerStrategies.POWER_STRATEGY_NOM.ToString();
+        }
 
         /// <summary>
         /// Reports two things that are invisible from the outside: a mode that keeps changing inside
@@ -487,7 +515,7 @@ namespace SessyController.Services
 
                 _logger.LogWarning(
                     $"STRATEGY_CHURN[{nowQuarter:dd-MM HH:mm}]: battery mode changed {_modeChangesThisQuarter} times " +
-                    $"in this quarter (now {commandedMode} = {ExpectedStrategy(commandedMode)}). Each change re-aims the " +
+                    $"in this quarter (now {commandedMode} = {ExpectedStrategy(commandedMode, _settingsConfig.BatteryControlMethod)}). Each change re-aims the " +
                     $"P1 grid target, and crossing to or from Disabled also rewrites the Sessy strategy. Look for a GUARD_ " +
                     $"or PLANNED_MODE_ line just above; if there is none, something outside SessyWeb is driving as well.");
             }
@@ -505,7 +533,7 @@ namespace SessyController.Services
             if (string.IsNullOrEmpty(actual))
                 return;
 
-            var expected = ExpectedStrategy(commandedMode);
+            var expected = ExpectedStrategy(commandedMode, _settingsConfig.BatteryControlMethod);
 
             if (actual == expected)
             {

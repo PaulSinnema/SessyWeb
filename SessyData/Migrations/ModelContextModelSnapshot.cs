@@ -550,6 +550,9 @@ namespace SessyData.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("BatteryControlMethod")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("CarryForwardEnabled")
                         .HasColumnType("INTEGER");
 

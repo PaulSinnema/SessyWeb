@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Components;
 using SessyController.Services;
 using SessyController.Services.Items;
+using SessyData.Model;
 
 namespace SessyWeb.Components
 {
@@ -15,6 +16,12 @@ namespace SessyWeb.Components
         private CancellationTokenSource _cts = new();
 
         public ActivePowerStrategy? ActivePowerStrategy { get; set; }
+
+        [Inject]
+        public SettingsService? SettingsService { get; set; }
+
+        // Requested setpoint is only meaningful with the setpoint-per-battery method.
+        public bool UseSetpoints => SettingsService?.Current.BatteryControlMethod == BatteryControlMethod.BatterySetpoint;
 
         protected override async Task OnInitializedAsync()
         {

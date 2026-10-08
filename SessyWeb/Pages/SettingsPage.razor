@@ -66,6 +66,18 @@
                                                         Style="width:100%" />
                                     </RadzenColumn>
                                     <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Battery control method" />
+                                        <RadzenDropDown @bind-Value="_settings.BatteryControlMethod"
+                                                        Data="@_controlMethods"
+                                                        TextProperty="Text"
+                                                        ValueProperty="Value"
+                                                        Style="width:100%" />
+                                        <RadzenText TextStyle="TextStyle.Caption">
+                                            Default: P1 grid target — balances the batteries.
+                                            <InfoTipComponent Text="P1 grid target (recommended): every battery runs in NOM and follows the grid target on the P1 meter. The Sessy firmware then divides the power over all batteries itself and keeps them in balance, and it follows the real house load in real time. Setpoint per battery: SessyWeb sends each battery a fixed share of the power (by nameplate) on the Open API. Nothing balances the batteries then, so their state of charge can drift apart and one battery runs full or empty before the others; the setpoint also only changes once per control cycle, so changes in house load in between are not followed. Zero Net Home stays NOM in both methods; Hold reserve follows the solar surplus every 5 seconds in both." />
+                                        </RadzenText>
+                                    </RadzenColumn>
+                                    <RadzenColumn Size="12" SizeMD="4">
                                         <RadzenLabel Text="Night reserve source" />
                                         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
                                             <RadzenCheckBox @bind-Value="_settings.UseCalculatedNightReserve" />

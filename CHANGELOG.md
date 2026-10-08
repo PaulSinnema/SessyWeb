@@ -11,6 +11,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.157] — 2026-10-08
+
+### Added
+- **Setting "Battery control method"** (Settings → Battery control). *P1 grid target* (default, as
+  before): every battery runs in NOM and follows the grid target on the P1 meter; the Sessy firmware
+  divides the power over the batteries, keeps them in balance and follows the house load in real
+  time. *Setpoint per battery*: SessyWeb sets an Open API setpoint per battery again, as before the P1
+  path — each battery gets a fixed share by nameplate, nothing balances them, and the setpoint changes
+  once per control cycle. Zero Net Home stays NOM in both; Hold reserve follows the solar surplus every
+  5 seconds in both. The Planner analysis page shows which method is active.
+
+### Changed
+- **Batteries page follows the control method.** With *Setpoint per battery* the Grid target (P1)
+  block is hidden and each battery shows its *Requested setpoint* (what SessyWeb sent) again.
+- **"Battery (actual)" on the Charging hours page is tidier.** No more cut-off text: the power reads
+  "↑ charging 3688 W" / "↓ discharging … W" / "idle", the note is shortened to "via P1 grid
+  target" and only shows with that method, and the Idle strategy reads "Idle".
+
 ## [v1.0.156] — 2026-10-08
 
 ### Changed

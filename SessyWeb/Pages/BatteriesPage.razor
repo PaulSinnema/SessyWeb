@@ -8,6 +8,9 @@
 <PageTitle>Sessy</PageTitle>
 
 <div>
+	@* The grid target only steers the batteries with the P1 method. *@
+	@if (!UseSetpoints)
+	{
 	<div style="min-width: 200px;">
 		<RadzenCard Style="background-color: transparent; width:97%; margin: 0px;">
 			<RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center">
@@ -30,6 +33,7 @@
 			</RadzenStack>
 		</RadzenCard>
 	</div>
+	}
 	@{
 		if (BatteriesList != null)
 		{

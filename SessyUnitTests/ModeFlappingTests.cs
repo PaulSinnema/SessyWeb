@@ -206,6 +206,17 @@ namespace SessyTests.Services
             Assert.Equal("POWER_STRATEGY_IDLE", BatteriesService.ExpectedStrategy(Modes.Disabled));
         }
 
+        [Theory]
+        [InlineData(Modes.Charging, "POWER_STRATEGY_API")]
+        [InlineData(Modes.Discharging, "POWER_STRATEGY_API")]
+        [InlineData(Modes.HoldReserve, "POWER_STRATEGY_API")]
+        [InlineData(Modes.ZeroNetHome, "POWER_STRATEGY_NOM")]
+        [InlineData(Modes.Disabled, "POWER_STRATEGY_IDLE")]
+        public void Setpoint_method_runs_charge_discharge_and_hold_on_the_open_API(Modes mode, string expected)
+        {
+            Assert.Equal(expected, BatteriesService.ExpectedStrategy(mode, SessyData.Model.BatteryControlMethod.BatterySetpoint));
+        }
+
         // ══════════════════════════════════════════════════════════════════════
         // EnergySystemStateMachine.MayChangeMode — stopping now, starting later
         // ══════════════════════════════════════════════════════════════════════

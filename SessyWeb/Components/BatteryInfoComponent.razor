@@ -34,6 +34,12 @@ else
                             <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Setpoint</RadzenText>
                             <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b> @powerStatus?.Sessy?.PowerSetpoint</b></RadzenText>
 
+                            @if (UseSetpoints)
+                            {
+                                <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Requested setpoint</RadzenText>
+                                <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@Battery!.SetpointRequested.ToString("F0")</b></RadzenText>
+                            }
+
                             <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Power</RadzenText>
                             <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@powerStatus?.Sessy?.Power</b></RadzenText>
                         </RadzenColumn>

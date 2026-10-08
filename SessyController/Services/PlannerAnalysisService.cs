@@ -349,6 +349,7 @@ namespace SessyController.Services
                 new("Arbitrage", "Replacement cost window (days)", s.ReplacementCostWindowDays.ToString()),
                 new("Arbitrage", "Replacement cost percentile", $"{s.ReplacementCostPercentile:F0}"),
 
+                new("Battery", "Control method", s.BatteryControlMethod == BatteryControlMethod.BatterySetpoint ? "Setpoint per battery" : "P1 grid target"),
                 new("Battery", "Capacity", $"{capacityWh / 1000.0:F2} kWh"),
                 new("Battery", "Round-trip efficiency fallback (%)", $"{s.RoundTripEfficiencyFallbackPct:F0}"),
                 new("Battery", "Throttle fallback (%)", $"{s.ThrottleFallbackPct:F0}"),

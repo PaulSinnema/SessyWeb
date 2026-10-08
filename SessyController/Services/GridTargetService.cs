@@ -5,6 +5,7 @@ using SessyCommon.Services;
 using SessyController.Services.Items;
 using SessyController.Services.Optimization;
 using SessyController.Services.StateMachine;
+using SessyData.Model;
 using static SessyData.Model.SessyWebControl;
 
 namespace SessyController.Services
@@ -17,6 +18,9 @@ namespace SessyController.Services
     /// this loop re-aims the target every 5s so the battery does not drift with the household between
     /// cycles. Only Charging and Discharging track the house; ZeroNetHome posts 0 and Disabled runs
     /// on API with a 0 W setpoint (handled by BatteriesService.ExecuteAction).
+    ///
+    /// With BatteryControlMethod.BatterySetpoint the grid target stays 0 (ZeroNetHome is still NOM)
+    /// and HoldReserve gets an Open API setpoint that follows the solar surplus instead.
     /// </summary>
     public sealed class GridTargetService : BackgroundService
     {
@@ -25,6 +29,10 @@ namespace SessyController.Services
         private readonly ControlModeService _controlMode;
         private readonly P1MeterContainer _p1MeterContainer;
         private readonly BatteryContainer _batteryContainer;
+        private readonly SettingsService _settingsService;
+
+        // Last HoldReserve setpoint (W charge) sent in setpoint mode; null = none yet.
+        private int? _lastHoldSetpointW;
 
         // Only re-post when the target moved more than this, to avoid churning the P1 meter.
         private const int DeadbandW = 50;
@@ -42,13 +50,15 @@ namespace SessyController.Services
                                  EnergySystemStateMachine stateMachine,
                                  ControlModeService controlMode,
                                  P1MeterContainer p1MeterContainer,
-                                 BatteryContainer batteryContainer)
+                                 BatteryContainer batteryContainer,
+                                 SettingsService settingsService)
         {
             _logger = logger;
             _stateMachine = stateMachine;
             _controlMode = controlMode;
             _p1MeterContainer = p1MeterContainer;
             _batteryContainer = batteryContainer;
+            _settingsService = settingsService;
         }
 
         protected override async Task ExecuteAsync(CancellationToken cancellationToken)
@@ -99,6 +109,14 @@ namespace SessyController.Services
 
             var action = _stateMachine.CurrentAction;
 
+            if (_settingsService.Current.BatteryControlMethod == BatteryControlMethod.BatterySetpoint)
+            {
+                await ApplySetpointMethodAsync(action).ConfigureAwait(false);
+                return;
+            }
+
+            _lastHoldSetpointW = null;
+
             if (action.BatteryMode != Modes.Charging &&
                 action.BatteryMode != Modes.Discharging &&
                 action.BatteryMode != Modes.ZeroNetHome &&
@@ -139,6 +157,41 @@ namespace SessyController.Services
             }
 
             await PostTargetAsync(targetW).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Setpoint method: the grid target is held at 0, so a NOM battery (ZeroNetHome) balances to
+        /// zero. HoldReserve runs on the Open API with a setpoint that charges the solar surplus and
+        /// never discharges. Charging/Discharging setpoints are set by BatteriesService.ExecuteAction.
+        /// </summary>
+        private async Task ApplySetpointMethodAsync(EnergySystemAction action)
+        {
+            await PostTargetAsync(0).ConfigureAwait(false);
+
+            if (action.BatteryMode != Modes.HoldReserve)
+            {
+                _lastHoldSetpointW = null;
+                return;
+            }
+
+            var p1NetW = await _p1MeterContainer.GetFirstMeterNetPowerAsync().ConfigureAwait(false);
+            if (p1NetW == null)
+                return; // No P1 meter — surplus unknown.
+
+            var batteryW = await _batteryContainer.GetTotalPowerInWatts().ConfigureAwait(false);
+            var houseNetW = GridTargetCalculator.HouseNetW(p1NetW.Value, batteryW);
+            var maxChargeW = _batteryContainer.GetChargingCapacityInWattsPerHour();
+
+            // Surplus > 0 → store it; otherwise 0 (never discharge).
+            int chargeW = (int)Math.Round(Math.Min(Math.Max(0.0, -houseNetW), maxChargeW));
+
+            if (_lastHoldSetpointW.HasValue && Math.Abs(chargeW - _lastHoldSetpointW.Value) <= DeadbandW)
+                return;
+
+#if !DEBUG
+            await _batteryContainer.StartCharging(chargeW).ConfigureAwait(false);
+#endif
+            _lastHoldSetpointW = chargeW;
         }
 
         /// <summary>

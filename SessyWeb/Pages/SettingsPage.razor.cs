@@ -683,6 +683,14 @@ namespace SessyWeb.Pages
             new("Battery saving", OptimizationStrategy.BatterySaving),
         ];
 
+        private record ControlMethodItem(string Text, BatteryControlMethod Value);
+
+        private readonly List<ControlMethodItem> _controlMethods =
+        [
+            new("P1 grid target (NOM)", BatteryControlMethod.P1GridTarget),
+            new("Setpoint per battery (Open API)", BatteryControlMethod.BatterySetpoint),
+        ];
+
         private record PredictedPriceItem(string Text, PredictedPriceMode Value);
 
         private readonly List<PredictedPriceItem> _predictedPriceModes =

@@ -41,6 +41,18 @@ namespace SessyData.Model
         Full = 2,
     }
 
+    /// <summary>
+    /// How SessyWeb sets the battery power.
+    /// </summary>
+    public enum BatteryControlMethod
+    {
+        /// <summary>NOM on every battery; the power is set through the P1 meter's grid target.</summary>
+        P1GridTarget = 0,
+
+        /// <summary>Open API strategy with a power setpoint per battery (the method before the P1 path).</summary>
+        BatterySetpoint = 1,
+    }
+
     public class Settings : IUpdatable<Settings>
     {
         [Key]
@@ -159,6 +171,12 @@ namespace SessyData.Model
         /// it changes when the battery is emptied, so it is switched on deliberately.
         /// </summary>
         public bool ShiftDischargeEnabled { get; set; }
+
+        /// <summary>
+        /// How (dis)charge power reaches the batteries: the P1 grid target (default) or an Open API
+        /// setpoint per battery. See <see cref="BatteryControlMethod"/>.
+        /// </summary>
+        public BatteryControlMethod BatteryControlMethod { get; set; } = BatteryControlMethod.P1GridTarget;
 
         /// <summary>
         /// Trailing window (days) over which the replacement cost is measured. 0 = default (30).
