@@ -14,7 +14,8 @@ namespace SessyController.Services
     ///                               planner decides where to send stored energy. This is a
     ///                               statement about forecast uncertainty, so it should be
     ///                               measured on forecasts, not chosen.
-    ///   NightReserveCapPct          how much energy to hold back for the night.
+    ///   NightReserveCapPct          how much energy to hold back for the night — no longer
+    ///                               applied: the planner prices the night itself.
     ///
     /// Both come from the same 21-day window of ForecastSnapshot rows, which record the solar and
     /// consumption forecast at a series of lead times, joined with what actually happened. Solar
@@ -176,12 +177,9 @@ namespace SessyController.Services
                        - (solarWhByTime.TryGetValue(g.Key, out var s) ? s : 0.0));
 
             var (discount, discountPinned, discountNote) = FitDiscount(snapshots, actualNetWhByTime);
-            var (reservePct, reservePinned, reserveNote) = FitNightReserve(
-                actualNetWhByTime, _batteryContainer.GetTotalCapacity());
 
-            await ApplyAsync(now, discount, reservePct,
-                discountPinned || reservePinned,
-                $"{discountNote} {reserveNote}".Trim()).ConfigureAwait(false);
+            // Night reserve no longer learned: the planner prices the night itself (FitNightReserve kept for reference).
+            await ApplyAsync(now, discount, null, discountPinned, discountNote).ConfigureAwait(false);
 
             await PurgeOldSnapshotsAsync(now).ConfigureAwait(false);
         }

@@ -11,6 +11,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.160] — 2026-10-08
+
+### Changed
+- **Night reserve replaced by a simple Minimum reserve.** The calculated night reserve (learned from
+  measured nights, with a safety surcharge and a bridge reserve for predicted prices) is gone. The
+  batteries' BMS already keeps the cells from running empty, and the planner itself weighs covering
+  the house at night against selling in the evening peak. What is left is one setting, *Minimum
+  reserve (%)*, default 0: the planner never discharges below it. Whoever used the calculated reserve
+  now has 0; a fixed reserve you set yourself is kept. Self-learning now only learns the future value
+  discount. Settings, Statistics → Current Plan and the Planner analysis page follow.
+
+### Fixed
+- **Charging reaches its target at the end of a session.** Near the end of a charging session the
+  command assumed a full quarter was still left, so the last part charged ever slower and the planned
+  state of charge was not reached. The tail now charges at full power until the target is within one
+  control cycle. If the batteries still fall behind, charging stops at the planned end and the next
+  plan decides whether buying more pays.
+
+## [v1.0.159] — 2026-10-08
+
+No functional changes.
+
 ## [v1.0.158] — 2026-10-08
 
 ### Added
@@ -21,6 +43,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
   the loss per full cycle: efficiency (round trip over the same period) plus charge and discharge
   throttling and the total. Only quarters where SessyWeb itself asked for at least 90% of nameplate
   count.
+
+### Changed
+- **Throttling report explains itself.** The card now says on screen which quarters count, what the
+  percentages and the full charge/discharge times mean, and that throttling in the loss per cycle is
+  capacity you cannot use in a short price window, not lost energy. The info icon next to the title
+  is gone.
 
 ## [v1.0.157] — 2026-10-08
 

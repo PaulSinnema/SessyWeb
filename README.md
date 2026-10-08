@@ -1,4 +1,4 @@
-# SessyWeb
+﻿# SessyWeb
 
 [![Publish Docker image](https://github.com/PaulSinnema/SessyWeb/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/PaulSinnema/SessyWeb/actions/workflows/docker-publish.yml)
 
@@ -401,7 +401,7 @@ The container is running, but the planner does not know your household yet. Ever
      - *Balanced* — the usual choice, trades but keeps reserve for the house,
      - *Self consumption* — mostly store your own solar,
      - *Battery saving* — fewest cycles, gentlest on the battery;
-   - leave **Night reserve cap**, **Throttle fallback**, **Round-trip efficiency fallback** and the whole *Planning* block at their defaults for now — SessyWeb measures better values from your own data within a few weeks. [PLANNER.md](PLANNER.md) explains what each of them does once you want to touch them.
+   - leave **Minimum reserve** (0), **Throttle fallback**, **Round-trip efficiency fallback** and the whole *Planning* block at their defaults for now — SessyWeb measures better values from your own data within a few weeks. [PLANNER.md](PLANNER.md) explains what each of them does once you want to touch them.
    - Further down the same tab you set your **monthly household consumption** per month, in kWh. Read them off last year's energy bill, or divide your yearly total and adjust winter up and summer down.
 2. **Taxes** — enter the energy tax, surcharges and VAT from your energy contract, and whether you have **netting (saldering)**. Prices are meaningless until this is filled in: SessyWeb plans on the all-in price you actually pay, not the raw market price.
 3. **Tips & Checks** — this tab tells you what is still missing or misconfigured. Work until it is quiet.
@@ -490,7 +490,7 @@ Optional sections in `appsettings.json`:
 - **Solar and consumption forecast** — avoids buying at night what the roof will make tomorrow
 - **Netting / saldering aware** — handles both netting-on and netting-off contracts
 - **Curtailment** — throttles or shuts down the inverter when the selling price goes negative. Needs an inverter on Modbus: the Sessy source can measure production but not reduce it
-- **Self-measuring** — learns your batteries' real charging taper, efficiency curve, night reserve and forecast error from your own history instead of assuming datasheet numbers
+- **Self-measuring** — learns your batteries' real charging taper, efficiency curve and forecast error from your own history instead of assuming datasheet numbers
 - **Automatic re-planning** — rebuilds on price updates, large SOC deviations or settings changes
 - **Charged hand-over** — tick *Charged in control* and SessyWeb stops commanding, keeps recording, and shows Charged's schedule next to the plan it would have run itself
 
@@ -540,7 +540,7 @@ docker compose restart          # restart after editing appsettings.json
 | Solar shows 0 W all day with the `Sessy` source | No Sessy has its CT clamps around the PV group; the battery is measuring nothing. Check the raw per-phase figures on the battery card. |
 | A battery you removed keeps being contacted | It is still declared in `secrets.json`. Credentials there create the device even without an address in `appsettings.json` — see the warning in [Step 5](#step-5--write-secretsjson). |
 | Battery does not react | On **Settings → Management Settings**, check **Charged in control** — if it is ticked, SessyWeb deliberately sends no commands. Refused writes are logged as warnings, so the log tells you which mode blocked them. |
-| Battery ends the last planned day nearly empty | Not a fault. The plan reaches only as far as prices are published, and the last evening holds back the **night reserve** for the night beyond it. That figure is on **Statistics → Current Plan**. |
+| Battery ends the last planned day nearly empty | Not a fault. The plan reaches only as far as prices are published and is rebuilt as soon as the next day's prices arrive; energy still in the battery at the end of the horizon is valued by carry-forward. Set a **Minimum reserve** only if you want energy held back on purpose. |
 | SOC deviation warnings | Normal. The planner corrects every quarter. |
 | Container restarts or is killed | Out of memory — raise `mem_limit` (or the NAS memory limit) and check whether anything else on the machine is competing for RAM. |
 | `denied` or `unauthorized` when pulling | You are pulling a tag that does not exist. The image itself is public and needs no login: check the spelling of `ghcr.io/paulsinnema/sessyweb` (all lowercase) and pick a tag from the [package page](https://github.com/PaulSinnema/SessyWeb/pkgs/container/sessyweb). |
@@ -627,7 +627,7 @@ Every minute (and on every price or settings change) SessyWeb rebuilds its pictu
 
 **How far ahead it can see.** Day-ahead prices exist only up to the end of tomorrow, and the plan stops where the prices stop: the horizon is 24 to 48 hours depending on the time of day, and it is shortest just before the next day is published around 13:00. Tomorrow's prices are filled in with a historical average until then, so the evening is never planned as if the world ends at midnight.
 
-One consequence is worth knowing, because it looks like a bug and is not: the last evening in the plan holds energy back for a night that falls *outside* the horizon. The floor is the **night reserve**, shown on the Statistics page under *Current Plan*, and it is measured from your own nights rather than guessed.
+The plan reaches only as far as prices are published (or predicted). It is rebuilt as soon as new prices arrive, so the last planned evening is re-planned long before it happens; there is no separate night reserve — the planner covers the night itself and the batteries' BMS protects the cells.
 
 The planner is deterministic and greedy rather than a general-purpose solver: it is fast enough to rerun every minute, and every euro in the plan can be traced back to the block that earned it.
 
@@ -636,7 +636,7 @@ The plan is only rebuilt when something material changed — a new price set, a 
 > [!NOTE]
 > A battery that never reaches 100 % is usually the planner being right, not wrong. Filling the battery costs money; it only pays if the energy can be sold higher later. Judge SessyWeb on the **Financial results** page, not on the SOC.
 
-**[PLANNER.md](PLANNER.md) has the full story**: the four candidate trades the search scores, how the night reserve and the replacement cost are arrived at, every setting that moves the plan and what each one does, and how to read a plan that looks wrong.
+**[PLANNER.md](PLANNER.md) has the full story**: the four candidate trades the search scores, how the replacement cost is arrived at, every setting that moves the plan and what each one does, and how to read a plan that looks wrong.
 
 ---
 

@@ -156,6 +156,24 @@ namespace SessyTests.Services
         }
 
         [Fact]
+        public void Tail_runs_at_full_power_until_within_one_interval_of_the_target()
+        {
+            // 300 Wh left, commands stand 60 s: 300 Wh fits many times, so full request.
+            double setpoint = MilpServiceBase.ChargeSetpointW(requestedW: 6600.0, netLoadWh: 0.0, limitWh: 300.0, intervalHours: 1.0 / 60.0);
+
+            Assert.Equal(6600.0, setpoint);
+        }
+
+        [Fact]
+        public void Tail_cannot_overshoot_the_target_within_one_interval()
+        {
+            // 50 Wh left in a 60 s interval caps the setpoint at 3000 W.
+            double setpoint = MilpServiceBase.ChargeSetpointW(requestedW: 6600.0, netLoadWh: 0.0, limitWh: 50.0, intervalHours: 1.0 / 60.0);
+
+            Assert.Equal(3000.0, setpoint, 6);
+        }
+
+        [Fact]
         public void Setpoint_ignores_a_household_deficit()
         {
             double setpoint = MilpServiceBase.ChargeSetpointW(requestedW: 2000.0, netLoadWh: 400.0, limitWh: 2000.0);

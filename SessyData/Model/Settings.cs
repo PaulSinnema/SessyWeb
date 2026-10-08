@@ -83,23 +83,21 @@ namespace SessyData.Model
 
         // ── Battery planning ─────────────────────────────────────────────────
         /// <summary>
-        /// Night reserve cap as a percentage of total capacity (0-100).
-        /// When 0, defaults to 33%. Limits how much energy is held back for nightly consumption.
+        /// No longer used (calculated night reserve removed). Was the night reserve cap in % of capacity.
         /// </summary>
         public double NightReserveCapPct { get; set; }
 
         /// <summary>
-        /// When true (default), the night reserve comes from the self-learned NightReserveCapPct
-        /// (historical forecast errors). When false, the planner uses the fixed FixedNightReservePct
-        /// below, giving direct manual control over the reserve.
+        /// No longer used (calculated night reserve removed). Was the switch between the learned
+        /// and the fixed night reserve.
         /// </summary>
-        public bool UseCalculatedNightReserve { get; set; } = true;
+        public bool UseCalculatedNightReserve { get; set; }
 
         /// <summary>
-        /// Fixed night reserve as a percentage of total capacity (0-100), used only when
-        /// UseCalculatedNightReserve is false. Default 10%.
+        /// Minimum reserve in % of total capacity (0-100): the planner never discharges below it.
+        /// Default 0 — the planner covers the night itself and the BMS protects the cells.
         /// </summary>
-        public double FixedNightReservePct { get; set; } = 10.0;
+        public double FixedNightReservePct { get; set; }
 
         /// <summary>
         /// When true (default), the cycle (wear) cost is derived from the battery investments
@@ -193,10 +191,9 @@ namespace SessyData.Model
         // ── Self-learning planner parameters ──────────────────────────────────
 
         /// <summary>
-        /// Whether the nightly learner derives <see cref="FutureValueDiscountPerHour"/> and
-        /// <see cref="NightReserveCapPct"/> from measured forecast errors and overwrites them.
-        /// While there is not enough history it writes nothing and both settings keep their
-        /// configured values, so they can still be tuned by hand in the meantime.
+        /// Whether the nightly learner derives <see cref="FutureValueDiscountPerHour"/> from measured
+        /// forecast errors and overwrites it. While there is not enough history it writes nothing
+        /// and the setting keeps its configured value, so it can still be tuned by hand.
         /// Off by default: it overwrites values you may have tuned.
         /// </summary>
         public bool SelfLearningEnabled { get; set; }
@@ -277,8 +274,7 @@ namespace SessyData.Model
         // ── MILP tuning parameters ────────────────────────────────────────────
 
         /// <summary>
-        /// Safety margin applied on top of the calculated night/bridge reserve.
-        /// 1.10 = keep 10% extra. Increase if the battery regularly runs empty overnight.
+        /// No longer used (calculated night and bridge reserve removed). Was the safety margin on top.
         /// </summary>
         public double ReserveSafetyFactor { get; set; } = 1.10;
 

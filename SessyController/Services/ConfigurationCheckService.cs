@@ -978,6 +978,39 @@ namespace SessyController.Services
             });
         }
 
+        /// <summary>Superseded checks on the removed night reserve settings. No longer called.</summary>
+        private static void CheckNightReserveSettings(List<ConfigurationCheck> checks, SessyData.Model.Settings s)
+        {
+            // Reserve safety surcharge (factor 1.x, shown as % above 100).
+            double reservePct = (s.ReserveSafetyFactor - 1.0) * 100.0;
+            if (reservePct > 50.0)
+            {
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Warning,
+                    Title = "Reserve safety surcharge very high",
+                    Description = $"Reserve safety surcharge is {reservePct:F0}%. The battery will hold a large " +
+                                  "reserve and rarely discharge. Typical value is around 10%.",
+                    ActionUrl = "/settings",
+                    ActionLabel = "Open settings"
+                });
+            }
+
+            // Night reserve cap (already a whole percentage of capacity).
+            if (s.NightReserveCapPct > 80.0)
+            {
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Warning,
+                    Title = "Night reserve cap very high",
+                    Description = $"Night reserve cap is {s.NightReserveCapPct:F0}%. The battery keeps most of its " +
+                                  "capacity in reserve and barely discharges overnight. Typical value is around 33%.",
+                    ActionUrl = "/settings",
+                    ActionLabel = "Open settings"
+                });
+            }
+        }
+
         private void CheckSettingsExtremes(List<ConfigurationCheck> checks)
         {
             var s = _settingsService.Current;
@@ -1041,30 +1074,15 @@ namespace SessyController.Services
                 });
             }
 
-            // Reserve safety surcharge (factor 1.x, shown as % above 100).
-            double reservePct = (s.ReserveSafetyFactor - 1.0) * 100.0;
-            if (reservePct > 50.0)
+            // Minimum reserve (whole percentage of capacity).
+            if (s.FixedNightReservePct > 50.0)
             {
                 checks.Add(new ConfigurationCheck
                 {
                     Severity = CheckSeverity.Warning,
-                    Title = "Reserve safety surcharge very high",
-                    Description = $"Reserve safety surcharge is {reservePct:F0}%. The battery will hold a large " +
-                                  "reserve and rarely discharge. Typical value is around 10%.",
-                    ActionUrl = "/settings",
-                    ActionLabel = "Open settings"
-                });
-            }
-
-            // Night reserve cap (already a whole percentage of capacity).
-            if (s.NightReserveCapPct > 80.0)
-            {
-                checks.Add(new ConfigurationCheck
-                {
-                    Severity = CheckSeverity.Warning,
-                    Title = "Night reserve cap very high",
-                    Description = $"Night reserve cap is {s.NightReserveCapPct:F0}%. The battery keeps most of its " +
-                                  "capacity in reserve and barely discharges overnight. Typical value is around 33%.",
+                    Title = "Minimum reserve very high",
+                    Description = $"Minimum reserve is {s.FixedNightReservePct:F0}%. The planner never discharges below it, " +
+                                  "so most of the battery is never used. The planner already covers the night itself; 0 is fine.",
                     ActionUrl = "/settings",
                     ActionLabel = "Open settings"
                 });

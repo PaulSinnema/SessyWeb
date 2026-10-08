@@ -30,9 +30,7 @@ planner maths behind the planning knobs is in [PLANNER.md](PLANNER.md).
 | --- | --- | --- |
 | **Battery control method** | P1 grid target | How the power reaches the batteries. *P1 grid target* (recommended): every battery runs in NOM and follows the grid target on the P1 meter; the Sessy firmware divides the power over the batteries itself, keeps them in balance and follows the real house load in real time. *Setpoint per battery*: SessyWeb sends each battery a fixed share (by nameplate) on the Open API, as before the P1 path; nothing balances the batteries then, their state of charge can drift apart, and the setpoint only changes once per control cycle. Zero Net Home stays NOM in both; Hold reserve follows the solar surplus every 5 s in both. |
 | **Optimization strategy** | Profit maximization | How the planner weighs its goal: *Profit maximization* (trade for the best financial result), *Self-consumption* (favour using your own solar over exporting), *Balanced*, or *Battery saving* (cycle the battery less). |
-| **Night reserve source** — *Calculate from history* | On | On: the night reserve is the self-learned **Night reserve cap** below. Off: the planner uses the **Fixed night reserve** below, giving you direct control. Only the field that applies is shown. |
-| **Fixed night reserve (%)** | 10 | Fixed percent of capacity held back for the night, used only when *Calculate from history* is off. A firm floor with the reserve safety surcharge on top. Lower it to let the battery discharge deeper into the evening peak. |
-| **Night reserve cap (%)** | 0 (= 33%) | Caps energy held back for the night, as a percent of capacity. 0 falls back to 33%. With self-learning on, the nightly fit overwrites this once enough nights are measured; an edit holds until then. |
+| **Minimum reserve (%)** | 0 | Percent of capacity the planner never discharges below. Not needed to protect the cells (the batteries' BMS does that) nor for the night (the planner weighs covering the house at night against selling in the evening peak itself). Set it only to hold energy back on purpose; every percent above 0 is capacity the planner cannot use. |
 | **Throttle fallback (%)** | 0 (= 80%) | Power cap used only until the throttle at the current temperature has been measured. Once samples exist the measured ratio takes over. Assuming no throttle would make the planner ask for power the battery cannot deliver. |
 | **Round-trip efficiency fallback (%)** | 0 (= 90%) | Round-trip energy efficiency used until enough charging/discharging is measured — how much stored energy comes back out, which decides whether arbitrage pays at all. The planner derives the one-way efficiencies as its square root. Distinct from the throttle, which limits power. |
 | **Charged in control** | Off | When on, SessyWeb hands driving to Charged and sends no commands itself. Untick it to let SessyWeb drive. |
@@ -47,7 +45,6 @@ A **Reset to defaults** button restores this whole block. See [PLANNER.md](PLANN
 | --- | --- | --- |
 | **Cycle cost source** — *Calculate from investments* | Off (use fixed) | On: the wear cost per kWh is derived from the battery investments (cost / capacity / cycles). Off: the planner uses the **Fixed cycle cost** below. |
 | **Fixed cycle cost (€/kWh)** | 0.04 | Fixed battery wear cost per kWh, used when *Calculate from investments* is off. 0 disables the wear penalty entirely (trade on every profitable spread); higher makes the planner more cautious about cycling. |
-| **Reserve safety surcharge (%)** | 10 | Added on top of the calculated night and bridge reserve — 10 means keep 10% more than the calculation asks for. Raise it if the battery regularly runs empty overnight. Also applied to a fixed night reserve as a firm floor. |
 | **Planning horizon (hours)** | 0 (no limit) | Quarters beyond this many hours are ignored by the solver, so discharge cannot be deferred to a distant peak. Typical values 24 or 36; 0 uses every quarter with a known price. |
 | **Use predicted prices in the solver** | Off | *Off*: published prices only — predicted quarters extend the horizon for night coverage but are never traded. *Soft*: predicted quarters traded with a risk margin, so only wide spreads act. *Full*: predicted prices trusted like published ones. |
 | **Predicted price risk margin (€/kWh)** | 0.05 | Only shown with *Soft*. Raises the buy and lowers the sell price on predicted quarters by this amount, so a predicted quarter is only arbitraged when the gain comfortably beats the price uncertainty. |
@@ -55,8 +52,8 @@ A **Reset to defaults** button restores this whole block. See [PLANNER.md](PLANN
 | **Allow carry-forward past the horizon** | Off | Lets the planner charge purely to hold energy past the end of its horizon, valued at the measured replacement cost. Without it, every charge must pair with a discharge the planner can already see. Changes what the battery buys, so it is off unless you switch it on. |
 | **Replacement cost window (days)** | 30 | Only shown with carry-forward on. Trailing window the cheapest all-in buy price of each day is taken from. Longer = steadier but slower to react to a season change; shorter = follows the market but noisier. Incomplete days are skipped. |
 | **Replacement cost percentile** | 25 | Only shown with carry-forward on. Which percentile of those daily-cheapest prices becomes the replacement cost. Keep it low — set too high and charging is always attractive, so the battery ends up full and idle. Also capped at the window's median buy price. |
-| **Allow moving discharge between quarters** | Off | Lets the planner sell stored energy in an expensive quarter and, in return, not cover the house from the battery in a cheaper quarter later (the house imports there; shown as *Hold reserve*). The energy is already stored, so no round trip is lost; it only does so when it pays at least 1 cent per kWh after the efficiency loss of low-power quarters. Side effect: the battery reaches the night reserve more often and earlier in the evening. |
-| **Learn the discount and night reserve from measured forecast error** | Off | Nightly fit over 21 days of stored forecasts vs. what happened; overwrites **Future value discount** and the **night reserve** above. Discount from forecast drift with lead time; reserve from the 80th percentile of measured 21:00–07:00 draw. Writes nothing until it has enough history. A learned value hitting its bound is reported under Tips & Checks. **Last learned** shows when it last ran. |
+| **Allow moving discharge between quarters** | Off | Lets the planner sell stored energy in an expensive quarter and, in return, not cover the house from the battery in a cheaper quarter later (the house imports there; shown as *Hold reserve*). The energy is already stored, so no round trip is lost; it only does so when it pays at least 1 cent per kWh after the efficiency loss of low-power quarters. Side effect: the battery reaches the minimum reserve more often and earlier in the evening. |
+| **Learn the future value discount from measured forecast error** | Off | Nightly fit over 21 days of stored forecasts vs. what happened; overwrites **Future value discount** from the forecast drift with lead time. Writes nothing until it has enough history. A learned value hitting its bound is reported under Tips & Checks. **Last learned** shows when it last ran. |
 
 ### Diagnostics
 
@@ -70,8 +67,8 @@ A **Reset to defaults** button restores this whole block. See [PLANNER.md](PLANN
 ### Estimated home energy needs per month (kWh)
 
 Twelve values, one per month — your household's expected monthly consumption. Used as the fallback
-demand profile when live/weather-based consumption is unavailable, so the planner still sizes the
-reserve sensibly.
+demand profile when live/weather-based consumption is unavailable, so the planner still has a
+sensible consumption forecast.
 
 ### Statistics
 

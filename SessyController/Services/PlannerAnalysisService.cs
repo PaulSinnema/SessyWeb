@@ -335,10 +335,7 @@ namespace SessyController.Services
                 new("Strategy", "Cycle cost (derived/fixed)", $"€ {derivedCycle:F4}/kWh"),
                 new("Strategy", "Cycle cost effective", balanced ? $"€ {derivedCycle * 1.5:F4}/kWh (Balanced ×1.5)" : $"€ {derivedCycle:F4}/kWh"),
 
-                new("Reserve", "Night reserve source", s.UseCalculatedNightReserve ? "Calculated (learned)" : "Fixed"),
-                new("Reserve", "Night reserve cap (%)", $"{s.NightReserveCapPct:F1}"),
-                new("Reserve", "Fixed night reserve (%)", $"{s.FixedNightReservePct:F1}"),
-                new("Reserve", "Reserve safety surcharge", $"×{s.ReserveSafetyFactor:F2}"),
+                new("Reserve", "Minimum reserve (%)", $"{s.FixedNightReservePct:F1}"),
 
                 new("Arbitrage", "Future value discount (%/hour)", $"{s.FutureValueDiscountPerHour * 100.0:F2}"),
                 new("Arbitrage", "Predicted price mode", s.PredictedPriceMode.ToString()),

@@ -53,7 +53,7 @@
                                Value="@($"{Dashboard!.Plan!.TotalFutureQuarters} ({Dashboard.Plan.TotalFutureQuarters / 4.0:F1} hrs)")" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="@(Dashboard!.Plan!.NightReserveIsLearned ? "Night reserve (learned)" : "Night reserve")"
+            <StatCardComponent Title="Minimum reserve"
                                Value="@($"{Dashboard!.Plan!.NightReservePct:F1} % ({Dashboard.Plan.NightReserveWh / 1000.0:F1} kWh)")" />
         </RadzenColumn>
     </RadzenRow>
@@ -62,10 +62,8 @@
         The Arbitrage chart shows daily realized vs planned profit for past days only.
     </RadzenText>
     <RadzenText TextStyle="TextStyle.Caption" Style="opacity: 0.7;">
-        Night reserve is what the plan holds back for a night the sun will not cover — a cap on the
-        reserve, and the floor for the last evening in the horizon, where the night after it falls
-        outside the known prices.@(Dashboard!.Plan!.NightReserveIsLearned
-            ? " Self-learning fits it from measured nights (P80)." : " Set by hand on the Settings page.")
+        Minimum reserve is the floor the plan never discharges below, set on the Settings page. The
+        planner covers the night itself; the batteries' BMS protects the cells.
     </RadzenText>
 
     @if (Dashboard!.Plan!.RecentHistory.Any())

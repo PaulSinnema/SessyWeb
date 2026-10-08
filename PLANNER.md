@@ -1,4 +1,4 @@
-# How the planner works
+﻿# How the planner works
 
 This document describes what SessyWeb's planner actually does, and which setting changes which part
 of it. It is the level below [README.md](README.md): that one tells you how to run SessyWeb, this one
@@ -54,7 +54,7 @@ Per quarter (`PricePoint`):
 | `BuyEurPerKWh` / `SellEurPerKWh` | All-in prices — market price plus energy tax, surcharges and VAT from the **Taxes** page. The planner never sees a raw market price |
 | `NetLoadWh` | Household load minus solar. Positive = the house needs the grid, negative = solar surplus |
 | `MaxChargeKW` / `MaxDischargeKW` | Per-quarter power ceilings, when a temperature throttle applies |
-| `ReserveOnly` | The price is predicted, not published: usable for reserving energy, not for trading |
+| `ReserveOnly` | The price is predicted, not published: the planner may cover the house there, but not trade |
 | `TemperatureC` / `Temperature48hC` | Feed the charge taper — the second is the 48-hour mean, for heat build-up |
 
 Once for the whole run (`BatterySpec`): capacity, starting SOC, nameplate charge and discharge power,
@@ -63,7 +63,7 @@ discharge capability and the efficiency curve. [What the planner measures for
 itself](#what-the-planner-measures-for-itself) covers those.
 
 Per quarter, a floor and a ceiling on the SOC (`SocBound`). The ceiling is capacity. The floor is the
-night reserve, described under [the four things](#the-four-things-that-shape-the-answer).
+**Minimum reserve** setting (default 0), described under [the four things](#the-four-things-that-shape-the-answer).
 
 **The horizon is whatever the prices reach.** Day-ahead prices exist to the end of tomorrow and no
 further, so the plan is 24 to 48 hours long depending on the time of day. Until tomorrow's prices are
@@ -147,17 +147,12 @@ not a setting you type: it is derived from your battery investments as
 **Investments** page is what makes it real. Without that data it falls back to €0.05/kWh. The
 strategy multiplies it: ×1 for profit maximization, ×1.5 for balanced, ×2 for battery saving.
 
-**2. Night reserve** — the floor the plan may not sell through. For each quarter the planner scans
-forward to the next solar window and adds up the household load it finds, then applies the safety
-factor and caps it at `NightReserveCapPct` of capacity. Two subtleties:
-
-- The scan stops at the **second** solar window, not the first. Reserving across a whole sunny day
-  meant that at sunrise the battery was still holding energy for the *next* evening, and so could not
-  sell into the peak it was sitting in.
-- Where the scan runs off the end of the horizon rather than reaching a sunrise, the night behind it
-  is not in the data at all. The learned whole-night need is used instead. This is why the last
-  evening in the plan does not sell the battery empty, and it is the single most common "why is it
-  keeping charge?" question.
+**2. Minimum reserve** — the floor the plan may not sell through: a fixed percentage of capacity,
+default 0. There used to be a calculated night reserve (the load up to the next sunrise, with a
+safety factor, learned from measured nights). It was removed: the planner already weighs
+covering the house at night against selling in the evening peak, carry-forward values what is left at
+the end of the horizon, and the batteries' BMS keeps the cells from running empty. A reserve on top
+only made plans worse.
 
 **3. Replacement cost** — the floor under selling stock, and the value of carrying it forward.
 Measured as a low percentile (default P25) of the daily cheapest all-in buy price over a trailing
@@ -203,11 +198,11 @@ away from our plan by design. That is someone else steering, not a deviation to 
 
 The plan says what should happen. Four guards decide what is actually sent, each quarter:
 
-- **`GUARD_CHARGE_NO_ROOM`** — no usable room left in the battery, fall back to ZeroNetHome.
+- **`GUARD_CHARGE_NO_ROOM`** — no usable room left in the battery, fall back to Hold reserve.
 - **`GUARD_CHARGE_TARGET_REACHED`** — the charging session has already reached the SOC the plan
   wanted at the end of this run of charging quarters. Charging faster than planned is free within one
-  price block, but the tail must not buy extra.
-- **`GUARD_DISCHARGE_NO_ENERGY`** — nothing usable above the reserve.
+  price block, but the tail must not buy extra. Falls back to Hold reserve.
+- **`GUARD_DISCHARGE_NO_ENERGY`** — nothing usable above the minimum reserve; falls back to Hold reserve.
 - **Solar floor on the setpoint** — the charge setpoint is at least the current solar surplus, so a
   modest planned charge never exports energy the battery could have taken.
 
@@ -228,16 +223,15 @@ On the **Settings** page, stored in the database, live without a restart.
 | Setting | Default | What it does |
 |---|---|---|
 | **Optimization strategy** | Balanced | Picks the objective. *Profit maximization* uses the cycle cost as derived; *Balanced* ×1.5; *Battery saving* ×2; *Self consumption* forbids export entirely, so the battery only stores solar and covers the house |
-| **Night reserve cap** | 33% | Ceiling on the reserve, as a percentage of capacity. Also the whole-night estimate used where the horizon cuts a night short. Shown on **Statistics → Current Plan** |
-| **Reserve safety factor** | 1.10 | Margin on the calculated reserve. Raise it if the battery regularly runs out overnight |
+| **Minimum reserve** | 0% | Floor the plan never discharges below, as a percentage of capacity. Shown on **Statistics → Current Plan** |
 | **Future value discount** | 0.3 %/hour | The time preference described above. The UI shows a percentage; the stored value is 0.003. 0 disables it |
 | **Planning horizon hours** | 0 (no limit) | Ignore quarters beyond N hours. Rarely needed — the horizon is already bounded by the published prices |
-| **Predicted price mode** | Off | *Off*: predicted quarters extend the horizon for reserve purposes but are never traded. *SoftMargin*: traded, with the risk margin below applied against you. *Full*: trusted as published prices. Raise the future-value discount if you move off *Off* — the two belong together |
+| **Predicted price mode** | Off | *Off*: predicted quarters extend the horizon so the planner sees the house load there, but are never traded. *SoftMargin*: traded, with the risk margin below applied against you. *Full*: trusted as published prices. Raise the future-value discount if you move off *Off* — the two belong together |
 | **Predicted price risk margin** | €0.05/kWh | In *SoftMargin*, added to predicted buy prices and taken off predicted sell prices |
 | **Carry forward enabled** | off | Allows Candidate C. Changes what the planner *buys*, so it is deliberate. On measured data it is close to a no-op in an ordinary summer, and earns its keep at negative prices |
 | **Replacement cost window days** | 30 | Trailing window for the replacement cost |
 | **Replacement cost percentile** | 25 | Which percentile of the daily cheapest price becomes the replacement cost |
-| **Self learning enabled** | off | A nightly fit overwrites the future-value discount and the night reserve from your own measurements. Those two fields become read-only while it is on |
+| **Self learning enabled** | off | A nightly fit overwrites the future-value discount from your own measurements |
 | **Monthly household consumption** | — | Twelve monthly figures in kWh, the base for the consumption forecast. Wrong here means wrong everywhere downstream |
 | **Latitude / longitude** | — | Sunrise and sunset, which gate every "is it daylight" decision |
 | **Annual solar production** | — | Scales the solar forecast |
@@ -297,8 +291,7 @@ too little data, and all of them are visible on **Settings → Tips & Checks**.
 | **Replacement cost** | What a kWh will cost to put back | See [the four things](#the-four-things-that-shape-the-answer) |
 
 With **self learning** on, a nightly pass additionally fits the future-value discount from measured
-forecast error per lead time, and the night reserve from the P80 of what the house actually drew
-between 21:00 and 07:00.
+forecast error per lead time.
 
 ---
 
@@ -307,9 +300,9 @@ between 21:00 and 07:00.
 **The battery does not reach 100%.** Usually correct. Filling costs money and only pays if the energy
 sells higher later. Judge on **Financial results**, not on the SOC.
 
-**It sells into the evening and the SOC ends low on the last planned day.** Correct, and the floor is
-the night reserve for the night beyond the horizon — visible on **Statistics → Current Plan**. If it
-ended at nearly zero you are running a version before v1.0.103.
+**It sells into the evening and the SOC ends low on the last planned day.** Correct. The plan is
+rebuilt when the next day's prices arrive, long before that evening comes; the floor is the Minimum
+reserve (default 0), visible on **Statistics → Current Plan**.
 
 **It keeps charge through a high price.** One of three reasons, and they are distinguishable: the
 sale was not profitable against the floor (replacement cost plus cycle cost), the quarter had no

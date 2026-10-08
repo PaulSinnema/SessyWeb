@@ -78,30 +78,11 @@
                                         </RadzenText>
                                     </RadzenColumn>
                                     <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Night reserve source" />
-                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
-                                            <RadzenCheckBox @bind-Value="_settings.UseCalculatedNightReserve" />
-                                            <RadzenLabel Text="Calculate from history" />
-                                        </RadzenStack>
-                                        <RadzenText TextStyle="TextStyle.Caption">
-                                            On uses the self-learned cap; off uses the fixed percentage.
-                                            <InfoTipComponent Text="On: reserve from the self-learned Night reserve cap (shown at right). Off: the fixed reserve percentage (shown at right), giving direct control." />
-                                        </RadzenText>
-                                    </RadzenColumn>
-                                    <RadzenColumn Size="12" SizeMD="4" Visible="@(!_settings.UseCalculatedNightReserve)">
-                                        <RadzenLabel Text="Fixed night reserve (%)" />
+                                        <RadzenLabel Text="Minimum reserve (%)" />
                                         <RadzenNumeric TValue="double" @bind-Value="_settings.FixedNightReservePct" Format="F0" Min="0" Max="100" Style="width:100%" />
                                         <RadzenText TextStyle="TextStyle.Caption">
-                                            Default 10. A firm floor; the safety surcharge applies on top.
-                                            <InfoTipComponent Text="Fixed percent of capacity held back for the night, used only when Calculate from history is off. A firm floor with the reserve safety surcharge on top. Lower it to discharge deeper into the evening peak." />
-                                        </RadzenText>
-                                    </RadzenColumn>
-                                    <RadzenColumn Size="12" SizeMD="4" Visible="@_settings.UseCalculatedNightReserve">
-                                        <RadzenLabel Text="Night reserve cap (%)" />
-                                        <RadzenNumeric TValue="double" @bind-Value="_settings.NightReserveCapPct" Format="F0" Min="0" Max="100" Style="width:100%" />
-                                        <RadzenText TextStyle="TextStyle.Caption">
-                                            0 = 33%@(_settings.SelfLearningEnabled ? " (learned nightly)" : "")
-                                            <InfoTipComponent Text="Caps energy held back for the night, as a percent of capacity. 0 falls back to 33%. With self-learning on, the nightly fit overwrites this once enough nights are measured; an edit holds until then." />
+                                            Default 0. Never discharge below this.
+                                            <InfoTipComponent Text="Percent of capacity the planner never discharges below. Not needed to protect the cells — the batteries' BMS already does that — and not needed for the night either: the planner weighs covering the house at night against selling in the evening peak itself. Set it only if you want energy held back on purpose, for example as a buffer. Every percent above 0 is capacity the planner cannot use." />
                                         </RadzenText>
                                     </RadzenColumn>
                                     <RadzenColumn Size="12" SizeMD="4">
@@ -237,16 +218,6 @@
                                 </RadzenRow>
                                 <RadzenRow Gap="1rem">
                                     <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Reserve safety surcharge (%)" />
-                                        <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">
-                                            Extra margin on the reserve. Default: 10.
-                                            <InfoTipComponent Text="Added on top of the calculated night and bridge reserve, so 10 means keep 10% more than the calculation asks for. Raise it if the battery regularly runs empty overnight." />
-                                        </RadzenText>
-                                        <RadzenNumeric @bind-Value="ReserveSafetySurchargePctUi" Format="F0" Min="0" Max="100" Style="width:100%" />
-                                    </RadzenColumn>
-                                </RadzenRow>
-                                <RadzenRow Gap="1rem">
-                                    <RadzenColumn Size="12" SizeMD="4">
                                         <RadzenLabel Text="Planning horizon (hours)" />
                                         <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">
                                             0 = no limit. Default: 0.
@@ -329,7 +300,7 @@
                                         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
                                             <RadzenCheckBox @bind-Value="_settings.ShiftDischargeEnabled" />
                                             <RadzenLabel Text="Allow moving discharge between quarters" />
-                                            <InfoTipComponent Text="Lets the planner sell stored energy in an expensive quarter and, in return, not cover the house from the battery in a cheaper quarter later (the house then imports). The energy is already stored, so no round trip is lost; the planner only does it when it pays at least 1 cent per kWh after the efficiency loss of low-power quarters. Side effect: the battery reaches the night reserve more often and earlier in the evening, and quarters given up show as Hold reserve. Off unless you switch it on." />
+                                            <InfoTipComponent Text="Lets the planner sell stored energy in an expensive quarter and, in return, not cover the house from the battery in a cheaper quarter later (the house then imports). The energy is already stored, so no round trip is lost; the planner only does it when it pays at least 1 cent per kWh after the efficiency loss of low-power quarters. Side effect: the battery reaches the minimum reserve more often and earlier in the evening, and quarters given up show as Hold reserve. Off unless you switch it on." />
                                         </RadzenStack>
                                         <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">Sell in the peak, import for the house when it is cheaper. Default: off.</RadzenText>
                                     </RadzenColumn>
@@ -340,11 +311,11 @@
                                     <RadzenColumn Size="12" SizeMD="8">
                                         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
                                             <RadzenCheckBox @bind-Value="_settings.SelfLearningEnabled" Change="@((bool _) => StateHasChanged())" />
-                                            <RadzenLabel Text="Learn the discount and night reserve from measured forecast error" />
-                                            <InfoTipComponent Text="Runs once a night over 21 days of stored forecasts and what actually happened, and overwrites the future value discount and the night reserve above. The discount comes from how much the combined solar and consumption forecast drifts with lead time; the night reserve from the 80th percentile of what the house really drew between 21:00 and 07:00. Until there is enough history it writes nothing at all and both fields keep whatever you set, so you can still tune them by hand in the meantime. A learned value that lands on its bound is reported under Tips and Checks instead of being applied silently." />
+                                            <RadzenLabel Text="Learn the future value discount from measured forecast error" />
+                                            <InfoTipComponent Text="Runs once a night over 21 days of stored forecasts and what actually happened, and overwrites the future value discount above. The discount comes from how much the combined solar and consumption forecast drifts with lead time. Until there is enough history it writes nothing at all and the field keeps whatever you set, so you can still tune it by hand in the meantime. A learned value that lands on its bound is reported under Tips and Checks instead of being applied silently." />
                                         </RadzenStack>
                                         <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">
-                                            Nightly fit; overwrites the two fields above once it has data. Default: off.
+                                            Nightly fit; overwrites the discount above once it has data. Default: off.
                                         </RadzenText>
                                     </RadzenColumn>
                                     @if (_settings.LastLearnedAt.HasValue)

@@ -384,9 +384,9 @@ namespace SessyController.Services
                 NextDischargeTime = futurePlan.FirstOrDefault(kvp => kvp.Value.Mode == Modes.Discharging).Key is var dt && dt == default ? null : dt,
                 NextChargeTime = futurePlan.FirstOrDefault(kvp => kvp.Value.Mode == Modes.Charging).Key is var ct && ct == default ? null : ct,
                 SocDeviationPct = GetCurrentSocDeviationPct(now, currentSocWh),
-                NightReservePct = NightCapRatio * 100.0,
-                NightReserveWh = NightCapRatio * _batteryContainer.GetTotalCapacity(),
-                NightReserveIsLearned = _settingsConfig.SelfLearningEnabled,
+                NightReservePct = MinimumReserveRatio * 100.0,
+                NightReserveWh = MinimumReserveRatio * _batteryContainer.GetTotalCapacity(),
+                NightReserveIsLearned = false,
                 RecentHistory = history,
             };
         }
@@ -399,6 +399,9 @@ namespace SessyController.Services
         private double NightCapRatio => !_settingsConfig.UseCalculatedNightReserve
             ? Math.Clamp(_settingsConfig.FixedNightReservePct, 0.0, 100.0) / 100.0
             : _settingsConfig.NightReserveCapPct > 0 ? _settingsConfig.NightReserveCapPct / 100.0 : 0.33;
+
+        /// <summary>Minimum reserve as a fraction of capacity: the one floor the planner keeps (default 0).</summary>
+        private double MinimumReserveRatio => Math.Clamp(_settingsConfig.FixedNightReservePct, 0.0, 100.0) / 100.0;
 
         /// <summary>
         /// Deviation between live SOC and the SOC the plan expects at this moment.
@@ -440,7 +443,7 @@ namespace SessyController.Services
         /// <summary>
         /// Builds per-quarter context:
         ///   _nettingByTime   — netting flag from Taxes
-        ///   _minSocWhByTime  — minimum SOC (night reserve)
+        ///   _minSocWhByTime  — minimum SOC (minimum reserve setting)
         ///   _maxSocWhByTime  — maximum SOC (solar headroom)
         /// </summary>
         private async Task BuildContextAsync()
@@ -467,6 +470,27 @@ namespace SessyController.Services
                 _nettingByTime[qi.Time] = taxes?.Netting ?? true;
             }
 
+            // Plain floor: the planner prices the night itself and the BMS protects the cells.
+            // The calculated night and bridge reserve live on in ApplyCalculatedNightReserve (unused).
+            double minimumReserveWh = capWh * MinimumReserveRatio;
+
+            foreach (var qi in ordered)
+            {
+                // maxSoc = full capacity. The grid-balance solver decides for itself
+                // whether to store solar surplus or export it, so no artificial headroom
+                // is needed — that previously forced pointless early dumping.
+                _minSocWhByTime[qi.Time] = minimumReserveWh;
+                _maxSocWhByTime[qi.Time] = capWh;
+            }
+        }
+
+        /// <summary>
+        /// Superseded: night reserve from the forecast plus the bridge reserve for the predicted-price
+        /// window. No longer called — the planner covers the night itself and carry-forward values
+        /// what is left at the end of the horizon. Kept for reference.
+        /// </summary>
+        private void ApplyCalculatedNightReserve(List<QuarterlyInfo> ordered, double capWh)
+        {
             double nightCapRatio = NightCapRatio;
             double reserveSafetyFactor = _settingsConfig.ReserveSafetyFactor > 0
                 ? _settingsConfig.ReserveSafetyFactor
@@ -924,6 +948,20 @@ namespace SessyController.Services
         }
 
         /// <summary>
+        /// As above, but the ceiling is what is still wanted within one command interval, not within a
+        /// whole quarter. The ×4 variant (kept above, unused) assumed a full quarter was always left, so
+        /// the tail slowed down exponentially and never reached the target.
+        /// </summary>
+        internal static double ChargeSetpointW(double requestedW, double netLoadWh, double limitWh, double intervalHours)
+        {
+            double surplusW = netLoadWh < 0.0 ? -netLoadWh * 4.0 : 0.0;
+            return Math.Min(Math.Max(requestedW, surplusW), limitWh / Math.Max(intervalHours, 1.0 / 3600.0));
+        }
+
+        /// <summary>How long a charge command stands before it is recomputed: one control cycle.</summary>
+        private static double CommandIntervalHours => BatteriesService.HeartbeatIntervalSeconds / 3600.0;
+
+        /// <summary>
         /// The energy below which a (dis)charge is not worth issuing, scaled to the bank so that a
         /// single battery gets a deadband it can actually resolve. Never below MinimumUsefulWh.
         /// </summary>
@@ -1225,7 +1263,7 @@ namespace SessyController.Services
                     return HoldAction(qi);
                 }
 
-                double chargeW = ChargeSetpointW(requestedW, qi?.NetLoadWh ?? 0.0, limitWh);
+                double chargeW = ChargeSetpointW(requestedW, qi?.NetLoadWh ?? 0.0, limitWh, CommandIntervalHours);
 
                 // Only report a correction that is worth reporting, and only once per quarter:
                 // this method runs on every cycle and every UI refresh, so an unconditional line
