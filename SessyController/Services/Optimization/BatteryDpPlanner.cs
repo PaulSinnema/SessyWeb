@@ -3,8 +3,9 @@
 namespace SessyController.Services.Optimization
 {
     /// <summary>
-    /// Dynamic-programming battery planner over (quarter, SOC-level). Shadow only — runs alongside
-    /// BatteryGreedyPlanner to compare objectives; it does not drive the batteries yet.
+    /// Dynamic-programming battery planner over (quarter, SOC-level). Runs as a shadow alongside
+    /// BatteryGreedyPlanner, and with greedyRules = true as one of the greedy planner's own
+    /// candidates: its schedule replaces the greedy one when it scores better on the greedy's terms.
     ///
     /// It shares the greedy planner's constraints and objective definition so the comparison is
     /// fair: the same power-dependent efficiency curve, charge taper, charge floor, discharge
@@ -31,7 +32,8 @@ namespace SessyController.Services.Optimization
             IReadOnlyList<PricePoint> pricePoints,
             BatterySpec spec,
             SessyOptions opt,
-            IReadOnlyList<SocBound> socBounds)
+            IReadOnlyList<SocBound> socBounds,
+            bool greedyRules = false)
         {
             if (pricePoints == null || pricePoints.Count == 0) return null;
 
@@ -46,6 +48,7 @@ namespace SessyController.Services.Optimization
             var efficiency = spec.Efficiency ?? EfficiencyCurve.Flat(chEff0, disEff0);
             var taper = spec.ChargeTaper ?? ChargeTaper.None;
             var chargeFloor = spec.ChargeFloor ?? ChargeCapabilityFloor.None;
+            var chargeCapability = spec.ChargeCapability ?? ChargeCapability.None;
             var dischargeCapability = spec.DischargeCapability ?? DischargeCapability.None;
 
             double chEffFor(double ac) => efficiency.ChargeAt(Math.Max(0.0, ac) / dt);
@@ -71,10 +74,32 @@ namespace SessyController.Services.Optimization
                 minSoc[t] = mn; maxSoc[t] = mx;
             }
 
+            // Charge power never rises with the SOC. Without this envelope the DP bought at full
+            // price to climb into an SOC bin without measurements (falls back to nameplate) and
+            // then charged faster than the measured bin below allows.
+            var chargeEnvelope = new double[n][];
             double taperedChargeKWh(int t, double soc)
+            {
+                double raw = rawTaperedChargeKWh(t, soc);
+                var env = chargeEnvelope[t];
+                if (env == null) return raw;
+                int idx = (int)Math.Floor(Clamp(soc, 0.0, capacity) / capacity * (Levels - 1));
+                return Math.Min(raw, env[Math.Max(0, Math.Min(Levels - 1, idx))]);
+            }
+
+            double rawTaperedChargeKWh(int t, double soc)
             {
                 double cap = maxChargeKWh[t];
                 double frac = soc / capacity;
+
+                // Measured sustained power wins where this SOC bin has it, as in the greedy planner.
+                double measuredDcW = chargeCapability.PowerW(frac);
+                if (measuredDcW > 0.0)
+                {
+                    double dcKWh = measuredDcW / 1000.0 * dt;
+                    return Math.Min(cap, dcKWh / chEffFor(dcKWh));
+                }
+
                 double tapered = cap;
                 if (taper.Samples > 0)
                 {
@@ -93,6 +118,45 @@ namespace SessyController.Services.Optimization
             }
 
             double socOf(int idx) => idx / (double)(Levels - 1) * capacity;
+
+            for (int t = 0; t < n; t++)
+            {
+                var env = new double[Levels];
+                double running = double.MaxValue;
+                for (int s = 0; s < Levels; s++)
+                {
+                    running = Math.Min(running, rawTaperedChargeKWh(t, socOf(s)));
+                    env[s] = running;
+                }
+                chargeEnvelope[t] = env;
+            }
+
+            // greedyRules: decide on the same terms as BatteryGreedyPlanner, so its plan can be
+            // compared with (and replace) the greedy one — the future-value discount, the
+            // baseline's store-vs-export choice and the stock floor (wear of the replacement cycle).
+            double roundTrip = efficiency.ChargeAt(Math.Max(0.1, spec.MaxChargeKW))
+                             * efficiency.DischargeAt(Math.Max(0.1, spec.MaxDischargeKW));
+            var discount = new double[n + 1];
+            for (int t = 0; t <= n; t++)
+                discount[t] = greedyRules ? 1.0 / (1.0 + opt.FutureValueDiscountPerHour * t * dt) : 1.0;
+
+            var mustStore = new bool[n];
+            if (greedyRules)
+            {
+                double bestFuture = 0.0;
+                for (int t = n - 1; t >= 0; t--)
+                {
+                    double surplusT = Math.Max(0.0, -pricePoints[t].NetLoadWh / 1000.0);
+                    bool exports = pricePoints[t].SellEurPerKWh > roundTrip * (bestFuture - cycleCost) + 0.02;
+                    mustStore[t] = surplusT > Eps && !exports;
+                    bestFuture = Math.Max(bestFuture, Math.Max(pricePoints[t].BuyEurPerKWh, pricePoints[t].SellEurPerKWh));
+                }
+            }
+
+            // Stored kWh kept past the horizon: never worth less than the wear its replacement saves.
+            double wearFloorPerStoreKWh = greedyRules && roundTrip > Eps
+                ? cycleCost * (1.0 / roundTrip - 1.0) * efficiency.DischargeAt(Math.Max(0.1, spec.MaxDischargeKW))
+                : 0.0;
 
             // Linear interpolation of the cost-to-go on the SOC grid. Interpolating (instead of
             // snapping to the nearest node) is what keeps the reported objective a true upper bound
@@ -159,22 +223,46 @@ namespace SessyController.Services.Optimization
             {
                 double bestV = NegInf, bc = 0, bd = 0, br = 0, bs = soc;
 
-                var e0 = Step(t, soc, 0, 0);
-                if (e0.ok)
+                double w = discount[t];
+
+                // Exact Zero Net Home magnitudes: all surplus stored (as far as it fits), whole
+                // house covered. Blocks alone cannot hit them.
+                double netLoadT = pricePoints[t].NetLoadWh / 1000.0;
+                double capC = taperedChargeKWh(t, soc);
+                double capD0 = cappedDischargeKWh(t, soc);
+                double storeAll = Math.Min(Math.Max(0.0, -netLoadT), capC);
+                if (storeAll > Eps)
+                    storeAll = Math.Min(storeAll, Math.Max(0.0, maxSoc[t] - soc) / chEffFor(storeAll));
+                bool forceStore = mustStore[t] && storeAll > Eps;
+
+                if (!forceStore)
                 {
-                    double v = e0.reward + Vinterp(Vnext, e0.socNext);
-                    if (v > bestV) { bestV = v; bc = 0; bd = 0; br = e0.reward; bs = e0.socNext; }
+                    var e0 = Step(t, soc, 0, 0);
+                    if (e0.ok)
+                    {
+                        double v = e0.reward * w + Vinterp(Vnext, e0.socNext);
+                        if (v > bestV) { bestV = v; bc = 0; bd = 0; br = e0.reward; bs = e0.socNext; }
+                    }
                 }
 
-                double capC = taperedChargeKWh(t, soc);
+                foreach (var (ec, ed) in new[] { (storeAll, 0.0), (0.0, Math.Min(Math.Max(0.0, netLoadT), capD0)) })
+                {
+                    if (ec <= Eps && ed <= Eps) continue;
+                    var e = Step(t, soc, ec, ed);
+                    if (!e.ok) continue;
+                    double v = e.reward * w + Vinterp(Vnext, e.socNext);
+                    if (v > bestV) { bestV = v; bc = ec; bd = ed; br = e.reward; bs = e.socNext; }
+                }
+
                 for (int k = 1; k <= steps; k++)
                 {
                     double c = Math.Min(k * BlockKWh, capC);
                     if (c <= Eps) break;
+                    if (forceStore && c < storeAll - Eps) continue;
                     var e = Step(t, soc, c, 0);
                     if (e.ok)
                     {
-                        double v = e.reward + Vinterp(Vnext, e.socNext);
+                        double v = e.reward * w + Vinterp(Vnext, e.socNext);
                         if (v > bestV) { bestV = v; bc = c; bd = 0; br = e.reward; bs = e.socNext; }
                     }
                     if (c >= capC - Eps) break;
@@ -188,7 +276,7 @@ namespace SessyController.Services.Optimization
                     var e = Step(t, soc, 0, d);
                     if (e.ok)
                     {
-                        double v = e.reward + Vinterp(Vnext, e.socNext);
+                        double v = e.reward * w + Vinterp(Vnext, e.socNext);
                         if (v > bestV) { bestV = v; bc = 0; bd = d; br = e.reward; bs = e.socNext; }
                     }
                     if (d >= capD - Eps) break;
@@ -204,7 +292,8 @@ namespace SessyController.Services.Optimization
             V[n] = new double[Levels];
             bool carry = opt.AllowCarryForward && opt.ReservationPriceEurPerKWh > 0.0;
             for (int s = 0; s < Levels; s++)
-                V[n][s] = carry ? socOf(s) / chEffFull * opt.ReservationPriceEurPerKWh : 0.0;
+                V[n][s] = Math.Max(carry ? socOf(s) / chEffFull * opt.ReservationPriceEurPerKWh * discount[n] : 0.0,
+                                   socOf(s) * wearFloorPerStoreKWh);
 
             for (int t = n - 1; t >= 0; t--)
             {

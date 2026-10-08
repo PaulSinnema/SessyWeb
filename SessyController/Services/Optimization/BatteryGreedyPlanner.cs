@@ -146,8 +146,162 @@ namespace SessyController.Services.Optimization
 
             var ctx = BuildContext(pricePoints, spec, opt, socBounds);
             ctx.ReserveFloor = ComputeReserveFloor(ctx);
+
+            var plain = SolveOnce(ctx, parkKnee: false, trace);
+
+            // The knee makes the cap rise with the SOC, which the block-wise search cannot climb:
+            // from an empty battery it sold the evening's first quarters and left the peak
+            // knee-limited (08-10). Parking the knee energy first is the other candidate plan;
+            // the better objective wins, so this can only add.
+            // Candidates are compared on the terms the search decides on (discounted, stock
+            // floor), not on the reported objective, so the discount keeps its meaning.
+            var best = plain;
+            double bestValue = DecisionValue(ctx, plain);
+            double kneeKWh = ctx.DischargeCapability.Samples > 0 ? ctx.DischargeCapability.KneeSoc * ctx.Capacity : 0.0;
+            if (kneeKWh > Eps)
+            {
+                var parked = SolveOnce(ctx, parkKnee: true, trace: null);
+                double parkedValue = DecisionValue(ctx, parked);
+                trace?.Invoke($"knee parking: plain {bestValue:F4}, parked {parkedValue:F4}");
+                if (parkedValue > bestValue + Eps) { best = parked; bestValue = parkedValue; }
+            }
+
+            // The DP sees the knee exactly (it searches over the SOC itself); on 08-10 09:30 it
+            // filled the battery and sold the whole evening peak where both greedy plans sold
+            // from 17:30. Its schedule goes through the same house-cover recovery and
+            // classification, so the runtime rules still hold.
+            // Same reserve semantics as the greedy: the floor, not only this quarter's bound.
+            var dpBounds = new List<SocBound>(ctx.N);
+            for (int t = 0; t < ctx.N; t++)
+                dpBounds.Add(new SocBound(pricePoints[t].Start, Math.Max(ctx.MinSoc[t], ctx.ReserveFloor[t]), ctx.MaxSoc[t]));
+            var dp = BatteryDpPlanner.Solve(pricePoints, spec, opt, dpBounds, greedyRules: true);
+            if (dp != null && dp.Plan.Count == ctx.N)
+            {
+                var seeded = SolveFromSchedule(ctx, dp.Plan);
+                double seededValue = DecisionValue(ctx, seeded);
+                trace?.Invoke($"dp seed: greedy {bestValue:F4}, dp {seededValue:F4}");
+                if (seededValue > bestValue + Eps) best = seeded;
+            }
+
+            return best;
+        }
+
+        /// <summary>
+        /// What a finished plan is worth on the search's own terms: prices discounted per quarter
+        /// (FutureValueDiscountPerHour), and stock left at the end valued at the higher of the
+        /// discounted carry-forward value and the stock floor (wear its replacement would cost).
+        /// </summary>
+        private static double DecisionValue(Context ctx, PlanResult plan)
+        {
+            double value = 0.0;
+            for (int t = 0; t < ctx.N && t < plan.Plan.Count; t++)
+            {
+                var p = ctx.PricePoints[t];
+                double netLoad = p.NetLoadWh / 1000.0;
+                double surplus = netLoad < 0.0 ? -netLoad : 0.0;
+                double deficit = netLoad > 0.0 ? netLoad : 0.0;
+                double charge = plan.Plan[t].ChargeKW * ctx.Dt;
+                double discharge = plan.Plan[t].DischargeKW * ctx.Dt;
+
+                double import, export;
+                if (charge > Eps)
+                {
+                    double fromSolar = Math.Min(charge, surplus);
+                    export = surplus - fromSolar;
+                    import = deficit + charge - fromSolar;
+                }
+                else if (discharge > Eps)
+                {
+                    double toHouse = Math.Min(discharge, deficit);
+                    import = deficit - toHouse;
+                    export = surplus + discharge - toHouse;
+                }
+                else
+                {
+                    import = deficit;
+                    export = surplus;
+                }
+
+                value += ctx.DiscountAt[t] * (export * p.SellEurPerKWh - import * p.BuyEurPerKWh - discharge * ctx.CycleCost);
+            }
+
+            double socEnd = plan.Plan.Count > 0 ? plan.Plan[^1].SocEndKWh : 0.0;
+            double carry = ctx.Opt.AllowCarryForward && ctx.Opt.ReservationPriceEurPerKWh > 0.0
+                ? socEnd / ctx.Efficiency.ChargeAt(Math.Max(0.1, ctx.Spec.MaxChargeKW)) * ctx.Opt.ReservationPriceEurPerKWh * ctx.DiscountAt[ctx.N]
+                : 0.0;
+            double wear = ctx.ReplacementRoundTrip > Eps
+                ? socEnd * ctx.CycleCost * (1.0 / ctx.ReplacementRoundTrip - 1.0) * ctx.Efficiency.DischargeAt(Math.Max(0.1, ctx.Spec.MaxDischargeKW))
+                : 0.0;
+
+            return value + Math.Max(carry, wear);
+        }
+
+        /// <summary>
+        /// Builds the state from a given charge/discharge schedule (the DP's) and classifies it
+        /// exactly like a greedy solve: house-cover recovery, reserve and partial-cover rules,
+        /// objective. Solar charges first, battery output covers the house first.
+        /// </summary>
+        private static PlanResult SolveFromSchedule(Context ctx, IReadOnlyList<PlanStep> schedule)
+        {
+            var state = new State(ctx.N);
+            double soc = Clamp(ctx.Spec.InitialSocKWh, 0.0, ctx.Capacity);
+
+            for (int t = 0; t < ctx.N; t++)
+            {
+                double netLoad = ctx.PricePoints[t].NetLoadWh / 1000.0;
+                double surplus = netLoad < 0.0 ? -netLoad : 0.0;
+                double deficit = netLoad > 0.0 ? netLoad : 0.0;
+                double charge = Math.Max(0.0, schedule[t].ChargeKW * ctx.Dt);
+                double discharge = Math.Max(0.0, schedule[t].DischargeKW * ctx.Dt);
+
+                if (charge > Eps)
+                {
+                    double fromSolar = Math.Min(charge, surplus);
+                    state.ChargeKWh[t] = charge;
+                    state.SolarChargeKWh[t] = fromSolar;
+                    state.ExportKWh[t] = surplus - fromSolar;
+                    state.ImportKWh[t] = deficit;
+                }
+                else if (discharge > Eps)
+                {
+                    state.DischargeKWh[t] = discharge;
+                    state.ImportKWh[t] = Math.Max(0.0, deficit - discharge);
+                    state.ExportKWh[t] = surplus;
+                }
+                else
+                {
+                    state.ImportKWh[t] = deficit;
+                    state.ExportKWh[t] = surplus;
+                }
+
+                soc = Clamp(soc + state.ChargeKWh[t] * ctx.ChEffFor(state.ChargeKWh[t]) - Drain(ctx, state.DischargeKWh[t]),
+                            0.0, ctx.Capacity);
+                state.SocEnd[t] = soc;
+            }
+
+            RecoverHouseCover(ctx, state);
+            return BuildPlanAndClassify(ctx, state);
+        }
+
+        /// <summary>
+        /// One complete solve on a fresh state. With <paramref name="parkKnee"/> the arbitrage
+        /// first runs with the SOC held at or above the knee — where the cap is flat and the
+        /// search sees every quarter at full power — and then continues with the real reserve,
+        /// so the parked energy is sold across the knee-limited tail at the end.
+        /// </summary>
+        private static PlanResult SolveOnce(Context ctx, bool parkKnee, Action<string>? trace)
+        {
             var state = RunBaselinePass(ctx);
-            var scratch = RunArbitragePass(ctx, state, out var lastFilledScratch);
+
+            if (parkKnee)
+            {
+                double kneeKWh = ctx.DischargeCapability.KneeSoc * ctx.Capacity;
+                ctx.ArbitrageMinSoc = ctx.MinSoc.Select(m => Math.Max(m, Math.Min(kneeKWh, ctx.Capacity))).ToArray();
+                RunArbitragePass(ctx, state, out _, trace);
+                ctx.ArbitrageMinSoc = ctx.MinSoc;
+            }
+
+            var scratch = RunArbitragePass(ctx, state, out var lastFilledScratch, trace);
 
             RecoverHouseCover(ctx, state);
 
@@ -188,6 +342,9 @@ namespace SessyController.Services.Optimization
             public required double[] MaxChargeKWh { get; init; }      // AC-side energy chargeable this quarter
             public required double[] MaxDischargeKWh { get; init; }   // AC-side energy deliverable this quarter
             public required double[] MinSoc { get; init; }
+
+            /// <summary>Reserve the arbitrage slack is measured against; MinSoc except while the knee is parked.</summary>
+            public double[] ArbitrageMinSoc { get; set; } = Array.Empty<double>();
             public required double[] MaxSoc { get; init; }
 
             /// <summary>
@@ -282,6 +439,21 @@ namespace SessyController.Services.Optimization
                 double deliverableKWh = DischargeCapability.PowerW(socStartKWh / Capacity) / 1000.0 * Dt;
                 return Math.Min(cap, deliverableKWh);
             }
+
+            /// <summary>
+            /// Lowest start SOC at which a quarter can still deliver this much: the inverse of the
+            /// knee in <see cref="CappedDischargeKWh"/>. 0 without a measured capability.
+            /// </summary>
+            public double SocNeededFor(double dischargeKWh)
+            {
+                if (dischargeKWh <= Eps || DischargeCapability.Samples == 0 || Capacity <= 0.0) return 0.0;
+
+                double plateauKWh = DischargeCapability.PlateauW / 1000.0 * Dt;
+                double knee = DischargeCapability.KneeSoc;
+                if (plateauKWh <= Eps || knee <= 0.0) return 0.0;
+
+                return Math.Min(1.0, dischargeKWh / plateauKWh) * knee * Capacity;
+            }
         }
 
         /// <summary>
@@ -360,6 +532,7 @@ namespace SessyController.Services.Optimization
                 MaxChargeKWh = maxChargeKWh,
                 MaxDischargeKWh = maxDischargeKWh,
                 MinSoc = minSoc,
+                ArbitrageMinSoc = minSoc,
                 MinSocFrom = minSocFrom,
                 MaxSoc = maxSoc,
                 Taper = spec.ChargeTaper ?? ChargeTaper.None,
@@ -605,8 +778,18 @@ namespace SessyController.Services.Optimization
                 scratch.ChEffCap[t] = ctx.ChEffFor(scratch.ChargeCap[t]);
                 scratch.DisCap[t] = ctx.CappedDischargeKWh(t, scratch.SocAtStart[t]);
                 scratch.DisEffCap[t] = ctx.DisEffFor(scratch.DisCap[t]);
-                scratch.Slack[t] = state.SocEnd[t] - ctx.MinSoc[t];
+                scratch.Slack[t] = state.SocEnd[t] - ctx.ArbitrageMinSoc[t];
                 scratch.Room[t] = ctx.MaxSoc[t] - state.SocEnd[t];
+            }
+
+            // Below the knee the cap follows the SOC: lowering the path (A, D, F) must not push a
+            // later discharge that is already allocated above its cap. Without this the plan
+            // promised discharge the battery cannot deliver (replays 06-10/07-10: up to 0,32 kWh).
+            for (int t = 0; t + 1 < ctx.N; t++)
+            {
+                double need = ctx.SocNeededFor(state.DischargeKWh[t + 1]);
+                if (need > 0.0)
+                    scratch.Slack[t] = Math.Min(scratch.Slack[t], state.SocEnd[t] - need);
             }
 
             for (int t = ctx.N - 1; t >= 0; t--)
@@ -1203,7 +1386,19 @@ namespace SessyController.Services.Optimization
                     && TryGetDischargeValue(ctx, state, k, out value, out double valueLimit))
                 {
                     double slope = (ctx.CappedDischargeKWh(k, scratch.SocAtStart[k] + BlockKWh) - scratch.DisCap[k]) / BlockKWh;
-                    if (slope > Eps && valueLimit >= slope * BlockKWh)
+
+                    // Import left below one slice: the rest of the slice is exported. Blend both
+                    // tiers instead of dropping the quarter from the tail (08-10 20:30: 7 Wh import
+                    // left, 0,38 export ignored).
+                    double slice = slope * BlockKWh;
+                    if (slope > Eps && valueLimit < slice && ctx.Opt.AllowExport && !ctx.PricePoints[k].ReserveOnly)
+                    {
+                        double sellValue = ctx.PricePoints[k].SellEurPerKWh * ctx.DiscountAt[k];
+                        value = (value * valueLimit + sellValue * (slice - valueLimit)) / slice;
+                        valueLimit = slice;
+                    }
+
+                    if (slope > Eps && valueLimit >= slice)
                     {
                         eff = scratch.DisEffCap[k];
                         drain = Math.Min(1.0, slope / eff);
@@ -1452,7 +1647,7 @@ namespace SessyController.Services.Optimization
         /// state as filled for the final (non-allocating) iteration, so <see cref="ExplainWhyNotSold"/>
         /// can reuse every term the search itself last saw.
         /// </summary>
-        private static Scratch RunArbitragePass(Context ctx, State state, out Scratch finalScratch)
+        private static Scratch RunArbitragePass(Context ctx, State state, out Scratch finalScratch, Action<string>? trace = null)
         {
             var scratch = new Scratch(ctx.N);
 
@@ -1462,6 +1657,9 @@ namespace SessyController.Services.Optimization
 
                 var best = FindBestCandidate(ctx, state, scratch);
                 if (!best.Found || best.Block <= Eps) break;   // nothing profitable left
+
+                if (trace != null)
+                    TraceCandidate(ctx, iter, best, trace);
 
                 if (best.J == TailTarget)
                     AllocateTail(ctx, state, scratch, best);
@@ -1473,6 +1671,23 @@ namespace SessyController.Services.Optimization
 
             finalScratch = scratch;
             return scratch;
+        }
+
+        /// <summary>Diagnostic: one line per allocated block (only with a trace sink).</summary>
+        private static void TraceCandidate(Context ctx, int iter, Candidate best, Action<string> trace)
+        {
+            string At(int t) => t >= 0 && t < ctx.N ? ctx.PricePoints[t].Start.ToString("dd HH:mm") : t.ToString();
+
+            string kind = best.J switch
+            {
+                CarryTarget => $"C carry  i {At(best.I)}",
+                TailTarget => $"E tail   i {At(best.I)} tail {At(best.TailStart)}",
+                ShiftTarget => $"F shift  from {At(best.I)} to {At(best.ShiftTo)}",
+                _ when best.I == StockSource => $"A stock  j {At(best.J)}",
+                _ when best.IsRebuy => $"D rebuy  j {At(best.J)} k {At(best.I)}",
+                _ => $"B pair   i {At(best.I)} j {At(best.J)}"
+            };
+            trace($"iter {iter,4} {kind,-40} block {best.Block:F3} profit {best.ProfitPerKWh:F4}");
         }
 
         // ══════════════════════════════════════════════════════════════════
