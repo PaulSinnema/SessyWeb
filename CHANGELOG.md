@@ -11,6 +11,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.155] — 2026-10-08
+
+### Fixed
+- **The battery is filled and sold into the evening peak again.** From an empty battery the plan
+  charged only about half (13:30-15:15 on 08-10) and sold from 17:30 at €0,27 while 19:00-21:30
+  paid €0,34-0,38. Below about 20% SOC the batteries deliver less power, and the planner could not
+  see that the battery has to stay full until the peak to sell there at full power. The planner
+  now also builds a plan with the DP planner, which does see this, and keeps whichever scores
+  better on the planner's own terms. On 08-10 the battery charges 12:30-16:00 and sells
+  18:45-21:30 at full power.
+- **No more promised discharge the battery cannot deliver.** An earlier sale could lower the SOC
+  so far that a later planned quarter could no longer reach its power (up to 0,32 kWh in the
+  replays). Such a sale is now refused.
+- **The DP planner follows the same rules.** Measured charge power, the reserve floor, exact solar
+  storage and house cover, and the store-or-export choice for solar. Charge power can no longer
+  rise with the SOC, so the DP does not buy at full price to reach a faster bin.
+
 ## [v1.0.154] — 2026-10-07
 
 ### Changed
