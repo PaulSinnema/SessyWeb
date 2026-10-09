@@ -11,6 +11,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.162] — 2026-10-08
+
+### Fixed
+- **Predicted prices no longer jump at midnight.** Until tomorrow's prices are published, the predicted
+  day now starts at the last published price and fades into the 60-day average over about 12 hours,
+  instead of starting straight at that average. On a cheap day the planner no longer sees a large,
+  invented spread just after midnight.
+
 ## [v1.0.161] — 2026-10-08
 
 ### Fixed
