@@ -375,6 +375,9 @@ namespace SessyController.Services.Optimization
             /// </summary>
             public required double[] DiscountAt { get; init; }
 
+            /// <summary>Outside temperature of the quarter; unknown → the taper's reference, so the SOC terms still apply.</summary>
+            public double TemperatureAt(int t) => PricePoints[t].TemperatureC ?? ChargeTaper.RefTemperatureC;
+
             /// <summary>Efficiency at the power a quarter would run at if it held this much AC energy.</summary>
             public double ChEffFor(double acKWh) => Efficiency.ChargeAt(Math.Max(0.0, acKWh) / Dt);
 
@@ -397,8 +400,7 @@ namespace SessyController.Services.Optimization
                 double cap = MaxChargeKWh[t];
                 if (Capacity <= 0.0) return cap;
 
-                // Unknown temperature → the taper's reference, so the SOC term still applies.
-                double temp = PricePoints[t].TemperatureC ?? ChargeTaper.RefTemperatureC;
+                double temp = TemperatureAt(t);
                 double mean48h = PricePoints[t].Temperature48hC ?? temp;
 
                 return PowerLimits.ChargeKWh(cap, socStartKWh / Capacity, Dt, Spec.MaxChargeKW,
@@ -416,18 +418,18 @@ namespace SessyController.Services.Optimization
                 double cap = MaxDischargeKWh[t];
                 if (DischargeCapability.Samples == 0 || Capacity <= 0.0) return cap;
 
-                return PowerLimits.DischargeKWh(cap, socStartKWh / Capacity, Dt, DischargeCapability);
+                return PowerLimits.DischargeKWh(cap, socStartKWh / Capacity, Dt, DischargeCapability, TemperatureAt(t));
             }
 
             /// <summary>
             /// Lowest start SOC at which a quarter can still deliver this much: the inverse of the
             /// knee in <see cref="CappedDischargeKWh"/>. 0 without a measured capability.
             /// </summary>
-            public double SocNeededFor(double dischargeKWh)
+            public double SocNeededFor(int t, double dischargeKWh)
             {
                 if (dischargeKWh <= Eps || DischargeCapability.Samples == 0 || Capacity <= 0.0) return 0.0;
 
-                double plateauKWh = DischargeCapability.PlateauW / 1000.0 * Dt;
+                double plateauKWh = DischargeCapability.PlateauAt(TemperatureAt(t)) / 1000.0 * Dt;
                 double knee = DischargeCapability.KneeSoc;
                 if (plateauKWh <= Eps || knee <= 0.0) return 0.0;
 
@@ -766,7 +768,7 @@ namespace SessyController.Services.Optimization
             // promised discharge the battery cannot deliver (replays 06-10/07-10: up to 0,32 kWh).
             for (int t = 0; t + 1 < ctx.N; t++)
             {
-                double need = ctx.SocNeededFor(state.DischargeKWh[t + 1]);
+                double need = ctx.SocNeededFor(t + 1, state.DischargeKWh[t + 1]);
                 if (need > 0.0)
                     scratch.Slack[t] = Math.Min(scratch.Slack[t], state.SocEnd[t] - need);
             }

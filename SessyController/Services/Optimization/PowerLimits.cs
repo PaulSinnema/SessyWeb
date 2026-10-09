@@ -60,12 +60,13 @@ namespace SessyController.Services.Optimization
             return Math.Min(capKWh, Math.Max(tapered, floorKWh));
         }
 
-        /// <summary>AC energy a quarter can deliver from this SOC: plateau with a knee, never above capKWh.</summary>
-        public static double DischargeKWh(double capKWh, double socFraction, double dtHours, DischargeCapability capability)
+        /// <summary>AC energy a quarter can deliver from this SOC and outside temperature: plateau with a knee, never above capKWh.</summary>
+        public static double DischargeKWh(double capKWh, double socFraction, double dtHours, DischargeCapability capability,
+            double temperatureC)
         {
             if (capability.Samples == 0) return capKWh;
 
-            return Math.Min(capKWh, capability.PowerW(socFraction) / 1000.0 * dtHours);
+            return Math.Min(capKWh, capability.PowerW(socFraction, temperatureC) / 1000.0 * dtHours);
         }
     }
 }

@@ -363,8 +363,15 @@ namespace SessyController.Services
                     nameplateW);
 
             if (capability.Samples > 0)
-                capability = WithSustainedPlateau(capability,
-                    await CollectSustainedDischargeSamplesAsync(now, capacity, nameplateW).ConfigureAwait(false));
+            {
+                var sustained = await CollectSustainedDischargeSamplesTimedAsync(now, capacity, nameplateW).ConfigureAwait(false);
+                capability = WithSustainedPlateau(capability, sustained.Select(x => (x.Soc, x.PowerW)).ToList());
+
+                var temps = await LoadTemperatureByTimeAsync(now.AddDays(-ChargeCapabilityDays), now).ConfigureAwait(false);
+                capability = WithDischargeTemperature(capability, sustained
+                    .Select(x => (x.Soc, x.PowerW, temps.TryGetValue(x.Time, out var t) ? (double?)t : null))
+                    .ToList());
+            }
 
             _cachedDischarge = capability;
             _cachedDischargeAt = now;
@@ -535,6 +542,12 @@ namespace SessyController.Services
         /// </summary>
         private async Task<List<(double Soc, double PowerW)>> CollectSustainedDischargeSamplesAsync(
             DateTime now, double capacity, double nameplateW)
+            => (await CollectSustainedDischargeSamplesTimedAsync(now, capacity, nameplateW).ConfigureAwait(false))
+                .Select(x => (x.Soc, x.PowerW))
+                .ToList();
+
+        private async Task<List<(DateTime Time, double Soc, double PowerW)>> CollectSustainedDischargeSamplesTimedAsync(
+            DateTime now, double capacity, double nameplateW)
         {
             var from = now.AddDays(-ChargeCapabilityDays);
 
@@ -554,7 +567,7 @@ namespace SessyController.Services
             var byTime = measurements.GroupBy(m => m.Time).ToDictionary(g => g.Key, g => g.First());
             var requestByTime = plans.GroupBy(p => p.Time).ToDictionary(g => g.Key, g => -g.First().PlannedUnthrottledPowerW);
 
-            var samples = new List<(double, double)>();
+            var samples = new List<(DateTime, double, double)>();
 
             foreach (var m in byTime.Values)
             {
@@ -572,10 +585,78 @@ namespace SessyController.Services
                 double powerW = Math.Abs(m.BatteryPowerWatts);
                 if (powerW <= 0.0) continue;
 
-                samples.Add((socFraction, powerW));
+                samples.Add((m.Time, socFraction, powerW));
             }
 
             return samples;
+        }
+
+        /// <summary>
+        /// Adds the temperature correction to the plateau: slope pooled within 10% SOC bins over the
+        /// sustained quarters above the knee (same AC watts as the plateau), reference = their median
+        /// temperature. Too few samples or too little spread → unchanged. Pure for tests.
+        /// </summary>
+        internal static DischargeCapability WithDischargeTemperature(
+            DischargeCapability capability, IReadOnlyList<(double Soc, double PowerW, double? TemperatureC)> sustained)
+        {
+            if (capability.Samples == 0 || sustained == null) return capability;
+
+            var above = sustained
+                .Where(x => x.Soc >= capability.KneeSoc && x.PowerW > 0.0 && x.TemperatureC.HasValue)
+                .Select(x => (Bin: Math.Min((int)(Math.Max(0.0, x.Soc) * 10), 9), x.PowerW, T: x.TemperatureC!.Value))
+                .ToList();
+
+            var slope = PooledSlope(above.Select(x => (x.Bin, x.PowerW, x.T)).ToList());
+            if (!slope.HasValue) return capability;
+
+            return capability with
+            {
+                TemperatureSlopeWPerC = slope.Value,
+                ReferenceTemperatureC = Median(above.Select(x => x.T).ToList()),
+                MinTemperatureC = above.Min(x => x.T),
+                MaxTemperatureC = above.Max(x => x.T)
+            };
+        }
+
+        /// <summary>
+        /// Slope of power on temperature within bins (OLS on bin-demeaned values), or null with too
+        /// few samples or too little temperature spread.
+        /// </summary>
+        private static double? PooledSlope(IReadOnlyList<(int Bin, double PowerW, double T)> samples)
+        {
+            if (samples.Count < MinTemperatureSlopeSamples) return null;
+
+            double sxy = 0.0, sxx = 0.0;
+
+            foreach (var group in samples.GroupBy(x => x.Bin))
+            {
+                double meanT = group.Average(x => x.T);
+                double meanW = group.Average(x => x.PowerW);
+
+                foreach (var x in group)
+                {
+                    sxy += (x.T - meanT) * (x.PowerW - meanW);
+                    sxx += (x.T - meanT) * (x.T - meanT);
+                }
+            }
+
+            if (sxx / samples.Count < MinTemperatureSpreadC * MinTemperatureSpreadC) return null;
+
+            return sxy / sxx;
+        }
+
+        /// <summary>Outside temperature per quarter from Consumption (the -999 sentinel dropped).</summary>
+        private async Task<Dictionary<DateTime, double>> LoadTemperatureByTimeAsync(DateTime from, DateTime to)
+        {
+            var consumptions = await _consumptionDataService.GetList(async set =>
+                await Task.FromResult(set
+                    .Where(c => c.Time >= from && c.Time <= to)
+                    .ToList()));
+
+            return consumptions
+                .Where(c => c.Temperature > -50.0)
+                .GroupBy(c => c.Time)
+                .ToDictionary(g => g.Key, g => (double)g.First().Temperature);
         }
 
         // ── Charge capability floor ───────────────────────────────────────────
@@ -764,17 +845,7 @@ namespace SessyController.Services
             DateTime now, double capacity, double nameplateW)
         {
             var timed = await CollectSustainedChargeSamplesTimedAsync(now, capacity, nameplateW).ConfigureAwait(false);
-            var from = now.AddDays(-ChargeCapabilityDays);
-
-            var consumptions = await _consumptionDataService.GetList(async set =>
-                await Task.FromResult(set
-                    .Where(c => c.Time >= from && c.Time <= now)
-                    .ToList()));
-
-            var tempByTime = consumptions
-                .Where(c => c.Temperature > -50.0) // drop the -999 sentinel
-                .GroupBy(c => c.Time)
-                .ToDictionary(g => g.Key, g => g.First().Temperature);
+            var tempByTime = await LoadTemperatureByTimeAsync(now.AddDays(-ChargeCapabilityDays), now).ConfigureAwait(false);
 
             return timed
                 .Select(x => (x.Soc, x.PowerW, tempByTime.TryGetValue(x.Time, out var t) ? (double?)t : null))
@@ -851,33 +922,20 @@ namespace SessyController.Services
                 .Select(x => (Bin: BinOf(x.Soc), x.PowerW, T: x.TemperatureC!.Value))
                 .ToList();
 
-            if (withTemp.Count < MinTemperatureSlopeSamples) return baseFit;
+            var slope = PooledSlope(withTemp);
+            if (!slope.HasValue) return baseFit;
 
+            // Bins without a temperature get the overall median (no NaN: the spec is serialized to JSON).
             var binTemps = new double[ChargeCapabilityBins];
-            Array.Fill(binTemps, double.NaN);
-
-            double sxy = 0.0, sxx = 0.0;
+            Array.Fill(binTemps, Median(withTemp.Select(x => x.T).ToList()));
 
             foreach (var group in withTemp.GroupBy(x => x.Bin))
-            {
                 binTemps[group.Key] = Median(group.Select(x => x.T).ToList());
-
-                double meanT = group.Average(x => x.T);
-                double meanW = group.Average(x => x.PowerW);
-
-                foreach (var x in group)
-                {
-                    sxy += (x.T - meanT) * (x.PowerW - meanW);
-                    sxx += (x.T - meanT) * (x.T - meanT);
-                }
-            }
-
-            if (sxx / withTemp.Count < MinTemperatureSpreadC * MinTemperatureSpreadC) return baseFit;
 
             return baseFit with
             {
                 BinTemperatureC = binTemps,
-                TemperatureSlopeWPerC = sxy / sxx,
+                TemperatureSlopeWPerC = slope.Value,
                 MinTemperatureC = withTemp.Min(x => x.T),
                 MaxTemperatureC = withTemp.Max(x => x.T)
             };

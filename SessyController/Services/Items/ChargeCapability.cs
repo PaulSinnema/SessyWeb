@@ -25,15 +25,14 @@
         int Samples,
         double[]? BinTemperatureC = null,
         double TemperatureSlopeWPerC = 0.0,
-        double MinTemperatureC = double.NaN,
-        double MaxTemperatureC = double.NaN)
+        double MinTemperatureC = 0.0,
+        double MaxTemperatureC = 0.0)
     {
         /// <summary>No measurement: the taper and floor decide.</summary>
         public static readonly ChargeCapability None = new([], 0);
 
         /// <summary>True when a temperature correction was fitted.</summary>
-        public bool HasTemperatureSlope => TemperatureSlopeWPerC != 0.0
-            && !double.IsNaN(MinTemperatureC) && !double.IsNaN(MaxTemperatureC);
+        public bool HasTemperatureSlope => TemperatureSlopeWPerC != 0.0 && MaxTemperatureC > MinTemperatureC;
 
         /// <summary>Sustained DC charge power (W) at this state of charge, or 0 when the bin has no data.</summary>
         public double PowerW(double socFraction)
@@ -51,7 +50,7 @@
                 return baseW;
 
             int bin = BinOf(socFraction);
-            if (bin >= BinTemperatureC.Length || double.IsNaN(BinTemperatureC[bin])) return baseW;
+            if (bin >= BinTemperatureC.Length) return baseW;
 
             double t = Math.Clamp(temperatureC, MinTemperatureC, MaxTemperatureC);
             return Math.Max(0.0, baseW + TemperatureSlopeWPerC * (t - BinTemperatureC[bin]));

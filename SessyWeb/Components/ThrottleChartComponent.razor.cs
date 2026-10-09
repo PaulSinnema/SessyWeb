@@ -6,7 +6,7 @@ using SessyController.Services.Optimization;
 namespace SessyWeb.Components
 {
     /// <summary>
-    /// Battery power vs state of charge: the charge and discharge limits the planner uses,
+    /// Battery power vs state of charge and vs outside temperature: the limits the planner uses,
     /// computed by the same PowerLimits functions.
     /// </summary>
     public partial class ThrottleChartComponent : BaseComponent
@@ -27,24 +27,31 @@ namespace SessyWeb.Components
         {
             public int SocPct { get; init; }
             public double ChargeW { get; init; }
-            public double ChargeColdW { get; init; }
-            public double ChargeWarmW { get; init; }
             public double DischargeW { get; init; }
             public double ChargeNameplateW { get; init; }
             public double DischargeNameplateW { get; init; }
         }
 
+        private sealed class TemperaturePoint
+        {
+            public double TemperatureC { get; init; }
+            public double ChargeW { get; init; }
+            public double DischargeW { get; init; }
+        }
+
         private const double QuarterHours = 0.25;
 
+        // SOC at which the temperature chart is read: above the discharge knee, inside the charge data.
+        private const double TemperatureChartSoc = 0.5;
+
         private List<PowerPoint> _points = new();
+        private List<TemperaturePoint> _temperaturePoints = new();
         private bool _loading = true;
         private double _temperatureC;
         private string _chargeSource = string.Empty;
         private string _dischargeSource = string.Empty;
-        private bool _hasTemperatureSlope;
-        private double _slopeWPerC;
-        private double _coldC;
-        private double _warmC;
+        private string _chargeTemperatureText = string.Empty;
+        private string _dischargeTemperatureText = string.Empty;
 
         protected override async Task OnInitializedAsync()
         {
@@ -82,32 +89,33 @@ namespace SessyWeb.Components
                 double chargeCapKWh = PowerLimits.BaseChargeKW(maxChargeKW, taper, fallback) * QuarterHours;
                 double dischargeCapKWh = PowerLimits.BaseDischargeKW(maxDischargeKW, dischargeCapability, fallback) * QuarterHours;
 
-                // Charge power depends on temperature: show it now and at the coolest and warmest measured.
+                double ChargeW(double soc, double tempC) => Math.Round(PowerLimits.ChargeKWh(chargeCapKWh, soc, QuarterHours,
+                    maxChargeKW, chargeCapability, taper, floor, efficiency, tempC, tempC) / QuarterHours * 1000.0);
+
+                double DischargeW(double soc, double tempC) => Math.Round(PowerLimits.DischargeKWh(dischargeCapKWh, soc,
+                    QuarterHours, dischargeCapability, tempC) / QuarterHours * 1000.0);
+
                 _temperatureC = WeatherService.GetTemperature(_timeZoneService.Now) ?? ChargeTaper.RefTemperatureC;
-                _hasTemperatureSlope = chargeCapability.HasTemperatureSlope;
-                _slopeWPerC = chargeCapability.TemperatureSlopeWPerC;
-                _coldC = _hasTemperatureSlope ? chargeCapability.MinTemperatureC : _temperatureC;
-                _warmC = _hasTemperatureSlope ? chargeCapability.MaxTemperatureC : _temperatureC;
 
                 _points = Enumerable.Range(0, 21)
                     .Select(i => i * 5)
-                    .Select(pct =>
+                    .Select(pct => new PowerPoint
                     {
-                        double soc = pct / 100.0;
-                        double ChargeAtW(double tempC) => Math.Round(PowerLimits.ChargeKWh(chargeCapKWh, soc, QuarterHours,
-                            maxChargeKW, chargeCapability, taper, floor, efficiency, tempC, tempC) / QuarterHours * 1000.0);
-                        double dischargeKWh = PowerLimits.DischargeKWh(dischargeCapKWh, soc, QuarterHours, dischargeCapability);
+                        SocPct = pct,
+                        ChargeW = ChargeW(pct / 100.0, _temperatureC),
+                        DischargeW = DischargeW(pct / 100.0, _temperatureC),
+                        ChargeNameplateW = chargeNameplateW,
+                        DischargeNameplateW = dischargeNameplateW
+                    })
+                    .ToList();
 
-                        return new PowerPoint
-                        {
-                            SocPct = pct,
-                            ChargeW = ChargeAtW(_temperatureC),
-                            ChargeColdW = ChargeAtW(_coldC),
-                            ChargeWarmW = ChargeAtW(_warmC),
-                            DischargeW = Math.Round(dischargeKWh / QuarterHours * 1000.0),
-                            ChargeNameplateW = chargeNameplateW,
-                            DischargeNameplateW = dischargeNameplateW
-                        };
+                _temperaturePoints = Enumerable.Range(0, 15)
+                    .Select(i => i * 2.5)
+                    .Select(t => new TemperaturePoint
+                    {
+                        TemperatureC = t,
+                        ChargeW = ChargeW(TemperatureChartSoc, t),
+                        DischargeW = DischargeW(TemperatureChartSoc, t)
                     })
                     .ToList();
 
@@ -116,6 +124,13 @@ namespace SessyWeb.Components
                     : $"not measured yet, {fallback * 100.0:F0}% of nameplate";
                 _dischargeSource = dischargeCapability.Samples > 0 ? "measured plateau and knee"
                     : $"not measured yet, {fallback * 100.0:F0}% of nameplate";
+
+                _chargeTemperatureText = chargeCapability.HasTemperatureSlope
+                    ? SlopeText(chargeCapability.TemperatureSlopeWPerC, chargeCapability.MinTemperatureC, chargeCapability.MaxTemperatureC)
+                    : "no temperature effect measured yet";
+                _dischargeTemperatureText = dischargeCapability.HasTemperatureSlope
+                    ? SlopeText(dischargeCapability.TemperatureSlopeWPerC, dischargeCapability.MinTemperatureC, dischargeCapability.MaxTemperatureC)
+                    : "no temperature effect measured yet";
             }
             finally
             {
@@ -123,5 +138,8 @@ namespace SessyWeb.Components
                 StateHasChanged();
             }
         }
+
+        private static string SlopeText(double slopeWPerC, double minC, double maxC)
+            => $"{slopeWPerC:+0;-0} W per °C warmer, measured between {minC:F1} and {maxC:F1} °C";
     }
 }

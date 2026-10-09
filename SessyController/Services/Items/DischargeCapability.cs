@@ -12,18 +12,46 @@ namespace SessyController.Services.Items
     /// current limit then buys less power. A straight line through that would understate the
     /// whole flat region.
     ///
-    /// Deliberately no temperature terms, unlike ChargeTaper. They were measured and are not
-    /// there: outside temperature alone explains R2 = 0.012 of the discharge throttle (t = 0.93),
-    /// and next to SOC it stays insignificant. Neither is battery power itself a regressor —
-    /// prior charge/discharge power over the preceding 1, 2 and 4 hours, energy moved so far in
-    /// the session, and quarters into the session were all tested and none reached significance,
-    /// with the sign pointing the wrong way for a heat effect. Do not add them back by analogy
-    /// with the charge side.
+    /// Temperature: warmer means less discharge power. An earlier measurement found none
+    /// (R2 0.012 on the throttle ratio over all quarters, where the knee dominates), but on
+    /// sustained full-request quarters above the knee it is clear: about -45 W per °C
+    /// (28-07..08-10, t -7.8), more than SOC explains up there. The plateau is corrected from the
+    /// median temperature of those quarters and the knee region scales with it; the temperature is
+    /// clamped to the measured range. Prior battery power (preceding 1, 2 and 4 hours, energy
+    /// moved in the session, quarters into the session) was tested earlier and was not significant.
     /// </summary>
-    public sealed record DischargeCapability(double PlateauW, double KneeSoc, int Samples)
+    public sealed record DischargeCapability(
+        double PlateauW,
+        double KneeSoc,
+        int Samples,
+        double TemperatureSlopeWPerC = 0.0,
+        double ReferenceTemperatureC = 0.0,
+        double MinTemperatureC = 0.0,
+        double MaxTemperatureC = 0.0)
     {
         /// <summary>No fit: the caller keeps whatever limit it already had.</summary>
         public static readonly DischargeCapability None = new(0.0, 0.0, 0);
+
+        /// <summary>True when a temperature correction was fitted.</summary>
+        public bool HasTemperatureSlope => TemperatureSlopeWPerC != 0.0 && MaxTemperatureC > MinTemperatureC;
+
+        /// <summary>Plateau (W) at this outside temperature, clamped to the measured range.</summary>
+        public double PlateauAt(double temperatureC)
+        {
+            if (!HasTemperatureSlope || double.IsNaN(temperatureC)) return PlateauW;
+
+            double t = Math.Clamp(temperatureC, MinTemperatureC, MaxTemperatureC);
+            return Math.Max(0.0, PlateauW + TemperatureSlopeWPerC * (t - ReferenceTemperatureC));
+        }
+
+        /// <summary>Deliverable discharge power (W) at this state of charge and outside temperature.</summary>
+        public double PowerW(double socFraction, double temperatureC)
+        {
+            double baseW = PowerW(socFraction);
+            if (baseW <= 0.0 || PlateauW <= 0.0) return baseW;
+
+            return baseW * PlateauAt(temperatureC) / PlateauW;
+        }
 
         /// <summary>Deliverable discharge power (W) at this state of charge.</summary>
         public double PowerW(double socFraction)

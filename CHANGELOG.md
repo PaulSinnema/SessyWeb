@@ -11,6 +11,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.164] — 2026-10-09
+
+### Changed
+- **Discharge power follows the outside temperature too.** Measured: warmer means less discharge power
+  (about 45 W per °C above the low-charge knee; the earlier finding of "no effect" looked at all quarters,
+  where the knee hides it). The planner now corrects the discharge plateau to the forecast temperature of
+  each quarter, within the range seen so far. *Battery power vs state of charge* on Statistics gained a
+  second panel with charge and discharge power against outside temperature.
+
 ## [v1.0.163] — 2026-10-09
 
 ### Changed
@@ -20,8 +29,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
   is replaced by *Battery power vs state of charge*, which shows exactly the limits the planner uses.
 - **Charge power follows the outside temperature.** Measured: warmer means less charge power (about
   50 W per °C within a state-of-charge band). The planner now corrects the measured charge power to the
-  forecast temperature of each quarter, within the temperature range seen so far. The chart shows the
-  effect and charge power at the coolest and warmest measured temperature.
+  forecast temperature of each quarter, within the temperature range seen so far.
 
 ## [v1.0.162] — 2026-10-08
 

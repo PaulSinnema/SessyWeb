@@ -26,7 +26,7 @@ namespace SessyTests.Services
         {
             double charge = PowerLimits.ChargeKWh(1.32, 0.5, 0.25, 6.6, ChargeCapability.None, ChargeTaper.None,
                 ChargeCapabilityFloor.None, EfficiencyCurve.Flat(0.95, 0.95), 15.0, 15.0);
-            double discharge = PowerLimits.DischargeKWh(1.02, 0.5, 0.25, DischargeCapability.None);
+            double discharge = PowerLimits.DischargeKWh(1.02, 0.5, 0.25, DischargeCapability.None, 15.0);
 
             Assert.Equal(1.32, charge, 9);
             Assert.Equal(1.02, discharge, 9);

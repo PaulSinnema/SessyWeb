@@ -138,7 +138,10 @@ namespace SessyController.Services
                         $"Discharge capability fitted on {dischargeCapability.Samples} SOC bins: " +
                         $"plateau {dischargeCapability.PlateauW:F0} W above {dischargeCapability.KneeSoc * 100.0:F0}% SOC " +
                         $"({dischargeCapability.PowerW(0.1):F0} W at 10% SOC, " +
-                        $"{dischargeCapability.PowerW(0.5):F0} W at 50%).");
+                        $"{dischargeCapability.PowerW(0.5):F0} W at 50%)" +
+                        (dischargeCapability.HasTemperatureSlope
+                            ? $", plateau {dischargeCapability.TemperatureSlopeWPerC:+0;-0} W/°C from {dischargeCapability.ReferenceTemperatureC:F1} °C, within {dischargeCapability.MinTemperatureC:F1}-{dischargeCapability.MaxTemperatureC:F1} °C."
+                            : "."));
 
                 // The taper is fitted on a ratio, so it only sees quarters that recorded an
                 // untapered request — a narrow, one-sided slice. The floor is measured in watts on
