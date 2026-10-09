@@ -397,32 +397,12 @@ namespace SessyController.Services.Optimization
                 double cap = MaxChargeKWh[t];
                 if (Capacity <= 0.0) return cap;
 
-                double socFraction = socStartKWh / Capacity;
+                // Unknown temperature → the taper's reference, so the SOC term still applies.
+                double temp = PricePoints[t].TemperatureC ?? ChargeTaper.RefTemperatureC;
+                double mean48h = PricePoints[t].Temperature48hC ?? temp;
 
-                // Measured sustained power wins where this SOC bin has it; taper and floor below
-                // only fill bins without data. Stored as DC (SOC gain), converted back to AC here.
-                double measuredDcW = ChargeCapability.PowerW(socFraction);
-                if (measuredDcW > 0.0)
-                {
-                    double dcKWh = measuredDcW / 1000.0 * Dt;
-                    return Math.Min(cap, dcKWh / ChEffFor(dcKWh));
-                }
-
-                double tapered = cap;
-                if (Taper.Samples > 0)
-                {
-                    // Unknown temperature → the taper's reference, so the SOC term still applies.
-                    double temp = PricePoints[t].TemperatureC ?? ChargeTaper.RefTemperatureC;
-                    double mean48h = PricePoints[t].Temperature48hC ?? temp;
-
-                    double ratio = Taper.Ratio(socFraction, temp, mean48h);
-                    tapered = Math.Min(cap, Math.Max(0.0, Spec.MaxChargeKW) * ratio * Dt);
-                }
-
-                double floorKWh = ChargeFloor.PowerW(socFraction) / 1000.0 * Dt;
-
-                // The floor lifts the prediction, never past what this quarter may take anyway.
-                return Math.Min(cap, Math.Max(tapered, floorKWh));
+                return PowerLimits.ChargeKWh(cap, socStartKWh / Capacity, Dt, Spec.MaxChargeKW,
+                    ChargeCapability, Taper, ChargeFloor, Efficiency, temp, mean48h);
             }
 
             /// <summary>
@@ -436,8 +416,7 @@ namespace SessyController.Services.Optimization
                 double cap = MaxDischargeKWh[t];
                 if (DischargeCapability.Samples == 0 || Capacity <= 0.0) return cap;
 
-                double deliverableKWh = DischargeCapability.PowerW(socStartKWh / Capacity) / 1000.0 * Dt;
-                return Math.Min(cap, deliverableKWh);
+                return PowerLimits.DischargeKWh(cap, socStartKWh / Capacity, Dt, DischargeCapability);
             }
 
             /// <summary>

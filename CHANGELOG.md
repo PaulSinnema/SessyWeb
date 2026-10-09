@@ -11,6 +11,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.163] — 2026-10-09
+
+### Changed
+- **One place for battery power limits.** The planner no longer uses the per-temperature throttle
+  table; it relies on the measured charge and discharge power per state of charge, or on *Throttle
+  fallback (%)* until those are measured. The Statistics chart *Battery throttle vs outside temperature*
+  is replaced by *Battery power vs state of charge*, which shows exactly the limits the planner uses.
+- **Charge power follows the outside temperature.** Measured: warmer means less charge power (about
+  50 W per °C within a state-of-charge band). The planner now corrects the measured charge power to the
+  forecast temperature of each quarter, within the temperature range seen so far. The chart shows the
+  effect and charge power at the coolest and warmest measured temperature.
+
 ## [v1.0.162] — 2026-10-08
 
 ### Fixed

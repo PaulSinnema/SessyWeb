@@ -54,9 +54,8 @@ namespace SessyController.Services
                 double capKWh = capWh / 1000.0;
                 double socKWh = socWh / 1000.0;
 
-                // Nameplate power. The only derate applied is the throttle ratio below, which is
-                // measured per temperature bucket. A second, manually configured derate on top of
-                // it would count the same effect twice.
+                // Nameplate power. Every derate comes from PowerLimits (measured SOC models, or the
+                // fallback share); a manual derate on top would count the same effect twice.
                 double maxChargeKW = _sessyBatteryConfig.TotalRawChargingCapacity / 1000.0;
                 double maxDischargeKW = _sessyBatteryConfig.TotalRawDischargingCapacity / 1000.0;
 
@@ -110,11 +109,6 @@ namespace SessyController.Services
                     .ToList();
 
                 if (quarters.Count == 0) return false;
-
-                // Load throttle ratios once; they are keyed on temperature, not date, so the
-                // same bucket applies to any quarter at that temperature.
-                var throttleBuckets = await _throttleAnalysisService.GetThrottleBucketsAsync()
-                    .ConfigureAwait(false);
 
                 // Charge power is limited far more by the CC/CV taper than by temperature, so the
                 // taper — when measured — replaces the temperature ratio on the charge side.
@@ -173,7 +167,10 @@ namespace SessyController.Services
                         $"Charge capability measured on {chargeCapability.Samples} quarters in " +
                         $"{chargeCapability.CoveredBins} SOC bins: " +
                         $"{chargeCapability.PowerW(0.3):F0} W at 30% SOC, {chargeCapability.PowerW(0.5):F0} W at 50%, " +
-                        $"{chargeCapability.PowerW(0.8):F0} W at 80% (DC).");
+                        $"{chargeCapability.PowerW(0.8):F0} W at 80% (DC)" +
+                        (chargeCapability.HasTemperatureSlope
+                            ? $", {chargeCapability.TemperatureSlopeWPerC:+0;-0} W/°C between {chargeCapability.MinTemperatureC:F1} and {chargeCapability.MaxTemperatureC:F1} °C."
+                            : "."));
 
                 // Temperatures for the heat build-up term: measured history for the part of the
                 // 48-hour window that lies in the past, forecast for the rest.
@@ -182,47 +179,21 @@ namespace SessyController.Services
 
                 _taperInputsByTime.Clear();
 
-                double throttleFallback = _settingsConfig.ThrottleFallbackPct > 0.0
-                    ? _settingsConfig.ThrottleFallbackPct / 100.0
-                    : 0.80;
+                double throttleFallback = PowerLimits.FallbackRatio(_settingsConfig.ThrottleFallbackPct);
+
+                // Base caps, the same for every quarter: nameplate, or the fallback share where
+                // nothing is measured. The SOC models derate further inside the planner (PowerLimits).
+                double baseChargeKW = PowerLimits.BaseChargeKW(maxChargeKW, chargeTaper, throttleFallback);
+                double baseDischargeKW = PowerLimits.BaseDischargeKW(maxDischargeKW, dischargeCapability, throttleFallback);
 
                 var pricePoints = quarters.Select(q =>
                 {
                     double solarSurplusWh = q.NetLoadWh < 0.0 ? -q.NetLoadWh : 0.0;
 
-                    // Reduce the per-quarter power caps by the throttle expected at the
-                    // forecast outside temperature. No temperature or no data → full power.
-                    double? qMaxChargeKW = null;
-                    double? qMaxDischargeKW = null;
+                    double? qMaxChargeKW = baseChargeKW < maxChargeKW ? baseChargeKW : null;
+                    double? qMaxDischargeKW = baseDischargeKW < maxDischargeKW ? baseDischargeKW : null;
 
                     var temp = _weatherService.GetTemperature(q.Time);
-                    if (temp.HasValue)
-                    {
-                        // Discharge side: with a measured capability the planner derates per
-                        // quarter from the SOC it has reached there, so no cap is imposed here.
-                        // Without one the old temperature bucket still applies — falling straight
-                        // back to nameplate would make the planner request power the battery
-                        // cannot deliver.
-                        if (dischargeCapability.Samples == 0)
-                        {
-                            if (!_throttleAnalysisService.TryGetDischargeRatio(throttleBuckets, temp.Value, out double dischargeRatio))
-                                dischargeRatio = throttleFallback;
-
-                            qMaxDischargeKW = maxDischargeKW * dischargeRatio;
-                        }
-
-                        // Charge side: with a measured taper the planner derates per quarter from
-                        // the SOC and temperatures it has there, so no cap is imposed here — a
-                        // temperature ratio on top would derate twice. Without a taper the old
-                        // bucket ratio still applies.
-                        if (chargeTaper.Samples == 0)
-                        {
-                            if (!_throttleAnalysisService.TryGetChargeRatio(throttleBuckets, temp.Value, out double chargeRatio))
-                                chargeRatio = throttleFallback;
-
-                            qMaxChargeKW = maxChargeKW * chargeRatio;
-                        }
-                    }
 
                     double? quarterTemp = temp ?? Mean(temperatureByHour, q.Time, q.Time);
                     double? mean48h = Mean(temperatureByHour, q.Time.AddHours(-Mean48hHours), q.Time);
@@ -320,6 +291,39 @@ namespace SessyController.Services
                 _logger.LogError($"{GetType().Name}.BuildMilpPlanAsync failed: {ex.ToDetailedString()}");
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Superseded: per-temperature bucket caps, replaced by PowerLimits (one place for the
+        /// power limits). No longer called. Kept for reference.
+        /// </summary>
+        private (double? ChargeKW, double? DischargeKW) LegacyBucketCaps(
+            IReadOnlyList<ThrottleBucket> throttleBuckets, double? temp, double maxChargeKW, double maxDischargeKW,
+            ChargeTaper chargeTaper, DischargeCapability dischargeCapability, double throttleFallback)
+        {
+            double? qMaxChargeKW = null;
+            double? qMaxDischargeKW = null;
+
+            if (temp.HasValue)
+            {
+                if (dischargeCapability.Samples == 0)
+                {
+                    if (!_throttleAnalysisService.TryGetDischargeRatio(throttleBuckets, temp.Value, out double dischargeRatio))
+                        dischargeRatio = throttleFallback;
+
+                    qMaxDischargeKW = maxDischargeKW * dischargeRatio;
+                }
+
+                if (chargeTaper.Samples == 0)
+                {
+                    if (!_throttleAnalysisService.TryGetChargeRatio(throttleBuckets, temp.Value, out double chargeRatio))
+                        chargeRatio = throttleFallback;
+
+                    qMaxChargeKW = maxChargeKW * chargeRatio;
+                }
+            }
+
+            return (qMaxChargeKW, qMaxDischargeKW);
         }
 
         /// <summary>Length of the heat build-up window used by the charge taper.</summary>

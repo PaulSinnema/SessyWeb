@@ -6,18 +6,26 @@
 
 <RadzenCard>
     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
-        <RadzenText TextStyle="TextStyle.H6">🌡️ Battery throttle vs outside temperature</RadzenText>
+        <RadzenText TextStyle="TextStyle.H6">🔋 Battery power vs state of charge</RadzenText>
         <RadzenButton Icon="refresh" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
-                      Click="@RefreshAsync" title="Recompute from the last month of data" />
+                      Click="@RefreshAsync" title="Recompute from the measured models" />
     </RadzenStack>
 
     <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-1">
-        Ratio of realized to commanded power (1.0 = no throttle). <b>Charge</b> drives planning
-        through the measured taper, where temperature genuinely matters alongside state of charge.
-        <b>Discharge</b> is diagnostic only: measured on production data outside temperature
-        explains almost none of it (R&sup2; 0.01) while state of charge explains it well, so the
-        planner caps discharging on SOC instead — see the discharge capability in the log.
+        The power the planner assumes per quarter at each state of charge, from the same calculation
+        the plan uses. <b>Charge</b>: @_chargeSource, shown at the current @_temperatureC.ToString("F0") °C.
+        <b>Discharge</b>: @_dischargeSource. Dashed lines are nameplate.
     </RadzenText>
+
+    @if (_hasTemperatureSlope)
+    {
+        <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-1">
+            🌡️ <b>Temperature</b>: every °C warmer changes charge power by @_slopeWPerC.ToString("+0;-0") W
+            within a state-of-charge band. Measured between @_coldC.ToString("F1") and @_warmC.ToString("F1") °C;
+            outside that range the nearest edge is used, because cold behaviour has not been measured yet.
+            Thin lines show charge power at those two temperatures.
+        </RadzenText>
+    }
 
     @if (_loading)
     {
@@ -25,39 +33,66 @@
     }
     else if (_points.Count == 0)
     {
-        <RadzenText TextStyle="TextStyle.Body1" class="rz-mt-2">
-            Not enough data yet. Buckets fill as more high-power quarters are executed.
-        </RadzenText>
+        <RadzenText TextStyle="TextStyle.Body1" class="rz-mt-2">No battery configured.</RadzenText>
     }
     else
     {
         <div style="width: 100%; overflow-x: auto;">
-            <RadzenChart Style="@($"height: 320px; width: {Math.Max(600, _points.Count * 60)}px")"
+            <RadzenChart Style="height: 320px; min-width: 600px; width: 100%;"
                          MarginTop="20" MarginLeft="70" MarginRight="40" MarginBottom="60">
-                <RadzenLineSeries Data="@_dischargePoints"
-                                  CategoryProperty="@nameof(ThrottlePoint.Temperature)"
-                                  ValueProperty="@nameof(ThrottlePoint.DischargeRatio)"
-                                  Title="Discharge"
-                                  Stroke="var(--sessy-discharge-line)"
-                                  StrokeWidth="2"
-                                  Smooth="true">
-                    <RadzenMarkers MarkerType="MarkerType.Circle" Size="6" />
-                </RadzenLineSeries>
-                <RadzenLineSeries Data="@_chargePoints"
-                                  CategoryProperty="@nameof(ThrottlePoint.Temperature)"
-                                  ValueProperty="@nameof(ThrottlePoint.ChargeRatio)"
+                <RadzenLineSeries Data="@_points"
+                                  CategoryProperty="@nameof(PowerPoint.SocPct)"
+                                  ValueProperty="@nameof(PowerPoint.ChargeW)"
                                   Title="Charge"
                                   Stroke="var(--sessy-charge-line)"
-                                  StrokeWidth="2"
-                                  Smooth="true">
-                    <RadzenMarkers MarkerType="MarkerType.Circle" Size="6" />
+                                  StrokeWidth="2">
+                    <RadzenMarkers MarkerType="MarkerType.Circle" Size="5" />
                 </RadzenLineSeries>
-                <RadzenCategoryAxis Padding="20" FormatString="{0}°C">
-                    <RadzenAxisTitle Text="Outside temperature" />
+                @if (_hasTemperatureSlope)
+                {
+                    <RadzenLineSeries Data="@_points"
+                                      CategoryProperty="@nameof(PowerPoint.SocPct)"
+                                      ValueProperty="@nameof(PowerPoint.ChargeColdW)"
+                                      Title="@($"Charge at {_coldC:F0} °C")"
+                                      Stroke="var(--sessy-charge-line)"
+                                      StrokeWidth="1"
+                                      LineType="LineType.Dotted" />
+                    <RadzenLineSeries Data="@_points"
+                                      CategoryProperty="@nameof(PowerPoint.SocPct)"
+                                      ValueProperty="@nameof(PowerPoint.ChargeWarmW)"
+                                      Title="@($"Charge at {_warmC:F0} °C")"
+                                      Stroke="var(--sessy-charge-line)"
+                                      StrokeWidth="1"
+                                      LineType="LineType.Dotted" />
+                }
+                <RadzenLineSeries Data="@_points"
+                                  CategoryProperty="@nameof(PowerPoint.SocPct)"
+                                  ValueProperty="@nameof(PowerPoint.DischargeW)"
+                                  Title="Discharge"
+                                  Stroke="var(--sessy-discharge-line)"
+                                  StrokeWidth="2">
+                    <RadzenMarkers MarkerType="MarkerType.Circle" Size="5" />
+                </RadzenLineSeries>
+                <RadzenLineSeries Data="@_points"
+                                  CategoryProperty="@nameof(PowerPoint.SocPct)"
+                                  ValueProperty="@nameof(PowerPoint.ChargeNameplateW)"
+                                  Title="Charge nameplate"
+                                  Stroke="var(--sessy-charge-line)"
+                                  StrokeWidth="1"
+                                  LineType="LineType.Dashed" />
+                <RadzenLineSeries Data="@_points"
+                                  CategoryProperty="@nameof(PowerPoint.SocPct)"
+                                  ValueProperty="@nameof(PowerPoint.DischargeNameplateW)"
+                                  Title="Discharge nameplate"
+                                  Stroke="var(--sessy-discharge-line)"
+                                  StrokeWidth="1"
+                                  LineType="LineType.Dashed" />
+                <RadzenCategoryAxis FormatString="{0}%">
+                    <RadzenAxisTitle Text="State of charge" />
                 </RadzenCategoryAxis>
-                <RadzenValueAxis Min="0" Max="1" Step="0.2" FormatString="{0:0.0}">
+                <RadzenValueAxis Min="0" FormatString="{0:F0} W">
                     <RadzenGridLines Visible="true" />
-                    <RadzenAxisTitle Text="Power ratio" />
+                    <RadzenAxisTitle Text="Power" />
                 </RadzenValueAxis>
                 <RadzenLegend Position="LegendPosition.Bottom" />
             </RadzenChart>

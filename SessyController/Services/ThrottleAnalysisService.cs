@@ -39,6 +39,7 @@ namespace SessyController.Services
         private const double MaxSocPct = 90.0;     // ignore near-full battery (not a throttle)
         private const double EmaAlpha = 0.2;       // EMA weight for newest sample
         private const int LookbackDays = 31;       // short horizon so cooling resolves within a month
+        public const int MinSamplesPerBucket = 3;  // below this a temperature bucket says nothing
         private const int MinSocOnlySamples = 20;  // enough for the SOC-only fallback fit
         private const int Mean48hHours = 48;       // window for the heat build-up term
 
@@ -144,9 +145,10 @@ namespace SessyController.Services
                     .Where(p => p.Time >= start && p.Time <= now && p.PlannedUnthrottledPowerW != 0.0)
                     .ToList()));
 
+            // One quarter earlier so the first quarter has a previous SOC.
             var measurements = await _measurementDataService.GetList(async set =>
                 await Task.FromResult(set
-                    .Where(m => m.Time >= start && m.Time <= now)
+                    .Where(m => m.Time >= start.AddMinutes(-15) && m.Time <= now)
                     .ToList()));
 
             var consumptions = await _consumptionDataService.GetList(async set =>
@@ -169,10 +171,12 @@ namespace SessyController.Services
             double capacity = _batteryContainer.GetTotalCapacity();
             if (capacity <= 0) capacity = 1; // guard against divide-by-zero
 
+            var byTime = measurements.GroupBy(m => m.Time).ToDictionary(g => g.Key, g => g.First());
+
             // Accumulate samples per bucket before smoothing.
             var buckets = new Dictionary<int, ThrottleBucket>();
 
-            foreach (var m in measurements.OrderBy(m => m.Time))
+            foreach (var m in byTime.Values.Where(m => m.Time >= start).OrderBy(m => m.Time))
             {
                 if (foreignQuarters.Contains(m.Time)) continue;
                 if (!planByTime.TryGetValue(m.Time, out var requestedW)) continue;
@@ -180,19 +184,29 @@ namespace SessyController.Services
 
                 if (Math.Abs(requestedW) < MinRequestedW) continue;
 
-                double socPct = m.BatteryStateOfChargeWh / capacity * 100.0;
-                if (socPct < MinSocPct || socPct > MaxSocPct) continue;
-
                 // Normalize direction. Plan: discharge < 0; measurement: discharge > 0.
                 // The battery must have ACTUALLY executed the planned mode. Direction alone
                 // is not enough: in ZeroNetHome the battery also delivers positive power (to
                 // cover the house), which would otherwise look like a heavily throttled
                 // discharge. Only count quarters where the real mode matches the plan.
                 bool planDischarging = requestedW < 0;
-                if (planDischarging && m.BatteryMode != Modes.Discharging) continue;
-                if (!planDischarging && m.BatteryMode != Modes.Charging) continue;
+                var expectedMode = planDischarging ? Modes.Discharging : Modes.Charging;
+                if (m.BatteryMode != expectedMode || !m.IsReliable) continue;
 
-                double ratio = Math.Min(Math.Abs(m.BatteryPowerWatts) / Math.Abs(requestedW), 1.0);
+                // Previous quarter in the same mode: no ramp-up inside this one.
+                if (!byTime.TryGetValue(m.Time.AddMinutes(-15), out var prev)) continue;
+                if (prev.BatteryMode != expectedMode || !prev.IsReliable) continue;
+
+                double socPct = prev.BatteryStateOfChargeWh / capacity * 100.0;
+                if (socPct < MinSocPct || socPct > MaxSocPct) continue;
+
+                // Realized power from the SOC change over the quarter (DC), not the momentary
+                // snapshot: 08-10 15:30 read +206 W while the bank stored 756 Wh.
+                double deltaWh = m.BatteryStateOfChargeWh - prev.BatteryStateOfChargeWh;
+                double realizedW = (planDischarging ? -deltaWh : deltaWh) * 4.0;
+                if (realizedW <= 0.0) continue;   // wrong direction: not a throttle sample
+
+                double ratio = Math.Min(realizedW / Math.Abs(requestedW), 1.0);
 
                 int low = (int)Math.Floor(temperature / BucketWidthC) * BucketWidthC;
                 if (!buckets.TryGetValue(low, out var bucket))
@@ -721,7 +735,8 @@ namespace SessyController.Services
 
             var capability = capacity <= 0.0 || nameplateW <= 0.0
                 ? ChargeCapability.None
-                : FitChargeCapability(await CollectSustainedChargeSamplesAsync(now, capacity, nameplateW).ConfigureAwait(false));
+                : FitChargeCapabilityWithTemperature(
+                    await CollectSustainedChargeSamplesWithTemperatureAsync(now, capacity, nameplateW).ConfigureAwait(false));
 
             _cachedChargeCapability = capability;
             _cachedChargeCapabilityAt = now;
@@ -739,6 +754,34 @@ namespace SessyController.Services
         /// hardware whatever the estimate was.
         /// </summary>
         private async Task<List<(double Soc, double PowerW)>> CollectSustainedChargeSamplesAsync(
+            DateTime now, double capacity, double nameplateW)
+            => (await CollectSustainedChargeSamplesTimedAsync(now, capacity, nameplateW).ConfigureAwait(false))
+                .Select(x => (x.Soc, x.PowerW))
+                .ToList();
+
+        /// <summary>The sustained charge samples with the outside temperature of their quarter (null when unknown).</summary>
+        private async Task<List<(double Soc, double PowerW, double? TemperatureC)>> CollectSustainedChargeSamplesWithTemperatureAsync(
+            DateTime now, double capacity, double nameplateW)
+        {
+            var timed = await CollectSustainedChargeSamplesTimedAsync(now, capacity, nameplateW).ConfigureAwait(false);
+            var from = now.AddDays(-ChargeCapabilityDays);
+
+            var consumptions = await _consumptionDataService.GetList(async set =>
+                await Task.FromResult(set
+                    .Where(c => c.Time >= from && c.Time <= now)
+                    .ToList()));
+
+            var tempByTime = consumptions
+                .Where(c => c.Temperature > -50.0) // drop the -999 sentinel
+                .GroupBy(c => c.Time)
+                .ToDictionary(g => g.Key, g => g.First().Temperature);
+
+            return timed
+                .Select(x => (x.Soc, x.PowerW, tempByTime.TryGetValue(x.Time, out var t) ? (double?)t : null))
+                .ToList();
+        }
+
+        private async Task<List<(DateTime Time, double Soc, double PowerW)>> CollectSustainedChargeSamplesTimedAsync(
             DateTime now, double capacity, double nameplateW)
         {
             var from = now.AddDays(-ChargeCapabilityDays);
@@ -758,7 +801,7 @@ namespace SessyController.Services
             var byTime = measurements.GroupBy(m => m.Time).ToDictionary(g => g.Key, g => g.First());
             var requestByTime = plans.GroupBy(p => p.Time).ToDictionary(g => g.Key, g => g.First().PlannedUnthrottledPowerW);
 
-            var samples = new List<(double, double)>();
+            var samples = new List<(DateTime, double, double)>();
 
             foreach (var m in byTime.Values)
             {
@@ -777,10 +820,67 @@ namespace SessyController.Services
                 double socFraction = prev.BatteryStateOfChargeWh / capacity;
                 if (socFraction < 0.0 || socFraction > 1.0) continue;
 
-                samples.Add((socFraction, gainWh * 4.0));   // Wh per quarter → W
+                samples.Add((m.Time, socFraction, gainWh * 4.0));   // Wh per quarter → W
             }
 
             return samples;
+        }
+
+        /// <summary>Samples with a temperature needed before a slope is fitted.</summary>
+        private const int MinTemperatureSlopeSamples = 30;
+
+        /// <summary>Minimum within-bin temperature spread (°C, standard deviation) for a meaningful slope.</summary>
+        private const double MinTemperatureSpreadC = 1.0;
+
+        /// <summary>
+        /// <see cref="FitChargeCapability"/> plus a temperature correction: per bin the median
+        /// temperature of its samples, and one slope pooled over all bins (within-bin OLS, so the
+        /// SOC effect cannot leak into it). Too few samples or too little spread → no slope. Pure for tests.
+        /// </summary>
+        internal static ChargeCapability FitChargeCapabilityWithTemperature(
+            IReadOnlyList<(double Soc, double PowerW, double? TemperatureC)> samples)
+        {
+            var baseFit = FitChargeCapability(samples.Select(x => (x.Soc, x.PowerW)).ToList());
+            if (baseFit.Samples == 0) return baseFit;
+
+            int BinOf(double soc) => Math.Min((int)(Math.Max(0.0, soc) * ChargeCapabilityBins), ChargeCapabilityBins - 1);
+
+            // Only samples in bins the base fit uses, with a known temperature.
+            var withTemp = samples
+                .Where(x => x.PowerW > 0.0 && x.TemperatureC.HasValue && baseFit.BinPowerW[BinOf(x.Soc)] > 0.0)
+                .Select(x => (Bin: BinOf(x.Soc), x.PowerW, T: x.TemperatureC!.Value))
+                .ToList();
+
+            if (withTemp.Count < MinTemperatureSlopeSamples) return baseFit;
+
+            var binTemps = new double[ChargeCapabilityBins];
+            Array.Fill(binTemps, double.NaN);
+
+            double sxy = 0.0, sxx = 0.0;
+
+            foreach (var group in withTemp.GroupBy(x => x.Bin))
+            {
+                binTemps[group.Key] = Median(group.Select(x => x.T).ToList());
+
+                double meanT = group.Average(x => x.T);
+                double meanW = group.Average(x => x.PowerW);
+
+                foreach (var x in group)
+                {
+                    sxy += (x.T - meanT) * (x.PowerW - meanW);
+                    sxx += (x.T - meanT) * (x.T - meanT);
+                }
+            }
+
+            if (sxx / withTemp.Count < MinTemperatureSpreadC * MinTemperatureSpreadC) return baseFit;
+
+            return baseFit with
+            {
+                BinTemperatureC = binTemps,
+                TemperatureSlopeWPerC = sxy / sxx,
+                MinTemperatureC = withTemp.Min(x => x.T),
+                MaxTemperatureC = withTemp.Max(x => x.T)
+            };
         }
 
         /// <summary>Median per SOC bin; thin bins stay 0 so the planner falls back there. Pure for tests.</summary>
@@ -1168,7 +1268,7 @@ namespace SessyController.Services
             if (bucket == null) return false;
 
             int samples = discharge ? bucket.DischargeSamples : bucket.ChargeSamples;
-            if (samples <= 0) return false;
+            if (samples < MinSamplesPerBucket) return false;
 
             ratio = discharge ? bucket.DischargeRatio : bucket.ChargeRatio;
             return ratio > 0.0;
@@ -1179,6 +1279,8 @@ namespace SessyController.Services
             int low = (int)Math.Floor(temperature / BucketWidthC) * BucketWidthC;
             var bucket = buckets.FirstOrDefault(b => b.TemperatureLow == low);
             if (bucket == null) return 1.0;
+            int samples = discharge ? bucket.DischargeSamples : bucket.ChargeSamples;
+            if (samples < MinSamplesPerBucket) return 1.0;
             return discharge ? bucket.DischargeRatio : bucket.ChargeRatio;
         }
 
