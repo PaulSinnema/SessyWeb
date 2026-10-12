@@ -11,6 +11,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.166] — 2026-10-12
+
+### Changed
+- **Financial forecast: *same usage* column removed.** It priced last year's grid flows unchanged at next
+  year's tariffs, which says little once the planner trades differently. The tab now compares the last
+  12 months with the planner replay; the difference column stays empty until the replay is ready.
+
 ## [v1.0.165] — 2026-10-12
 
 ### Added

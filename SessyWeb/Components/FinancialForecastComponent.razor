@@ -14,7 +14,7 @@
     {
         <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" class="rz-mt-2" />
     }
-    else if (_lastYear == null || _sameUsage == null)
+    else if (_lastYear == null || _nextYear == null)
     {
         <RadzenText TextStyle="TextStyle.Body1" class="rz-mt-2">
             Not enough data: needs meter readings for the last 12 months and a Taxes row valid next year.
@@ -25,11 +25,9 @@
         <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-1">
             All amounts incl. VAT, at the market prices of the last 12 full months and the tariffs from the Taxes page.
             <b>Last 12 months</b>: measured grid import and export at the tariffs that applied.
-            <b>Same usage</b>: those flows at the tariffs valid on 1 January @_sameUsage.From.Year
-            (netting @(_sameUsage.Netting ? "on" : "off")) — an upper bound, because the planner adapts.
-            <b>Planner replay</b>: the planner replans that year day by day with next year's tariffs, from the
-            measured house load and solar; this is what to expect. It runs once a day in the background
-            (a few minutes); the difference column uses it when available.
+            <b>Planner replay</b>: the planner replans that year day by day at the tariffs valid on 1 January
+            @_nextYear.From.Year (netting @(_nextYear.Netting ? "on" : "off")), from the measured house load and
+            solar; this is what to expect. It runs once a day in the background (a few minutes).
         </RadzenText>
 
         <div style="width: 100%; overflow-x: auto;" class="rz-mt-2">
@@ -38,7 +36,6 @@
                     <tr>
                         <th style="text-align: left;"></th>
                         <th style="text-align: right;">@_lastYear.Label</th>
-                        <th style="text-align: right;">@_sameUsage.Label</th>
                         <th style="text-align: right;">@ReplayHeader</th>
                         <th style="text-align: right;">Difference</th>
                     </tr>
@@ -49,7 +46,6 @@
                         <tr style="@(line.Bold ? "font-weight: bold;" : "")">
                             <td>@line.Label</td>
                             <td style="text-align: right;">@Format(line.LastYear, line.IsEuro)</td>
-                            <td style="text-align: right;">@Format(line.SameUsage, line.IsEuro)</td>
                             <td style="text-align: right;">@Format(line.Replay, line.IsEuro)</td>
                             <td style="text-align: right;">@FormatDifference(line)</td>
                         </tr>

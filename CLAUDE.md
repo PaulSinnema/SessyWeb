@@ -351,3 +351,6 @@ selecteert dat juist de stille takken — zoek daar eerst.
     voor de piek bewaard wordt; bij hoge inkoop (bv. 17:45–18:30) is bijspringen mogelijk iets beter. Nu laten.
 23. **Zelf testen (Paul): "Setpoint per battery"** tijdens ontladen, om per batterij de levering te zien.
 24. **Na uitrol v1.0.160:** controleren of de laadsessie de geplande SOC haalt (laadstaart-fix).
+25. **Toekomstige uitbreiding: opbrengst van handelen meten.** Tweede planner-replay in
+    `FinancialForecastSimulationService` met strategie SelfConsumption (geen batterij-export) naast de huidige
+    strategie; het verschil is wat handelen zonder salderen nog oplevert. Kost ~2× rekentijd (~12 min/dag).
