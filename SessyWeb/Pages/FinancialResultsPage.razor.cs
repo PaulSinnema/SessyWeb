@@ -31,6 +31,9 @@ namespace SessyWeb.Pages
 
         public decimal TotalCost { get; set; } = 0;
 
+        // Grid import over the selected period (kWh).
+        public double TotalConsumedKWh { get; set; } = 0;
+
 
         public bool ExpandAllGroups { get; set; } = true;
 
@@ -54,6 +57,11 @@ namespace SessyWeb.Pages
         public decimal GetMonthlyTotalCost(FinancialMonthResult monthResult)
         {
             return monthResult.FinancialResultsList!.Sum(fr => fr.Cost);
+        }
+
+        public double GetMonthlyConsumedKWh(FinancialMonthResult monthResult)
+        {
+            return monthResult.FinancialResultsList!.Sum(fr => fr.Consumed) / 1000.0;
         }
 
         public decimal GetTotalCost(List<FinancialMonthResult> list)
@@ -145,6 +153,7 @@ namespace SessyWeb.Pages
                 }
 
                 TotalCost = query.Sum(fr => fr.TotalCost);
+                TotalConsumedKWh = query.ToList().Sum(GetMonthlyConsumedKWh);
                 Count = query.Count();
 
                 if (args.Skip > Count)

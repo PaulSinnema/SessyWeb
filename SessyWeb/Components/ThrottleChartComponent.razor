@@ -17,6 +17,16 @@
         <b>Discharge</b>: @_dischargeSource. Dashed lines are nameplate.
     </RadzenText>
 
+    @if (_chargeHasSlope || _dischargeHasSlope)
+    {
+        <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-1">
+            🌡️ Warm batteries cannot shed their heat and deliver less. <b>Charge</b>: @_chargeTemperatureText.
+            <b>Discharge</b>: @_dischargeTemperatureText. Dotted lines show power at the coolest and warmest
+            measured temperature; outside that range the nearest edge is used, so a dotted line can coincide
+            with the current one.
+        </RadzenText>
+    }
+
     @if (_loading)
     {
         <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" class="rz-mt-2" />
@@ -46,6 +56,40 @@
                                   StrokeWidth="2">
                     <RadzenMarkers MarkerType="MarkerType.Circle" Size="5" />
                 </RadzenLineSeries>
+                @if (_chargeHasSlope)
+                {
+                    <RadzenLineSeries Data="@_points"
+                                      CategoryProperty="@nameof(PowerPoint.SocPct)"
+                                      ValueProperty="@nameof(PowerPoint.ChargeColdW)"
+                                      Title="@($"Charge at {_chargeColdC:F0} °C")"
+                                      Stroke="var(--sessy-charge-line)"
+                                      StrokeWidth="1"
+                                      LineType="LineType.Dotted" />
+                    <RadzenLineSeries Data="@_points"
+                                      CategoryProperty="@nameof(PowerPoint.SocPct)"
+                                      ValueProperty="@nameof(PowerPoint.ChargeWarmW)"
+                                      Title="@($"Charge at {_chargeWarmC:F0} °C")"
+                                      Stroke="var(--sessy-charge-line)"
+                                      StrokeWidth="1"
+                                      LineType="LineType.Dotted" />
+                }
+                @if (_dischargeHasSlope)
+                {
+                    <RadzenLineSeries Data="@_points"
+                                      CategoryProperty="@nameof(PowerPoint.SocPct)"
+                                      ValueProperty="@nameof(PowerPoint.DischargeColdW)"
+                                      Title="@($"Discharge at {_dischargeColdC:F0} °C")"
+                                      Stroke="var(--sessy-discharge-line)"
+                                      StrokeWidth="1"
+                                      LineType="LineType.Dotted" />
+                    <RadzenLineSeries Data="@_points"
+                                      CategoryProperty="@nameof(PowerPoint.SocPct)"
+                                      ValueProperty="@nameof(PowerPoint.DischargeWarmW)"
+                                      Title="@($"Discharge at {_dischargeWarmC:F0} °C")"
+                                      Stroke="var(--sessy-discharge-line)"
+                                      StrokeWidth="1"
+                                      LineType="LineType.Dotted" />
+                }
                 <RadzenLineSeries Data="@_points"
                                   CategoryProperty="@nameof(PowerPoint.SocPct)"
                                   ValueProperty="@nameof(PowerPoint.ChargeNameplateW)"
@@ -62,43 +106,6 @@
                                   LineType="LineType.Dashed" />
                 <RadzenCategoryAxis FormatString="{0}%">
                     <RadzenAxisTitle Text="State of charge" />
-                </RadzenCategoryAxis>
-                <RadzenValueAxis Min="0" FormatString="{0:F0} W">
-                    <RadzenGridLines Visible="true" />
-                    <RadzenAxisTitle Text="Power" />
-                </RadzenValueAxis>
-                <RadzenLegend Position="LegendPosition.Bottom" />
-            </RadzenChart>
-        </div>
-
-        <RadzenText TextStyle="TextStyle.H6" class="rz-mt-4">🌡️ Influence of outside temperature (at 50% SOC)</RadzenText>
-        <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-1">
-            Warm batteries cannot shed their heat and deliver less. <b>Charge</b>: @_chargeTemperatureText.
-            <b>Discharge</b>: @_dischargeTemperatureText. Outside the measured range the nearest edge is
-            used (flat parts of the lines), because that behaviour has not been measured yet.
-        </RadzenText>
-
-        <div style="width: 100%; overflow-x: auto;">
-            <RadzenChart Style="height: 280px; min-width: 600px; width: 100%;"
-                         MarginTop="20" MarginLeft="70" MarginRight="40" MarginBottom="60">
-                <RadzenLineSeries Data="@_temperaturePoints"
-                                  CategoryProperty="@nameof(TemperaturePoint.TemperatureC)"
-                                  ValueProperty="@nameof(TemperaturePoint.ChargeW)"
-                                  Title="Charge"
-                                  Stroke="var(--sessy-charge-line)"
-                                  StrokeWidth="2">
-                    <RadzenMarkers MarkerType="MarkerType.Circle" Size="5" />
-                </RadzenLineSeries>
-                <RadzenLineSeries Data="@_temperaturePoints"
-                                  CategoryProperty="@nameof(TemperaturePoint.TemperatureC)"
-                                  ValueProperty="@nameof(TemperaturePoint.DischargeW)"
-                                  Title="Discharge"
-                                  Stroke="var(--sessy-discharge-line)"
-                                  StrokeWidth="2">
-                    <RadzenMarkers MarkerType="MarkerType.Circle" Size="5" />
-                </RadzenLineSeries>
-                <RadzenCategoryAxis FormatString="{0:0.#} °C">
-                    <RadzenAxisTitle Text="Outside temperature" />
                 </RadzenCategoryAxis>
                 <RadzenValueAxis Min="0" FormatString="{0:F0} W">
                     <RadzenGridLines Visible="true" />

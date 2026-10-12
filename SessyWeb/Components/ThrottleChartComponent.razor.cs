@@ -6,7 +6,8 @@ using SessyController.Services.Optimization;
 namespace SessyWeb.Components
 {
     /// <summary>
-    /// Battery power vs state of charge and vs outside temperature: the limits the planner uses,
+    /// Battery power vs state of charge, now and at the coolest and warmest measured temperature:
+    /// the limits the planner uses,
     /// computed by the same PowerLimits functions.
     /// </summary>
     public partial class ThrottleChartComponent : BaseComponent
@@ -27,31 +28,27 @@ namespace SessyWeb.Components
         {
             public int SocPct { get; init; }
             public double ChargeW { get; init; }
+            public double ChargeColdW { get; init; }
+            public double ChargeWarmW { get; init; }
             public double DischargeW { get; init; }
+            public double DischargeColdW { get; init; }
+            public double DischargeWarmW { get; init; }
             public double ChargeNameplateW { get; init; }
             public double DischargeNameplateW { get; init; }
         }
 
-        private sealed class TemperaturePoint
-        {
-            public double TemperatureC { get; init; }
-            public double ChargeW { get; init; }
-            public double DischargeW { get; init; }
-        }
-
         private const double QuarterHours = 0.25;
 
-        // SOC at which the temperature chart is read: above the discharge knee, inside the charge data.
-        private const double TemperatureChartSoc = 0.5;
-
         private List<PowerPoint> _points = new();
-        private List<TemperaturePoint> _temperaturePoints = new();
         private bool _loading = true;
         private double _temperatureC;
         private string _chargeSource = string.Empty;
         private string _dischargeSource = string.Empty;
         private string _chargeTemperatureText = string.Empty;
         private string _dischargeTemperatureText = string.Empty;
+        private bool _chargeHasSlope;
+        private bool _dischargeHasSlope;
+        private double _chargeColdC, _chargeWarmC, _dischargeColdC, _dischargeWarmC;
 
         protected override async Task OnInitializedAsync()
         {
@@ -97,25 +94,27 @@ namespace SessyWeb.Components
 
                 _temperatureC = WeatherService.GetTemperature(_timeZoneService.Now) ?? ChargeTaper.RefTemperatureC;
 
+                // Thin lines at the coolest and warmest temperature each side was measured at.
+                _chargeHasSlope = chargeCapability.HasTemperatureSlope;
+                _dischargeHasSlope = dischargeCapability.HasTemperatureSlope;
+                _chargeColdC = _chargeHasSlope ? chargeCapability.MinTemperatureC : _temperatureC;
+                _chargeWarmC = _chargeHasSlope ? chargeCapability.MaxTemperatureC : _temperatureC;
+                _dischargeColdC = _dischargeHasSlope ? dischargeCapability.MinTemperatureC : _temperatureC;
+                _dischargeWarmC = _dischargeHasSlope ? dischargeCapability.MaxTemperatureC : _temperatureC;
+
                 _points = Enumerable.Range(0, 21)
                     .Select(i => i * 5)
                     .Select(pct => new PowerPoint
                     {
                         SocPct = pct,
                         ChargeW = ChargeW(pct / 100.0, _temperatureC),
+                        ChargeColdW = ChargeW(pct / 100.0, _chargeColdC),
+                        ChargeWarmW = ChargeW(pct / 100.0, _chargeWarmC),
                         DischargeW = DischargeW(pct / 100.0, _temperatureC),
+                        DischargeColdW = DischargeW(pct / 100.0, _dischargeColdC),
+                        DischargeWarmW = DischargeW(pct / 100.0, _dischargeWarmC),
                         ChargeNameplateW = chargeNameplateW,
                         DischargeNameplateW = dischargeNameplateW
-                    })
-                    .ToList();
-
-                _temperaturePoints = Enumerable.Range(0, 15)
-                    .Select(i => i * 2.5)
-                    .Select(t => new TemperaturePoint
-                    {
-                        TemperatureC = t,
-                        ChargeW = ChargeW(TemperatureChartSoc, t),
-                        DischargeW = DischargeW(TemperatureChartSoc, t)
                     })
                     .ToList();
 

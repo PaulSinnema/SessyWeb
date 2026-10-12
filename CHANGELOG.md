@@ -11,14 +11,37 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.165] — 2026-10-12
+
+### Added
+- **Financial results: consumed kWh.** The page shows the energy taken from the grid (kWh) next to
+  the cost, per month and as a total for the selected period.
+- **Statistics: Financial forecast tab.** The Statistics page now has tabs: *Overview* (everything that
+  was there) and *Financial forecast*, which prices the last 12 months of measured grid import and export
+  at next year's tariffs from the Taxes page (e.g. the end of netting) next to what they cost at the
+  tariffs that applied, line by line.
+- **Financial forecast: planner replay.** A third column shows what next year is expected to cost when
+  the planner itself replans the last 12 months day by day at next year's tariffs, from the measured
+  house load, solar and market prices — so it accounts for the battery trading less once netting ends.
+  It runs in the background once a day (and right away when no result exists yet, which takes a few
+  minutes); the tab shows the stored result instantly.
+
+### Fixed
+- **Default tariffs for new installations.** The Taxes rows a new database starts with had a positive
+  return compensation (it must be negative), a capacity transport fee of €289.08 that counted the grid
+  operator costs twice (now €69.48/year, Frank Energie's fixed supply fee), and 2027 without energy tax
+  and tax reduction (now the 2026 values until the official ones are known); the gas columns were empty.
+  Existing databases are not changed — check your own Taxes page. The defaults are the author's Frank
+  Energie contract, excl. VAT; the README now says so.
+
 ## [v1.0.164] — 2026-10-09
 
 ### Changed
 - **Discharge power follows the outside temperature too.** Measured: warmer means less discharge power
   (about 45 W per °C above the low-charge knee; the earlier finding of "no effect" looked at all quarters,
   where the knee hides it). The planner now corrects the discharge plateau to the forecast temperature of
-  each quarter, within the range seen so far. *Battery power vs state of charge* on Statistics gained a
-  second panel with charge and discharge power against outside temperature.
+  each quarter, within the range seen so far. *Battery power vs state of charge* on Statistics now shows
+  charge and discharge power at the coolest and warmest measured temperature as dotted lines.
 
 ## [v1.0.163] — 2026-10-09
 

@@ -126,6 +126,10 @@ builder.Services.AddScoped<TcpClientProvider>();
 builder.Services.AddScoped<SessyStatusHistoryService>();
 builder.Services.AddScoped<DbHelper>();
 builder.Services.AddScoped<FinancialResultsService>();
+// Next year's electricity bill from last year's usage (Statistics, Financial forecast tab).
+builder.Services.AddScoped<FinancialForecastService>();
+// Daily planner replay of the last 12 months at next year's tariffs (Financial forecast tab).
+builder.Services.AddSingleton<FinancialForecastSimulationService>();
 builder.Services.AddSingleton<ConsumptionDataService>();
 builder.Services.AddSingleton<InvestmentDataService>();
 builder.Services.AddSingleton<InvestmentGroupDataService>();
@@ -232,6 +236,7 @@ builder.Services.AddHostedService(provider => provider.GetRequiredService<SolarI
 builder.Services.AddHostedService(provider => provider.GetRequiredService<ConsumptionMonitorService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<DatabaseBackupService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<InverterCurtailmentService>());
+builder.Services.AddHostedService(provider => provider.GetRequiredService<FinancialForecastSimulationService>());
 
 // Reports thread-pool starvation — the mechanism behind a UI that stalls on every page at once.
 builder.Services.AddSingleton<ThreadPoolMonitorService>();

@@ -39,6 +39,7 @@
                         </Template>
                         <GroupFooterTemplate>
                             <b> @String.Format(GetFormatProvider(), "Total monthly cost: {0:C}", GetMonthlyTotalCost(@MonthResult.Data!.Items!.AsQueryable().FirstOrDefault()))</b>
+                            <b> @String.Format(GetFormatProvider(), " — consumed: {0:N1} kWh", GetMonthlyConsumedKWh(@MonthResult.Data!.Items!.AsQueryable().FirstOrDefault()))</b>
                         </GroupFooterTemplate>
                     </RadzenDataGridColumn>
                 </Columns>
@@ -50,6 +51,7 @@
         <RadzenCard Style="height: 100%;margin: 0px; padding: 0px;">
             <RadzenText Style="margin: 0px; padding: 0px;">
                 <b> @String.Format(GetFormatProvider(), "Total cost: {0:C}", TotalCost)</b>
+                <b> @String.Format(GetFormatProvider(), " — total consumed: {0:N1} kWh", TotalConsumedKWh)</b>
             </RadzenText>
         </RadzenCard>
     </RadzenFooter>
