@@ -763,6 +763,20 @@ namespace SessyController.Services
                     ActionLabel = "Go to Taxes"
                 });
             }
+
+            // Return delivery costs are entered positive; a negative value is the old convention.
+            if (taxes.ReturnDeliveryCompensation < 0.0)
+            {
+                checks.Add(new ConfigurationCheck
+                {
+                    Severity = CheckSeverity.Warning,
+                    Title = "Return delivery costs are negative",
+                    Description = $"Return delivery costs are € {taxes.ReturnDeliveryCompensation:F5}/kWh. Are you sure this should be negative? " +
+                                  "Enter them as a positive cost (what the supplier charges per kWh you return). " +
+                                  "The planner always deducts them from the selling price, whatever the sign.",
+                    ActionLabel = "Go to Taxes"
+                });
+            }
         }
 
         private async Task CheckGasPricesHistory(List<ConfigurationCheck> checks)

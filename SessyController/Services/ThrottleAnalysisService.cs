@@ -365,7 +365,9 @@ namespace SessyController.Services
             if (capability.Samples > 0)
             {
                 var sustained = await CollectSustainedDischargeSamplesTimedAsync(now, capacity, nameplateW).ConfigureAwait(false);
-                capability = WithSustainedPlateau(capability, sustained.Select(x => (x.Soc, x.PowerW)).ToList());
+                var sustainedPairs = sustained.Select(x => (x.Soc, x.PowerW)).ToList();
+                capability = WithSustainedPlateau(capability, sustainedPairs);
+                capability = WithMeasuredKnee(capability, sustainedPairs);
 
                 var temps = await LoadTemperatureByTimeAsync(now.AddDays(-ChargeCapabilityDays), now).ConfigureAwait(false);
                 capability = WithDischargeTemperature(capability, sustained
@@ -505,6 +507,41 @@ namespace SessyController.Services
             double kneeSoc = SustainedKnee(sustained, plateau) ?? capability.KneeSoc;
 
             return capability with { PlateauW = plateau, KneeSoc = kneeSoc };
+        }
+
+        /// <summary>
+        /// Knee only where sustained full-request quarters show the fall-off; no such evidence → no knee.
+        /// The envelope knee is fitted on every discharge quarter, including those the knee itself capped,
+        /// so it confirmed itself (15-10, one 5.4 kWh Sessy: knee 60%, 568 → 6 W tails). Pure for tests.
+        /// </summary>
+        internal static DischargeCapability WithMeasuredKnee(
+            DischargeCapability capability, IReadOnlyList<(double Soc, double PowerW)> sustained)
+        {
+            if (capability.Samples == 0 || capability.PlateauW <= 0.0) return capability;
+
+            return capability with { KneeSoc = MeasuredKnee(sustained, capability.PlateauW) };
+        }
+
+        /// <summary>Just above the low-SOC run of 10% bins whose sustained median falls short of the plateau; 0 when the lowest covered bin reaches it.</summary>
+        private static double MeasuredKnee(IReadOnlyList<(double Soc, double PowerW)>? sustained, double plateau)
+        {
+            if (sustained == null) return 0.0;
+
+            var medians = sustained
+                .Where(s => s.PowerW > 0.0)
+                .GroupBy(s => Math.Min((int)(Math.Max(0.0, s.Soc) * 10), 9))
+                .Where(g => g.Count() >= MinSustainedKneeBinSamples)
+                .ToDictionary(g => g.Key, g => Median(g.Select(s => s.PowerW).ToList()));
+
+            // Bottom-up, so a noisy high bin cannot push the knee up to full.
+            double knee = 0.0;
+            foreach (var (bin, median) in medians.OrderBy(m => m.Key))
+            {
+                if (median >= SustainedKneeRatio * plateau) break;
+                knee = (bin + 1) / 10.0;
+            }
+
+            return knee;
         }
 
         /// <summary>Bins below this many sustained quarters say nothing about the knee.</summary>

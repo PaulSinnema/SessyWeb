@@ -11,6 +11,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.167] — 2026-10-15
+
+### Changed
+- **Return delivery costs are entered as a positive number.** The Taxes column is now *Return delivery
+  costs (positive)*; the planner and the statistics always deduct them from the selling price, so an
+  existing negative value keeps working. Tips & Checks warns when the value is negative.
+
+### Fixed
+- **Discharge power at low state of charge.** The modelled fall-off below a "knee" was learned from
+  quarters the model itself had already throttled, so it confirmed itself: on a single 5.4 kWh Sessy the
+  knee sat at 60% and every discharge faded 568 → 6 W. The knee now only follows quarters that asked
+  for full power; without that evidence the battery is planned at its full plateau down to empty.
+- **Home energy needs label.** The Settings fieldset said *per month (kWh)*, the planner reads *Wh per
+  day*: 300 entered for October became a 12 W house. The label and SETTINGS.md now say Wh per day —
+  check your values.
+
 ## [v1.0.166] — 2026-10-12
 
 ### Changed

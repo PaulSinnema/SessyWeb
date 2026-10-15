@@ -364,7 +364,7 @@ namespace SessyController.Services
                 list.Add(new("Taxes", "Energy tax", $"€ {taxes.EnergyTax:F5}/kWh"));
                 list.Add(new("Taxes", "VAT", $"{taxes.ValueAddedTax:F0}%"));
                 list.Add(new("Taxes", "Purchase compensation", $"€ {taxes.PurchaseCompensation:F5}/kWh"));
-                list.Add(new("Taxes", "Return delivery compensation", $"€ {taxes.ReturnDeliveryCompensation:F5}/kWh"));
+                list.Add(new("Taxes", "Return delivery costs", $"€ {taxes.ReturnDeliveryCompensation:F5}/kWh"));
             }
 
             return list;

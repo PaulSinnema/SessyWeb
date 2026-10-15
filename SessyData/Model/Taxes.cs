@@ -23,9 +23,14 @@ namespace SessyData.Model
         /// </summary>
         public double PurchaseCompensation { get; set; }
         /// <summary>
-        /// What I pay the supplier for delivery per kWh.
+        /// What I pay the supplier for delivery per kWh, entered as a positive cost.
         /// </summary>
         public double ReturnDeliveryCompensation { get; set; }
+        /// <summary>
+        /// Return delivery costs as applied to the selling price: always negative, whatever sign was entered.
+        /// </summary>
+        [NotMapped]
+        public double SignedReturnDeliveryCompensation => -Math.Abs(ReturnDeliveryCompensation);
         /// <summary>
         /// Yearly tax reduction from the government.
         /// </summary>

@@ -14,7 +14,7 @@ namespace SessyTests.Services
             EnergyTax = 0.10,
             ValueAddedTax = 21.0,
             PurchaseCompensation = 0.02,
-            ReturnDeliveryCompensation = -0.02,
+            ReturnDeliveryCompensation = 0.02,
             TaxReduction = 365.0,
             NetManagementCost = 365.0,
             FixedTransportFee = 0.0,
@@ -41,6 +41,16 @@ namespace SessyTests.Services
             Assert.Equal(6.0 * 0.10 * 1.21, f.EnergyTaxEur, 6);
             Assert.Equal(1.0 * 1.21, f.FixedCostsEur, 6);
             Assert.Equal(1.0 * 1.21, f.TaxReductionEur, 6);
+        }
+
+        [Fact]
+        public void ReturnDeliveryCosts_AreACostWhateverTheSign()
+        {
+            var positive = Run(netting: true);
+            var negative = FinancialForecastService.Calculate("t", new DateTime(2026, 1, 1), new DateTime(2026, 1, 2), Flows,
+                _ => { var t = Tariffs(true); t.ReturnDeliveryCompensation = -0.02; return t; });
+
+            Assert.Equal(positive.ExportRevenueEur, negative.ExportRevenueEur, 6);
         }
 
         [Fact]

@@ -332,7 +332,7 @@
                             </RadzenFieldset>
 
                             @* ── Energy needs per month ───────────────────────── *@
-                            <RadzenFieldset Text="Estimated home energy needs per month (kWh)">
+                            <RadzenFieldset Text="Estimated home energy needs per day (Wh), per month">
                                 <RadzenRow Gap="0.5rem">
                                     @for (int m = 0; m < 12; m++)
                                     {
@@ -662,7 +662,7 @@
                                     <RadzenNumeric @bind-Value="t.PurchaseCompensation" Style="width:100%" />
                                 </EditTemplate>
                             </RadzenDataGridColumn>
-                            <RadzenDataGridColumn Property="@nameof(Taxes.ReturnDeliveryCompensation)" Title="Return delivery compensation">
+                            <RadzenDataGridColumn Property="@nameof(Taxes.ReturnDeliveryCompensation)" Title="Return delivery costs (positive)">
                                 <EditTemplate Context="t">
                                     <RadzenNumeric @bind-Value="t.ReturnDeliveryCompensation" Style="width:100%" />
                                 </EditTemplate>

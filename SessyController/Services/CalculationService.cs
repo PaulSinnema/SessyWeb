@@ -116,7 +116,7 @@ namespace SessyController.Services
 
                 if (epexPrice != null && taxes != null && epexPrice.Price.HasValue)
                 {
-                    var compensation = buying ? taxes.PurchaseCompensation : taxes.ReturnDeliveryCompensation;
+                    var compensation = buying ? taxes.PurchaseCompensation : taxes.SignedReturnDeliveryCompensation;
                     var valueAddedTaxFactor = taxes.ValueAddedTax / 100 + 1;
 
                     var overheadCost = 0.0;
@@ -184,7 +184,7 @@ namespace SessyController.Services
                         marketPrice: epexPrice.Price.Value,
                         overhead: 0.0,
                         energyTax: taxes.EnergyTax,
-                        compensation: taxes.ReturnDeliveryCompensation,
+                        compensation: taxes.SignedReturnDeliveryCompensation,
                         vatFactor: vatFactor,
                         buying: false,
                         netting: taxes.Netting);

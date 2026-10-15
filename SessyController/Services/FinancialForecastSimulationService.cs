@@ -190,7 +190,7 @@ namespace SessyController.Services
                     double netLoadWh = load.Watts * QuarterHours - solarKWh.GetValueOrDefault(t) * 1000.0;
 
                     double buy = EnergyPriceCalculator.Calculate(p.Value, 0.0, tx.EnergyTax, tx.PurchaseCompensation, vat, buying: true, netting: tx.Netting);
-                    double sell = EnergyPriceCalculator.Calculate(p.Value, 0.0, tx.EnergyTax, tx.ReturnDeliveryCompensation, vat, buying: false, netting: tx.Netting);
+                    double sell = EnergyPriceCalculator.Calculate(p.Value, 0.0, tx.EnergyTax, tx.SignedReturnDeliveryCompensation, vat, buying: false, netting: tx.Netting);
 
                     points.Add(new PricePoint(t, buy, sell, netLoadWh, netLoadWh < 0.0 ? -netLoadWh : 0.0,
                         MaxChargeKW: baseChargeKW < maxChargeKW ? baseChargeKW : null,

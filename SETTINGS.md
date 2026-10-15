@@ -64,9 +64,10 @@ A **Reset to defaults** button restores this whole block. See [PLANNER.md](PLANN
 | **Export directory** | `/SessyController/Data/exports` | Absolute path solve-input files are written to. Must exist; in Docker it must be inside a mounted volume, otherwise files are lost when the container restarts. |
 | **Developer options** | Off | Shows developer-only tooling. Off hides the **Plan dump** tab and the **Planner analyse** sidebar page; on reveals both (Plan dump with the past solve-input reconstruction; Planner analyse with the per-quarter plan analysis). |
 
-### Estimated home energy needs per month (kWh)
+### Estimated home energy needs per day (Wh), per month
 
-Twelve values, one per month — your household's expected monthly consumption. Used as the fallback
+Twelve values, one per month — your household's expected consumption **per day, in Wh** (e.g. 300 kWh
+in October ≈ 9700 Wh/day). Used as the fallback
 demand profile when live/weather-based consumption is unavailable, so the planner still has a
 sensible consumption forecast.
 
@@ -93,7 +94,8 @@ These tabs manage data or expose tools rather than plain settings:
 - **Investments** — the cost and, for the battery, the cycle life of each investment. Feeds the
   calculated cycle cost and the payback/ROI statistics.
 - **Taxes** — the tax and tariff components that turn a raw EPEX price into the all-in buy/sell price
-  the planner and statistics use.
+  the planner and statistics use. All amounts excl. VAT; *Return delivery costs* as a **positive**
+  number (the planner deducts them from the selling price). Tips & Checks warns when it is negative.
 - **Who's in control** — shows which controller is driving the batteries (SessyWeb, Charged, or the
   provider) and the handover state.
 - **Tips & Checks** — diagnostics: configuration problems, stale data, and planner sanity checks. A

@@ -111,13 +111,13 @@ namespace SessyController.Services
                 if (tx.Netting)
                 {
                     anyNetting = true;
-                    exportExcl += f.ExportKWh * (f.MarketPrice + tx.ReturnDeliveryCompensation);
+                    exportExcl += f.ExportKWh * (f.MarketPrice + tx.SignedReturnDeliveryCompensation);
                     netTaxBase += (f.ImportKWh - f.ExportKWh) * tx.EnergyTax;
                 }
                 else
                 {
                     // Export without netting: no tax, no VAT (see EnergyPriceCalculator).
-                    exportExcl += f.ExportKWh * (f.MarketPrice + tx.ReturnDeliveryCompensation) / vat;
+                    exportExcl += f.ExportKWh * (f.MarketPrice + tx.SignedReturnDeliveryCompensation) / vat;
                     importTaxNoNetting += f.ImportKWh * tx.EnergyTax;
                 }
             }

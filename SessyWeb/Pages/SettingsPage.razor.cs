@@ -568,13 +568,13 @@ namespace SessyWeb.Pages
                 {
                     new Taxes
                     {
-                        // Author's Frank Energie contract, excl. VAT; return compensation is negative.
+                        // Author's Frank Energie contract, excl. VAT; return delivery costs positive.
                         Time = new DateTime(2025, 1, 1, 0, 0, 0),
                         EnergyTax = 0.10154,
                         ValueAddedTax = 21.0,
                         TaxReduction = 524.95,
                         PurchaseCompensation = 0.01504,
-                        ReturnDeliveryCompensation = -0.0105,
+                        ReturnDeliveryCompensation = 0.0105,
                         NetManagementCost = 376.6435,
                         FixedTransportFee = 17.9945,
                         CapacityTransportFee = 69.48 // Frank Energie fixed supply fee
