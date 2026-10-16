@@ -44,13 +44,12 @@ namespace SessyTests.Services
         }
 
         [Fact]
-        public void ReturnDeliveryCosts_AreACostWhateverTheSign()
+        public void NegativeReturnDeliveryCosts_AreACompensation()
         {
-            var positive = Run(netting: true);
-            var negative = FinancialForecastService.Calculate("t", new DateTime(2026, 1, 1), new DateTime(2026, 1, 2), Flows,
+            var compensation = FinancialForecastService.Calculate("t", new DateTime(2026, 1, 1), new DateTime(2026, 1, 2), Flows,
                 _ => { var t = Tariffs(true); t.ReturnDeliveryCompensation = -0.02; return t; });
 
-            Assert.Equal(positive.ExportRevenueEur, negative.ExportRevenueEur, 6);
+            Assert.Equal(4.0 * 0.32 * 1.21, compensation.ExportRevenueEur, 6);
         }
 
         [Fact]

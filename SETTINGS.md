@@ -95,7 +95,8 @@ These tabs manage data or expose tools rather than plain settings:
   calculated cycle cost and the payback/ROI statistics.
 - **Taxes** — the tax and tariff components that turn a raw EPEX price into the all-in buy/sell price
   the planner and statistics use. All amounts excl. VAT; *Return delivery costs* as a **positive**
-  number (the planner deducts them from the selling price). Tips & Checks warns when it is negative.
+  number when the supplier deducts them, **negative** when it pays a compensation per kWh returned
+  (e.g. Zonneplan). Tips & Checks asks you to confirm a negative value.
 - **Who's in control** — shows which controller is driving the batteries (SessyWeb, Charged, or the
   provider) and the handover state.
 - **Tips & Checks** — diagnostics: configuration problems, stale data, and planner sanity checks. A

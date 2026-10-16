@@ -11,6 +11,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.168] — 2026-10-16
+
+### Fixed
+- **Return delivery compensation can be entered again.** v1.0.167 deducted the value whatever its sign,
+  so a supplier that pays per kWh returned (Zonneplan: € 0.02 incl. VAT) was booked as a cost. Positive is
+  a cost, negative a compensation; Tips & Checks asks you to confirm a negative value.
+
 ## [v1.0.167] — 2026-10-15
 
 ### Changed

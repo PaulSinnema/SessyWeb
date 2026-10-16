@@ -764,7 +764,7 @@ namespace SessyController.Services
                 });
             }
 
-            // Return delivery costs are entered positive; a negative value is the old convention.
+            // Return delivery costs are entered positive; negative means a compensation, which is rare.
             if (taxes.ReturnDeliveryCompensation < 0.0)
             {
                 checks.Add(new ConfigurationCheck
@@ -772,8 +772,8 @@ namespace SessyController.Services
                     Severity = CheckSeverity.Warning,
                     Title = "Return delivery costs are negative",
                     Description = $"Return delivery costs are € {taxes.ReturnDeliveryCompensation:F5}/kWh. Are you sure this should be negative? " +
-                                  "Enter them as a positive cost (what the supplier charges per kWh you return). " +
-                                  "The planner always deducts them from the selling price, whatever the sign.",
+                                  "A positive value is a cost the supplier deducts per kWh you return; a negative value is a compensation " +
+                                  "it pays on top (e.g. Zonneplan) and raises the selling price.",
                     ActionLabel = "Go to Taxes"
                 });
             }
