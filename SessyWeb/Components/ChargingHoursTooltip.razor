@@ -51,6 +51,8 @@
     <div class="sw-tt-sep"></div>
 
     <div class="sw-tt-grid">
+        @if (q?.HasActualPower ?? false)
+        {
         <span class="sw-tt-k">Actual power</span>
         <span class="sw-tt-v">
             @if (charging)
@@ -67,6 +69,8 @@
             }
         </span>
 
+        }
+
         @if (hasPlan)
         {
             <span class="sw-tt-k">Planned</span>
@@ -82,6 +86,21 @@
                 }
             </span>
 
+            @if ((q?.PlannedUnthrottledPowerW ?? 0) > 10)
+            {
+                <span class="sw-tt-k">Requested</span>
+                <span class="sw-tt-v">
+                    @if ((q?.PlannedChargePowerW ?? 0) > 10)
+                    {
+                        <span class="sessy-text-charge">@fmt(q?.PlannedUnthrottledPowerW, "0") W</span>
+                    }
+                    else if ((q?.PlannedDischargePowerW ?? 0) > 10)
+                    {
+                        <span class="sessy-text-discharge">@fmt(q?.PlannedUnthrottledPowerW, "0") W</span>
+                    }
+                </span>
+            }
+
             <span class="sw-tt-k">Planned SOC</span>
             <span class="sw-tt-v">@fmt(q?.PlannedChargeLeftWh, "0") Wh</span>
         }
@@ -90,6 +109,8 @@
            the batteries are actually going to do. *@
         @if (q?.HasChargedPlan ?? false)
         {
+            <span class="sw-tt-k sw-tt-caption">Charged = Sessy's own cloud strategy (the battery manufacturer)</span>
+
             <span class="sw-tt-k">Charged</span>
             <span class="sw-tt-v">
                 @if (q!.ChargedChargePowerW > 10)
@@ -164,6 +185,14 @@
     .sw-tt-v {
         text-align: right;
         font-variant-numeric: tabular-nums;
+    }
+
+    .sw-tt-caption {
+        grid-column: span 2;
+        opacity: .6;
+        font-size: 10px;
+        font-style: italic;
+        white-space: normal;
     }
 
     .sw-tt-sep {

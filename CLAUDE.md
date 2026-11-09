@@ -342,7 +342,9 @@ selecteert dat juist de stille takken — zoek daar eerst.
     spiegelt de planner. Bijwerken.
 17. **(Opgelost v1.0.152.)** **`SETTINGS.md` miste `ShiftDischargeEnabled`** ("Allow moving discharge between quarters",
     v1.0.148) — in strijd met de afspraak onder Repository conventions.
-18. **Tooltip grafiek.** "Requested" vs "Expected" tonen; "Actual power" alleen bij kwartieren in het verleden.
+18. **(Opgelost v1.0.169.)** Tooltip grafiek: "Requested" (PlannedUnthrottledPowerW) staat nu naast
+    "Planned" (de getemperde/Expected waarde); "Actual power" toont alleen nog bij HasActualPower
+    (een echte meting/hardwarewaarde), niet meer bij toekomstige kwartieren.
 19. **Per batterij meten.** SOC/vermogen/status per batterij per kwartier vastleggen + kolom in het Throttling
     report (Statistics, v1.0.158). Basis voor een melding aan Sessy.
 20. **Ontladen per SOC-band modelleren.** Nu één plateau (~3,65 kW); boven 80% SOC levert de bank 4,0–4,3 kW.
@@ -350,8 +352,13 @@ selecteert dat juist de stille takken — zoek daar eerst.
 21. **Opruimen.** `TmpEmptyProbeTests.cs`, `TmpGuardProbeTests.cs`, `tmp_guard_probe_output.txt`, de losse
     DP-schaduwplanner. Optioneel: migratie die `NightReserveCapPct` / `UseCalculatedNightReserve` /
     `ReserveSafetyFactor` dropt (dan ook de dode code onder "Minimum reserve").
-22. **Vinger aan de pols: HoldReserve bij hoge inkoop.** HoldReserve springt het huis niet bij als de energie
-    voor de piek bewaard wordt; bij hoge inkoop (bv. 17:45–18:30) is bijspringen mogelijk iets beter. Nu laten.
+22. **(Afgesloten: geen bug, bewuste trade-off — geen wijziging.)** **HoldReserve bij hoge inkoop.**
+    `RunBaselinePass` levert bij elk kwartier met een huishoudtekort al uit de batterij tot aan
+    `ReserveFloor[t]`; HoldReserve treedt pas in zodra die vloer geraakt is. Lager zetten van de
+    vloer zou pre-piek-besparing kunnen geven, maar vergroot het risico op duur bijkopen als de
+    werkelijke piek/nachtreserve groter uitvalt. Niet aangepast.
+
+
 23. **Zelf testen (Paul): "Setpoint per battery"** tijdens ontladen, om per batterij de levering te zien.
 24. **Na uitrol v1.0.160:** controleren of de laadsessie de geplande SOC haalt (laadstaart-fix).
 25. **Toekomstige uitbreiding: opbrengst van handelen meten.** Tweede planner-replay in

@@ -11,6 +11,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.170] — 2026-11-09
+
+### Added
+- **Chart tooltip: Charged labelled.** The *Charged* rows now carry a caption — "Charged = Sessy's own
+  cloud strategy (the battery manufacturer)" — so it reads clearly as the supplier's own schedule,
+  not a SessyWeb concept.
+
 ## [v1.0.169] — 2026-11-09
 
 ### Added
@@ -19,6 +26,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
   `(market price + Return delivery costs) × bonus% / 100` to the compensation — matching Zonneplan's
   own example (€0.080 market + €0.020 return compensation → 10% of €0.100 = €0.010 bonus), not 10% of
   the market price alone.
+- **Chart tooltip: Requested vs Planned, Actual power only when real.** A new *Requested* row shows
+  the throttle-free target next to *Planned* (the throttled/expected value). *Actual power* now shows
+  only for quarters with a real reading (hardware or a past measurement) — it no longer shows a
+  misleading "idle" for future quarters.
 
 ## [v1.0.168] — 2026-10-16
 
