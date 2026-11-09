@@ -54,6 +54,11 @@
                 <RadzenNumeric @bind-Value="fr.ReturnDeliveryCompensation" Style="width:100%" />
             </EditTemplate>
         </RadzenDataGridColumn>
+        <RadzenDataGridColumn Property="@nameof(Taxes.SolarBonusPercentage)" Title="Solar bonus (%)">
+            <EditTemplate Context="fr">
+                <RadzenNumeric @bind-Value="fr.SolarBonusPercentage" Style="width:100%" Format="F1" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
         <RadzenDataGridColumn Property="@nameof(Taxes.NetManagementCost)" Title="Net management cost">
             <EditTemplate Context="fr">
                 <RadzenNumeric @bind-Value="fr.NetManagementCost" Style="width:100%" />

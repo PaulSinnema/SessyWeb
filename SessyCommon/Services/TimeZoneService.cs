@@ -1,4 +1,4 @@
-using NodaTime;
+﻿using NodaTime;
 using NodaTime.Extensions;
 using SolCalc;
 using SolCalc.Data;
@@ -55,6 +55,15 @@ namespace SessyCommon.Services
             DateTimeZone zone = DateTimeZoneProviders.Tzdb[_currentTimezone];
             ZonedDateTime now = SystemClock.Instance.InZone(zone).GetCurrentZonedDateTime();
             return SunlightCalculator.GetSunlightAt(now, latitude, longitude);
+        }
+
+        /// <summary>Gets the sunlight level for the given coordinates at an arbitrary (past or future) local time.</summary>
+        // Virtual for the same reason as Now: tests need to place the sun where they want it.
+        public virtual SunlightLevel GetSunlightLevel(DateTime time, double latitude, double longitude)
+        {
+            DateTimeZone zone = DateTimeZoneProviders.Tzdb[_currentTimezone];
+            ZonedDateTime zoned = time.ToLocalDateTime().InZoneLeniently(zone);
+            return SunlightCalculator.GetSunlightAt(zoned, latitude, longitude);
         }
 
         public static DateTime FromUnixTime(long unixTime)

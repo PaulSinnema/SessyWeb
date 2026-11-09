@@ -96,7 +96,10 @@ These tabs manage data or expose tools rather than plain settings:
 - **Taxes** — the tax and tariff components that turn a raw EPEX price into the all-in buy/sell price
   the planner and statistics use. All amounts excl. VAT; *Return delivery costs* as a **positive**
   number when the supplier deducts them, **negative** when it pays a compensation per kWh returned
-  (e.g. Zonneplan). Tips & Checks asks you to confirm a negative value.
+  (e.g. Zonneplan). Tips & Checks asks you to confirm a negative value. *Solar bonus (%)* is a
+  percentage some suppliers (Zonneplan's Zonnebonus) pay on top of the market price plus *Return
+  delivery costs* for return delivery between sunrise and sunset, while the market price is
+  positive. 0 (default) = no bonus.
 - **Who's in control** — shows which controller is driving the batteries (SessyWeb, Charged, or the
   provider) and the handover state.
 - **Tips & Checks** — diagnostics: configuration problems, stale data, and planner sanity checks. A

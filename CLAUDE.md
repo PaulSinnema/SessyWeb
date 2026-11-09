@@ -357,3 +357,13 @@ selecteert dat juist de stille takken — zoek daar eerst.
 25. **Toekomstige uitbreiding: opbrengst van handelen meten.** Tweede planner-replay in
     `FinancialForecastSimulationService` met strategie SelfConsumption (geen batterij-export) naast de huidige
     strategie; het verschil is wat handelen zonder salderen nog oplevert. Kost ~2× rekentijd (~12 min/dag).
+26. **(Opgelost v1.0.169: Taxes.SolarBonusPercentage, EnergyPriceCalculator/CalculationService.)**
+    **Zonnebonus (Zonneplan).** Zonneplan betaalt, bovenop marktprijs + inkoopvergoeding (incl. btw, via
+    `ReturnDeliveryCompensation`), een Zonnebonus van 10% op (marktprijs + inkoopvergoeding) voor
+    teruglevering tussen zonsopkomst en -ondergang, zolang de marktprijs positief is — bevestigd met
+    Zonneplans eigen rekenvoorbeeld (€0,080 markt + €0,020 inkoopvergoeding = €0,100 basis, 10% = €0,010
+    bonus). Niet 10% van de marktprijs alleen. `TimeZoneService` kreeg een `GetSunlightLevel(DateTime, …)`
+    overload voor willekeurige (toekomstige) tijdstippen — de bestaande overload werkt alleen op "nu".
+    Niet gemodelleerd: `FinancialForecastService`/`FinancialForecastSimulationService` rekenen de
+    verkoopprijs nog los uit via `tx.SignedReturnDeliveryCompensation` en gaan niet via
+    `EnergyPriceCalculator`, dus de Zonnebonus zit daar nog niet in.

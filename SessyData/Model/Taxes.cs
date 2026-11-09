@@ -32,6 +32,12 @@ namespace SessyData.Model
         [NotMapped]
         public double SignedReturnDeliveryCompensation => -ReturnDeliveryCompensation;
         /// <summary>
+        /// Percentage some suppliers (e.g. Zonneplan) pay on top of the market price plus
+        /// ReturnDeliveryCompensation for return delivery between sunrise and sunset, while the
+        /// market price is positive. 0 = no bonus.
+        /// </summary>
+        public double SolarBonusPercentage { get; set; }
+        /// <summary>
         /// Yearly tax reduction from the government.
         /// </summary>
         public double TaxReduction { get; set; }
@@ -73,7 +79,7 @@ namespace SessyData.Model
 
         public override string ToString()
         {
-            return $"Time: {Time}, Energy tax: {EnergyTax}, Netting: {Netting}, Value added tax: {ValueAddedTax}, PurchaseCompensation: {PurchaseCompensation}, ReturnDeliveryCompensation: {ReturnDeliveryCompensation}, TaxReduction: {TaxReduction}, NetManagementCost: {NetManagementCost}, FixedTransportFee: {FixedTransportFee}, CapacityTransportFee: {CapacityTransportFee}";
+            return $"Time: {Time}, Energy tax: {EnergyTax}, Netting: {Netting}, Value added tax: {ValueAddedTax}, PurchaseCompensation: {PurchaseCompensation}, ReturnDeliveryCompensation: {ReturnDeliveryCompensation}, SolarBonusPercentage: {SolarBonusPercentage}, TaxReduction: {TaxReduction}, NetManagementCost: {NetManagementCost}, FixedTransportFee: {FixedTransportFee}, CapacityTransportFee: {CapacityTransportFee}";
         }
 
         public void Update(Taxes updateInfo)

@@ -18,15 +18,19 @@ namespace SessyController.Services
 
         private TaxesDataService _taxesDataService { get; set; }
 
+        private SettingsService _settingsService { get; set; }
+
         public CalculationService(EPEXPricesDataService epexPricesDataService,
                                   QuarterlyMeasurementDataService measurementDataService,
                                   TimeZoneService timezoneService,
-                                  TaxesDataService taxesDataService)
+                                  TaxesDataService taxesDataService,
+                                  SettingsService settingsService)
         {
             _epexPricesDataService = epexPricesDataService;
             _measurementDataService = measurementDataService;
             _timezoneService = timezoneService;
             _taxesDataService = taxesDataService;
+            _settingsService = settingsService;
         }
 
         /// <summary>
@@ -131,6 +135,8 @@ namespace SessyController.Services
                         compensation: compensation,
                         vatFactor: valueAddedTaxFactor,
                         buying: buying,
+                        solarBonusPercentage: taxes.SolarBonusPercentage,
+                        isDaylight: IsDaylight(time),
                         netting: taxes.Netting);
                 }
 
@@ -178,6 +184,8 @@ namespace SessyController.Services
                         compensation: taxes.PurchaseCompensation,
                         vatFactor: vatFactor,
                         buying: true,
+                        solarBonusPercentage: taxes.SolarBonusPercentage,
+                        isDaylight: false,
                         netting: taxes.Netting);
 
                     var selling = EnergyPriceCalculator.Calculate(
@@ -187,6 +195,8 @@ namespace SessyController.Services
                         compensation: taxes.SignedReturnDeliveryCompensation,
                         vatFactor: vatFactor,
                         buying: false,
+                        solarBonusPercentage: taxes.SolarBonusPercentage,
+                        isDaylight: IsDaylight(time),
                         netting: taxes.Netting);
 
                     result[time] = new EnergyPrice(buying, selling);
@@ -271,6 +281,19 @@ namespace SessyController.Services
 
             var taxes = cache.Value;
             return (epexPrice, taxes);
+        }
+
+        /// <summary>
+        /// True when the given local time falls between sunrise and sunset at the
+        /// configured location. Used for the Zonnebonus (e.g. Zonneplan): works for
+        /// past, present and future quarters, unlike TimeZoneService's "now"-only overload.
+        /// </summary>
+        private bool IsDaylight(DateTime time)
+        {
+            var settings = _settingsService.Current;
+
+            return _timezoneService.GetSunlightLevel(time, settings.Latitude, settings.Longitude)
+                == SolCalc.Data.SunlightLevel.Daylight;
         }
 
         /// <summary>

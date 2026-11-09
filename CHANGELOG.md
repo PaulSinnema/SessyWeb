@@ -11,6 +11,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.169] — 2026-11-09
+
+### Added
+- **Zonnebonus (Zonneplan).** New *Solar bonus (%)* column in Taxes (default 0, no effect for other
+  suppliers). While selling, in daylight, with a positive market price, it adds
+  `(market price + Return delivery costs) × bonus% / 100` to the compensation — matching Zonneplan's
+  own example (€0.080 market + €0.020 return compensation → 10% of €0.100 = €0.010 bonus), not 10% of
+  the market price alone.
+
 ## [v1.0.168] — 2026-10-16
 
 ### Fixed

@@ -724,6 +724,9 @@ namespace SessyData.Migrations
                     b.Property<double>("ReturnDeliveryCompensation")
                         .HasColumnType("REAL");
 
+                    b.Property<double>("SolarBonusPercentage")
+                        .HasColumnType("REAL");
+
                     b.Property<double>("TaxReduction")
                         .HasColumnType("REAL");
 

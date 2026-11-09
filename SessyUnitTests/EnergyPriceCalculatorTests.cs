@@ -113,5 +113,62 @@ namespace SessyTests.Services
             Assert.True(withoutNetting < withNetting,
                 "Selling without netting should be lower (loses energy tax and VAT).");
         }
+
+        // ── Solar bonus (Zonnebonus) ────────────────────────────────────────
+
+        [Fact]
+        public void Selling_SolarBonus_MatchesZonneplanExample()
+        {
+            // Zonneplan's own worked example: market price 0.08, return compensation
+            // (inkoopvergoeding) +0.02, 10% bonus over the combined 0.10 = 0.01 extra.
+            // No netting, since this is the post-2027 (no VAT) build-up Zonneplan uses.
+            double market = 0.08;
+            double returnComp = 0.02;
+            double expected = market + returnComp + 0.01;
+
+            double actual = EnergyPriceCalculator.Calculate(
+                market, 0.0, EnergyTax, returnComp, Vat, buying: false, netting: false,
+                solarBonusPercentage: 10.0, isDaylight: true);
+
+            Assert.Equal(expected, actual, 6);
+        }
+
+        [Fact]
+        public void Selling_SolarBonus_NoEffectOutsideDaylight()
+        {
+            double withoutBonus = EnergyPriceCalculator.Calculate(
+                Market, 0.0, EnergyTax, ReturnComp, Vat, buying: false, netting: true);
+            double atNight = EnergyPriceCalculator.Calculate(
+                Market, 0.0, EnergyTax, ReturnComp, Vat, buying: false, netting: true,
+                solarBonusPercentage: 10.0, isDaylight: false);
+
+            Assert.Equal(withoutBonus, atNight, 6);
+        }
+
+        [Fact]
+        public void Selling_SolarBonus_NoEffectWhenMarketPriceNegative()
+        {
+            double negativeMarket = -0.02;
+
+            double withoutBonus = EnergyPriceCalculator.Calculate(
+                negativeMarket, 0.0, EnergyTax, ReturnComp, Vat, buying: false, netting: true);
+            double withBonus = EnergyPriceCalculator.Calculate(
+                negativeMarket, 0.0, EnergyTax, ReturnComp, Vat, buying: false, netting: true,
+                solarBonusPercentage: 10.0, isDaylight: true);
+
+            Assert.Equal(withoutBonus, withBonus, 6);
+        }
+
+        [Fact]
+        public void Buying_SolarBonus_NeverApplies()
+        {
+            double withoutBonus = EnergyPriceCalculator.Calculate(
+                Market, 0.0, EnergyTax, PurchaseComp, Vat, buying: true, netting: true);
+            double withBonusArgs = EnergyPriceCalculator.Calculate(
+                Market, 0.0, EnergyTax, PurchaseComp, Vat, buying: true, netting: true,
+                solarBonusPercentage: 10.0, isDaylight: true);
+
+            Assert.Equal(withoutBonus, withBonusArgs, 6);
+        }
     }
 }
