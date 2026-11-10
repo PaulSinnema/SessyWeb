@@ -306,9 +306,6 @@ a, .btn-link {
     --sessy-znh-area: color-mix(in srgb, var(--sessy-znh) 50%, transparent);
     --sessy-hold-reserve-area: color-mix(in srgb, var(--sessy-hold-reserve) 45%, transparent);
     --sessy-consumption-area: color-mix(in srgb, var(--sessy-consumption) 60%, transparent);
-    --sessy-solar-area: color-mix(in srgb, var(--sessy-solar) 60%, transparent);
-    --sessy-humidity-area: color-mix(in srgb, var(--sessy-humidity) 60%, transparent);
-    --sessy-temperature-area: color-mix(in srgb, var(--sessy-temperature) 60%, transparent);
 }
 
 /* ── Contrast on bright badges and buttons ────────────────────────────────────

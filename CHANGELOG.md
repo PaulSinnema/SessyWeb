@@ -11,6 +11,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.174] — 2026-11-10
+
+### Added
+- **Statistics: Weather correlation tab.** Three scatter charts, one dot per complete day: daily
+  house consumption against the day's average temperature, global radiation and humidity, coloured
+  per season, each with the least-squares line, r, R² and the slope (kWh per °C, W/m² or %).
+
+### Changed
+- **Consumption tab, Day: one chart.** Global radiation (W/m²) and humidity (%) are now dashed lines
+  in the consumption chart, each on its own axis next to temperature, so they scale to the full
+  chart height like the consumption. The three separate radiation, humidity and temperature charts
+  below it are gone. Week, Month, Year, All and Custom show the average global radiation and humidity
+  per bar the same way, next to the average temperature.
+
+### Fixed
+- **Consumption tab: charts no longer stick out of their card.** The card now grows with the chart
+  width (which is set per period) instead of letting it overflow.
+
 ## [v1.0.173] — 2026-11-10
 
 ### Added

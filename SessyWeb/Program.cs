@@ -16,6 +16,7 @@ using SessyController.Services;
 using SessyController.Services.InverterServices;
 using SessyController.Services.Items;
 using SessyController.Services.StateMachine;
+using SessyController.Services.Statistics;
 using SessyData.Helpers;
 using SessyData.Model;
 using SessyData.Services;
@@ -136,6 +137,7 @@ builder.Services.AddSingleton<InvestmentGroupDataService>();
 // The one place a measured quarter is assembled — every reader of measured energy goes through it.
 builder.Services.AddScoped<QuarterlyFactsService>();
 builder.Services.AddScoped<EnergyStatisticsService>();
+builder.Services.AddScoped<WeatherCorrelationService>();
 // Builds an in-memory JSON snapshot for analysing a plan over a period (Settings tab).
 builder.Services.AddScoped<PlanDumpService>();
 // Rebuilds a past solve-input from the database for replay (developer tooling).

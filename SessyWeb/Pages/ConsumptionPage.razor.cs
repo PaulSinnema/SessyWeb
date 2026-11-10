@@ -29,11 +29,11 @@ namespace SessyWeb.Pages
         private RadzenChart? ConsumptionYearChart { get; set; }
         private RadzenChart? ConsumptionAllChart { get; set; }
         private RadzenChart? ConsumptionCustomChart { get; set; }
-        private RadzenChart? HumidityChart { get; set; }
-        private RadzenChart? GlobalRadiationChart { get; set; }
-        private RadzenChart? TemperatureChart { get; set; }
 
         private string GraphStyle { get; set; } = "width: 100%; height: 60vh";
+
+        // The chart gets a fixed pixel width per period; the card grows with it instead of clipping.
+        private const string CardStyle = "width: fit-content; min-width: 100%;";
 
         private int TickDistance { get; set; }
 
@@ -182,15 +182,15 @@ namespace SessyWeb.Pages
         public class DisplayBaseData
         {
             public double ConsumptionKWh { get; set; }
-            // Average temperature (Day: actual quarter-hour value; other periods: average over the period).
+            // Day: actual quarter-hour values; other periods: averages over the period.
             public double Temperature { get; set; }
+            public double GlobalRadiation { get; set; }
+            public double Humidity { get; set; }
         }
 
         public class ConsumptionDisplayDayData : DisplayBaseData
         {
             public DateTime Time { get; set; }
-            public double GlobalRadiation { get; set; }
-            public double Humidity { get; set; }
         }
 
         public class ConsumptionDisplayWeekData : DisplayBaseData
@@ -282,7 +282,9 @@ namespace SessyWeb.Pages
                                     DayOfWeek = $"{gr.Key.DayOfWeek.ToString().Substring(0, 2)} {gr.Key.Day}",
                                     Position = (int)gr.Key.DayOfWeek,
                                     ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4,
-                                    Temperature = gr.Average(cons => cons.Temperature)
+                                    Temperature = gr.Average(cons => cons.Temperature),
+                                    GlobalRadiation = gr.Average(cons => cons.GlobalRadiation),
+                                    Humidity = gr.Average(cons => cons.Humidity)
                                 })
                                 .OrderBy(item => item.Position)
                                 .ToList();
@@ -314,7 +316,9 @@ namespace SessyWeb.Pages
                                     Day = gr.Key.Day,
                                     DayOfWeek = $"{gr.Key.DayOfWeek.ToString().Substring(0, 2)} {gr.Key.Day}",
                                     ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4,
-                                    Temperature = gr.Average(cons => cons.Temperature)
+                                    Temperature = gr.Average(cons => cons.Temperature),
+                                    GlobalRadiation = gr.Average(cons => cons.GlobalRadiation),
+                                    Humidity = gr.Average(cons => cons.Humidity)
                                 })
                                 .OrderBy(item => item.Day)
                                 .ToList();
@@ -343,7 +347,9 @@ namespace SessyWeb.Pages
                                     Month = gr.Key,
                                     MonthOfYear = Formatters.FormatAsMonth(gr.Key),
                                     ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4,
-                                    Temperature = gr.Average(cons => cons.Temperature)
+                                    Temperature = gr.Average(cons => cons.Temperature),
+                                    GlobalRadiation = gr.Average(cons => cons.GlobalRadiation),
+                                    Humidity = gr.Average(cons => cons.Humidity)
                                 })
                                 .ToList();
 
@@ -368,7 +374,9 @@ namespace SessyWeb.Pages
                                 {
                                     Year = gr.Key.ToString(),
                                     ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4,
-                                    Temperature = gr.Average(cons => cons.Temperature)
+                                    Temperature = gr.Average(cons => cons.Temperature),
+                                    GlobalRadiation = gr.Average(cons => cons.GlobalRadiation),
+                                    Humidity = gr.Average(cons => cons.Humidity)
                                 })
                                 .ToList();
 
@@ -398,7 +406,9 @@ namespace SessyWeb.Pages
                                         {
                                             X = gr.Key.ToString("dd/MM/yyyy"),
                                             ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4,
-                                            Temperature = gr.Average(cons => cons.Temperature)
+                                            Temperature = gr.Average(cons => cons.Temperature),
+                                            GlobalRadiation = gr.Average(cons => cons.GlobalRadiation),
+                                            Humidity = gr.Average(cons => cons.Humidity)
                                         })
                                         .ToList();
                                     break;
@@ -409,7 +419,9 @@ namespace SessyWeb.Pages
                                         {
                                             X = gr.Key.ToString("dd/MM/yyyy"),
                                             ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4,
-                                            Temperature = gr.Average(cons => cons.Temperature)
+                                            Temperature = gr.Average(cons => cons.Temperature),
+                                            GlobalRadiation = gr.Average(cons => cons.GlobalRadiation),
+                                            Humidity = gr.Average(cons => cons.Humidity)
                                         })
                                         .ToList();
                                     break;
@@ -422,7 +434,9 @@ namespace SessyWeb.Pages
                                         {
                                             X = gr.Key,
                                             ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4,
-                                            Temperature = gr.Average(cons => cons.Temperature)
+                                            Temperature = gr.Average(cons => cons.Temperature),
+                                            GlobalRadiation = gr.Average(cons => cons.GlobalRadiation),
+                                            Humidity = gr.Average(cons => cons.Humidity)
                                         })
                                         .ToList();
                                     break;
@@ -461,9 +475,6 @@ namespace SessyWeb.Pages
             {
                 case PeriodsEnums.Day:
                     await ConsumptionDayChart!.Reload();
-                    await HumidityChart!.Reload();
-                    await GlobalRadiationChart!.Reload();
-                    await TemperatureChart!.Reload();
                     break;
 
                 case PeriodsEnums.Week:
