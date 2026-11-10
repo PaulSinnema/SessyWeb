@@ -348,11 +348,12 @@ namespace SessyController.Services
             SYSTEM_STATE_BATTERY_FULL = 11,
             SYSTEM_STATE_BATTERY_EMPTY = 12,
             SYSTEM_STATE_OVERRIDE_BATTERY_UNDERVOLTAGE = 13,
+            SYSTEM_STATE_UNKNOWN = -1, // Not in the Sessy API: a state this enum does not know (yet).
         };
 
         private string _systemStateString { get; set; } = string.Empty;
 
-        private SystemStates _systemState { get; set; }
+        private SystemStates _systemState { get; set; } = SystemStates.SYSTEM_STATE_UNKNOWN;
 
         /// <summary>
         /// The current system state (e.g., "SYSTEM_STATE_STANDBY").
@@ -362,8 +363,8 @@ namespace SessyController.Services
         {
             get
             {
-                var names = Enum.GetNames(typeof(SystemStates));
-                return (SystemStates)Enum.Parse(typeof(SystemStates), SystemStateString);
+                // Parsed once in the setter; never throws (see GetSystemState).
+                return _systemState;
             }
         }
 
@@ -376,16 +377,18 @@ namespace SessyController.Services
             }
             set
             {
-                _systemStateString = value;
+                _systemStateString = value ?? string.Empty;
 
                 GetSystemState();
             }
         }
 
+        // Never throws: an unknown state must not break the whole PowerStatus (it carries the SOC).
         private void GetSystemState()
         {
-            var names = Enum.GetNames(typeof(SystemStates));
-            _systemState = (SystemStates)Enum.Parse(typeof(SystemStates), _systemStateString);
+            _systemState = Enum.TryParse<SystemStates>(_systemStateString, out var state) && Enum.IsDefined(state)
+                ? state
+                : SystemStates.SYSTEM_STATE_UNKNOWN;
         }
 
         public string SystemStateColor
@@ -398,6 +401,10 @@ namespace SessyController.Services
                 {
                     case SystemStates.SYSTEM_STATE_INIT:
                         color = "magenta";
+                        break;
+
+                    case SystemStates.SYSTEM_STATE_UNKNOWN:
+                        color = "gray";
                         break;
 
                     case SystemStates.SYSTEM_STATE_STANDBY:
@@ -452,6 +459,10 @@ namespace SessyController.Services
                 {
                     case SystemStates.SYSTEM_STATE_INIT:
                         title = "Initializing";
+                        break;
+
+                    case SystemStates.SYSTEM_STATE_UNKNOWN:
+                        title = "Unknown";
                         break;
 
                     case SystemStates.SYSTEM_STATE_STANDBY:

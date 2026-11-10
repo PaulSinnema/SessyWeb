@@ -11,6 +11,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.175] — 2026-11-11
+
+### Fixed
+- **An unknown battery state no longer breaks the battery readout.** A `system_state` the app does
+  not know yet (e.g. after a Sessy firmware update), or an empty one, used to make the whole status
+  request fail, so the state of charge was lost too. It now shows as a grey "Unknown" badge and the
+  rest of the status keeps working.
+
 ## [v1.0.174] — 2026-11-10
 
 ### Added

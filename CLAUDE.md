@@ -43,8 +43,8 @@ Migrations are applied automatically at startup in `SessyWeb/Program.cs` (`dbCon
 ## Repository conventions
 
 - **Do not run git operations** (commit, push, branch) — local edits only unless explicitly asked.
-- **Versioning follows "bump version"**: the version lives only in `SessyCommon/AppInfo.cs` (`public const string Version = "v1.0.x";`); MainLayout shows it and `Program.cs` writes it into the `AppVersions` table at startup. Bump **only when the user says "bump version"**: that means the current version is committed and pushed, so open the next one — patch +1 in `AppInfo.cs` and a new `CHANGELOG.md` heading with "No functional changes.".
-- **Changes go under the open version**: every change after a bump is added to the `CHANGELOG.md` entry of that open version (replacing "No functional changes."), newest version at the top, grouped as Added/Changed/Fixed/Removed. Keep it to what a user notices, in English, a few lines per version — the reasoning, the measurements and the rejected alternatives belong in this file instead. A change with nothing observable (a refactor, a test) needs no changelog entry.
+- **Versioning: bump on every iteration** (user's rule since 11-11-2026, replaces "bump only on 'bump version'"): the version lives only in `SessyCommon/AppInfo.cs` (`public const string Version = "v1.0.x";`); MainLayout shows it and `Program.cs` writes it into the `AppVersions` table at startup. Every iteration (one fix/change the user reviews) gets patch +1 in `AppInfo.cs` and its own new `CHANGELOG.md` heading with that change.
+- **Changelog per version**: each iteration's change goes in the `CHANGELOG.md` entry of its own new version, newest version at the top, grouped as Added/Changed/Fixed/Removed. Keep it to what a user notices, in English, a few lines per version — the reasoning, the measurements and the rejected alternatives belong in this file instead. A change with nothing observable (a refactor, a test) needs no changelog entry.
 - **Keep `SETTINGS.md` in sync** (upper case — README links it and GitHub is case-sensitive): when a setting on the Settings page is added, removed or changed (label, default or effect), update `SETTINGS.md` in the same change — it is meant to be a complete mirror of the page.
 - Comments and log messages are a mix of English and Dutch; match the surrounding file.
 - Region separators use the `// ── Name ─────` box-drawing style.
@@ -158,7 +158,7 @@ Er draaien ook instanties bij anderen — meldingen komen als GitHub-issues binn
 - **Niet gissen**: eerst verifiëren in code/DB/web. Meerdere sessies gingen mis door aannames — meerdere keren "gevonden!" geroepen en ernaast gezeten. Bij planner-analyse: DB-tabellen naast elkaar leggen en de opgenomen solve-invoer door de échte planner terugspelen vóór conclusies.
 - Code-behind boven `@code`-blokken. Radzen Blazor overal. Radzen API's verifiëren via `raw.githubusercontent.com/radzenhq/radzen-blazor/master/...` (rendering-pad én crosshair/tooltip-pad — `CartesianSeries.DataAt/TooltipY` unwrapt `double?` hard).
 - Na codegeneratie altijd zelf reviewen op syntax/naamfouten/dubbele code/missing usings. Braces + code-parens balanceren (comments negeren bij paren-telling).
-- **Versie alleen ophogen op "bump version", wijzigingen in de CHANGELOG van de open versie** — één afspraak, hierboven onder "Repository conventions". Niet hier herhalen; twee kopieën lopen uit elkaar.
+- **Versie ophogen bij elke iteratie, met een eigen CHANGELOG-kop** — één afspraak, hierboven onder "Repository conventions". Niet hier herhalen; twee kopieën lopen uit elkaar.
 - **Bestandsnamen: altijd het origineel, exact zoals het op schijf staat (incl. hoofd/kleine letters).** Nooit de schrijfwijze uit docs of verwijzingen overnemen — eerst de map bekijken. Windows is hoofdletter-ongevoelig, Git niet: een bestand wegschrijven als `Settings.md` hernoemde `SETTINGS.md` stil, waarna de Git-index beide namen had en er altijd één als 'D' stond (v1.0.152; alleen op te lossen door verwijderen, beide deletes committen en opnieuw toevoegen). Een bewuste hoofdletterwijziging alleen via `git mv`.
 
 ## Omgeving
@@ -374,3 +374,45 @@ selecteert dat juist de stille takken — zoek daar eerst.
     Niet gemodelleerd: `FinancialForecastService`/`FinancialForecastSimulationService` rekenen de
     verkoopprijs nog los uit via `tx.SignedReturnDeliveryCompensation` en gaan niet via
     `EnergyPriceCalculator`, dus de Zonnebonus zit daar nog niet in.
+
+### Review 10-11-2026 — reparaties, één voor één
+*Werkwijze per punt: test die het probleem aantoont (rood) → kleinste fix (groen) → hele testset → user leest diff/comments → versie +1 en eigen CHANGELOG-kop → user commit/deployt en laat een dag draaien vóór het volgende punt. Volgorde: 29 → 27 → 30, daarna 28, 31, 32 (die drie eerst verifiëren in de productie-DB).*
+
+27. **Dwell bevriest ook de curtailment.** `EnergySystemStateMachine.ApplyModeDwell` geeft bij een
+    tegengehouden wissel de héle oude `CurrentAction` terug, incl. `CurtailmentMode`/`InverterSetpointW`.
+    Voorbeeld: FORCE_CHARGE (Charging + Shutdown) → plan Discharging binnen 120 s (gelijke rang) →
+    omvormer blijft 0 W en de batterij laadt vol uit het net bij een weer positieve prijs. Fix: alleen
+    `BatteryMode` + setpoint vasthouden, curtailment altijd uit de nieuwe evaluatie. Geen test combineert
+    dwell en curtailment.
+28. **FORCE_CHARGE voedt zichzelf terug.** FORCE_CHARGE → batterij laadt → volgende cyclus
+    `BatteryIsActuallyCharging` → ZERO_EXPORT + ZNH (rang omlaag, direct) → terug naar Charging wacht
+    de dwell. Vermoedelijk laadt hij bij negatieve prijs maar een deel van de tijd op vol vermogen.
+    Eerst verifiëren in `ActualQuarters` op negatieve-prijsdagen. Fix-richting: Shutdown vasthouden
+    zolang prijs negatief en batterij niet vol.
+29. **Onbekende `system_state` breekt `PowerStatus`.** `Sessy.SystemStateString`-setter doet
+    `Enum.Parse`; een nieuwe firmwarestatus of `null` laat de hele deserialisatie falen → geen SOC,
+    `SupplierIsControllingTheBatteries` valt weg. Fix: `Enum.TryParse` + fallback, niet gooien.
+30. **Data race UI ↔ regellus.** `ChargingHoursPage` roept `GetBatteryMode` → `GetExecutableActionAsync`
+    en `GetPlanStatisticsAsync` aan zonder lock, terwijl `WriteBackSocSimulationAsync` in `_planByTime`
+    schrijft. De UI-aanroep zet bovendien guard-hysterese (`_chargeRoomGuardHeld` e.d.) en muteert `qi`.
+    Fix: lock om de planstate; UI leest een kopie, hysterese alleen vanuit de regellus.
+31. **Accept-guard speculatieve solve scheef, ook bij positieve winst** (aanvulling op punt 12).
+    `previousRate` = objective/kwartieren van het óúde plan, inclusief al verstreken kwartieren. Na een
+    avondverkoop is die rate opgeblazen → alle speculatieve solves afgewezen tot nieuwe prijzen of
+    SOC-afwijking > 20%. Fix-richting: beide plannen alleen vanaf `nowQuarter` vergelijken. Eerst
+    replay door de echte planner.
+32. **Zomer-/wintertijd niet afgehandeld.** Nergens een DST-check. `EPEXPricesService.GetPrices` zet
+    ENTSO-E-tijden om naar lokale wandkloktijd (`AddOrUpdate`): eind oktober overschrijft het tweede
+    02:00–02:45 het eerste (4 kwartieren weg), eind maart bestaat 02:00 niet maar `FillMissingPoints`
+    kan het invullen. Ook `QuarterlyMeasurement`/`ActualQuarter`/`ToDictionary` sleutelen op lokale tijd;
+    bij de terugsprong blokkeert `nowQuarter <= _lastSnapshotQuarter` een uur lang. Mogelijke bron van
+    de duplicaten in `QuarterlyMeasurements`. Eerst meten in de DB (25-10-2026 en 29-03-2026 rond 02:00),
+    dan kiezen: intern UTC of expliciete afhandeling.
+33. **Kleinere punten uit dezelfde review.** (a) HoldReserve via P1-grid target is maar per 5 s exact:
+    bij tekort target = `houseNet`, verbruiksdaling binnen 5 s laadt uit het net, stijging ontlaadt onder
+    de reserve. (b) Onder leverancierscontrole roept de regellus elke cyclus `StopAll` aan; de schrijfguard
+    weigert → elke minuut een Warning per batterij. (c) `_plannedSocByQuarter` filtert
+    `ChargeLeftWh > 0`, dus een gepland-leeg kwartier ontbreekt in de afwijkingscheck. (d) P1-deadband:
+    na een herstart van de P1-meter wordt een ongewijzigd target (bv. 0) nooit opnieuw gepost.
+    (e) Verouderde comments in `GridTargetCalculator`/`GridTargetService` ("Disabled = API + setpoint 0",
+    nu Idle). (b) en (e) meenemen bij 27.
