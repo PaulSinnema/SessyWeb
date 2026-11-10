@@ -1,6 +1,7 @@
-using SessyCommon.Extensions;
+﻿using SessyCommon.Extensions;
 using SessyCommon.Services;
 using SessyController.Services.Items;
+using SessyData.Services;
 
 namespace SessyController.Services
 {
@@ -13,6 +14,9 @@ namespace SessyController.Services
     /// control it is the alternative we chose not to take — drawn as a shadow so the two plans can
     /// be compared on the same axes.
     ///
+    /// Every successful read is also kept in ChargedScheduleQuarters (changed quarters only), so the
+    /// two strategies can be compared afterwards; older quarters are pruned once a day.
+    ///
     /// Fetching a schedule is a plain read, so it also runs in a debug session; only handing over
     /// the actual control stays behind the DEBUG guard in BatteriesService.
     ///
@@ -24,18 +28,27 @@ namespace SessyController.Services
     /// </summary>
     public class ChargedScheduleService
     {
+        /// <summary>Retention when the setting is 0 or less.</summary>
+        private const int DefaultKeepDays = 30;
+
         private readonly LoggingService<ChargedScheduleService> _logger;
         private readonly BatteryContainer _batteryContainer;
         private readonly TimeZoneService _timeZoneService;
+        private readonly ChargedScheduleQuarterDataService _historyDataService;
+        private readonly SettingsService _settingsService;
 
         public ChargedScheduleService(
             LoggingService<ChargedScheduleService> logger,
             BatteryContainer batteryContainer,
-            TimeZoneService timeZoneService)
+            TimeZoneService timeZoneService,
+            ChargedScheduleQuarterDataService historyDataService,
+            SettingsService settingsService)
         {
             _logger = logger;
             _batteryContainer = batteryContainer;
             _timeZoneService = timeZoneService;
+            _historyDataService = historyDataService;
+            _settingsService = settingsService;
         }
 
         /// <summary>
@@ -53,6 +66,9 @@ namespace SessyController.Services
         public DateTime? LastFetched { get; private set; }
 
         private DateTime? _lastAttempt;
+
+        /// <summary>Day the history was last pruned.</summary>
+        private DateTime? _lastCleanupDate;
 
         /// <summary>True when the last fetch produced at least one quarter.</summary>
         public bool HasSchedule => PowerByQuarter.Count > 0;
@@ -98,9 +114,34 @@ namespace SessyController.Services
             {
                 PowerByQuarter = totals;
                 LastFetched = _timeZoneService.Now;
+
+                await StoreHistoryAsync(totals, LastFetched.Value).ConfigureAwait(false);
             }
 
             return PowerByQuarter;
+        }
+
+        /// <summary>Keeps the changed quarters and prunes the history once a day; never throws.</summary>
+        private async Task StoreHistoryAsync(IReadOnlyDictionary<DateTime, double> powerByQuarter, DateTime fetchedAt)
+        {
+            try
+            {
+                await _historyDataService.SaveChangedQuartersAsync(powerByQuarter, fetchedAt).ConfigureAwait(false);
+
+                if (_lastCleanupDate != fetchedAt.Date)
+                {
+                    int keepDays = _settingsService.Current.ChargedScheduleKeepDays;
+                    if (keepDays <= 0) keepDays = DefaultKeepDays;
+
+                    await _historyDataService.RemoveOlderThanAsync(fetchedAt.Date.AddDays(-keepDays)).ConfigureAwait(false);
+                    _lastCleanupDate = fetchedAt.Date;
+                }
+            }
+            catch (Exception ex)
+            {
+                // History is for analysis only; the live chart must keep working without it.
+                _logger.LogWarning($"Could not store Charged's schedule history: {ex.Message}");
+            }
         }
 
         /// <summary>

@@ -197,6 +197,7 @@ builder.Services.AddSingleton<ExpectedPriceService>();
 builder.Services.AddSingleton<SessyWebControlDataService>();
 builder.Services.AddSingleton<AppVersionDataService>();
 builder.Services.AddSingleton<FinancialForecastReplayDataService>();
+builder.Services.AddSingleton<ChargedScheduleQuarterDataService>();
 builder.Services.AddSingleton<ChargedScheduleService>();
 builder.Services.AddSingleton<TaxesDataService>();
 builder.Services.AddSingleton<ConsumptionMonitorService>();

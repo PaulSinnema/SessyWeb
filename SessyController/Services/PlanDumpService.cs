@@ -8,7 +8,8 @@ namespace SessyController.Services
     /// <summary>
     /// Builds a single self-contained JSON snapshot of everything needed to analyse a plan for a
     /// given period: the planner settings, the raw EPEX prices and taxes it worked from, the planned
-    /// quarters it produced, the actual quarters that followed, and the measured facts.
+    /// quarters it produced, the actual quarters that followed, the measured facts, and every stored
+    /// version of Charged's schedule for those quarters.
     ///
     /// Everything is assembled in memory and returned as a string — the caller streams it to the
     /// browser for download. Nothing is ever written to disk.
@@ -23,6 +24,7 @@ namespace SessyController.Services
         private readonly QuarterlyFactsService _factsService;
         private readonly InvestmentDataService _investmentService;
         private readonly SettingsService _settingsService;
+        private readonly ChargedScheduleQuarterDataService _chargedScheduleService;
 
         public PlanDumpService(
             PlannedQuarterDataService plannedService,
@@ -32,7 +34,8 @@ namespace SessyController.Services
             SettingsDataService settingsDataService,
             QuarterlyFactsService factsService,
             InvestmentDataService investmentService,
-            SettingsService settingsService)
+            SettingsService settingsService,
+            ChargedScheduleQuarterDataService chargedScheduleService)
         {
             _plannedService = plannedService;
             _actualService = actualService;
@@ -42,6 +45,7 @@ namespace SessyController.Services
             _factsService = factsService;
             _investmentService = investmentService;
             _settingsService = settingsService;
+            _chargedScheduleService = chargedScheduleService;
         }
 
         private static readonly JsonSerializerOptions JsonOptions = new()
@@ -82,6 +86,11 @@ namespace SessyController.Services
             var investments = await _investmentService.GetList(async set =>
                 await Task.FromResult(set.ToList()));
 
+            // All stored versions, so what Charged planned at any moment can be reconstructed.
+            var chargedSchedule = await _chargedScheduleService.GetList(async set =>
+                await Task.FromResult(set.Where(c => c.Time >= start && c.Time <= end)
+                                         .OrderBy(c => c.Time).ThenBy(c => c.FetchedAt).ToList()));
+
             var dump = new
             {
                 Meta = new
@@ -95,10 +104,13 @@ namespace SessyController.Services
                     EpexPriceCount = epex.Count,
                     MeasuredCount = measured.Count,
                     InvestmentCount = investments.Count,
+                    ChargedScheduleCount = chargedSchedule.Count,
                     DerivedCycleCostEurPerKWh = _settingsService.CycleCost,
                     Note = "In-memory plan dump for analysis. Times are in the configured local timezone. " +
                            "DerivedCycleCostEurPerKWh is the raw wear cost from the battery investments; " +
-                           "the Balanced strategy multiplies it by 1.5 inside the planner."
+                           "the Balanced strategy multiplies it by 1.5 inside the planner. " +
+                           "ChargedSchedule holds every changed version of Charged's planned power per quarter " +
+                           "(W, negative = charging); Charged's plan at a moment is the newest row per Time with FetchedAt at or before it."
                 },
                 Settings = settings,
                 Investments = investments,
@@ -106,7 +118,8 @@ namespace SessyController.Services
                 EpexPrices = epex,
                 PlannedQuarters = planned,
                 ActualQuarters = actual,
-                MeasuredFacts = measured
+                MeasuredFacts = measured,
+                ChargedSchedule = chargedSchedule
             };
 
             return JsonSerializer.Serialize(dump, JsonOptions);

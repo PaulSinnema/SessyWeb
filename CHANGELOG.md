@@ -11,6 +11,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.173] — 2026-11-10
+
+### Added
+- **Charged's schedule kept for comparison.** Every read of the batteries' own schedule stores the
+  quarters that changed in the new `ChargedScheduleQuarters` table (a few MB a month), so what
+  Charged planned at any moment can be compared with our plan afterwards. The Plan dump now
+  includes it. Settings → Diagnostics → *Charged schedule history (days)* sets how long it is kept
+  (default 30); older quarters are pruned once a day.
+
 ## [v1.0.172] — 2026-11-10
 
 ### Changed

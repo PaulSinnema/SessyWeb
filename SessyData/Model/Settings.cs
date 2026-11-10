@@ -314,6 +314,12 @@ namespace SessyData.Model
         public int SolveInputKeepFiles { get; set; } = 20;
 
         /// <summary>
+        /// Days of Charged's schedule history (ChargedScheduleQuarters) to keep; older quarters are
+        /// pruned once a day. 0 or less falls back to 30.
+        /// </summary>
+        public int ChargedScheduleKeepDays { get; set; } = 30;
+
+        /// <summary>
         /// Shows developer-only tooling in the UI (e.g. the Plan dump tab). Off by default.
         /// </summary>
         public bool DeveloperOptions { get; set; }

@@ -61,6 +61,7 @@ A **Reset to defaults** button restores this whole block. See [PLANNER.md](PLANN
 | --- | --- | --- |
 | **Record planner solve inputs** | Off | When on, the planner writes its exact solve input (prices, battery spec, options, SOC bounds) to the **Export directory** on every rebuild, so a plan that looks wrong can be replayed. The `SESSY_RECORD_SOLVE_INPUTS` environment variable forces it on regardless. The directory must exist (in Docker: a mounted volume), otherwise nothing is written and a Tips & Checks warning is raised — it is never auto-created. |
 | **Solve inputs to keep** | 20 | How many solve-input files to keep in the export directory; the oldest are pruned. 0 or less falls back to 20. |
+| **Charged schedule history (days)** | 30 | Every read of Charged's schedule (the batteries' own plan) stores the quarters that changed in the `ChargedScheduleQuarters` table, so Charged's plan can be compared with ours afterwards — it is part of the Plan dump. Quarters older than this are pruned once a day. 0 or less falls back to 30. |
 | **Export directory** | `/SessyController/Data/exports` | Absolute path solve-input files are written to. Must exist; in Docker it must be inside a mounted volume, otherwise files are lost when the container restarts. |
 | **Developer options** | Off | Shows developer-only tooling. Off hides the **Plan dump** tab and the **Planner analyse** sidebar page; on reveals both (Plan dump with the past solve-input reconstruction; Planner analyse with the per-quarter plan analysis). |
 

@@ -166,6 +166,14 @@
                                         <RadzenNumeric @bind-Value="_settings.SolveInputKeepFiles" Min="1" Max="500" Style="width:100%" />
                                     </RadzenColumn>
                                     <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Charged schedule history (days)" />
+                                        <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">
+                                            Older quarters are pruned once a day. Default: 30.
+                                            <InfoTipComponent Text="Every time Charged's schedule is read from the batteries, the quarters that changed are stored in the database, so Charged's plan can be compared with ours afterwards (Plan dump). This sets how many days of that history are kept. 0 or less falls back to 30." />
+                                        </RadzenText>
+                                        <RadzenNumeric @bind-Value="_settings.ChargedScheduleKeepDays" Min="1" Max="365" Style="width:100%" />
+                                    </RadzenColumn>
+                                    <RadzenColumn Size="12" SizeMD="4">
                                         <RadzenLabel Text="Export directory" />
                                         <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">
                                             Where solve inputs are written. In Docker: a mounted volume.

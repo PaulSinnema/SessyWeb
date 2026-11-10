@@ -506,6 +506,28 @@ namespace SessyData.Migrations
                     b.ToTable("SessyWebControl");
                 });
 
+            modelBuilder.Entity("SessyData.Model.ChargedScheduleQuarter", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("FetchedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<double>("PowerW")
+                        .HasColumnType("REAL");
+
+                    b.Property<DateTime>("Time")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Time", "FetchedAt");
+
+                    b.ToTable("ChargedScheduleQuarters");
+                });
+
             modelBuilder.Entity("SessyData.Model.FinancialForecastReplay", b =>
                 {
                     b.Property<int>("Id")
@@ -604,6 +626,9 @@ namespace SessyData.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("BatteryControlMethod")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ChargedScheduleKeepDays")
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("CarryForwardEnabled")

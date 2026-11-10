@@ -67,6 +67,8 @@ namespace SessyData.Model
 
         public DbSet<FinancialForecastReplay> FinancialForecastReplays => Set<FinancialForecastReplay>();
 
+        public DbSet<ChargedScheduleQuarter> ChargedScheduleQuarters => Set<ChargedScheduleQuarter>();
+
         /// <summary>
         /// Applied to every connection this context opens. Session settings only — they configure
         /// the connection and never write to the file.
