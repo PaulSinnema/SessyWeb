@@ -91,7 +91,6 @@ namespace SessyWeb.Pages
         private async Task ForceNewPlanAsync()
         {
             IsLoading = true;
-            StateHasChanged();
 
             try
             {

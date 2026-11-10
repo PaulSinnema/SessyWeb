@@ -37,7 +37,6 @@ namespace SessyWeb.Components
             if (FinancialForecastService == null) return;
 
             _loading = true;
-            StateHasChanged();
 
             try
             {
@@ -53,7 +52,6 @@ namespace SessyWeb.Components
             finally
             {
                 _loading = false;
-                StateHasChanged();
             }
         }
 

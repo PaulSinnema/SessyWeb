@@ -10,7 +10,7 @@ SessyWeb is a home energy management system (HEMS) for households with [Sessy](h
 
 The planner is a **deterministic greedy search** (`BatteryGreedyPlanner`), not a MILP — there is no OR-Tools reference anywhere in the solution. The `Milp*` class names and the "solver" wording in `MilpServiceBase` are leftovers from the original design; see "Openstaande punten" 4 for the DP that would replace the heuristic.
 
-Target framework is **net10.0** across all projects; the Dockerfile uses `mcr.microsoft.com/dotnet/aspnet:10.0`.
+Target framework is **net11.0** across all projects; the Dockerfile uses `mcr.microsoft.com/dotnet/aspnet:11.0`.
 
 ## Commands
 

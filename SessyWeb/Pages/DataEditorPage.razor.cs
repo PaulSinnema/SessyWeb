@@ -42,7 +42,6 @@ namespace SessyWeb.Pages
             _loading = true;
             _error = null;
             CancelEdit();
-            StateHasChanged();
             try
             {
                 _result = await _editorService!.LoadAsync(_selectedTable, _whereClause, _page, PageSize);
@@ -54,7 +53,6 @@ namespace SessyWeb.Pages
             finally
             {
                 _loading = false;
-                StateHasChanged();
             }
         }
 

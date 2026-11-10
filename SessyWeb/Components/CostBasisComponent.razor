@@ -1,4 +1,4 @@
-@using Radzen
+﻿@using Radzen
 @using Radzen.Blazor
 @using SessyController.Services
 @inject ChargeCostBasisService ChargeCostBasisService
@@ -127,6 +127,5 @@
         // Filled by the planner each cycle; null until the first plan has been built.
         _projection = ChargeCostBasisService.LastProjection;
 
-        StateHasChanged();
     }
 }

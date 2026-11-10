@@ -231,15 +231,31 @@ namespace SessyWeb.Pages
 
         private async Task CopyLog()
         {
-            if (_js != null)
+            if (_js == null) return;
+
+            try
+            {
                 await _js.InvokeVoidAsync("sessyLog.copy", _logText);
+            }
+            catch (JSDisconnectedException)
+            {
+                // Circuit gone (page navigated away/closed); nothing to copy to.
+            }
         }
 
         private async Task ExportLog()
         {
-            if (_js != null)
+            if (_js == null) return;
+
+            try
+            {
                 await _js.InvokeVoidAsync("sessyLog.download",
                     $"sessy-log-{DateTime.Now:yyyyMMdd-HHmmss}.txt", _logText);
+            }
+            catch (JSDisconnectedException)
+            {
+                // Circuit gone (page navigated away/closed); nothing to export to.
+            }
         }
 
         private void ClearLog()
@@ -415,7 +431,16 @@ namespace SessyWeb.Pages
             {
                 _scrollLogPending = false;
                 if (_logAutoScroll && _js != null)
-                    await _js.InvokeVoidAsync("sessyLog.scrollToBottom", _logContainer);
+                {
+                    try
+                    {
+                        await _js.InvokeVoidAsync("sessyLog.scrollToBottom", _logContainer);
+                    }
+                    catch (JSDisconnectedException)
+                    {
+                        // Circuit gone (page navigated away/closed); nothing to scroll.
+                    }
+                }
             }
 
             await base.OnAfterRenderAsync(firstRender);
@@ -774,7 +799,6 @@ namespace SessyWeb.Pages
 
             _settingsSaving = true;
             _settingsSaved = false;
-            StateHasChanged();
 
             try
             {
@@ -805,7 +829,6 @@ namespace SessyWeb.Pages
             finally
             {
                 _settingsSaving = false;
-                StateHasChanged();
             }
 
             if (_settingsSaved)
@@ -880,7 +903,6 @@ namespace SessyWeb.Pages
 
             _dumpBusy = true;
             _dumpError = null;
-            StateHasChanged();
 
             try
             {
@@ -899,7 +921,6 @@ namespace SessyWeb.Pages
             finally
             {
                 _dumpBusy = false;
-                StateHasChanged();
             }
         }
 
@@ -921,7 +942,6 @@ namespace SessyWeb.Pages
 
             _reconstructBusy = true;
             _reconstructError = null;
-            StateHasChanged();
 
             try
             {
@@ -940,7 +960,6 @@ namespace SessyWeb.Pages
             finally
             {
                 _reconstructBusy = false;
-                StateHasChanged();
             }
         }
 
@@ -954,7 +973,6 @@ namespace SessyWeb.Pages
             _sqlBackupBusy = true;
             _sqlBackupMessage = null;
             _sqlError = null;
-            StateHasChanged();
 
             try
             {
@@ -973,7 +991,6 @@ namespace SessyWeb.Pages
             finally
             {
                 _sqlBackupBusy = false;
-                StateHasChanged();
             }
         }
 
@@ -1006,7 +1023,6 @@ namespace SessyWeb.Pages
             _sqlError = null;
             _sqlResult = null;
             _sqlRowsAffected = null;
-            StateHasChanged();
 
             try
             {
@@ -1094,7 +1110,6 @@ namespace SessyWeb.Pages
             finally
             {
                 _sqlBusy = false;
-                StateHasChanged();
             }
         }
 
@@ -1157,7 +1172,6 @@ namespace SessyWeb.Pages
             catch (Exception ex)
             {
                 _sqlError = $"CSV export failed: {ex.Message}";
-                StateHasChanged();
             }
         }
 
@@ -1221,7 +1235,6 @@ namespace SessyWeb.Pages
             catch (Exception ex)
             {
                 _sqlError = $"Excel export failed: {ex.Message}";
-                StateHasChanged();
             }
         }
     }

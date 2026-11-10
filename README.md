@@ -551,7 +551,7 @@ docker compose restart          # restart after editing appsettings.json
 
 ## For developers
 
-Target framework is **net10.0** across all projects.
+Target framework is **net11.0** across all projects.
 
 ```powershell
 # Build

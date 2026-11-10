@@ -21,7 +21,6 @@ namespace SessyWeb.Pages
             if (_analysisService == null) return;
 
             _busy = true;
-            StateHasChanged();
             try
             {
                 _analysis = await _analysisService.BuildAsync();
@@ -29,7 +28,6 @@ namespace SessyWeb.Pages
             finally
             {
                 _busy = false;
-                StateHasChanged();
             }
         }
 

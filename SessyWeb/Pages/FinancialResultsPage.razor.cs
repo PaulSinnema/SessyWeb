@@ -93,8 +93,6 @@ namespace SessyWeb.Pages
         {
             IsBusy = true;
 
-            StateHasChanged();
-
             try
             {
                 if (financialResultsGrid == null) throw new InvalidOperationException($"{nameof(financialResultsGrid)} can not be null here, did you forget a @ref?");
@@ -168,9 +166,6 @@ namespace SessyWeb.Pages
             {
                 IsBusy = false;
             }
-
-            StateHasChanged();
         }
     }
 }
-

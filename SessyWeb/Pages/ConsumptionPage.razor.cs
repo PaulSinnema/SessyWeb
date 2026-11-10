@@ -47,6 +47,18 @@ namespace SessyWeb.Pages
         private double _totalConsumptionKWh  {  get; set; } = 0;
         public double TotalConsumptionKWh  => _totalConsumptionKWh  / 1000;
 
+        // Average temperature over the currently shown period, for the footer.
+        public double AverageTemperature => DateSelectionChosen?.PeriodChosen switch
+        {
+            PeriodsEnums.Day => ConsumptionDayData.Count > 0 ? ConsumptionDayData.Average(cd => cd.Temperature) : 0,
+            PeriodsEnums.Week => ConsumptionWeekData.Count > 0 ? ConsumptionWeekData.Average(cd => cd.Temperature) : 0,
+            PeriodsEnums.Month => ConsumptionMonthData.Count > 0 ? ConsumptionMonthData.Average(cd => cd.Temperature) : 0,
+            PeriodsEnums.Year => ConsumptionYearData.Count > 0 ? ConsumptionYearData.Average(cd => cd.Temperature) : 0,
+            PeriodsEnums.All => ConsumptionAllData.Count > 0 ? ConsumptionAllData.Average(cd => cd.Temperature) : 0,
+            PeriodsEnums.Custom => ConsumptionCustomData.Count > 0 ? ConsumptionCustomData.Average(cd => cd.Temperature) : 0,
+            _ => 0
+        };
+
         protected override void OnParametersSet()
         {
             DateSelectionChosen ??= new DateArgs(PeriodsEnums.Day, DurationEnums.Last7Days, _timeZoneService!.Now);
@@ -170,12 +182,13 @@ namespace SessyWeb.Pages
         public class DisplayBaseData
         {
             public double ConsumptionKWh { get; set; }
+            // Average temperature (Day: actual quarter-hour value; other periods: average over the period).
+            public double Temperature { get; set; }
         }
 
         public class ConsumptionDisplayDayData : DisplayBaseData
         {
             public DateTime Time { get; set; }
-            public double Temperature { get; set; }
             public double GlobalRadiation { get; set; }
             public double Humidity { get; set; }
         }
@@ -268,7 +281,8 @@ namespace SessyWeb.Pages
                                     Day = gr.Key.Day,
                                     DayOfWeek = $"{gr.Key.DayOfWeek.ToString().Substring(0, 2)} {gr.Key.Day}",
                                     Position = (int)gr.Key.DayOfWeek,
-                                    ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4
+                                    ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4,
+                                    Temperature = gr.Average(cons => cons.Temperature)
                                 })
                                 .OrderBy(item => item.Position)
                                 .ToList();
@@ -299,7 +313,8 @@ namespace SessyWeb.Pages
                                 {
                                     Day = gr.Key.Day,
                                     DayOfWeek = $"{gr.Key.DayOfWeek.ToString().Substring(0, 2)} {gr.Key.Day}",
-                                    ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4
+                                    ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4,
+                                    Temperature = gr.Average(cons => cons.Temperature)
                                 })
                                 .OrderBy(item => item.Day)
                                 .ToList();
@@ -327,7 +342,8 @@ namespace SessyWeb.Pages
                                 {
                                     Month = gr.Key,
                                     MonthOfYear = Formatters.FormatAsMonth(gr.Key),
-                                    ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4
+                                    ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4,
+                                    Temperature = gr.Average(cons => cons.Temperature)
                                 })
                                 .ToList();
 
@@ -351,7 +367,8 @@ namespace SessyWeb.Pages
                                 .Select(gr => new ConsumptionDisplayAllData
                                 {
                                     Year = gr.Key.ToString(),
-                                    ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4
+                                    ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4,
+                                    Temperature = gr.Average(cons => cons.Temperature)
                                 })
                                 .ToList();
 
@@ -380,7 +397,8 @@ namespace SessyWeb.Pages
                                         .Select(gr => new ConsumptionDisplayCustomData
                                         {
                                             X = gr.Key.ToString("dd/MM/yyyy"),
-                                            ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4
+                                            ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4,
+                                            Temperature = gr.Average(cons => cons.Temperature)
                                         })
                                         .ToList();
                                     break;
@@ -390,7 +408,8 @@ namespace SessyWeb.Pages
                                         .Select(gr => new ConsumptionDisplayCustomData
                                         {
                                             X = gr.Key.ToString("dd/MM/yyyy"),
-                                            ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4
+                                            ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4,
+                                            Temperature = gr.Average(cons => cons.Temperature)
                                         })
                                         .ToList();
                                     break;
@@ -402,7 +421,8 @@ namespace SessyWeb.Pages
                                         .Select(gr => new ConsumptionDisplayCustomData
                                         {
                                             X = gr.Key,
-                                            ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4
+                                            ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4,
+                                            Temperature = gr.Average(cons => cons.Temperature)
                                         })
                                         .ToList();
                                     break;

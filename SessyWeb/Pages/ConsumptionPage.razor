@@ -56,6 +56,20 @@
                         </ChildContent>
                     </RadzenAreaSeries>
 
+                    <RadzenLineSeries Data="@ConsumptionDayData"
+                    Stroke="var(--sessy-temperature-line)"
+                    StrokeWidth="2"
+                    Title="Temperature"
+                    CategoryProperty="Time"
+                    ValueProperty="Temperature"
+                    ValueAxisName="temperature"
+                    Smooth="true"
+                    LineType="LineType.Dashed">
+                        <ChildContent>
+                            <RadzenMarkers Visible="@ShowMarkers" MarkerType="MarkerType.Circle" />
+                        </ChildContent>
+                    </RadzenLineSeries>
+
                     <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance LabelAutoRotation="-45">
                         <RadzenGridLines Visible="true" />
                         <RadzenAxisTitle Text="Time" />
@@ -63,6 +77,9 @@
                     <RadzenValueAxis Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
                         <RadzenGridLines Visible="true" />
                         <RadzenAxisTitle Text="Watt" />
+                    </RadzenValueAxis>
+                    <RadzenValueAxis Name="temperature" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                        <RadzenAxisTitle Text="Celsius" />
                     </RadzenValueAxis>
                 </RadzenChart>
             </RadzenCard>
@@ -179,6 +196,16 @@
                         </ChildContent>
                     </RadzenColumnSeries>
 
+                    <RadzenLineSeries Data="@ConsumptionWeekData"
+                    Stroke="var(--sessy-temperature-line)"
+                    StrokeWidth="2"
+                    Title="Avg. temperature"
+                    CategoryProperty="DayOfWeek"
+                    ValueProperty="Temperature"
+                    ValueAxisName="temperature"
+                    LineType="LineType.Dashed">
+                    </RadzenLineSeries>
+
                     <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance LabelAutoRotation="-45" Padding="20">
                         <RadzenGridLines Visible="true" />
                         <RadzenAxisTitle Text="Day" />
@@ -186,6 +213,9 @@
                     <RadzenValueAxis Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
                         <RadzenGridLines Visible="true" />
                         <RadzenAxisTitle Text="Watt" />
+                    </RadzenValueAxis>
+                    <RadzenValueAxis Name="temperature" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                        <RadzenAxisTitle Text="Celsius" />
                     </RadzenValueAxis>
                 </RadzenChart>
             </RadzenCard>
@@ -209,6 +239,16 @@
                         </ChildContent>
                     </RadzenColumnSeries>
 
+                    <RadzenLineSeries Data="@ConsumptionMonthData"
+                                        Stroke="var(--sessy-temperature-line)"
+                                        StrokeWidth="2"
+                                        Title="Avg. temperature"
+                                        CategoryProperty="DayOfWeek"
+                                        ValueProperty="Temperature"
+                                        ValueAxisName="temperature"
+                                        LineType="LineType.Dashed">
+                    </RadzenLineSeries>
+
                     <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance LabelAutoRotation="-45">
                         <RadzenGridLines Visible="true" />
                         <RadzenAxisTitle Text="Day" />
@@ -216,6 +256,9 @@
                     <RadzenValueAxis Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
                         <RadzenGridLines Visible="true" />
                         <RadzenAxisTitle Text="Watt" />
+                    </RadzenValueAxis>
+                    <RadzenValueAxis Name="temperature" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                        <RadzenAxisTitle Text="Celsius" />
                     </RadzenValueAxis>
                 </RadzenChart>
             </RadzenCard>
@@ -240,6 +283,16 @@
                         </ChildContent>
                     </RadzenColumnSeries>
 
+                    <RadzenLineSeries Data="@ConsumptionYearData"
+                                        Stroke="var(--sessy-temperature-line)"
+                                        StrokeWidth="2"
+                                        Title="Avg. temperature"
+                                        CategoryProperty="MonthOfYear"
+                                        ValueProperty="Temperature"
+                                        ValueAxisName="temperature"
+                                        LineType="LineType.Dashed">
+                    </RadzenLineSeries>
+
                     <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance LabelAutoRotation="-45">
                         <RadzenGridLines Visible="true" />
                         <RadzenAxisTitle Text="Month" />
@@ -247,6 +300,9 @@
                     <RadzenValueAxis Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
                         <RadzenGridLines Visible="true" />
                         <RadzenAxisTitle Text="Watt" />
+                    </RadzenValueAxis>
+                    <RadzenValueAxis Name="temperature" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                        <RadzenAxisTitle Text="Celsius" />
                     </RadzenValueAxis>
                 </RadzenChart>
             </RadzenCard>
@@ -271,6 +327,16 @@
                         </ChildContent>
                     </RadzenColumnSeries>
 
+                    <RadzenLineSeries Data="@ConsumptionAllData"
+                                        Stroke="var(--sessy-temperature-line)"
+                                        StrokeWidth="2"
+                                        Title="Avg. temperature"
+                                        CategoryProperty="Year"
+                                        ValueProperty="Temperature"
+                                        ValueAxisName="temperature"
+                                        LineType="LineType.Dashed">
+                    </RadzenLineSeries>
+
                     <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance LabelAutoRotation="-45">
                         <RadzenGridLines Visible="true" />
                         <RadzenAxisTitle Text="Year" />
@@ -278,6 +344,9 @@
                     <RadzenValueAxis Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
                         <RadzenGridLines Visible="true" />
                         <RadzenAxisTitle Text="Watt" />
+                    </RadzenValueAxis>
+                    <RadzenValueAxis Name="temperature" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                        <RadzenAxisTitle Text="Celsius" />
                     </RadzenValueAxis>
                 </RadzenChart>
             </RadzenCard>
@@ -301,6 +370,16 @@
                         </ChildContent>
                     </RadzenColumnSeries>
 
+                    <RadzenLineSeries Data="@ConsumptionCustomData"
+                                        Stroke="var(--sessy-temperature-line)"
+                                        StrokeWidth="2"
+                                        Title="Avg. temperature"
+                                        CategoryProperty="X"
+                                        ValueProperty="Temperature"
+                                        ValueAxisName="temperature"
+                                        LineType="LineType.Dashed">
+                    </RadzenLineSeries>
+
                     <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance LabelAutoRotation="-45">
                         <RadzenGridLines Visible="true" />
                         <RadzenAxisTitle Text="Date" />
@@ -308,6 +387,9 @@
                     <RadzenValueAxis Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
                         <RadzenGridLines Visible="true" />
                         <RadzenAxisTitle Text="Watt" />
+                    </RadzenValueAxis>
+                    <RadzenValueAxis Name="temperature" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                        <RadzenAxisTitle Text="Celsius" />
                     </RadzenValueAxis>
                 </RadzenChart>
             </RadzenCard>
@@ -317,5 +399,8 @@
     <RadzenFooter>
         <RadzenLabel Text="Total Consumption:" Component="RadzenDropDownBindValue" class="m-2" />
         <RadzenNumeric Value="@TotalConsumptionKWh" ReadOnly="true" class="m-2" Format="0.00" Disabled ShowUpDown="false"/>
+
+        <RadzenLabel Text="Avg. temperature:" Component="RadzenDropDownBindValue" class="m-2" />
+        <RadzenNumeric Value="@AverageTemperature" ReadOnly="true" class="m-2" Format="0.0" Disabled ShowUpDown="false"/>
     </RadzenFooter>
 </RadzenLayout>

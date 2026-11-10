@@ -1,5 +1,5 @@
-# Runtime image for the final container.
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
+﻿# Runtime image for the final container.
+FROM mcr.microsoft.com/dotnet/aspnet:11.0 AS base
 WORKDIR /app
 EXPOSE 80
 EXPOSE 443
@@ -13,7 +13,7 @@ ENV DOTNET_RUNNING_IN_DOCKER=true
 # pack, did not. The publish still succeeded and the app still started, so the only
 # symptom was every page rendering its prerendered shell with no data.
 # Building for arm64 emulates the SDK under QEMU and is slower; correctness wins.
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 

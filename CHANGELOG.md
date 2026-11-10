@@ -11,6 +11,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.171] — 2026-11-10
+
+### Added
+- **Consumption tab: temperature on the charts.** Every period chart now also plots the
+  temperature on a secondary (Celsius) axis — the actual quarter-hour value for Day, the average
+  over the period for Week/Month/Year/All/Custom. The footer also shows the average temperature
+  for the period shown.
+
+### Changed
+- **Runs on .NET 11.** All projects target `net11.0`; the Docker image is built on
+  `mcr.microsoft.com/dotnet/sdk:11.0` and runs on `aspnet:11.0`. EF Core and Data Protection moved
+  to 11.0.0. Nothing changes in use; the NAS needs a fresh image.
+- **Build is warning-free.** Redundant re-render calls removed from several pages and the
+  container-log copy/export/scroll no longer throw when the page is closed mid-call.
+
 ## [v1.0.170] — 2026-11-09
 
 ### Added
