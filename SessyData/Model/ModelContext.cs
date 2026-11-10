@@ -65,6 +65,8 @@ namespace SessyData.Model
 
         public DbSet<Notification> Notifications => Set<Notification>();
 
+        public DbSet<FinancialForecastReplay> FinancialForecastReplays => Set<FinancialForecastReplay>();
+
         /// <summary>
         /// Applied to every connection this context opens. Session settings only — they configure
         /// the connection and never write to the file.

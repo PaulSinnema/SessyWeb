@@ -11,6 +11,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.172] — 2026-11-10
+
+### Changed
+- **Financial forecast: planner replay stored in the database, weekly.** The replay result now lives
+  in the new `FinancialForecastReplays` table instead of `financial-forecast.json` next to the
+  database, so it is part of every backup. It runs at most once a week (was daily); each run adds
+  a row, the Statistics page shows the newest. The first start after the update calculates it
+  once (a few minutes); an old `financial-forecast.json` is no longer read and can be deleted.
+
 ## [v1.0.171] — 2026-11-10
 
 ### Added

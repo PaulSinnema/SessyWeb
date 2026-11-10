@@ -506,6 +506,59 @@ namespace SessyData.Migrations
                     b.ToTable("SessyWebControl");
                 });
 
+            modelBuilder.Entity("SessyData.Model.FinancialForecastReplay", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CalculatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Days")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double>("EnergyTaxEur")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("ExportKWh")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("ExportRevenueEur")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("FixedCostsEur")
+                        .HasColumnType("REAL");
+
+                    b.Property<DateTime>("From")
+                        .HasColumnType("TEXT");
+
+                    b.Property<double>("ImportCostEur")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("ImportKWh")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Netting")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double>("TaxReductionEur")
+                        .HasColumnType("REAL");
+
+                    b.Property<DateTime>("To")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CalculatedAt");
+
+                    b.ToTable("FinancialForecastReplays");
+                });
+
             modelBuilder.Entity("SessyData.Model.Notification", b =>
                 {
                     b.Property<int>("Id")

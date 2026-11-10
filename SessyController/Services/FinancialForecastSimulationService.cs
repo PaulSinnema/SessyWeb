@@ -1,6 +1,4 @@
-﻿using System.Text.Json;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using SessyCommon.Configurations;
@@ -14,27 +12,29 @@ using SessyData.Services;
 
 namespace SessyController.Services
 {
-    /// <summary>Stored outcome of the yearly replay (JSON next to the database).</summary>
+    /// <summary>Outcome of a yearly replay, as the Statistics page reads it.</summary>
     public sealed record FinancialForecastSimulation(DateTime CalculatedAt, int Days, FinancialForecast Forecast);
 
     /// <summary>
     /// Replays the last 12 full months through the real planner with next year's tariffs: measured
     /// house load, solar, temperature and market prices, one 48-hour solve per day (the first 24 hours
     /// kept), SOC carried from day to day. The grid flows that plan implies are priced like the other
-    /// forecast columns. Runs once a day in the background, and at start-up when no result is stored;
-    /// the Statistics page only reads the stored result.
+    /// forecast columns. Runs in the background when the newest stored replay is a week old or there
+    /// is none, and stores one row per run in FinancialForecastReplays; the Statistics page only reads
+    /// the newest row.
     /// </summary>
     public class FinancialForecastSimulationService : BackgroundService
     {
         private const double QuarterHours = 0.25;
 
+        /// <summary>At most one replay per week.</summary>
+        private static readonly TimeSpan RecalculateAfter = TimeSpan.FromDays(7);
+
         private readonly IServiceScope _scope;
         private readonly LoggingService<FinancialForecastSimulationService> _logger;
         private readonly TimeZoneService _timeZoneService;
         private readonly SettingsService _settingsService;
-        private readonly string _resultPath;
-
-        private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+        private readonly FinancialForecastReplayDataService _replayDataService;
 
         public FinancialForecastSimulation? Result { get; private set; }
 
@@ -46,14 +46,13 @@ namespace SessyController.Services
             LoggingService<FinancialForecastSimulationService> logger,
             TimeZoneService timeZoneService,
             SettingsService settingsService,
-            IConfiguration configuration)
+            FinancialForecastReplayDataService replayDataService)
         {
             _scope = scopeFactory.CreateScope();
             _logger = logger;
             _timeZoneService = timeZoneService;
             _settingsService = settingsService;
-            _resultPath = ResultPath(configuration.GetConnectionString("SQLiteConnection"));
-            Result = Load(_resultPath);
+            _replayDataService = replayDataService;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -64,8 +63,14 @@ namespace SessyController.Services
             {
                 try
                 {
-                    // Recalculate when nothing is stored yet or the stored result is from an earlier day.
-                    if (Result == null || Result.CalculatedAt.Date < _timeZoneService.Now.Date)
+                    // Inside the loop so a failed read is retried an hour later instead of stopping the service.
+                    if (Result == null)
+                    {
+                        var latest = await _replayDataService.GetLatestAsync().ConfigureAwait(false);
+                        Result = latest == null ? null : ToSimulation(latest);
+                    }
+
+                    if (Result == null || _timeZoneService.Now - Result.CalculatedAt >= RecalculateAfter)
                         await RunAsync(stoppingToken).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -230,8 +235,9 @@ namespace SessyController.Services
             var forecast = FinancialForecastService.Calculate($"{nextYearStart.Year}, planner replay",
                 nextYearStart, nextYearStart.AddYears(1), flows, _ => tx);
 
-            Result = new FinancialForecastSimulation(_timeZoneService.Now, days, forecast);
-            Save(_resultPath, Result);
+            var row = ToRow(_timeZoneService.Now, days, forecast);
+            await _replayDataService.AddRange([row]).ConfigureAwait(false);
+            Result = ToSimulation(row);
 
             _logger.LogWarning($"Financial forecast simulation: {days} days in {sw.Elapsed.TotalSeconds:F0} s, " +
                                $"import {forecast.ImportKWh:F0} kWh, export {forecast.ExportKWh:F0} kWh, total €{forecast.TotalEur:F0}.");
@@ -251,46 +257,26 @@ namespace SessyController.Services
             return (sameDay.Average(v => v.Watts), sameDay.Average(v => v.TempC));
         }
 
-        /// <summary>Next to the SQLite file, so it survives a container update.</summary>
-        private static string ResultPath(string? connectionString)
+        private static FinancialForecastReplay ToRow(DateTime calculatedAt, int days, FinancialForecast f) => new()
         {
-            var dataSource = connectionString?
-                .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Select(part => part.Split('=', 2))
-                .Where(kv => kv.Length == 2 && kv[0].Trim().Equals("Data Source", StringComparison.OrdinalIgnoreCase))
-                .Select(kv => kv[1].Trim())
-                .FirstOrDefault();
+            CalculatedAt = calculatedAt,
+            Days = days,
+            Label = f.Label,
+            From = f.From,
+            To = f.To,
+            Netting = f.Netting,
+            ImportKWh = f.ImportKWh,
+            ExportKWh = f.ExportKWh,
+            ImportCostEur = f.ImportCostEur,
+            ExportRevenueEur = f.ExportRevenueEur,
+            EnergyTaxEur = f.EnergyTaxEur,
+            FixedCostsEur = f.FixedCostsEur,
+            TaxReductionEur = f.TaxReductionEur
+        };
 
-            var directory = string.IsNullOrEmpty(dataSource) ? null : Path.GetDirectoryName(Path.GetFullPath(dataSource));
-            return Path.Combine(directory ?? AppContext.BaseDirectory, "financial-forecast.json");
-        }
-
-        private FinancialForecastSimulation? Load(string path)
-        {
-            try
-            {
-                return File.Exists(path)
-                    ? JsonSerializer.Deserialize<FinancialForecastSimulation>(File.ReadAllText(path))
-                    : null;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning($"Could not read {path}, recalculating: {ex.Message}");
-                return null;
-            }
-        }
-
-        private void Save(string path, FinancialForecastSimulation result)
-        {
-            try
-            {
-                File.WriteAllText(path, JsonSerializer.Serialize(result, JsonOptions));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning($"Could not write {path}: {ex.Message}");
-            }
-        }
+        private static FinancialForecastSimulation ToSimulation(FinancialForecastReplay r) =>
+            new(r.CalculatedAt, r.Days, new FinancialForecast(r.Label, r.From, r.To, r.Netting,
+                r.ImportKWh, r.ExportKWh, r.ImportCostEur, r.ExportRevenueEur, r.EnergyTaxEur, r.FixedCostsEur, r.TaxReductionEur));
 
         public override void Dispose()
         {

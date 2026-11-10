@@ -7,7 +7,7 @@
     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
         <RadzenText TextStyle="TextStyle.H6">💶 Financial forecast for next year</RadzenText>
         <RadzenButton Icon="refresh" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
-                      Click="@LoadAsync" title="Reload (the planner replay runs once a day)" />
+                      Click="@LoadAsync" title="Reload (the planner replay runs once a week)" />
     </RadzenStack>
 
     @if (_loading)
@@ -27,7 +27,7 @@
             <b>Last 12 months</b>: measured grid import and export at the tariffs that applied.
             <b>Planner replay</b>: the planner replans that year day by day at the tariffs valid on 1 January
             @_nextYear.From.Year (netting @(_nextYear.Netting ? "on" : "off")), from the measured house load and
-            solar; this is what to expect. It runs once a day in the background (a few minutes).
+            solar; this is what to expect. It runs once a week in the background (a few minutes).
         </RadzenText>
 
         <div style="width: 100%; overflow-x: auto;" class="rz-mt-2">
