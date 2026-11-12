@@ -11,6 +11,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.176] — 2026-11-12
+
+### Changed
+- **Consumption chart: clearer colours and readout.** Global radiation had almost the same amber as
+  temperature — it now has its own colour. Markers are off by default (still toggleable). Hovering
+  the chart now shows one tooltip with all series' values instead of one per series. The three
+  right-hand axes (temperature, radiation, humidity) each get a fixed width so their labels stop
+  overlapping on narrower charts. Weather lines are solid instead of dashed.
+- **Consumption tab, All: months of all years side by side.** January to December on the x-axis,
+  one bar per year per month (own colour per year), the weather lines show the monthly average over
+  all years. The chart fills the card. Per-year bars gave only two points, so the weather lines were
+  a single diagonal.
+
+### Fixed
+- **Consumption tab, Month: bars no longer shrink for a partial month.** Bar width was based on how
+  many days had data; it's now based on the number of days in the month, so a month in progress
+  looks the same width as a full one.
+
 ## [v1.0.175] — 2026-11-11
 
 ### Fixed

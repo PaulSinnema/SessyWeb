@@ -242,6 +242,13 @@ a, .btn-link {
     --sessy-delta: #90a4ae;
     --sessy-humidity: #43a047;
     --sessy-temperature: #ffb300;
+    --sessy-radiation: #00aae4;
+
+    /* Years side by side (0 = most recent) */
+    --sessy-year-0: var(--sessy-consumption);
+    --sessy-year-1: #f06292;
+    --sessy-year-2: #90a4ae;
+    --sessy-year-3: #a1887f;
 
     /* Plan versus actual */
     --sessy-planned: #6366f1;
@@ -282,6 +289,11 @@ a, .btn-link {
     --sessy-delta-line: color-mix(in srgb, var(--sessy-delta) 70%, var(--sessy-mix-base));
     --sessy-humidity-line: color-mix(in srgb, var(--sessy-humidity) 70%, var(--sessy-mix-base));
     --sessy-temperature-line: color-mix(in srgb, var(--sessy-temperature) 70%, var(--sessy-mix-base));
+    --sessy-radiation-line: color-mix(in srgb, var(--sessy-radiation) 70%, var(--sessy-mix-base));
+    --sessy-year-0-line: color-mix(in srgb, var(--sessy-year-0) 70%, var(--sessy-mix-base));
+    --sessy-year-1-line: color-mix(in srgb, var(--sessy-year-1) 70%, var(--sessy-mix-base));
+    --sessy-year-2-line: color-mix(in srgb, var(--sessy-year-2) 70%, var(--sessy-mix-base));
+    --sessy-year-3-line: color-mix(in srgb, var(--sessy-year-3) 70%, var(--sessy-mix-base));
     --sessy-planned-line: color-mix(in srgb, var(--sessy-planned) 70%, var(--sessy-mix-base));
     --sessy-actual-line: color-mix(in srgb, var(--sessy-actual) 70%, var(--sessy-mix-base));
 
@@ -306,6 +318,10 @@ a, .btn-link {
     --sessy-znh-area: color-mix(in srgb, var(--sessy-znh) 50%, transparent);
     --sessy-hold-reserve-area: color-mix(in srgb, var(--sessy-hold-reserve) 45%, transparent);
     --sessy-consumption-area: color-mix(in srgb, var(--sessy-consumption) 60%, transparent);
+    --sessy-year-0-area: color-mix(in srgb, var(--sessy-year-0) 60%, transparent);
+    --sessy-year-1-area: color-mix(in srgb, var(--sessy-year-1) 60%, transparent);
+    --sessy-year-2-area: color-mix(in srgb, var(--sessy-year-2) 60%, transparent);
+    --sessy-year-3-area: color-mix(in srgb, var(--sessy-year-3) 60%, transparent);
 }
 
 /* ── Contrast on bright badges and buttons ────────────────────────────────────

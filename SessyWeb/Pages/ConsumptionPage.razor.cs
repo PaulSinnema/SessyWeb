@@ -1,5 +1,4 @@
-﻿using DocumentFormat.OpenXml.Bibliography;
-using Microsoft.AspNetCore.Components;
+﻿using Microsoft.AspNetCore.Components;
 using Radzen.Blazor;
 using Radzen.Blazor.Rendering;
 using SessyCommon.Extensions;
@@ -42,6 +41,11 @@ namespace SessyWeb.Pages
         public List<ConsumptionDisplayMonthData> ConsumptionMonthData { get; set; } = new();
         public List<ConsumptionDisplayYearData> ConsumptionYearData { get; set; } = new();
         public List<ConsumptionDisplayAllData> ConsumptionAllData { get; set; } = new();
+        public List<int> AllYears { get; set; } = new();
+        // Per year all 12 months (missing months zero) so the years line up side by side.
+        public Dictionary<int, List<ConsumptionDisplayAllData>> ConsumptionAllPerYear { get; set; } = new();
+        // Weather per calendar month, averaged over all years.
+        public List<ConsumptionDisplayAllData> ConsumptionAllWeather { get; set; } = new();
         public List<ConsumptionDisplayCustomData> ConsumptionCustomData { get; set; } = new();
 
         private double _totalConsumptionKWh  {  get; set; } = 0;
@@ -114,7 +118,7 @@ namespace SessyWeb.Pages
         {
             if (DateSelectionChosen != null)
             {// 25 pixels per data row
-                var width = 1000;
+                int? width = 1000; // null = fill the card
 
                 switch (DateSelectionChosen!.PeriodChosen)
                 {
@@ -127,7 +131,9 @@ namespace SessyWeb.Pages
                         break;
 
                     case PeriodsEnums.Month:
-                        width = ConsumptionMonthData.Count * 60;
+                        // Fixed bar width based on days in month, not days loaded yet, so a partial month doesn't look squeezed.
+                        var dateChoosen = DateSelectionChosen.DateChosen?.Date ?? _timeZoneService!.Now.Date;
+                        width = DateTime.DaysInMonth(dateChoosen.Year, dateChoosen.Month) * 60;
                         break;
 
                     case PeriodsEnums.Year:
@@ -135,7 +141,7 @@ namespace SessyWeb.Pages
                         break;
 
                     case PeriodsEnums.All:
-                        width = ConsumptionAllData.Count * 500;
+                        width = null;
                         break;
 
                     case PeriodsEnums.Custom:
@@ -166,7 +172,9 @@ namespace SessyWeb.Pages
                         throw new InvalidOperationException($"Invalid period: {DateSelectionChosen!.PeriodChosen}");
                 }
 
-                GraphStyle = $"min-height: {height}px; width: {width}px; visibility: initial;";
+                var widthCss = width.HasValue ? $"{width}px" : "100%";
+
+                GraphStyle = $"min-height: {height}px; width: {widthCss}; visibility: initial;";
 
                 StateHasChanged();
             }
@@ -214,8 +222,13 @@ namespace SessyWeb.Pages
 
         public class ConsumptionDisplayAllData : DisplayBaseData
         {
-            public string Year { get; set; } = string.Empty;
+            public int Year { get; set; }
+            public int Month { get; set; }
+            public string MonthOfYear { get; set; } = string.Empty;
         }
+
+        // Most recent year gets colour 0; variant is "line" or "area".
+        private string YearColor(int year, string variant) => $"var(--sessy-year-{(AllYears.Count - 1 - AllYears.IndexOf(year)) % 4}-{variant})";
 
         public class ConsumptionDisplayCustomData : DisplayBaseData
         {
@@ -369,11 +382,34 @@ namespace SessyWeb.Pages
 
                                 return await Task.FromResult(result);
                             });
-                            ConsumptionAllData = result.GroupBy(cd => cd.Time.Year)
+                            ConsumptionAllData = result.GroupBy(cd => new { cd.Time.Year, cd.Time.Month })
+                                .OrderBy(gr => gr.Key.Year)
+                                .ThenBy(gr => gr.Key.Month)
                                 .Select(gr => new ConsumptionDisplayAllData
                                 {
-                                    Year = gr.Key.ToString(),
+                                    Year = gr.Key.Year,
+                                    Month = gr.Key.Month,
+                                    MonthOfYear = Formatters.FormatAsMonth(gr.Key.Month),
                                     ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4,
+                                    Temperature = gr.Average(cons => cons.Temperature),
+                                    GlobalRadiation = gr.Average(cons => cons.GlobalRadiation),
+                                    Humidity = gr.Average(cons => cons.Humidity)
+                                })
+                                .ToList();
+
+                            AllYears = ConsumptionAllData.Select(cd => cd.Year).Distinct().OrderBy(year => year).ToList();
+
+                            ConsumptionAllPerYear = AllYears.ToDictionary(year => year, year => Enumerable.Range(1, 12)
+                                .Select(month => ConsumptionAllData.FirstOrDefault(cd => cd.Year == year && cd.Month == month)
+                                    ?? new ConsumptionDisplayAllData { Year = year, Month = month, MonthOfYear = Formatters.FormatAsMonth(month) })
+                                .ToList());
+
+                            ConsumptionAllWeather = result.GroupBy(cd => cd.Time.Month)
+                                .OrderBy(gr => gr.Key)
+                                .Select(gr => new ConsumptionDisplayAllData
+                                {
+                                    Month = gr.Key,
+                                    MonthOfYear = Formatters.FormatAsMonth(gr.Key),
                                     Temperature = gr.Average(cons => cons.Temperature),
                                     GlobalRadiation = gr.Average(cons => cons.GlobalRadiation),
                                     Humidity = gr.Average(cons => cons.Humidity)
@@ -553,9 +589,7 @@ namespace SessyWeb.Pages
 
                 case PeriodsEnums.All:
                     {
-                        var years = ConsumptionAllData.Count;
-
-                        TickDistance = ConsumptionChartWidth / (years == 0 ? 1 : years * 500);
+                        TickDistance = ConsumptionChartWidth / 24;
 
                         break;
                     }
