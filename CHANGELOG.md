@@ -11,6 +11,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.188] — 2026-11-13
+
+### Added
+- **Statistics, Consumption tab: "Consumption forecast: planner vs. model".** Per complete day the measured
+  consumption next to what the planner expected a day in advance and what the consumption model predicts
+  from that day's temperature, with the mean error and bias of both. The planner's forecasts are kept 40
+  days, so this looks back at most that far.
+- **Statistics, new Battery tab.** Per month the energy charged and discharged, the round-trip efficiency
+  and the full-cycle equivalents, plus the total number of cycles. With the expected cycles entered on the
+  battery investment it shows how much of the rated life is used and how many years are left at this pace.
+
 ## [v1.0.187] — 2026-11-13
 
 ### Changed

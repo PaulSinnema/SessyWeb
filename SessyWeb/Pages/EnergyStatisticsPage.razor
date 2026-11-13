@@ -117,7 +117,20 @@
                     </RadzenRow>
                 </RadzenTabsItem>
                 <RadzenTabsItem Text="Consumption">
-                    <WeatherCorrelationComponent />
+                    <RadzenRow Gap="12px" RowGap="12px" AlignItems="AlignItems.Stretch">
+
+                        <RadzenColumn Size="12" class="rz-display-flex">
+                            <ForecastAccuracyComponent />
+                        </RadzenColumn>
+
+                        <RadzenColumn Size="12" class="rz-display-flex">
+                            <WeatherCorrelationComponent />
+                        </RadzenColumn>
+
+                    </RadzenRow>
+                </RadzenTabsItem>
+                <RadzenTabsItem Text="Battery">
+                    <BatteryStatisticsComponent />
                 </RadzenTabsItem>
             </Tabs>
         </RadzenTabs>

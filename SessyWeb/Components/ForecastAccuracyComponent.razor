@@ -1,0 +1,67 @@
+﻿@using SessyController.Services.Statistics
+@using Radzen
+@using Radzen.Blazor
+@inherits BaseComponent
+
+<RadzenCard>
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
+        <RadzenText TextStyle="TextStyle.H6">🎯 Consumption forecast: planner vs. model <InfoTipComponent Text="@HowToRead" /></RadzenText>
+        <RadzenButton Icon="refresh" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                      Click="@LoadAsync" title="Reload" />
+    </RadzenStack>
+
+    @if (_loading)
+    {
+        <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" class="rz-mt-2" />
+    }
+    else if (_result == null || _result.Days.Count == 0)
+    {
+        <RadzenText TextStyle="TextStyle.Body1" class="rz-mt-2">
+            Not enough data yet: needs complete days for which the planner stored a forecast @SessyController.Services.Statistics.ForecastAccuracyService.DefaultLeadHours hours ahead.
+        </RadzenText>
+    }
+    else
+    {
+        <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-1">@SummaryText()</RadzenText>
+        <RadzenText TextStyle="TextStyle.Caption">@ErrorText("Planner", _result.Planner)</RadzenText>
+        <RadzenText TextStyle="TextStyle.Caption">@ErrorText("Model", _result.Model)</RadzenText>
+
+        <RadzenChart Style="width: 100%; height: 45vh; min-height: 360px;">
+            <RadzenChartTooltipOptions Shared="true" />
+            <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
+
+            <RadzenColumnSeries Data="@_result.Days"
+                                Title="Measured"
+                                CategoryProperty="Label"
+                                ValueProperty="MeasuredKWh"
+                                Fill="var(--sessy-consumption-area)"
+                                Stroke="var(--sessy-consumption-line)"
+                                StrokeWidth="2" />
+
+            <RadzenLineSeries Data="@_result.Days"
+                              Title="Planner (a day ahead)"
+                              CategoryProperty="Label"
+                              ValueProperty="PlannerKWh"
+                              Stroke="var(--sessy-year-1-line)"
+                              StrokeWidth="2" />
+
+            @if (_result.Model != null)
+            {
+                <RadzenLineSeries Data="@_result.Days"
+                                  Title="Model (actual temperature)"
+                                  CategoryProperty="Label"
+                                  ValueProperty="ModelKWh"
+                                  Stroke="var(--sessy-temperature-line)"
+                                  StrokeWidth="2" />
+            }
+
+            <RadzenCategoryAxis LabelAutoRotation="-45">
+                <RadzenAxisTitle Text="Day" />
+            </RadzenCategoryAxis>
+            <RadzenValueAxis Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                <RadzenGridLines Visible="true" />
+                <RadzenAxisTitle Text="kWh / day" />
+            </RadzenValueAxis>
+        </RadzenChart>
+    }
+</RadzenCard>

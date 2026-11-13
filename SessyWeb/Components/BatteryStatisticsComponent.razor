@@ -1,0 +1,102 @@
+﻿@using SessyController.Services.Statistics
+@using Radzen
+@using Radzen.Blazor
+@inherits BaseComponent
+
+<RadzenCard>
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
+        <RadzenText TextStyle="TextStyle.H6">🔋 Battery use and efficiency <InfoTipComponent Text="@HowToRead" /></RadzenText>
+        <RadzenButton Icon="refresh" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                      Click="@LoadAsync" title="Reload" />
+    </RadzenStack>
+
+    @if (_loading)
+    {
+        <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" class="rz-mt-2" />
+    }
+    else if (_result == null || _result.Months.Count == 0)
+    {
+        <RadzenText TextStyle="TextStyle.Body1" class="rz-mt-2">Not enough data yet: no battery measurements stored.</RadzenText>
+    }
+    else
+    {
+        <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-1">@CyclesText()</RadzenText>
+        <RadzenText TextStyle="TextStyle.Caption">@LifetimeText()</RadzenText>
+
+        <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mt-3">Energy and round-trip efficiency per month <InfoTipComponent Text="@EnergyInfo" /></RadzenText>
+
+        <RadzenChart Style="width: 100%; height: 45vh; min-height: 360px;">
+            <RadzenChartTooltipOptions Shared="true" />
+            <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
+
+            <RadzenColumnSeries Data="@_result.Months"
+                                Title="Charged"
+                                CategoryProperty="Label"
+                                ValueProperty="ChargedKWh"
+                                Fill="var(--sessy-charge-area)"
+                                Stroke="var(--sessy-charge-line)"
+                                StrokeWidth="2" />
+
+            <RadzenColumnSeries Data="@_result.Months"
+                                Title="Discharged"
+                                CategoryProperty="Label"
+                                ValueProperty="DischargedKWh"
+                                Fill="var(--sessy-discharge-area)"
+                                Stroke="var(--sessy-discharge-line)"
+                                StrokeWidth="2" />
+
+            <RadzenLineSeries Data="@EfficiencyMonths"
+                              Title="Round-trip efficiency"
+                              CategoryProperty="Label"
+                              ValueProperty="RoundTripPercent"
+                              ValueAxisName="efficiency"
+                              Stroke="var(--sessy-temperature-line)"
+                              StrokeWidth="2" />
+
+            <RadzenCategoryAxis LabelAutoRotation="-45">
+                <RadzenAxisTitle Text="Month" />
+            </RadzenCategoryAxis>
+            <RadzenValueAxis Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                <RadzenGridLines Visible="true" />
+                <RadzenAxisTitle Text="kWh" />
+            </RadzenValueAxis>
+            <RadzenValueAxis Name="efficiency" Width="100" Min="@(50.0)" Max="@(100.0)" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                <RadzenAxisTitle Text="%" />
+            </RadzenValueAxis>
+        </RadzenChart>
+
+        <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mt-3">Full cycles <InfoTipComponent Text="@CyclesInfo" /></RadzenText>
+
+        <RadzenChart Style="width: 100%; height: 35vh; min-height: 300px;">
+            <RadzenChartTooltipOptions Shared="true" />
+            <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
+
+            <RadzenColumnSeries Data="@_result.Months"
+                                Title="Cycles per month"
+                                CategoryProperty="Label"
+                                ValueProperty="Cycles"
+                                Fill="var(--sessy-discharge-area)"
+                                Stroke="var(--sessy-discharge-line)"
+                                StrokeWidth="2" />
+
+            <RadzenLineSeries Data="@_result.Months"
+                              Title="Total cycles"
+                              CategoryProperty="Label"
+                              ValueProperty="CumulativeCycles"
+                              ValueAxisName="total"
+                              Stroke="var(--rz-text-color)"
+                              StrokeWidth="2" />
+
+            <RadzenCategoryAxis LabelAutoRotation="-45">
+                <RadzenAxisTitle Text="Month" />
+            </RadzenCategoryAxis>
+            <RadzenValueAxis Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                <RadzenGridLines Visible="true" />
+                <RadzenAxisTitle Text="Cycles" />
+            </RadzenValueAxis>
+            <RadzenValueAxis Name="total" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                <RadzenAxisTitle Text="Total" />
+            </RadzenValueAxis>
+        </RadzenChart>
+    }
+</RadzenCard>

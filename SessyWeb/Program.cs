@@ -139,6 +139,8 @@ builder.Services.AddScoped<QuarterlyFactsService>();
 builder.Services.AddScoped<EnergyStatisticsService>();
 builder.Services.AddScoped<WeatherCorrelationService>();
 builder.Services.AddScoped<ConsumptionModelService>();
+builder.Services.AddScoped<ForecastAccuracyService>();
+builder.Services.AddScoped<BatteryStatisticsService>();
 // Builds an in-memory JSON snapshot for analysing a plan over a period (Settings tab).
 builder.Services.AddScoped<PlanDumpService>();
 // Rebuilds a past solve-input from the database for replay (developer tooling).

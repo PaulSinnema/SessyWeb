@@ -80,6 +80,12 @@ namespace SessyController.Services
                     .OrderBy(m => m.Time)
                     .ToList())).ConfigureAwait(false);
 
+            return RoundTrip(measurements);
+        }
+
+        /// <summary>SOC-corrected round-trip efficiency of time-ordered measurements, or null when there is too little data.</summary>
+        public static double? RoundTrip(IReadOnlyList<QuarterlyMeasurement>? measurements)
+        {
             if (measurements == null || measurements.Count < 2)
                 return null;
 
