@@ -6,6 +6,8 @@ using SessyCommon.Services;
 using SessyController.Services;
 using SessyData.Services;
 using SessyWeb.Helpers;
+using System.Globalization;
+using ConsumptionRow = SessyData.Model.Consumption;
 using Unfucked.DateTime;
 using static SessyWeb.Components.DateChooserComponent;
 
@@ -41,6 +43,44 @@ namespace SessyWeb.Pages
         public List<ConsumptionDisplayMonthData> ConsumptionMonthData { get; set; } = new();
         public List<ConsumptionDisplayYearData> ConsumptionYearData { get; set; } = new();
         public List<ConsumptionDisplayAllData> ConsumptionAllData { get; set; } = new();
+        // Month bars padded to all days of the month; ConsumptionMonthData holds only days with data.
+        public List<ConsumptionDisplayMonthData> ConsumptionMonthBars { get; set; } = new();
+
+        // Comparison with earlier years, keyed by offset in years (0 = chosen period).
+        public Dictionary<int, List<ConsumptionDisplayDayData>> DayCompare { get; set; } = new();
+        public Dictionary<int, List<ConsumptionDisplayWeekData>> WeekPerYear { get; set; } = new();
+        public Dictionary<int, List<ConsumptionDisplayMonthData>> MonthCompare { get; set; } = new();
+        public Dictionary<int, List<ConsumptionDisplayYearData>> YearPerYear { get; set; } = new();
+        public Dictionary<int, List<ConsumptionDisplayCustomData>> CustomCompare { get; set; } = new();
+        // Week/Year/All items with measurements only, for the per-year temperature lines.
+        public Dictionary<int, List<ConsumptionDisplayWeekData>> WeekWithData { get; set; } = new();
+        public Dictionary<int, List<ConsumptionDisplayYearData>> YearWithData { get; set; } = new();
+        public Dictionary<int, List<ConsumptionDisplayAllData>> AllWithData { get; set; } = new();
+        public Dictionary<int, string> CompareTitles { get; set; } = new();
+        // Offsets shown, oldest first.
+        public List<int> ShownOffsets { get; set; } = new();
+
+        public enum CompareModes { None, PreviousYear, AllYears }
+        public record CompareOption(CompareModes Mode, string Text);
+        private static readonly List<CompareOption> CompareOptions =
+        [
+            new(CompareModes.None, "None"),
+            new(CompareModes.PreviousYear, "Previous year"),
+            new(CompareModes.AllYears, "All years")
+        ];
+        private CompareModes CompareMode { get; set; } = CompareModes.PreviousYear;
+        private bool ShowWeather { get; set; } = true;
+
+        private DateTime? _earliestTime;
+        // Comparable totals: one year back and the matching part of the chosen period; null = not available.
+        private double? _previousYearKWh;
+        private double _comparedCurrentKWh;
+        // Set when only part of the period could be compared (data starts later).
+        private DateTime? _comparedFrom;
+        public string DeltaPreviousYearText => _previousYearKWh is > 0
+            ? $"{(_comparedCurrentKWh - _previousYearKWh.Value) / _previousYearKWh.Value * 100:+0.0;-0.0;0.0} %"
+              + (_comparedFrom.HasValue ? $" (from {_comparedFrom:dd/MM/yyyy})" : string.Empty)
+            : "n/a";
         public List<int> AllYears { get; set; } = new();
         // Per year all 12 months (missing months zero) so the years line up side by side.
         public Dictionary<int, List<ConsumptionDisplayAllData>> ConsumptionAllPerYear { get; set; } = new();
@@ -123,11 +163,11 @@ namespace SessyWeb.Pages
                 switch (DateSelectionChosen!.PeriodChosen)
                 {
                     case PeriodsEnums.Day:
-                        width = ConsumptionDayData.Count * 35;
+                        width = 96 * 35;
                         break;
 
                     case PeriodsEnums.Week:
-                        width = ConsumptionWeekData.Count * 250;
+                        width = null;
                         break;
 
                     case PeriodsEnums.Month:
@@ -137,7 +177,7 @@ namespace SessyWeb.Pages
                         break;
 
                     case PeriodsEnums.Year:
-                        width = ConsumptionYearData.Count * 250;
+                        width = null;
                         break;
 
                     case PeriodsEnums.All:
@@ -189,6 +229,8 @@ namespace SessyWeb.Pages
 
         public class DisplayBaseData
         {
+            // False for padding items (no measurements).
+            public bool HasData { get; set; }
             public double ConsumptionKWh { get; set; }
             // Day: actual quarter-hour values; other periods: averages over the period.
             public double Temperature { get; set; }
@@ -227,12 +269,199 @@ namespace SessyWeb.Pages
             public string MonthOfYear { get; set; } = string.Empty;
         }
 
-        // Most recent year gets colour 0; variant is "line" or "area".
-        private string YearColor(int year, string variant) => $"var(--sessy-year-{(AllYears.Count - 1 - AllYears.IndexOf(year)) % 4}-{variant})";
+        // Offset 0 (chosen period / most recent year) gets colour 0; variant is "line" or "area".
+        private static string OffsetColor(int offset, string variant) => $"var(--sessy-year-{offset % 4}-{variant})";
+
+        private string YearColor(int year, string variant) => OffsetColor(AllYears.Last() - year, variant);
+
+        // Chosen period keeps the temperature colour; earlier years use their year colour.
+        private static string TemperatureColor(int offset) => offset == 0 ? "var(--sessy-temperature-line)" : OffsetColor(offset, "line");
+
+        private string ConsumptionTitle(int offset) => $"Consumption {CompareTitles[offset]}";
+
+        private string TemperatureTitle(int offset) => $"Avg. temperature {CompareTitles[offset]}";
 
         public class ConsumptionDisplayCustomData : DisplayBaseData
         {
             public string X { get; set; } = string.Empty;
+        }
+
+        private async Task CompareChanged()
+        {
+            await SelectionChanged();
+        }
+
+        private async Task<List<ConsumptionRow>> LoadRange(DateTime start, DateTime end)
+        {
+            return await _consumptionDataService!.GetList(set => Task.FromResult(set
+                .Where(c => start <= c.Time && c.Time < end)
+                .OrderBy(c => c.Time)
+                .ToList()));
+        }
+
+        private async Task<DateTime?> EarliestTime()
+        {
+            _earliestTime ??= await _consumptionDataService!.Query(set => Task.FromResult(set.Min(c => (DateTime?)c.Time)));
+
+            return _earliestTime;
+        }
+
+        // Year offsets to compare with; stops once the period ends before the first measurement.
+        private async Task<List<int>> CompareOffsets(Func<int, DateTime> periodEnd)
+        {
+            var earliest = await EarliestTime();
+            var offsets = new List<int>();
+
+            if (earliest == null)
+                return offsets;
+
+            var max = CompareMode switch
+            {
+                CompareModes.None => 0,
+                CompareModes.PreviousYear => 1,
+                _ => 50
+            };
+
+            for (var offset = 1; offset <= max && periodEnd(offset) > earliest; offset++)
+                offsets.Add(offset);
+
+            return offsets;
+        }
+
+        // Total of the same period one year back, cut off at the same point as the chosen period (now).
+        // If data starts inside that period, only the overlapping part is compared.
+        private async Task SetPreviousYearTotal(DateTime start, DateTime end, Func<DateTime, DateTime> toCurrent)
+        {
+            _previousYearKWh = null;
+            _comparedFrom = null;
+
+            var earliest = await EarliestTime();
+
+            if (earliest == null || end <= earliest)
+                return;
+
+            var now = _timeZoneService!.Now;
+            var previousStart = start;
+
+            if (start < earliest)
+            {
+                previousStart = earliest.Value;
+                _comparedFrom = toCurrent(previousStart);
+            }
+
+            var previous = await LoadRange(previousStart, end);
+
+            if (previous.Count == 0)
+                return;
+
+            _previousYearKWh = previous.Where(r => toCurrent(r.Time) <= now).Sum(r => r.ConsumptionWh) / 4;
+
+            var current = await LoadRange(toCurrent(previousStart), toCurrent(end));
+
+            _comparedCurrentKWh = current.Sum(r => r.ConsumptionWh) / 4;
+        }
+
+        private static T Fill<T>(T item, List<ConsumptionRow> rows) where T : DisplayBaseData
+        {
+            if (rows.Count == 0)
+                return item;
+
+            item.HasData = true;
+            item.ConsumptionKWh = rows.Sum(c => c.ConsumptionWh) / 4;
+            item.Temperature = rows.Average(c => c.Temperature);
+            item.GlobalRadiation = rows.Average(c => c.GlobalRadiation);
+            item.Humidity = rows.Average(c => c.Humidity);
+
+            return item;
+        }
+
+        private static string DayLabel(DateTime date) => $"{date.DayOfWeek.ToString().Substring(0, 2)} {date.Day}";
+
+        private static string WeekTitle(DateTime start) => $"Week {ISOWeek.GetWeekOfYear(start)} {ISOWeek.GetYear(start)}";
+
+        private static ConsumptionDisplayDayData DayItem(ConsumptionRow row, int shiftDays) => new()
+        {
+            HasData = true,
+            Time = row.Time.AddDays(shiftDays),
+            ConsumptionKWh = row.ConsumptionWh / 4,
+            Temperature = row.Temperature,
+            GlobalRadiation = row.GlobalRadiation,
+            Humidity = row.Humidity
+        };
+
+        // 7 days from start, labelled with the days from labelStart (the chosen week).
+        private static List<ConsumptionDisplayWeekData> BuildWeek(List<ConsumptionRow> rows, DateTime start, DateTime labelStart)
+        {
+            var byDate = rows.ToLookup(r => r.Time.Date);
+
+            return Enumerable.Range(0, 7)
+                .Select(i => Fill(new ConsumptionDisplayWeekData
+                {
+                    Day = labelStart.AddDays(i).Day,
+                    DayOfWeek = DayLabel(labelStart.AddDays(i)),
+                    Position = i
+                }, byDate[start.AddDays(i)].ToList()))
+                .ToList();
+        }
+
+        // 'count' days from start, labelled with the days from labelStart (the chosen month).
+        private static List<ConsumptionDisplayMonthData> BuildDays(List<ConsumptionRow> rows, DateTime start, DateTime labelStart, int count)
+        {
+            var byDate = rows.ToLookup(r => r.Time.Date);
+
+            return Enumerable.Range(0, count)
+                .Select(i => Fill(new ConsumptionDisplayMonthData
+                {
+                    Day = i + 1,
+                    DayOfWeek = DayLabel(labelStart.AddDays(i))
+                }, byDate[start.AddDays(i)].ToList()))
+                .ToList();
+        }
+
+        private static List<ConsumptionDisplayYearData> BuildMonths(List<ConsumptionRow> rows)
+        {
+            var byMonth = rows.ToLookup(r => r.Time.Month);
+
+            return Enumerable.Range(1, 12)
+                .Select(month => Fill(new ConsumptionDisplayYearData
+                {
+                    Month = month,
+                    MonthOfYear = Formatters.FormatAsMonth(month)
+                }, byMonth[month].ToList()))
+                .ToList();
+        }
+
+        // Daily custom groups: X is the date shifted by shiftDays onto the chosen period.
+        private static List<ConsumptionDisplayCustomData> BuildCustomDays(List<ConsumptionRow> rows, int shiftDays)
+        {
+            return rows.GroupBy(r => r.Time.Date)
+                .OrderBy(gr => gr.Key)
+                .Select(gr => Fill(new ConsumptionDisplayCustomData { X = gr.Key.AddDays(shiftDays).ToString("dd/MM/yyyy") }, gr.ToList()))
+                .ToList();
+        }
+
+        // Monthly custom groups: X is the month shifted by shiftYears onto the chosen period.
+        private static List<ConsumptionDisplayCustomData> BuildCustomMonths(List<ConsumptionRow> rows, int shiftYears)
+        {
+            return rows.GroupBy(r => new { r.Time.Year, r.Time.Month })
+                .OrderBy(gr => gr.Key.Year)
+                .ThenBy(gr => gr.Key.Month)
+                .Select(gr => Fill(new ConsumptionDisplayCustomData { X = $"{gr.Key.Year + shiftYears}/{gr.Key.Month}" }, gr.ToList()))
+                .ToList();
+        }
+
+        private void ClearCompare()
+        {
+            DayCompare = new();
+            WeekPerYear = new();
+            MonthCompare = new();
+            YearPerYear = new();
+            CustomCompare = new();
+            CompareTitles = new();
+            WeekWithData = new();
+            YearWithData = new();
+            ShownOffsets = new();
+            _previousYearKWh = null;
         }
 
         private async Task SelectionChanged()
@@ -243,66 +472,66 @@ namespace SessyWeb.Pages
 
             try
             {
+                ClearCompare();
+
                 switch (DateSelectionChosen!.PeriodChosen)
                 {
                     case PeriodsEnums.Day:
                         {
-                            var list = await _consumptionDataService!.GetList(async (set) =>
-                            {
-                                var result = set
-                                    .Where(sed => sed.Time.Date == dateChoosen)
-                                    .ToList();
+                            // Compare with the same weekday 52 weeks back.
+                            var rows = await LoadRange(dateChoosen, dateChoosen.AddDays(1));
 
-                                return await Task.FromResult(result);
-                            });
-
-                            ConsumptionDayData = list.Select(cd => new ConsumptionDisplayDayData
-                            {
-                                Time = cd.Time,
-                                ConsumptionKWh = cd.ConsumptionWh / 4,
-                                Humidity = cd.Humidity,
-                                GlobalRadiation = cd.GlobalRadiation,
-                                Temperature = cd.Temperature
-                            }).ToList();
-
+                            ConsumptionDayData = rows.Select(r => DayItem(r, 0)).ToList();
                             _totalConsumptionKWh = ConsumptionDayData.Sum(cd => cd.ConsumptionKWh);
+
+                            foreach (var offset in await CompareOffsets(o => dateChoosen.AddDays(1 - 364 * o)))
+                            {
+                                var start = dateChoosen.AddDays(-364 * offset);
+                                var previous = await LoadRange(start, start.AddDays(1));
+
+                                if (previous.Count == 0)
+                                    continue;
+
+                                DayCompare[offset] = previous.Select(r => DayItem(r, 364 * offset)).ToList();
+                                CompareTitles[offset] = start.ToString("ddd dd/MM/yyyy");
+                            }
+
+                            ShownOffsets = DayCompare.Keys.OrderByDescending(o => o).ToList();
+
+                            await SetPreviousYearTotal(dateChoosen.AddDays(-364), dateChoosen.AddDays(-363), t => t.AddDays(364));
 
                             await ReloadCharts();
 
                             break;
                         }
 
-
                     case PeriodsEnums.Week:
                         {
-                            var result = await _consumptionDataService!.GetList(async (set) =>
+                            // Compare with the week 52 weeks back, so weekdays line up.
+                            var weekStart = dateChoosen.StartOfWeek().Date;
+                            var rows = await LoadRange(weekStart, weekStart.AddDays(7));
+
+                            WeekPerYear[0] = BuildWeek(rows, weekStart, weekStart);
+                            CompareTitles[0] = WeekTitle(weekStart);
+                            ConsumptionWeekData = WeekPerYear[0].Where(d => d.HasData).ToList();
+                            _totalConsumptionKWh = ConsumptionWeekData.Sum(cd => cd.ConsumptionKWh);
+
+                            foreach (var offset in await CompareOffsets(o => weekStart.AddDays(7 - 364 * o)))
                             {
-                                var start = dateChoosen.StartOfWeek();
-                                var end = dateChoosen.EndOfWeek().AddDays(1).AddSeconds(-1);
+                                var start = weekStart.AddDays(-364 * offset);
+                                var previous = await LoadRange(start, start.AddDays(7));
 
-                                var result = set
-                                    .Where(sed => start <= sed.Time &&
-                                                  end >= sed.Time)
-                                    .ToList();
+                                if (previous.Count == 0)
+                                    continue;
 
-                                return await Task.FromResult(result);
-                            });
+                                WeekPerYear[offset] = BuildWeek(previous, start, weekStart);
+                                CompareTitles[offset] = WeekTitle(start);
+                            }
 
-                            ConsumptionWeekData = result.GroupBy(cd => cd.Time.Date)
-                                .Select(gr => new ConsumptionDisplayWeekData
-                                {
-                                    Day = gr.Key.Day,
-                                    DayOfWeek = $"{gr.Key.DayOfWeek.ToString().Substring(0, 2)} {gr.Key.Day}",
-                                    Position = (int)gr.Key.DayOfWeek,
-                                    ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4,
-                                    Temperature = gr.Average(cons => cons.Temperature),
-                                    GlobalRadiation = gr.Average(cons => cons.GlobalRadiation),
-                                    Humidity = gr.Average(cons => cons.Humidity)
-                                })
-                                .OrderBy(item => item.Position)
-                                .ToList();
+                            ShownOffsets = WeekPerYear.Keys.OrderByDescending(o => o).ToList();
+                            WeekWithData = WeekPerYear.ToDictionary(kv => kv.Key, kv => kv.Value.Where(d => d.HasData).ToList());
 
-                            _totalConsumptionKWh  = ConsumptionWeekData.Sum(cd => cd.ConsumptionKWh);
+                            await SetPreviousYearTotal(weekStart.AddDays(-364), weekStart.AddDays(-357), t => t.AddDays(364));
 
                             await ReloadCharts();
 
@@ -311,32 +540,31 @@ namespace SessyWeb.Pages
 
                     case PeriodsEnums.Month:
                         {
-                            var result = await _consumptionDataService!.GetList(async (set) =>
+                            var monthStart = dateChoosen.StartOfMonth().Date;
+                            var days = DateTime.DaysInMonth(monthStart.Year, monthStart.Month);
+                            var rows = await LoadRange(monthStart, monthStart.AddMonths(1));
+
+                            ConsumptionMonthBars = BuildDays(rows, monthStart, monthStart, days);
+                            ConsumptionMonthData = ConsumptionMonthBars.Where(d => d.HasData).ToList();
+                            _totalConsumptionKWh = ConsumptionMonthData.Sum(cd => cd.ConsumptionKWh);
+
+                            foreach (var offset in await CompareOffsets(o => monthStart.AddMonths(1).AddYears(-o)))
                             {
-                                var start = dateChoosen.EndOfMonth().AddDays(1).AddSeconds(-1);
+                                var start = monthStart.AddYears(-offset);
+                                var previous = await LoadRange(start, start.AddMonths(1));
 
-                                var result = set
-                                    .Where(sed => dateChoosen.StartOfMonth() <= sed.Time &&
-                                                  dateChoosen.EndOfMonth().AddDays(1).AddSeconds(-1) >= sed.Time)
-                                    .ToList();
+                                if (previous.Count == 0)
+                                    continue;
 
-                                return await Task.FromResult(result);
-                            });
+                                var count = Math.Min(days, DateTime.DaysInMonth(start.Year, start.Month));
 
-                            ConsumptionMonthData = result.GroupBy(cd => cd.Time.Date)
-                                .Select(gr => new ConsumptionDisplayMonthData
-                                {
-                                    Day = gr.Key.Day,
-                                    DayOfWeek = $"{gr.Key.DayOfWeek.ToString().Substring(0, 2)} {gr.Key.Day}",
-                                    ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4,
-                                    Temperature = gr.Average(cons => cons.Temperature),
-                                    GlobalRadiation = gr.Average(cons => cons.GlobalRadiation),
-                                    Humidity = gr.Average(cons => cons.Humidity)
-                                })
-                                .OrderBy(item => item.Day)
-                                .ToList();
+                                MonthCompare[offset] = BuildDays(previous, start, monthStart, count).Where(d => d.HasData).ToList();
+                                CompareTitles[offset] = $"{Formatters.FormatAsMonth(start.Month)} {start.Year}";
+                            }
 
-                            _totalConsumptionKWh  = ConsumptionMonthData.Sum(cd => cd.ConsumptionKWh);
+                            ShownOffsets = MonthCompare.Keys.OrderByDescending(o => o).ToList();
+
+                            await SetPreviousYearTotal(monthStart.AddYears(-1), monthStart.AddYears(-1).AddMonths(1), t => t.AddYears(1));
 
                             await ReloadCharts();
 
@@ -345,28 +573,30 @@ namespace SessyWeb.Pages
 
                     case PeriodsEnums.Year:
                         {
-                            var result = await _consumptionDataService!.GetList(async (set) =>
+                            var yearStart = new DateTime(dateChoosen.Year, 1, 1);
+                            var rows = await LoadRange(yearStart, yearStart.AddYears(1));
+
+                            YearPerYear[0] = BuildMonths(rows);
+                            CompareTitles[0] = yearStart.Year.ToString();
+                            ConsumptionYearData = YearPerYear[0].Where(d => d.HasData).ToList();
+                            _totalConsumptionKWh = ConsumptionYearData.Sum(cd => cd.ConsumptionKWh);
+
+                            foreach (var offset in await CompareOffsets(o => yearStart.AddYears(1 - o)))
                             {
-                                var result = set
-                                    .Where(sed => dateChoosen.Year == sed.Time.Year)
-                                    .ToList();
+                                var start = yearStart.AddYears(-offset);
+                                var previous = await LoadRange(start, start.AddYears(1));
 
-                                return await Task.FromResult(result);
-                            });
+                                if (previous.Count == 0)
+                                    continue;
 
-                            ConsumptionYearData = result.GroupBy(cd => cd.Time.Month)
-                                .Select(gr => new ConsumptionDisplayYearData
-                                {
-                                    Month = gr.Key,
-                                    MonthOfYear = Formatters.FormatAsMonth(gr.Key),
-                                    ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4,
-                                    Temperature = gr.Average(cons => cons.Temperature),
-                                    GlobalRadiation = gr.Average(cons => cons.GlobalRadiation),
-                                    Humidity = gr.Average(cons => cons.Humidity)
-                                })
-                                .ToList();
+                                YearPerYear[offset] = BuildMonths(previous);
+                                CompareTitles[offset] = start.Year.ToString();
+                            }
 
-                            _totalConsumptionKWh  = ConsumptionYearData.Sum(cd => cd.ConsumptionKWh);
+                            ShownOffsets = YearPerYear.Keys.OrderByDescending(o => o).ToList();
+                            YearWithData = YearPerYear.ToDictionary(kv => kv.Key, kv => kv.Value.Where(d => d.HasData).ToList());
+
+                            await SetPreviousYearTotal(yearStart.AddYears(-1), yearStart, t => t.AddYears(1));
 
                             await ReloadCharts();
 
@@ -404,6 +634,8 @@ namespace SessyWeb.Pages
                                     ?? new ConsumptionDisplayAllData { Year = year, Month = month, MonthOfYear = Formatters.FormatAsMonth(month) })
                                 .ToList());
 
+                            AllWithData = AllYears.ToDictionary(year => year, year => ConsumptionAllData.Where(cd => cd.Year == year).ToList());
+
                             ConsumptionAllWeather = result.GroupBy(cd => cd.Time.Month)
                                 .OrderBy(gr => gr.Key)
                                 .Select(gr => new ConsumptionDisplayAllData
@@ -425,64 +657,63 @@ namespace SessyWeb.Pages
 
                     case PeriodsEnums.Custom:
                         {
-                            var result = await _consumptionDataService!.GetList(async (set) =>
-                            {
-                                var result = set
-                                    .Where(sed => sed.Time >= DateSelectionChosen.Start && sed.Time < DateSelectionChosen.End)
-                                    .ToList();
-
-                                return await Task.FromResult(result);
-                            });
+                            var start = DateSelectionChosen.Start!.Value;
+                            var end = DateSelectionChosen.End!.Value;
+                            var rows = await LoadRange(start, end);
 
                             switch (DateSelectionChosen.DurationChosen)
                             {
                                 case DurationEnums.Last7Days:
-                                    ConsumptionCustomData = result.GroupBy(cd => cd.Time.Date)
-                                        .Select(gr => new ConsumptionDisplayCustomData
-                                        {
-                                            X = gr.Key.ToString("dd/MM/yyyy"),
-                                            ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4,
-                                            Temperature = gr.Average(cons => cons.Temperature),
-                                            GlobalRadiation = gr.Average(cons => cons.GlobalRadiation),
-                                            Humidity = gr.Average(cons => cons.Humidity)
-                                        })
-                                        .ToList();
-                                    break;
-
                                 case DurationEnums.Last30Days:
-                                    ConsumptionCustomData = result.GroupBy(cd => cd.Time.Date)
-                                        .Select(gr => new ConsumptionDisplayCustomData
+                                    {
+                                        // Daily: compare 52 weeks back, so weekdays line up.
+                                        ConsumptionCustomData = BuildCustomDays(rows, 0);
+
+                                        foreach (var offset in await CompareOffsets(o => end.AddDays(-364 * o)))
                                         {
-                                            X = gr.Key.ToString("dd/MM/yyyy"),
-                                            ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4,
-                                            Temperature = gr.Average(cons => cons.Temperature),
-                                            GlobalRadiation = gr.Average(cons => cons.GlobalRadiation),
-                                            Humidity = gr.Average(cons => cons.Humidity)
-                                        })
-                                        .ToList();
-                                    break;
+                                            var previous = await LoadRange(start.AddDays(-364 * offset), end.AddDays(-364 * offset));
+
+                                            if (previous.Count == 0)
+                                                continue;
+
+                                            CustomCompare[offset] = BuildCustomDays(previous, 364 * offset);
+                                            CompareTitles[offset] = $"{start.AddDays(-364 * offset):dd/MM/yyyy} - {end.AddDays(-364 * offset - 1):dd/MM/yyyy}";
+                                        }
+
+                                        await SetPreviousYearTotal(start.AddDays(-364), end.AddDays(-364), t => t.AddDays(364));
+
+                                        break;
+                                    }
 
                                 case DurationEnums.Last90Days:
                                 case DurationEnums.Last180Days:
                                 case DurationEnums.Last365Days:
-                                    ConsumptionCustomData = result.GroupBy(cd => $"{cd.Time.Date.Year}/{cd.Time.Date.Month}")
-                                        .Select(gr => new ConsumptionDisplayCustomData
-                                        {
-                                            X = gr.Key,
-                                            ConsumptionKWh = gr.Sum(cons => cons.ConsumptionWh) / 4,
-                                            Temperature = gr.Average(cons => cons.Temperature),
-                                            GlobalRadiation = gr.Average(cons => cons.GlobalRadiation),
-                                            Humidity = gr.Average(cons => cons.Humidity)
-                                        })
-                                        .ToList();
-                                    break;
+                                    {
+                                        // Monthly: compare the same months one or more years back.
+                                        ConsumptionCustomData = BuildCustomMonths(rows, 0);
 
+                                        foreach (var offset in await CompareOffsets(o => end.AddYears(-o)))
+                                        {
+                                            var previous = await LoadRange(start.AddYears(-offset), end.AddYears(-offset));
+
+                                            if (previous.Count == 0)
+                                                continue;
+
+                                            CustomCompare[offset] = BuildCustomMonths(previous, offset);
+                                            CompareTitles[offset] = $"{start.AddYears(-offset):dd/MM/yyyy} - {end.AddYears(-offset).AddDays(-1):dd/MM/yyyy}";
+                                        }
+
+                                        await SetPreviousYearTotal(start.AddYears(-1), end.AddYears(-1), t => t.AddYears(1));
+
+                                        break;
+                                    }
 
                                 default:
                                     throw new InvalidOperationException($"Invalid duration: {DateSelectionChosen.DurationChosen}");
                             }
 
-                            _totalConsumptionKWh  = ConsumptionCustomData.Sum(cd => cd.ConsumptionKWh);
+                            ShownOffsets = CustomCompare.Keys.OrderByDescending(o => o).ToList();
+                            _totalConsumptionKWh = ConsumptionCustomData.Sum(cd => cd.ConsumptionKWh);
 
                             await ReloadCharts();
 
@@ -562,16 +793,14 @@ namespace SessyWeb.Pages
 
                 case PeriodsEnums.Week:
                     {
-                        var days = ConsumptionWeekData.Count;
-
-                        TickDistance = ConsumptionChartWidth / (days == 0 ? 8 : days * 2);
+                        TickDistance = ConsumptionChartWidth / 14;
 
                         break;
                     }
 
                 case PeriodsEnums.Month:
                     {
-                        var days = ConsumptionMonthData.Count;
+                        var days = ConsumptionMonthBars.Count;
 
                         TickDistance = ConsumptionChartWidth / (days == 0 ? 31 : days * 4);
 
@@ -580,9 +809,7 @@ namespace SessyWeb.Pages
 
                 case PeriodsEnums.Year:
                     {
-                        var months = ConsumptionYearData.Count;
-
-                        TickDistance = ConsumptionChartWidth / (months == 0 ? 12 : months * 2);
+                        TickDistance = ConsumptionChartWidth / 24;
 
                         break;
                     }

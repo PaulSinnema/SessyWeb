@@ -11,6 +11,41 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.179] — 2026-11-13
+
+### Changed
+- **Consumption footer: "Consumption vs. prev. year" also for partly covered periods.** When the
+  data starts inside last year's period (e.g. Last 365 days, Year), only the overlapping part is
+  compared and the field says from which date, e.g. "+12.3 % (from 06/07/2026)". Before it showed
+  n/a until a full year of history existed.
+
+## [v1.0.178] — 2026-11-13
+
+### Changed
+- **Consumption tab: average temperature per year** in Week, Year and All, so you can compare the
+  temperature of earlier years too. The chosen period keeps the temperature colour, earlier years
+  use their year colour.
+- **Consumption tab: global radiation and humidity are hidden by default.** Click their legend
+  label to show them.
+- **Consumption tab: legend says what an earlier year shows**, e.g. "Consumption Week 46 2025"
+  or "Avg. temperature 2025", instead of only the date.
+
+## [v1.0.177] — 2026-11-13
+
+### Added
+- **Consumption tab: compare with earlier years.** New "Compare" choice: None, Previous year
+  (default) or All years. Week and Year show the years as bars side by side; Day, Month and Custom
+  keep the chosen period as bars/area and draw earlier years as lines in their year colour. Day
+  and Week compare with 52 weeks back (same weekday); Month, Year and the monthly Custom ranges
+  with the same calendar period.
+- **Consumption footer: "vs. previous year".** Difference in percent with the same period one
+  year back, cut off at the same point for a period still running (e.g. 1-13 Nov against 1-13
+  Nov). Shows n/a when there is no complete data for last year.
+- **Consumption tab: "Show weather" toggle** for the temperature, radiation and humidity lines.
+
+### Changed
+- **Consumption tab: Week and Year fill the card**, like All. Day always spans the full day.
+
 ## [v1.0.176] — 2026-11-12
 
 ### Changed

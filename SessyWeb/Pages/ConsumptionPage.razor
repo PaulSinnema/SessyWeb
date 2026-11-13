@@ -29,6 +29,22 @@
                 <RadzenCheckBox @bind-Value="@ShowMarkers" Name="ShowMarkers" />
             }
 
+            <RadzenLabel Text="Show weather" Component="ShowWeather" />
+            <RadzenCheckBox @bind-Value="@ShowWeather" Name="ShowWeather" />
+
+            @if (DateSelectionChosen!.PeriodChosen != PeriodsEnums.All)
+            {
+                <RadzenLabel Text="Compare:" Component="CompareMode" />
+                <RadzenDropDown TValue="CompareModes"
+                                @bind-Value="@CompareMode"
+                                Data="@CompareOptions"
+                                ValueProperty="Mode"
+                                TextProperty="Text"
+                                Change="@(_ => CompareChanged())"
+                                Style="width: 150px;"
+                                Name="CompareMode" />
+            }
+
         </RadzenStack>
     </RadzenHeader>
 
@@ -43,61 +59,82 @@
                     <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
 
                     <RadzenAreaSeries Data="@ConsumptionDayData"
-                    Stroke="var(--sessy-consumption-line)"
-                    StrokeWidth="2"
-                    Fill="var(--sessy-consumption-area)"
-                    Title="Consumption"
-                    CategoryProperty="Time"
-                    ValueProperty="ConsumptionKWh"
-                    Smooth="true"
-                    LineType="LineType.Solid">
+                                      Stroke="var(--sessy-consumption-line)"
+                                      StrokeWidth="2"
+                                      Fill="var(--sessy-consumption-area)"
+                                      Title="Consumption"
+                                      CategoryProperty="Time"
+                                      ValueProperty="ConsumptionKWh"
+                                      Smooth="true"
+                                      LineType="LineType.Solid">
                         <ChildContent>
                             <RadzenMarkers Visible="@ShowMarkers" MarkerType="MarkerType.Circle" />
                             <RadzenSeriesDataLabels Visible="@ShowDataLabels" />
                         </ChildContent>
                     </RadzenAreaSeries>
 
-                    <RadzenLineSeries Data="@ConsumptionDayData"
-                    Stroke="var(--sessy-temperature-line)"
-                    StrokeWidth="2"
-                    Title="Temperature"
-                    CategoryProperty="Time"
-                    ValueProperty="Temperature"
-                    ValueAxisName="temperature"
-                    Smooth="true"
-                    LineType="LineType.Solid">
-                        <ChildContent>
-                            <RadzenMarkers Visible="@ShowMarkers" MarkerType="MarkerType.Circle" />
-                        </ChildContent>
-                    </RadzenLineSeries>
+                    @foreach (var offset in ShownOffsets)
+                    {
+                        <RadzenLineSeries Data="@DayCompare[offset]"
+                                          Stroke="@OffsetColor(offset, "line")"
+                                          StrokeWidth="2"
+                                          Title="@ConsumptionTitle(offset)"
+                                          CategoryProperty="Time"
+                                          ValueProperty="ConsumptionKWh"
+                                          Smooth="true"
+                                          LineType="LineType.Solid">
+                            <ChildContent>
+                                <RadzenMarkers Visible="@ShowMarkers" MarkerType="MarkerType.Circle" />
+                            </ChildContent>
+                        </RadzenLineSeries>
+                    }
 
-                    <RadzenLineSeries Data="@ConsumptionDayData"
-                    Stroke="var(--sessy-radiation-line)"
-                    StrokeWidth="2"
-                    Title="Global radiation"
-                    CategoryProperty="Time"
-                    ValueProperty="GlobalRadiation"
-                    ValueAxisName="radiation"
-                    Smooth="true"
-                    LineType="LineType.Solid">
-                        <ChildContent>
-                            <RadzenMarkers Visible="@ShowMarkers" MarkerType="MarkerType.Circle" />
-                        </ChildContent>
-                    </RadzenLineSeries>
+                    @if (ShowWeather)
+                    {
+                        <RadzenLineSeries Data="@ConsumptionDayData"
+                                          Stroke="var(--sessy-temperature-line)"
+                                          StrokeWidth="2"
+                                          Title="Temperature"
+                                          CategoryProperty="Time"
+                                          ValueProperty="Temperature"
+                                          ValueAxisName="temperature"
+                                          Smooth="true"
+                                          LineType="LineType.Solid">
+                            <ChildContent>
+                                <RadzenMarkers Visible="@ShowMarkers" MarkerType="MarkerType.Circle" />
+                            </ChildContent>
+                        </RadzenLineSeries>
 
-                    <RadzenLineSeries Data="@ConsumptionDayData"
-                    Stroke="var(--sessy-humidity-line)"
-                    StrokeWidth="2"
-                    Title="Humidity"
-                    CategoryProperty="Time"
-                    ValueProperty="Humidity"
-                    ValueAxisName="humidity"
-                    Smooth="true"
-                    LineType="LineType.Solid">
-                        <ChildContent>
-                            <RadzenMarkers Visible="@ShowMarkers" MarkerType="MarkerType.Circle" />
-                        </ChildContent>
-                    </RadzenLineSeries>
+                        <RadzenLineSeries Data="@ConsumptionDayData"
+                                          Stroke="var(--sessy-radiation-line)"
+                                          StrokeWidth="2"
+                                          Title="Global radiation"
+                                          CategoryProperty="Time"
+                                          ValueProperty="GlobalRadiation"
+                                          Hidden="true"
+                                          ValueAxisName="radiation"
+                                          Smooth="true"
+                                          LineType="LineType.Solid">
+                            <ChildContent>
+                                <RadzenMarkers Visible="@ShowMarkers" MarkerType="MarkerType.Circle" />
+                            </ChildContent>
+                        </RadzenLineSeries>
+
+                        <RadzenLineSeries Data="@ConsumptionDayData"
+                                          Stroke="var(--sessy-humidity-line)"
+                                          StrokeWidth="2"
+                                          Title="Humidity"
+                                          CategoryProperty="Time"
+                                          ValueProperty="Humidity"
+                                          Hidden="true"
+                                          ValueAxisName="humidity"
+                                          Smooth="true"
+                                          LineType="LineType.Solid">
+                            <ChildContent>
+                                <RadzenMarkers Visible="@ShowMarkers" MarkerType="MarkerType.Circle" />
+                            </ChildContent>
+                        </RadzenLineSeries>
+                    }
 
                     <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance LabelAutoRotation="-45">
                         <RadzenGridLines Visible="true" />
@@ -107,67 +144,80 @@
                         <RadzenGridLines Visible="true" />
                         <RadzenAxisTitle Text="Watt" />
                     </RadzenValueAxis>
-                    <RadzenValueAxis Name="temperature" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
-                        <RadzenAxisTitle Text="Celsius" />
-                    </RadzenValueAxis>
-                    <RadzenValueAxis Name="radiation" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
-                        <RadzenAxisTitle Text="Watt / m2" />
-                    </RadzenValueAxis>
-                    <RadzenValueAxis Name="humidity" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
-                        <RadzenAxisTitle Text="Percentage" />
-                    </RadzenValueAxis>
+                    @if (ShowWeather)
+                    {
+                        <RadzenValueAxis Name="temperature" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                            <RadzenAxisTitle Text="Celsius" />
+                        </RadzenValueAxis>
+                        <RadzenValueAxis Name="radiation" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                            <RadzenAxisTitle Text="Watt / m2" />
+                        </RadzenValueAxis>
+                        <RadzenValueAxis Name="humidity" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                            <RadzenAxisTitle Text="Percentage" />
+                        </RadzenValueAxis>
+                    }
                 </RadzenChart>
             </RadzenCard>
         }
         else if (DateSelectionChosen!.PeriodChosen == PeriodsEnums.Week)
         {
             <RadzenCard Style="@CardStyle">
-                <RadzenChart Style="@GraphStyle" @ref=ConsumptionWeekChart >
+                <RadzenChart Style="@GraphStyle" @ref=ConsumptionWeekChart>
                     <RadzenChartTooltipOptions Shared="true" />
                     <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
 
-                    <RadzenColumnSeries Data="@ConsumptionWeekData"
-                    Stroke="var(--sessy-consumption-line)"
-                    StrokeWidth="2"
-                    Fill="var(--sessy-consumption-area)"
-                    Title="Consumption"
-                    CategoryProperty="DayOfWeek"
-                    ValueProperty="ConsumptionKWh"
-                    LineType="LineType.Solid">
-                        <ChildContent>
-                            <RadzenSeriesDataLabels Visible="@ShowDataLabels" />
-                        </ChildContent>
-                    </RadzenColumnSeries>
+                    @foreach (var offset in ShownOffsets)
+                    {
+                        <RadzenColumnSeries Data="@WeekPerYear[offset]"
+                                            Stroke="@OffsetColor(offset, "line")"
+                                            StrokeWidth="2"
+                                            Fill="@OffsetColor(offset, "area")"
+                                            Title="@ConsumptionTitle(offset)"
+                                            CategoryProperty="DayOfWeek"
+                                            ValueProperty="ConsumptionKWh">
+                            <ChildContent>
+                                <RadzenSeriesDataLabels Visible="@ShowDataLabels" />
+                            </ChildContent>
+                        </RadzenColumnSeries>
+                    }
 
-                    <RadzenLineSeries Data="@ConsumptionWeekData"
-                    Stroke="var(--sessy-temperature-line)"
-                    StrokeWidth="2"
-                    Title="Avg. temperature"
-                    CategoryProperty="DayOfWeek"
-                    ValueProperty="Temperature"
-                    ValueAxisName="temperature"
-                    LineType="LineType.Solid">
-                    </RadzenLineSeries>
+                    @if (ShowWeather)
+                    {
+                        foreach (var offset in ShownOffsets)
+                        {
+                            <RadzenLineSeries Data="@WeekWithData[offset]"
+                                              Stroke="@TemperatureColor(offset)"
+                                              StrokeWidth="2"
+                                              Title="@TemperatureTitle(offset)"
+                                              CategoryProperty="DayOfWeek"
+                                              ValueProperty="Temperature"
+                                              ValueAxisName="temperature"
+                                              LineType="LineType.Solid">
+                            </RadzenLineSeries>
+                        }
 
-                    <RadzenLineSeries Data="@ConsumptionWeekData"
-                    Stroke="var(--sessy-radiation-line)"
-                    StrokeWidth="2"
-                    Title="Avg. global radiation"
-                    CategoryProperty="DayOfWeek"
-                    ValueProperty="GlobalRadiation"
-                    ValueAxisName="radiation"
-                    LineType="LineType.Solid">
-                    </RadzenLineSeries>
+                        <RadzenLineSeries Data="@ConsumptionWeekData"
+                                          Stroke="var(--sessy-radiation-line)"
+                                          StrokeWidth="2"
+                                          Title="Avg. global radiation"
+                                          CategoryProperty="DayOfWeek"
+                                          ValueProperty="GlobalRadiation"
+                                          Hidden="true"
+                                          ValueAxisName="radiation"
+                                          LineType="LineType.Solid">
+                        </RadzenLineSeries>
 
-                    <RadzenLineSeries Data="@ConsumptionWeekData"
-                    Stroke="var(--sessy-humidity-line)"
-                    StrokeWidth="2"
-                    Title="Avg. humidity"
-                    CategoryProperty="DayOfWeek"
-                    ValueProperty="Humidity"
-                    ValueAxisName="humidity"
-                    LineType="LineType.Solid">
-                    </RadzenLineSeries>
+                        <RadzenLineSeries Data="@ConsumptionWeekData"
+                                          Stroke="var(--sessy-humidity-line)"
+                                          StrokeWidth="2"
+                                          Title="Avg. humidity"
+                                          CategoryProperty="DayOfWeek"
+                                          ValueProperty="Humidity"
+                                          Hidden="true"
+                                          ValueAxisName="humidity"
+                                          LineType="LineType.Solid">
+                        </RadzenLineSeries>
+                    }
 
                     <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance LabelAutoRotation="-45" Padding="20">
                         <RadzenGridLines Visible="true" />
@@ -177,15 +227,18 @@
                         <RadzenGridLines Visible="true" />
                         <RadzenAxisTitle Text="Watt" />
                     </RadzenValueAxis>
-                    <RadzenValueAxis Name="temperature" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
-                        <RadzenAxisTitle Text="Celsius" />
-                    </RadzenValueAxis>
-                    <RadzenValueAxis Name="radiation" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
-                        <RadzenAxisTitle Text="Watt / m2" />
-                    </RadzenValueAxis>
-                    <RadzenValueAxis Name="humidity" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
-                        <RadzenAxisTitle Text="Percentage" />
-                    </RadzenValueAxis>
+                    @if (ShowWeather)
+                    {
+                        <RadzenValueAxis Name="temperature" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                            <RadzenAxisTitle Text="Celsius" />
+                        </RadzenValueAxis>
+                        <RadzenValueAxis Name="radiation" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                            <RadzenAxisTitle Text="Watt / m2" />
+                        </RadzenValueAxis>
+                        <RadzenValueAxis Name="humidity" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                            <RadzenAxisTitle Text="Percentage" />
+                        </RadzenValueAxis>
+                    }
                 </RadzenChart>
             </RadzenCard>
         }
@@ -196,48 +249,64 @@
                     <RadzenChartTooltipOptions Shared="true" />
                     <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
 
-                    <RadzenColumnSeries Data="@ConsumptionMonthData"
+                    <RadzenColumnSeries Data="@ConsumptionMonthBars"
                                         Stroke="var(--sessy-consumption-line)"
                                         StrokeWidth="2"
                                         Fill="var(--sessy-consumption-area)"
                                         Title="Consumption"
                                         CategoryProperty="DayOfWeek"
-                                        ValueProperty="ConsumptionKWh"
-                                        LineType="LineType.Solid">
+                                        ValueProperty="ConsumptionKWh">
                         <ChildContent>
                             <RadzenSeriesDataLabels Visible="@ShowDataLabels" />
                         </ChildContent>
                     </RadzenColumnSeries>
 
-                    <RadzenLineSeries Data="@ConsumptionMonthData"
-                                        Stroke="var(--sessy-temperature-line)"
-                                        StrokeWidth="2"
-                                        Title="Avg. temperature"
-                                        CategoryProperty="DayOfWeek"
-                                        ValueProperty="Temperature"
-                                        ValueAxisName="temperature"
-                                        LineType="LineType.Solid">
-                    </RadzenLineSeries>
+                    @foreach (var offset in ShownOffsets)
+                    {
+                        <RadzenLineSeries Data="@MonthCompare[offset]"
+                                          Stroke="@OffsetColor(offset, "line")"
+                                          StrokeWidth="2"
+                                          Title="@ConsumptionTitle(offset)"
+                                          CategoryProperty="DayOfWeek"
+                                          ValueProperty="ConsumptionKWh"
+                                          LineType="LineType.Solid">
+                        </RadzenLineSeries>
+                    }
 
-                    <RadzenLineSeries Data="@ConsumptionMonthData"
-                                        Stroke="var(--sessy-radiation-line)"
-                                        StrokeWidth="2"
-                                        Title="Avg. global radiation"
-                                        CategoryProperty="DayOfWeek"
-                                        ValueProperty="GlobalRadiation"
-                                        ValueAxisName="radiation"
-                                        LineType="LineType.Solid">
-                    </RadzenLineSeries>
+                    @if (ShowWeather)
+                    {
+                        <RadzenLineSeries Data="@ConsumptionMonthData"
+                                          Stroke="var(--sessy-temperature-line)"
+                                          StrokeWidth="2"
+                                          Title="Avg. temperature"
+                                          CategoryProperty="DayOfWeek"
+                                          ValueProperty="Temperature"
+                                          ValueAxisName="temperature"
+                                          LineType="LineType.Solid">
+                        </RadzenLineSeries>
 
-                    <RadzenLineSeries Data="@ConsumptionMonthData"
-                                        Stroke="var(--sessy-humidity-line)"
-                                        StrokeWidth="2"
-                                        Title="Avg. humidity"
-                                        CategoryProperty="DayOfWeek"
-                                        ValueProperty="Humidity"
-                                        ValueAxisName="humidity"
-                                        LineType="LineType.Solid">
-                    </RadzenLineSeries>
+                        <RadzenLineSeries Data="@ConsumptionMonthData"
+                                          Stroke="var(--sessy-radiation-line)"
+                                          StrokeWidth="2"
+                                          Title="Avg. global radiation"
+                                          CategoryProperty="DayOfWeek"
+                                          ValueProperty="GlobalRadiation"
+                                          Hidden="true"
+                                          ValueAxisName="radiation"
+                                          LineType="LineType.Solid">
+                        </RadzenLineSeries>
+
+                        <RadzenLineSeries Data="@ConsumptionMonthData"
+                                          Stroke="var(--sessy-humidity-line)"
+                                          StrokeWidth="2"
+                                          Title="Avg. humidity"
+                                          CategoryProperty="DayOfWeek"
+                                          ValueProperty="Humidity"
+                                          Hidden="true"
+                                          ValueAxisName="humidity"
+                                          LineType="LineType.Solid">
+                        </RadzenLineSeries>
+                    }
 
                     <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance LabelAutoRotation="-45">
                         <RadzenGridLines Visible="true" />
@@ -247,15 +316,18 @@
                         <RadzenGridLines Visible="true" />
                         <RadzenAxisTitle Text="Watt" />
                     </RadzenValueAxis>
-                    <RadzenValueAxis Name="temperature" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
-                        <RadzenAxisTitle Text="Celsius" />
-                    </RadzenValueAxis>
-                    <RadzenValueAxis Name="radiation" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
-                        <RadzenAxisTitle Text="Watt / m2" />
-                    </RadzenValueAxis>
-                    <RadzenValueAxis Name="humidity" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
-                        <RadzenAxisTitle Text="Percentage" />
-                    </RadzenValueAxis>
+                    @if (ShowWeather)
+                    {
+                        <RadzenValueAxis Name="temperature" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                            <RadzenAxisTitle Text="Celsius" />
+                        </RadzenValueAxis>
+                        <RadzenValueAxis Name="radiation" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                            <RadzenAxisTitle Text="Watt / m2" />
+                        </RadzenValueAxis>
+                        <RadzenValueAxis Name="humidity" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                            <RadzenAxisTitle Text="Percentage" />
+                        </RadzenValueAxis>
+                    }
                 </RadzenChart>
             </RadzenCard>
 
@@ -267,48 +339,58 @@
                     <RadzenChartTooltipOptions Shared="true" />
                     <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
 
-                    <RadzenColumnSeries Data="@ConsumptionYearData"
-                                        Stroke="var(--sessy-consumption-line)"
-                                        StrokeWidth="2"
-                                        Fill="var(--sessy-consumption-area)"
-                                        Title="Consumption"
-                                        CategoryProperty="MonthOfYear"
-                                        ValueProperty="ConsumptionKWh"
-                                        LineType="LineType.Solid">
-                        <ChildContent>
-                            <RadzenSeriesDataLabels Visible="@ShowDataLabels" />
-                        </ChildContent>
-                    </RadzenColumnSeries>
+                    @foreach (var offset in ShownOffsets)
+                    {
+                        <RadzenColumnSeries Data="@YearPerYear[offset]"
+                                            Stroke="@OffsetColor(offset, "line")"
+                                            StrokeWidth="2"
+                                            Fill="@OffsetColor(offset, "area")"
+                                            Title="@ConsumptionTitle(offset)"
+                                            CategoryProperty="MonthOfYear"
+                                            ValueProperty="ConsumptionKWh">
+                            <ChildContent>
+                                <RadzenSeriesDataLabels Visible="@ShowDataLabels" />
+                            </ChildContent>
+                        </RadzenColumnSeries>
+                    }
 
-                    <RadzenLineSeries Data="@ConsumptionYearData"
-                                        Stroke="var(--sessy-temperature-line)"
-                                        StrokeWidth="2"
-                                        Title="Avg. temperature"
-                                        CategoryProperty="MonthOfYear"
-                                        ValueProperty="Temperature"
-                                        ValueAxisName="temperature"
-                                        LineType="LineType.Solid">
-                    </RadzenLineSeries>
+                    @if (ShowWeather)
+                    {
+                        foreach (var offset in ShownOffsets)
+                        {
+                            <RadzenLineSeries Data="@YearWithData[offset]"
+                                              Stroke="@TemperatureColor(offset)"
+                                              StrokeWidth="2"
+                                              Title="@TemperatureTitle(offset)"
+                                              CategoryProperty="MonthOfYear"
+                                              ValueProperty="Temperature"
+                                              ValueAxisName="temperature"
+                                              LineType="LineType.Solid">
+                            </RadzenLineSeries>
+                        }
 
-                    <RadzenLineSeries Data="@ConsumptionYearData"
-                                        Stroke="var(--sessy-radiation-line)"
-                                        StrokeWidth="2"
-                                        Title="Avg. global radiation"
-                                        CategoryProperty="MonthOfYear"
-                                        ValueProperty="GlobalRadiation"
-                                        ValueAxisName="radiation"
-                                        LineType="LineType.Solid">
-                    </RadzenLineSeries>
+                        <RadzenLineSeries Data="@ConsumptionYearData"
+                                          Stroke="var(--sessy-radiation-line)"
+                                          StrokeWidth="2"
+                                          Title="Avg. global radiation"
+                                          CategoryProperty="MonthOfYear"
+                                          ValueProperty="GlobalRadiation"
+                                          Hidden="true"
+                                          ValueAxisName="radiation"
+                                          LineType="LineType.Solid">
+                        </RadzenLineSeries>
 
-                    <RadzenLineSeries Data="@ConsumptionYearData"
-                                        Stroke="var(--sessy-humidity-line)"
-                                        StrokeWidth="2"
-                                        Title="Avg. humidity"
-                                        CategoryProperty="MonthOfYear"
-                                        ValueProperty="Humidity"
-                                        ValueAxisName="humidity"
-                                        LineType="LineType.Solid">
-                    </RadzenLineSeries>
+                        <RadzenLineSeries Data="@ConsumptionYearData"
+                                          Stroke="var(--sessy-humidity-line)"
+                                          StrokeWidth="2"
+                                          Title="Avg. humidity"
+                                          CategoryProperty="MonthOfYear"
+                                          ValueProperty="Humidity"
+                                          Hidden="true"
+                                          ValueAxisName="humidity"
+                                          LineType="LineType.Solid">
+                        </RadzenLineSeries>
+                    }
 
                     <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance LabelAutoRotation="-45">
                         <RadzenGridLines Visible="true" />
@@ -318,15 +400,18 @@
                         <RadzenGridLines Visible="true" />
                         <RadzenAxisTitle Text="Watt" />
                     </RadzenValueAxis>
-                    <RadzenValueAxis Name="temperature" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
-                        <RadzenAxisTitle Text="Celsius" />
-                    </RadzenValueAxis>
-                    <RadzenValueAxis Name="radiation" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
-                        <RadzenAxisTitle Text="Watt / m2" />
-                    </RadzenValueAxis>
-                    <RadzenValueAxis Name="humidity" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
-                        <RadzenAxisTitle Text="Percentage" />
-                    </RadzenValueAxis>
+                    @if (ShowWeather)
+                    {
+                        <RadzenValueAxis Name="temperature" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                            <RadzenAxisTitle Text="Celsius" />
+                        </RadzenValueAxis>
+                        <RadzenValueAxis Name="radiation" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                            <RadzenAxisTitle Text="Watt / m2" />
+                        </RadzenValueAxis>
+                        <RadzenValueAxis Name="humidity" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                            <RadzenAxisTitle Text="Percentage" />
+                        </RadzenValueAxis>
+                    }
                 </RadzenChart>
             </RadzenCard>
 
@@ -344,7 +429,7 @@
                                             Stroke="@YearColor(year, "line")"
                                             StrokeWidth="2"
                                             Fill="@YearColor(year, "area")"
-                                            Title="@year.ToString()"
+                                            Title="@($"Consumption {year}")"
                                             CategoryProperty="MonthOfYear"
                                             ValueProperty="ConsumptionKWh">
                             <ChildContent>
@@ -353,35 +438,43 @@
                         </RadzenColumnSeries>
                     }
 
-                    <RadzenLineSeries Data="@ConsumptionAllWeather"
-                                        Stroke="var(--sessy-temperature-line)"
-                                        StrokeWidth="2"
-                                        Title="Avg. temperature"
-                                        CategoryProperty="MonthOfYear"
-                                        ValueProperty="Temperature"
-                                        ValueAxisName="temperature"
-                                        LineType="LineType.Solid">
-                    </RadzenLineSeries>
+                    @if (ShowWeather)
+                    {
+                        foreach (var year in AllYears)
+                        {
+                            <RadzenLineSeries Data="@AllWithData[year]"
+                                              Stroke="@TemperatureColor(AllYears.Last() - year)"
+                                              StrokeWidth="2"
+                                              Title="@($"Avg. temperature {year}")"
+                                              CategoryProperty="MonthOfYear"
+                                              ValueProperty="Temperature"
+                                              ValueAxisName="temperature"
+                                              LineType="LineType.Solid">
+                            </RadzenLineSeries>
+                        }
 
-                    <RadzenLineSeries Data="@ConsumptionAllWeather"
-                                        Stroke="var(--sessy-radiation-line)"
-                                        StrokeWidth="2"
-                                        Title="Avg. global radiation"
-                                        CategoryProperty="MonthOfYear"
-                                        ValueProperty="GlobalRadiation"
-                                        ValueAxisName="radiation"
-                                        LineType="LineType.Solid">
-                    </RadzenLineSeries>
+                        <RadzenLineSeries Data="@ConsumptionAllWeather"
+                                          Stroke="var(--sessy-radiation-line)"
+                                          StrokeWidth="2"
+                                          Title="Avg. global radiation"
+                                          CategoryProperty="MonthOfYear"
+                                          ValueProperty="GlobalRadiation"
+                                          Hidden="true"
+                                          ValueAxisName="radiation"
+                                          LineType="LineType.Solid">
+                        </RadzenLineSeries>
 
-                    <RadzenLineSeries Data="@ConsumptionAllWeather"
-                                        Stroke="var(--sessy-humidity-line)"
-                                        StrokeWidth="2"
-                                        Title="Avg. humidity"
-                                        CategoryProperty="MonthOfYear"
-                                        ValueProperty="Humidity"
-                                        ValueAxisName="humidity"
-                                        LineType="LineType.Solid">
-                    </RadzenLineSeries>
+                        <RadzenLineSeries Data="@ConsumptionAllWeather"
+                                          Stroke="var(--sessy-humidity-line)"
+                                          StrokeWidth="2"
+                                          Title="Avg. humidity"
+                                          CategoryProperty="MonthOfYear"
+                                          ValueProperty="Humidity"
+                                          Hidden="true"
+                                          ValueAxisName="humidity"
+                                          LineType="LineType.Solid">
+                        </RadzenLineSeries>
+                    }
 
                     <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance LabelAutoRotation="-45">
                         <RadzenGridLines Visible="true" />
@@ -391,15 +484,18 @@
                         <RadzenGridLines Visible="true" />
                         <RadzenAxisTitle Text="Watt" />
                     </RadzenValueAxis>
-                    <RadzenValueAxis Name="temperature" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
-                        <RadzenAxisTitle Text="Celsius" />
-                    </RadzenValueAxis>
-                    <RadzenValueAxis Name="radiation" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
-                        <RadzenAxisTitle Text="Watt / m2" />
-                    </RadzenValueAxis>
-                    <RadzenValueAxis Name="humidity" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
-                        <RadzenAxisTitle Text="Percentage" />
-                    </RadzenValueAxis>
+                    @if (ShowWeather)
+                    {
+                        <RadzenValueAxis Name="temperature" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                            <RadzenAxisTitle Text="Celsius" />
+                        </RadzenValueAxis>
+                        <RadzenValueAxis Name="radiation" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                            <RadzenAxisTitle Text="Watt / m2" />
+                        </RadzenValueAxis>
+                        <RadzenValueAxis Name="humidity" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                            <RadzenAxisTitle Text="Percentage" />
+                        </RadzenValueAxis>
+                    }
                 </RadzenChart>
             </RadzenCard>
         }
@@ -416,42 +512,58 @@
                                         Fill="var(--sessy-consumption-area)"
                                         Title="Consumption"
                                         CategoryProperty="X"
-                                        ValueProperty="ConsumptionKWh"
-                                        LineType="LineType.Solid">
+                                        ValueProperty="ConsumptionKWh">
                         <ChildContent>
                             <RadzenSeriesDataLabels Visible="@ShowDataLabels" />
                         </ChildContent>
                     </RadzenColumnSeries>
 
-                    <RadzenLineSeries Data="@ConsumptionCustomData"
-                                        Stroke="var(--sessy-temperature-line)"
-                                        StrokeWidth="2"
-                                        Title="Avg. temperature"
-                                        CategoryProperty="X"
-                                        ValueProperty="Temperature"
-                                        ValueAxisName="temperature"
-                                        LineType="LineType.Solid">
-                    </RadzenLineSeries>
+                    @foreach (var offset in ShownOffsets)
+                    {
+                        <RadzenLineSeries Data="@CustomCompare[offset]"
+                                          Stroke="@OffsetColor(offset, "line")"
+                                          StrokeWidth="2"
+                                          Title="@ConsumptionTitle(offset)"
+                                          CategoryProperty="X"
+                                          ValueProperty="ConsumptionKWh"
+                                          LineType="LineType.Solid">
+                        </RadzenLineSeries>
+                    }
 
-                    <RadzenLineSeries Data="@ConsumptionCustomData"
-                                        Stroke="var(--sessy-radiation-line)"
-                                        StrokeWidth="2"
-                                        Title="Avg. global radiation"
-                                        CategoryProperty="X"
-                                        ValueProperty="GlobalRadiation"
-                                        ValueAxisName="radiation"
-                                        LineType="LineType.Solid">
-                    </RadzenLineSeries>
+                    @if (ShowWeather)
+                    {
+                        <RadzenLineSeries Data="@ConsumptionCustomData"
+                                          Stroke="var(--sessy-temperature-line)"
+                                          StrokeWidth="2"
+                                          Title="Avg. temperature"
+                                          CategoryProperty="X"
+                                          ValueProperty="Temperature"
+                                          ValueAxisName="temperature"
+                                          LineType="LineType.Solid">
+                        </RadzenLineSeries>
 
-                    <RadzenLineSeries Data="@ConsumptionCustomData"
-                                        Stroke="var(--sessy-humidity-line)"
-                                        StrokeWidth="2"
-                                        Title="Avg. humidity"
-                                        CategoryProperty="X"
-                                        ValueProperty="Humidity"
-                                        ValueAxisName="humidity"
-                                        LineType="LineType.Solid">
-                    </RadzenLineSeries>
+                        <RadzenLineSeries Data="@ConsumptionCustomData"
+                                          Stroke="var(--sessy-radiation-line)"
+                                          StrokeWidth="2"
+                                          Title="Avg. global radiation"
+                                          CategoryProperty="X"
+                                          ValueProperty="GlobalRadiation"
+                                          Hidden="true"
+                                          ValueAxisName="radiation"
+                                          LineType="LineType.Solid">
+                        </RadzenLineSeries>
+
+                        <RadzenLineSeries Data="@ConsumptionCustomData"
+                                          Stroke="var(--sessy-humidity-line)"
+                                          StrokeWidth="2"
+                                          Title="Avg. humidity"
+                                          CategoryProperty="X"
+                                          ValueProperty="Humidity"
+                                          Hidden="true"
+                                          ValueAxisName="humidity"
+                                          LineType="LineType.Solid">
+                        </RadzenLineSeries>
+                    }
 
                     <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance LabelAutoRotation="-45">
                         <RadzenGridLines Visible="true" />
@@ -461,15 +573,18 @@
                         <RadzenGridLines Visible="true" />
                         <RadzenAxisTitle Text="Watt" />
                     </RadzenValueAxis>
-                    <RadzenValueAxis Name="temperature" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
-                        <RadzenAxisTitle Text="Celsius" />
-                    </RadzenValueAxis>
-                    <RadzenValueAxis Name="radiation" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
-                        <RadzenAxisTitle Text="Watt / m2" />
-                    </RadzenValueAxis>
-                    <RadzenValueAxis Name="humidity" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
-                        <RadzenAxisTitle Text="Percentage" />
-                    </RadzenValueAxis>
+                    @if (ShowWeather)
+                    {
+                        <RadzenValueAxis Name="temperature" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                            <RadzenAxisTitle Text="Celsius" />
+                        </RadzenValueAxis>
+                        <RadzenValueAxis Name="radiation" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                            <RadzenAxisTitle Text="Watt / m2" />
+                        </RadzenValueAxis>
+                        <RadzenValueAxis Name="humidity" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                            <RadzenAxisTitle Text="Percentage" />
+                        </RadzenValueAxis>
+                    }
                 </RadzenChart>
             </RadzenCard>
         }
@@ -481,5 +596,8 @@
 
         <RadzenLabel Text="Avg. temperature:" Component="RadzenDropDownBindValue" class="m-2" />
         <RadzenNumeric Value="@AverageTemperature" ReadOnly="true" class="m-2" Format="0.0" Disabled ShowUpDown="false"/>
+
+        <RadzenLabel Text="Consumption vs. prev. year:" Component="DeltaPreviousYear" class="m-2" />
+        <RadzenTextBox Value="@DeltaPreviousYearText" ReadOnly="true" Disabled class="m-2" Style="width: 220px;" Name="DeltaPreviousYear" />
     </RadzenFooter>
 </RadzenLayout>
