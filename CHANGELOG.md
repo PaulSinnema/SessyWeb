@@ -11,6 +11,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.187] — 2026-11-13
+
+### Changed
+- **Statistics page split into topic tabs.** Overview (return on investment, savings, current plan,
+  energy flows), Financial (financial forecast, cost basis, daily arbitrage), Planner (plan vs actual,
+  throttling) and Consumption (weather correlation). Nothing removed, only regrouped.
+
 ## [v1.0.186] — 2026-11-13
 
 ### Changed

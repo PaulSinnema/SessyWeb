@@ -62,39 +62,61 @@
                             }
 
                             <RadzenColumn Size="12" class="rz-display-flex">
-                                <CostBasisComponent />
-                            </RadzenColumn>
-
-                            <RadzenColumn Size="12" SizeMD="6" class="rz-display-flex">
                                 <EnergyFlowsComponent Dashboard="@Dashboard" />
-                            </RadzenColumn>
-
-                            @if (Dashboard.DailyArbitrageTrends.Any())
-                            {
-                                <RadzenColumn Size="12" SizeMD="6" class="rz-display-flex">
-                                    <DailyArbitrageChartComponent Dashboard="@Dashboard" />
-                                </RadzenColumn>
-                            }
-
-                            <RadzenColumn Size="12" SizeMD="6" class="rz-display-flex">
-                                <PlanVsActualComponent Dashboard="@Dashboard" />
-                            </RadzenColumn>
-
-                            <RadzenColumn Size="12" SizeMD="6" class="rz-display-flex">
-                                <ThrottleChartComponent />
-                            </RadzenColumn>
-
-                            <RadzenColumn Size="12" class="rz-display-flex">
-                                <ThrottleReportComponent />
                             </RadzenColumn>
 
                         </RadzenRow>
                     }
                 </RadzenTabsItem>
-                <RadzenTabsItem Text="Financial forecast">
-                    <FinancialForecastComponent />
+                <RadzenTabsItem Text="Financial">
+                    <RadzenRow Gap="12px" RowGap="12px" AlignItems="AlignItems.Stretch">
+
+                        <RadzenColumn Size="12" class="rz-display-flex">
+                            <FinancialForecastComponent />
+                        </RadzenColumn>
+
+                        <RadzenColumn Size="12" class="rz-display-flex">
+                            <CostBasisComponent />
+                        </RadzenColumn>
+
+                        @if (IsLoading)
+                        {
+                            <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+                        }
+                        else if (Dashboard != null && Dashboard.DailyArbitrageTrends.Any())
+                        {
+                            <RadzenColumn Size="12" class="rz-display-flex">
+                                <DailyArbitrageChartComponent Dashboard="@Dashboard" />
+                            </RadzenColumn>
+                        }
+
+                    </RadzenRow>
                 </RadzenTabsItem>
-                <RadzenTabsItem Text="Weather correlation">
+                <RadzenTabsItem Text="Planner">
+                    <RadzenRow Gap="12px" RowGap="12px" AlignItems="AlignItems.Stretch">
+
+                        @if (IsLoading)
+                        {
+                            <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+                        }
+                        else if (Dashboard != null)
+                        {
+                            <RadzenColumn Size="12" SizeMD="6" class="rz-display-flex">
+                                <PlanVsActualComponent Dashboard="@Dashboard" />
+                            </RadzenColumn>
+                        }
+
+                        <RadzenColumn Size="12" SizeMD="6" class="rz-display-flex">
+                            <ThrottleChartComponent />
+                        </RadzenColumn>
+
+                        <RadzenColumn Size="12" class="rz-display-flex">
+                            <ThrottleReportComponent />
+                        </RadzenColumn>
+
+                    </RadzenRow>
+                </RadzenTabsItem>
+                <RadzenTabsItem Text="Consumption">
                     <WeatherCorrelationComponent />
                 </RadzenTabsItem>
             </Tabs>
