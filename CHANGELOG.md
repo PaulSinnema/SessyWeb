@@ -11,6 +11,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.180] — 2026-11-13
+
+### Added
+- **Consumption model (no UI yet).** Expected daily consumption from the day's average temperature
+  and weekday/weekend: base + kWh per degree below a heating base + kWh per degree above a cooling
+  base + weekend effect. The base temperatures are chosen by the fit (whole degrees). Fitted on the
+  first year of complete days by default. Splits the difference between two periods into
+  temperature, calendar and other. Radiation and humidity were tested and left out: no measurable
+  effect. This is the basis for the weather-corrected comparison charts.
+
 ## [v1.0.179] — 2026-11-13
 
 ### Changed
