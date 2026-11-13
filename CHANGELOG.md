@@ -11,6 +11,61 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.186] — 2026-11-13
+
+### Changed
+- **Consumption footer: "Consumption vs. prev. year" now matches the "vs. previous year" tab.** It
+  uses the same complete days (paired with the same dates a year earlier) and adds the
+  weather-corrected difference, e.g. "+6.3 % (weather-corrected -0.5 %, 62 days)". It used to count
+  part days and today, so it could disagree with the tab.
+
+### Fixed
+- **Consumption charts: value axis said "Watt" but shows Wh.** Now titled "Wh".
+
+## [v1.0.185] — 2026-11-13
+
+### Changed
+- **Consumption tab, Month and Custom: earlier years as bars.** Like Week and Year, the compared
+  years now stand as bars side by side (one colour per year) instead of lines.
+- **Consumption tab: temperature of earlier years in every chart.** Day, Month and Custom now also
+  show the (average) temperature of each compared year, in that year's colour, like Week, Year and All.
+
+## [v1.0.184] — 2026-11-13
+
+### Changed
+- **"vs. previous year" tab: Radzen charts instead of hand-drawn HTML.** The bridge is a Radzen
+  waterfall (last year, temperature, other, this year; red adds, green saves) and the difference per
+  day or month is a diverging stacked bar chart (more to the right, less to the left). "Calendar"
+  (weekend days, a few kWh at most) is now part of "other". The tab says which days were actually
+  compared, e.g. "Compared: 12-09-2026 – 12-11-2026 against the same days a year earlier (62 days)".
+
+## [v1.0.183] — 2026-11-13
+
+### Changed
+- **"vs. previous year" tab: one stacked column per day or month.** Temperature, calendar and other
+  are stacked into a single column (parts that add go up, parts that save go down) with a line for
+  the total difference; hover a column for the numbers. Drawn in plain HTML because Radzen cannot
+  stack negative values.
+
+## [v1.0.182] — 2026-11-13
+
+### Fixed
+- **"vs. previous year" tab: Year and monthly Custom compared unequal numbers of days.** A month was
+  compared with all complete days of the same month last year, so when last year's data started
+  mid-month the extra days showed up as a large "Calendar" amount. Every day is now paired with the
+  same date a year earlier and only counts when both are complete, so "Calendar" is just the
+  weekend-day difference. Days and months without data in both years are left out of the chart.
+
+## [v1.0.181] — 2026-11-13
+
+### Added
+- **Consumption tab: second tab "vs. previous year".** The existing charts stay on the first tab.
+  The new tab compares with last year using the consumption model: a bridge from last year's to
+  this year's consumption split into temperature, calendar (number of weekend days) and other, a
+  verdict whether "other" is within normal day-to-day variation, and per day or month the
+  difference split into temperature and other. Day shows only the bridge; All shows measured
+  against expected consumption per month with the cumulative difference. Only complete days count.
+
 ## [v1.0.180] — 2026-11-13
 
 ### Added

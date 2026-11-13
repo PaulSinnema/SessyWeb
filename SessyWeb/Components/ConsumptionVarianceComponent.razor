@@ -1,0 +1,118 @@
+﻿@using SessyController.Services.Statistics
+@using Radzen
+@using Radzen.Blazor
+
+<RadzenCard>
+    @if (!string.IsNullOrEmpty(Message))
+    {
+        <RadzenText TextStyle="TextStyle.Body1">@Message</RadzenText>
+    }
+    else if (Fit != null)
+    {
+        <RadzenText TextStyle="TextStyle.H6">Measured vs expected per month <InfoTipComponent Text="@FitInfo" /></RadzenText>
+        <RadzenText TextStyle="TextStyle.Caption">@ModelText()</RadzenText>
+
+        <RadzenChart @key="Fit" Style="width: 100%; height: 55vh; min-height: 420px;">
+            <RadzenChartTooltipOptions Shared="true" />
+            <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
+
+            <RadzenColumnSeries Data="@Fit"
+                                Title="Measured"
+                                CategoryProperty="Label"
+                                ValueProperty="MeasuredKWh"
+                                Fill="var(--sessy-consumption-area)"
+                                Stroke="var(--sessy-consumption-line)"
+                                StrokeWidth="2" />
+
+            <RadzenLineSeries Data="@Fit"
+                              Title="Expected"
+                              CategoryProperty="Label"
+                              ValueProperty="ExpectedKWh"
+                              Stroke="var(--sessy-temperature-line)"
+                              StrokeWidth="2" />
+
+            <RadzenLineSeries Data="@Fit"
+                              Title="Cumulative difference"
+                              CategoryProperty="Label"
+                              ValueProperty="CumulativeDeviationKWh"
+                              ValueAxisName="cumulative"
+                              Stroke="var(--sessy-year-1-line)"
+                              StrokeWidth="2" />
+
+            <RadzenCategoryAxis LabelAutoRotation="-45">
+                <RadzenAxisTitle Text="Month" />
+            </RadzenCategoryAxis>
+            <RadzenValueAxis Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                <RadzenGridLines Visible="true" />
+                <RadzenAxisTitle Text="kWh" />
+            </RadzenValueAxis>
+            <RadzenValueAxis Name="cumulative" Width="100" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                <RadzenAxisTitle Text="Cumulative kWh" />
+            </RadzenValueAxis>
+        </RadzenChart>
+    }
+    else if (Result != null)
+    {
+        <RadzenText TextStyle="TextStyle.H6">@PeriodText <InfoTipComponent Text="@HowToRead" /></RadzenText>
+        <RadzenText TextStyle="TextStyle.Caption">@ComparedText()</RadzenText>
+
+        <RadzenChart @key="Result" Style="width: 100%; max-width: 900px; height: 340px;">
+            <RadzenChartTooltipOptions Shared="false" />
+            <RadzenLegend Visible="false" />
+
+            <RadzenWaterfallSeries Data="@Steps"
+                                   Title="Consumption"
+                                   CategoryProperty="Label"
+                                   ValueProperty="KWh"
+                                   SummaryProperty="IsTotal"
+                                   PositiveFill="var(--rz-danger)"
+                                   NegativeFill="var(--rz-success)"
+                                   SummaryFill="var(--sessy-consumption-area)">
+                <ChildContent>
+                    <RadzenSeriesDataLabels Visible="true" />
+                </ChildContent>
+            </RadzenWaterfallSeries>
+
+            <RadzenCategoryAxis />
+            <RadzenValueAxis Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                <RadzenGridLines Visible="true" />
+                <RadzenAxisTitle Text="kWh" />
+            </RadzenValueAxis>
+        </RadzenChart>
+
+        <RadzenText TextStyle="TextStyle.Body2">@OtherText()</RadzenText>
+        <RadzenText TextStyle="TextStyle.Caption">@ModelText()</RadzenText>
+
+        @if (ShowDifferenceChart)
+        {
+            <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mt-4">Difference with last year per @CategoryTitle.ToLowerInvariant() <InfoTipComponent Text="@DifferenceInfo" /></RadzenText>
+
+            <RadzenChart @key="Rows" Style="@DifferenceChartStyle">
+                <RadzenChartTooltipOptions Shared="true" />
+                <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
+
+                <RadzenStackedBarSeries Data="@Rows"
+                                        Title="Temperature"
+                                        CategoryProperty="Label"
+                                        ValueProperty="TemperatureKWh"
+                                        Fill="var(--sessy-temperature-line)"
+                                        Stroke="var(--sessy-temperature-line)" />
+
+                <RadzenStackedBarSeries Data="@Rows"
+                                        Title="Other"
+                                        CategoryProperty="Label"
+                                        ValueProperty="OtherKWh"
+                                        Fill="var(--sessy-consumption-area)"
+                                        Stroke="var(--sessy-consumption-line)" />
+
+                <RadzenCategoryAxis>
+                    <RadzenAxisTitle Text="@CategoryTitle" />
+                </RadzenCategoryAxis>
+                <RadzenValueAxis Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                    <RadzenGridLines Visible="true" />
+                    <RadzenAxisTitle Text="kWh (more →, ← less)" />
+                </RadzenValueAxis>
+            </RadzenChart>
+        }
+    }
+</RadzenCard>

@@ -4,6 +4,7 @@ using Radzen.Blazor.Rendering;
 using SessyCommon.Extensions;
 using SessyCommon.Services;
 using SessyController.Services;
+using SessyController.Services.Statistics;
 using SessyData.Services;
 using SessyWeb.Helpers;
 using System.Globalization;
@@ -21,6 +22,19 @@ namespace SessyWeb.Pages
         private ConsumptionDataService? _consumptionDataService { get; set; }
         [Inject]
         private ConsumptionMonitorService? _consumptionMonitorService { get; set; }
+        [Inject]
+        private ConsumptionModelService? _consumptionModelService { get; set; }
+
+        // Tab 2 "vs. previous year": the consumption model, refitted once per day.
+        private ConsumptionModel? _model;
+        private Dictionary<DateTime, WeatherDay> _modelDays = new();
+        private DateTime? _modelLoadedOn;
+        private int SelectedTab { get; set; }
+        private VarianceResult? Variance { get; set; }
+        private List<ModelFitItem>? ModelFit { get; set; }
+        private string VariancePeriodText { get; set; } = string.Empty;
+        private string VarianceCategoryTitle { get; set; } = "Day";
+        private string? VarianceMessage { get; set; }
 
         private DateArgs? DateSelectionChosen { get; set; }
 
@@ -49,12 +63,14 @@ namespace SessyWeb.Pages
         // Comparison with earlier years, keyed by offset in years (0 = chosen period).
         public Dictionary<int, List<ConsumptionDisplayDayData>> DayCompare { get; set; } = new();
         public Dictionary<int, List<ConsumptionDisplayWeekData>> WeekPerYear { get; set; } = new();
-        public Dictionary<int, List<ConsumptionDisplayMonthData>> MonthCompare { get; set; } = new();
+        public Dictionary<int, List<ConsumptionDisplayMonthData>> MonthPerYear { get; set; } = new();
         public Dictionary<int, List<ConsumptionDisplayYearData>> YearPerYear { get; set; } = new();
-        public Dictionary<int, List<ConsumptionDisplayCustomData>> CustomCompare { get; set; } = new();
-        // Week/Year/All items with measurements only, for the per-year temperature lines.
+        public Dictionary<int, List<ConsumptionDisplayCustomData>> CustomPerYear { get; set; } = new();
+        // Items with measurements only, for the per-year temperature lines.
         public Dictionary<int, List<ConsumptionDisplayWeekData>> WeekWithData { get; set; } = new();
         public Dictionary<int, List<ConsumptionDisplayYearData>> YearWithData { get; set; } = new();
+        public Dictionary<int, List<ConsumptionDisplayMonthData>> MonthWithData { get; set; } = new();
+        public Dictionary<int, List<ConsumptionDisplayCustomData>> CustomWithData { get; set; } = new();
         public Dictionary<int, List<ConsumptionDisplayAllData>> AllWithData { get; set; } = new();
         public Dictionary<int, string> CompareTitles { get; set; } = new();
         // Offsets shown, oldest first.
@@ -72,15 +88,26 @@ namespace SessyWeb.Pages
         private bool ShowWeather { get; set; } = true;
 
         private DateTime? _earliestTime;
-        // Comparable totals: one year back and the matching part of the chosen period; null = not available.
-        private double? _previousYearKWh;
-        private double _comparedCurrentKWh;
-        // Set when only part of the period could be compared (data starts later).
-        private DateTime? _comparedFrom;
-        public string DeltaPreviousYearText => _previousYearKWh is > 0
-            ? $"{(_comparedCurrentKWh - _previousYearKWh.Value) / _previousYearKWh.Value * 100:+0.0;-0.0;0.0} %"
-              + (_comparedFrom.HasValue ? $" (from {_comparedFrom:dd/MM/yyyy})" : string.Empty)
-            : "n/a";
+
+        // Same complete days as the "vs. previous year" tab: the raw difference and the part left after the weather.
+        public string DeltaPreviousYearText
+        {
+            get
+            {
+                if (Variance == null || Variance.CurrentDays == 0 || Variance.Total.PreviousKWh <= 0)
+                    return "n/a";
+
+                var total = Variance.Total;
+                var other = total.OtherKWh + total.CalendarKWh;
+                var expected = total.CurrentKWh - other;
+                var raw = (total.CurrentKWh - total.PreviousKWh) / total.PreviousKWh * 100.0;
+                var corrected = expected > 0 ? other / expected * 100.0 : 0.0;
+
+                return string.Format(CultureInfo.CurrentCulture, "{0:+0.0;-0.0;0.0} % (weather-corrected {1:+0.0;-0.0;0.0} %, {2} days)",
+                    raw, corrected, Variance.CurrentDays);
+            }
+        }
+
         public List<int> AllYears { get; set; } = new();
         // Per year all 12 months (missing months zero) so the years line up side by side.
         public Dictionary<int, List<ConsumptionDisplayAllData>> ConsumptionAllPerYear { get; set; } = new();
@@ -328,39 +355,6 @@ namespace SessyWeb.Pages
             return offsets;
         }
 
-        // Total of the same period one year back, cut off at the same point as the chosen period (now).
-        // If data starts inside that period, only the overlapping part is compared.
-        private async Task SetPreviousYearTotal(DateTime start, DateTime end, Func<DateTime, DateTime> toCurrent)
-        {
-            _previousYearKWh = null;
-            _comparedFrom = null;
-
-            var earliest = await EarliestTime();
-
-            if (earliest == null || end <= earliest)
-                return;
-
-            var now = _timeZoneService!.Now;
-            var previousStart = start;
-
-            if (start < earliest)
-            {
-                previousStart = earliest.Value;
-                _comparedFrom = toCurrent(previousStart);
-            }
-
-            var previous = await LoadRange(previousStart, end);
-
-            if (previous.Count == 0)
-                return;
-
-            _previousYearKWh = previous.Where(r => toCurrent(r.Time) <= now).Sum(r => r.ConsumptionWh) / 4;
-
-            var current = await LoadRange(toCurrent(previousStart), toCurrent(end));
-
-            _comparedCurrentKWh = current.Sum(r => r.ConsumptionWh) / 4;
-        }
-
         private static T Fill<T>(T item, List<ConsumptionRow> rows) where T : DisplayBaseData
         {
             if (rows.Count == 0)
@@ -450,18 +444,29 @@ namespace SessyWeb.Pages
                 .ToList();
         }
 
+        // Same categories, in the same order, as the chosen custom period, so the years line up side by side.
+        private List<ConsumptionDisplayCustomData> AlignToCurrent(List<ConsumptionDisplayCustomData> items)
+        {
+            var byX = items.ToDictionary(i => i.X);
+
+            return ConsumptionCustomData
+                .Select(c => byX.TryGetValue(c.X, out var item) ? item : new ConsumptionDisplayCustomData { X = c.X })
+                .ToList();
+        }
+
         private void ClearCompare()
         {
             DayCompare = new();
             WeekPerYear = new();
-            MonthCompare = new();
+            MonthPerYear = new();
             YearPerYear = new();
-            CustomCompare = new();
+            CustomPerYear = new();
             CompareTitles = new();
             WeekWithData = new();
             YearWithData = new();
+            MonthWithData = new();
+            CustomWithData = new();
             ShownOffsets = new();
-            _previousYearKWh = null;
         }
 
         private async Task SelectionChanged()
@@ -473,6 +478,8 @@ namespace SessyWeb.Pages
             try
             {
                 ClearCompare();
+
+                await BuildVariance(dateChoosen);
 
                 switch (DateSelectionChosen!.PeriodChosen)
                 {
@@ -497,8 +504,6 @@ namespace SessyWeb.Pages
                             }
 
                             ShownOffsets = DayCompare.Keys.OrderByDescending(o => o).ToList();
-
-                            await SetPreviousYearTotal(dateChoosen.AddDays(-364), dateChoosen.AddDays(-363), t => t.AddDays(364));
 
                             await ReloadCharts();
 
@@ -531,8 +536,6 @@ namespace SessyWeb.Pages
                             ShownOffsets = WeekPerYear.Keys.OrderByDescending(o => o).ToList();
                             WeekWithData = WeekPerYear.ToDictionary(kv => kv.Key, kv => kv.Value.Where(d => d.HasData).ToList());
 
-                            await SetPreviousYearTotal(weekStart.AddDays(-364), weekStart.AddDays(-357), t => t.AddDays(364));
-
                             await ReloadCharts();
 
                             break;
@@ -548,6 +551,9 @@ namespace SessyWeb.Pages
                             ConsumptionMonthData = ConsumptionMonthBars.Where(d => d.HasData).ToList();
                             _totalConsumptionKWh = ConsumptionMonthData.Sum(cd => cd.ConsumptionKWh);
 
+                            MonthPerYear[0] = ConsumptionMonthBars;
+                            CompareTitles[0] = $"{Formatters.FormatAsMonth(monthStart.Month)} {monthStart.Year}";
+
                             foreach (var offset in await CompareOffsets(o => monthStart.AddMonths(1).AddYears(-o)))
                             {
                                 var start = monthStart.AddYears(-offset);
@@ -558,13 +564,12 @@ namespace SessyWeb.Pages
 
                                 var count = Math.Min(days, DateTime.DaysInMonth(start.Year, start.Month));
 
-                                MonthCompare[offset] = BuildDays(previous, start, monthStart, count).Where(d => d.HasData).ToList();
+                                MonthPerYear[offset] = BuildDays(previous, start, monthStart, count);
                                 CompareTitles[offset] = $"{Formatters.FormatAsMonth(start.Month)} {start.Year}";
                             }
 
-                            ShownOffsets = MonthCompare.Keys.OrderByDescending(o => o).ToList();
-
-                            await SetPreviousYearTotal(monthStart.AddYears(-1), monthStart.AddYears(-1).AddMonths(1), t => t.AddYears(1));
+                            ShownOffsets = MonthPerYear.Keys.OrderByDescending(o => o).ToList();
+                            MonthWithData = MonthPerYear.ToDictionary(kv => kv.Key, kv => kv.Value.Where(d => d.HasData).ToList());
 
                             await ReloadCharts();
 
@@ -595,8 +600,6 @@ namespace SessyWeb.Pages
 
                             ShownOffsets = YearPerYear.Keys.OrderByDescending(o => o).ToList();
                             YearWithData = YearPerYear.ToDictionary(kv => kv.Key, kv => kv.Value.Where(d => d.HasData).ToList());
-
-                            await SetPreviousYearTotal(yearStart.AddYears(-1), yearStart, t => t.AddYears(1));
 
                             await ReloadCharts();
 
@@ -676,11 +679,9 @@ namespace SessyWeb.Pages
                                             if (previous.Count == 0)
                                                 continue;
 
-                                            CustomCompare[offset] = BuildCustomDays(previous, 364 * offset);
+                                            CustomPerYear[offset] = AlignToCurrent(BuildCustomDays(previous, 364 * offset));
                                             CompareTitles[offset] = $"{start.AddDays(-364 * offset):dd/MM/yyyy} - {end.AddDays(-364 * offset - 1):dd/MM/yyyy}";
                                         }
-
-                                        await SetPreviousYearTotal(start.AddDays(-364), end.AddDays(-364), t => t.AddDays(364));
 
                                         break;
                                     }
@@ -699,11 +700,9 @@ namespace SessyWeb.Pages
                                             if (previous.Count == 0)
                                                 continue;
 
-                                            CustomCompare[offset] = BuildCustomMonths(previous, offset);
+                                            CustomPerYear[offset] = AlignToCurrent(BuildCustomMonths(previous, offset));
                                             CompareTitles[offset] = $"{start.AddYears(-offset):dd/MM/yyyy} - {end.AddYears(-offset).AddDays(-1):dd/MM/yyyy}";
                                         }
-
-                                        await SetPreviousYearTotal(start.AddYears(-1), end.AddYears(-1), t => t.AddYears(1));
 
                                         break;
                                     }
@@ -712,7 +711,10 @@ namespace SessyWeb.Pages
                                     throw new InvalidOperationException($"Invalid duration: {DateSelectionChosen.DurationChosen}");
                             }
 
-                            ShownOffsets = CustomCompare.Keys.OrderByDescending(o => o).ToList();
+                            CustomPerYear[0] = ConsumptionCustomData;
+                            CompareTitles[0] = $"{start:dd/MM/yyyy} - {end.AddDays(-1):dd/MM/yyyy}";
+                            ShownOffsets = CustomPerYear.Keys.OrderByDescending(o => o).ToList();
+                            CustomWithData = CustomPerYear.ToDictionary(kv => kv.Key, kv => kv.Value.Where(d => d.HasData).ToList());
                             _totalConsumptionKWh = ConsumptionCustomData.Sum(cd => cd.ConsumptionKWh);
 
                             await ReloadCharts();
@@ -730,6 +732,132 @@ namespace SessyWeb.Pages
             }
         }
 
+        private async Task EnsureModel()
+        {
+            var today = _timeZoneService!.Now.Date;
+
+            if (_modelLoadedOn == today)
+                return;
+
+            var (model, days) = await _consumptionModelService!.GetModelAsync();
+
+            _model = model;
+            _modelDays = days.ToDictionary(d => d.Date.Date);
+            _modelLoadedOn = today;
+        }
+
+        // Builds tab 2: always against last year, independent of the Compare choice.
+        private async Task BuildVariance(DateTime dateChoosen)
+        {
+            Variance = null;
+            ModelFit = null;
+            VarianceMessage = null;
+
+            await EnsureModel();
+
+            if (_model == null)
+            {
+                VarianceMessage = "Not enough complete days yet to fit the consumption model.";
+                return;
+            }
+
+            var model = _model;
+            var days = _modelDays;
+            var items = new List<VarianceItem>();
+
+            switch (DateSelectionChosen!.PeriodChosen)
+            {
+                case PeriodsEnums.Day:
+                    VarianceCategoryTitle = "Day";
+                    VariancePeriodText = $"{dateChoosen:ddd dd/MM/yyyy} vs {dateChoosen.AddDays(-364):ddd dd/MM/yyyy}";
+                    items.Add(ConsumptionVariance.PairedItem(model, days, DayLabel(dateChoosen), dateChoosen.AddDays(-364), dateChoosen));
+                    break;
+
+                case PeriodsEnums.Week:
+                    {
+                        var weekStart = dateChoosen.StartOfWeek().Date;
+
+                        VarianceCategoryTitle = "Day";
+                        VariancePeriodText = $"{WeekTitle(weekStart)} vs {WeekTitle(weekStart.AddDays(-364))}";
+
+                        for (var i = 0; i < 7; i++)
+                        {
+                            var day = weekStart.AddDays(i);
+                            items.Add(ConsumptionVariance.PairedItem(model, days, DayLabel(day), day.AddDays(-364), day));
+                        }
+
+                        break;
+                    }
+
+                case PeriodsEnums.Month:
+                    {
+                        var monthStart = dateChoosen.StartOfMonth().Date;
+
+                        VarianceCategoryTitle = "Day";
+                        VariancePeriodText = $"{Formatters.FormatAsMonth(monthStart.Month)} {monthStart.Year} vs {monthStart.Year - 1}";
+
+                        for (var i = 0; i < DateTime.DaysInMonth(monthStart.Year, monthStart.Month); i++)
+                        {
+                            var day = monthStart.AddDays(i);
+                            items.Add(ConsumptionVariance.PairedItem(model, days, DayLabel(day), day.AddYears(-1), day));
+                        }
+
+                        break;
+                    }
+
+                case PeriodsEnums.Year:
+                    {
+                        var year = dateChoosen.Year;
+
+                        VarianceCategoryTitle = "Month";
+                        VariancePeriodText = $"{year} vs {year - 1}";
+
+                        for (var month = 1; month <= 12; month++)
+                        {
+                            items.Add(ConsumptionVariance.PairedGroupItem(model, days, Formatters.FormatAsMonth(month),
+                                DatesOfMonth(year, month).Select(day => (day.AddYears(-1), day))));
+                        }
+
+                        break;
+                    }
+
+                case PeriodsEnums.Custom:
+                    {
+                        var start = DateSelectionChosen.Start!.Value.Date;
+                        var end = DateSelectionChosen.End!.Value;
+                        var dates = Enumerable.Range(0, (int)Math.Ceiling((end - start).TotalDays)).Select(i => start.AddDays(i)).ToList();
+
+                        VariancePeriodText = $"{start:dd/MM/yyyy} - {dates.Last():dd/MM/yyyy} vs a year earlier";
+
+                        if (DateSelectionChosen.DurationChosen is DurationEnums.Last7Days or DurationEnums.Last30Days)
+                        {
+                            VarianceCategoryTitle = "Day";
+                            items.AddRange(dates.Select(day => ConsumptionVariance.PairedItem(model, days, day.ToString("dd/MM"), day.AddDays(-364), day)));
+                        }
+                        else
+                        {
+                            VarianceCategoryTitle = "Month";
+                            items.AddRange(dates.GroupBy(day => new { day.Year, day.Month }).Select(g => ConsumptionVariance.PairedGroupItem(model, days,
+                                $"{g.Key.Year}/{g.Key.Month}", g.Select(day => (day.AddYears(-1), day)))));
+                        }
+
+                        break;
+                    }
+
+                case PeriodsEnums.All:
+                    ModelFit = ConsumptionVariance.ModelFitPerMonth(model, days.Values);
+                    return;
+            }
+
+            Variance = ConsumptionVariance.Combine(model, items);
+
+            if (Variance.CurrentDays == 0)
+                VarianceMessage = $"{VariancePeriodText}: no complete days to compare with last year.";
+        }
+
+        private static IEnumerable<DateTime> DatesOfMonth(int year, int month) =>
+            Enumerable.Range(1, DateTime.DaysInMonth(year, month)).Select(day => new DateTime(year, month, day));
+
         private async Task ReloadCharts()
         {
             DetermineTickDistance();
@@ -741,27 +869,27 @@ namespace SessyWeb.Pages
             switch (DateSelectionChosen!.PeriodChosen)
             {
                 case PeriodsEnums.Day:
-                    await ConsumptionDayChart!.Reload();
+                    await (ConsumptionDayChart?.Reload() ?? Task.CompletedTask);
                     break;
 
                 case PeriodsEnums.Week:
-                    await ConsumptionWeekChart!.Reload();
+                    await (ConsumptionWeekChart?.Reload() ?? Task.CompletedTask);
                     break;
 
                 case PeriodsEnums.Month:
-                    await ConsumptionMonthChart!.Reload();
+                    await (ConsumptionMonthChart?.Reload() ?? Task.CompletedTask);
                     break;
 
                 case PeriodsEnums.Year:
-                    await ConsumptionYearChart!.Reload();
+                    await (ConsumptionYearChart?.Reload() ?? Task.CompletedTask);
                     break;
 
                 case PeriodsEnums.All:
-                    await ConsumptionAllChart!.Reload();
+                    await (ConsumptionAllChart?.Reload() ?? Task.CompletedTask);
                     break;
 
                 case PeriodsEnums.Custom:
-                    await ConsumptionCustomChart!.Reload();
+                    await (ConsumptionCustomChart?.Reload() ?? Task.CompletedTask);
                     break;
 
                 default:
