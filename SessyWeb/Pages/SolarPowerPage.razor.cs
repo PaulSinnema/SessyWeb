@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Components;
+using SessyCommon.Extensions;
 using Radzen.Blazor;
 using Radzen.Blazor.Rendering;
 using SessyCommon.Services;
@@ -172,7 +173,7 @@ namespace SessyWeb.Pages
                             var result = await _measurementService!.GetList(async (set) =>
                             {
                                 var result = set
-                                    .Where(sed => DateChosen.StartOfWeek() <= sed.Time && DateChosen!.EndOfWeek().AddDays(1).AddSeconds(-1) >= sed.Time)
+                                    .Where(sed => DateChosen.StartOfIsoWeek() <= sed.Time && DateChosen!.EndOfIsoWeek().AddDays(1).AddSeconds(-1) >= sed.Time)
                                     .ToList();
 
                                 return await Task.FromResult(result);
@@ -415,8 +416,8 @@ namespace SessyWeb.Pages
                     break;
 
                 case PeriodsEnums.Week:
-                    start = date.StartOfWeek();
-                    end = date.EndOfWeek().AddDays(1).AddSeconds(-1);
+                    start = date.StartOfIsoWeek();
+                    end = date.EndOfIsoWeek().AddDays(1).AddSeconds(-1);
                     break;
 
                 case PeriodsEnums.Month:

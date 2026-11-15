@@ -1,0 +1,52 @@
+﻿@using SessyController.Services.Statistics
+@using Radzen
+@using Radzen.Blazor
+@inherits BaseComponent
+
+<RadzenCard>
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px" Wrap="FlexWrap.Wrap">
+        <RadzenText TextStyle="TextStyle.H6">🗓️ Consumption pattern <InfoTipComponent Text="@HowToRead" /></RadzenText>
+        <RadzenDropDown TValue="int" Data="@Periods" TextProperty="Text" ValueProperty="Days"
+                        @bind-Value="@_days" Change="@(_ => LoadAsync())" Style="width: 160px;" />
+    </RadzenStack>
+
+    @if (_loading)
+    {
+        <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" class="rz-mt-2" />
+    }
+    else if (_result == null || _result.Cells.Count == 0)
+    {
+        <RadzenText TextStyle="TextStyle.Body1" class="rz-mt-2">No consumption measured in this period.</RadzenText>
+    }
+    else
+    {
+        <RadzenText TextStyle="TextStyle.Caption" class="rz-mt-1">@RangeText()</RadzenText>
+
+        <div style="overflow-x: auto; margin-top: 8px;">
+            <table style="border-collapse: separate; border-spacing: 2px; font-size: 0.75rem; width: 100%; min-width: 760px;">
+                <thead>
+                    <tr>
+                        <th></th>
+                        @for (int hour = 0; hour < 24; hour++)
+                        {
+                            <th style="font-weight: normal; text-align: center;">@hour.ToString("00")</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var day in Days)
+                    {
+                        <tr>
+                            <th style="font-weight: normal; text-align: left; padding-right: 6px;">@DayName(day)</th>
+                            @for (int hour = 0; hour < 24; hour++)
+                            {
+                                var cell = Cell(day, hour);
+                                <td style="@CellStyle(cell)" title="@CellTitle(day, hour, cell)">@CellText(cell)</td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</RadzenCard>

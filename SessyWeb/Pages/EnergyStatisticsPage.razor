@@ -65,6 +65,10 @@
                                 <EnergyFlowsComponent Dashboard="@Dashboard" />
                             </RadzenColumn>
 
+                            <RadzenColumn Size="12" class="rz-display-flex">
+                                <SelfSufficiencyTrendComponent />
+                            </RadzenColumn>
+
                         </RadzenRow>
                     }
                 </RadzenTabsItem>
@@ -124,13 +128,31 @@
                         </RadzenColumn>
 
                         <RadzenColumn Size="12" class="rz-display-flex">
+                            <BaseLoadComponent />
+                        </RadzenColumn>
+
+                        <RadzenColumn Size="12" class="rz-display-flex">
+                            <ConsumptionHeatmapComponent />
+                        </RadzenColumn>
+
+                        <RadzenColumn Size="12" class="rz-display-flex">
                             <WeatherCorrelationComponent />
                         </RadzenColumn>
 
                     </RadzenRow>
                 </RadzenTabsItem>
                 <RadzenTabsItem Text="Battery">
-                    <BatteryStatisticsComponent />
+                    <RadzenRow Gap="12px" RowGap="12px" AlignItems="AlignItems.Stretch">
+
+                        <RadzenColumn Size="12" class="rz-display-flex">
+                            <BatteryStatisticsComponent />
+                        </RadzenColumn>
+
+                        <RadzenColumn Size="12" class="rz-display-flex">
+                            <PriceCaptureComponent />
+                        </RadzenColumn>
+
+                    </RadzenRow>
                 </RadzenTabsItem>
             </Tabs>
         </RadzenTabs>

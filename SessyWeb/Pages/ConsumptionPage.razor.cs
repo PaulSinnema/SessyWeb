@@ -513,7 +513,7 @@ namespace SessyWeb.Pages
                     case PeriodsEnums.Week:
                         {
                             // Compare with the week 52 weeks back, so weekdays line up.
-                            var weekStart = dateChoosen.StartOfWeek().Date;
+                            var weekStart = dateChoosen.StartOfIsoWeek().Date;
                             var rows = await LoadRange(weekStart, weekStart.AddDays(7));
 
                             WeekPerYear[0] = BuildWeek(rows, weekStart, weekStart);
@@ -775,7 +775,7 @@ namespace SessyWeb.Pages
 
                 case PeriodsEnums.Week:
                     {
-                        var weekStart = dateChoosen.StartOfWeek().Date;
+                        var weekStart = dateChoosen.StartOfIsoWeek().Date;
 
                         VarianceCategoryTitle = "Day";
                         VariancePeriodText = $"{WeekTitle(weekStart)} vs {WeekTitle(weekStart.AddDays(-364))}";

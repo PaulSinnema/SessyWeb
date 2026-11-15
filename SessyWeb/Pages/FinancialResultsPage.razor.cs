@@ -111,8 +111,8 @@ namespace SessyWeb.Pages
                         break;
 
                     case PeriodsEnums.Week:
-                        start = chosen.StartOfWeek();
-                        end = chosen.EndOfWeek().AddDays(1);
+                        start = chosen.StartOfIsoWeek();
+                        end = chosen.EndOfIsoWeek().AddDays(1);
                         break;
 
                     case PeriodsEnums.Month:

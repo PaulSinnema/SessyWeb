@@ -78,6 +78,12 @@ namespace SessyCommon.Extensions
                  : TimeResolution.Unknown;
         }
 
+        /// <summary>Monday 00:00 of the ISO 8601 week that holds the date, whatever the server culture says.</summary>
+        public static DateTime StartOfIsoWeek(this DateTime date) => date.Date.AddDays(-(((int)date.DayOfWeek + 6) % 7));
+
+        /// <summary>Sunday 00:00: the last day of the ISO 8601 week that holds the date.</summary>
+        public static DateTime EndOfIsoWeek(this DateTime date) => date.StartOfIsoWeek().AddDays(6);
+
         /// <summary>
         /// Returns the ISO 8601 week number for the given date.
         /// </summary>

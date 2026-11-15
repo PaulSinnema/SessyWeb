@@ -11,6 +11,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.190] — 2026-11-15
+
+### Fixed
+- **Weeks start on Monday.** Week views on the Consumption, Financial, Solar and battery-history pages and
+  in the date chooser started on Sunday, because the server's culture said so. The Consumption week
+  "Week 46" showed Sunday 15 to Saturday 21, so on a Sunday the week total was just that day. Weeks now
+  run Monday to Sunday (ISO 8601), whatever the server culture.
+
+## [v1.0.189] — 2026-11-14
+
+### Added
+- **Statistics, Consumption tab: base load at night.** Per week the median of the quietest hour between
+  00:00 and 06:00, with the last four weeks compared to a year earlier (or to the start of recording) in W
+  and kWh a year. A rising line means devices were added that are always on.
+- **Statistics, Consumption tab: consumption pattern.** Average load per weekday and hour as a coloured
+  grid, over the last 30, 90 or 365 days.
+- **Statistics, Battery tab: price capture.** Per month the price spread the battery achieved (discharge
+  minus charge price per kWh) against the best spread the day's prices offered for the same number of
+  quarters, and the captured share.
+- **Statistics, Overview tab: self-sufficiency per month.** Consumption and grid import per month, with the
+  share covered by own solar and battery and the share of solar used at home.
+
 ## [v1.0.188] — 2026-11-13
 
 ### Added

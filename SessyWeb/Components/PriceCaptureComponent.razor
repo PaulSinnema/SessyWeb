@@ -1,0 +1,65 @@
+﻿@using SessyController.Services.Statistics
+@using Radzen
+@using Radzen.Blazor
+@inherits BaseComponent
+
+<RadzenCard>
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
+        <RadzenText TextStyle="TextStyle.H6">💶 Price capture <InfoTipComponent Text="@HowToRead" /></RadzenText>
+        <RadzenButton Icon="refresh" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                      Click="@LoadAsync" title="Reload" />
+    </RadzenStack>
+
+    @if (_loading)
+    {
+        <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" class="rz-mt-2" />
+    }
+    else if (_months.Count == 0)
+    {
+        <RadzenText TextStyle="TextStyle.Body1" class="rz-mt-2">Not enough data yet: needs days on which the battery charged and discharged.</RadzenText>
+    }
+    else
+    {
+        <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-1">@SummaryText()</RadzenText>
+
+        <RadzenChart Style="width: 100%; height: 40vh; min-height: 340px;">
+            <RadzenChartTooltipOptions Shared="true" />
+            <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
+
+            <RadzenColumnSeries Data="@_months"
+                                Title="Best possible spread"
+                                CategoryProperty="Label"
+                                ValueProperty="BestEurPerKWh"
+                                Fill="var(--sessy-year-1-area)"
+                                Stroke="var(--sessy-year-1-line)"
+                                StrokeWidth="2" />
+
+            <RadzenColumnSeries Data="@_months"
+                                Title="Captured spread"
+                                CategoryProperty="Label"
+                                ValueProperty="CapturedEurPerKWh"
+                                Fill="var(--sessy-discharge-area)"
+                                Stroke="var(--sessy-discharge-line)"
+                                StrokeWidth="2" />
+
+            <RadzenLineSeries Data="@CaptureMonths"
+                              Title="Captured share"
+                              CategoryProperty="Label"
+                              ValueProperty="CapturePercent"
+                              ValueAxisName="share"
+                              Stroke="var(--rz-text-color)"
+                              StrokeWidth="2" />
+
+            <RadzenCategoryAxis LabelAutoRotation="-45">
+                <RadzenAxisTitle Text="Month" />
+            </RadzenCategoryAxis>
+            <RadzenValueAxis FormatString="{0:0.00}">
+                <RadzenGridLines Visible="true" />
+                <RadzenAxisTitle Text="€ / kWh" />
+            </RadzenValueAxis>
+            <RadzenValueAxis Name="share" Width="100" Min="@(0.0)" Max="@(100.0)" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                <RadzenAxisTitle Text="%" />
+            </RadzenValueAxis>
+        </RadzenChart>
+    }
+</RadzenCard>

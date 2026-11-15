@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Components;
+using SessyCommon.Extensions;
 using Radzen.Blazor.Rendering;
 using SessyCommon.Services;
 using System.ComponentModel.DataAnnotations;
@@ -257,8 +258,8 @@ namespace SessyWeb.Components
                             break;
 
                         case PeriodsEnums.Week:
-                            Start = DateChosen.Value.StartOfWeek();
-                            End = DateChosen.Value.EndOfWeek();
+                            Start = DateChosen.Value.StartOfIsoWeek();
+                            End = DateChosen.Value.EndOfIsoWeek();
                             break;
 
                         case PeriodsEnums.Month:

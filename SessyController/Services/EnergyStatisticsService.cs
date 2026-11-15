@@ -286,7 +286,7 @@ namespace SessyController.Services
         {
             var trends = new List<MonthlyTrend>();
 
-            var clampedStart = start == DateTime.MinValue ? new DateTime(2020, 1, 1) : start;
+            var clampedStart = start == DateTime.MinValue ? await GetEarliestDataDateAsync() : start;
             var clampedEnd = end == DateTime.MaxValue ? _timeZoneService.Now : end;
 
             var current = new DateTime(clampedStart.Year, clampedStart.Month, 1);

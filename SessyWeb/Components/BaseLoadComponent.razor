@@ -1,0 +1,45 @@
+﻿@using SessyController.Services.Statistics
+@using Radzen
+@using Radzen.Blazor
+@inherits BaseComponent
+
+<RadzenCard>
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
+        <RadzenText TextStyle="TextStyle.H6">🌙 Base load at night <InfoTipComponent Text="@HowToRead" /></RadzenText>
+        <RadzenButton Icon="refresh" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                      Click="@LoadAsync" title="Reload" />
+    </RadzenStack>
+
+    @if (_loading)
+    {
+        <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" class="rz-mt-2" />
+    }
+    else if (_result == null || _result.Weeks.Count == 0)
+    {
+        <RadzenText TextStyle="TextStyle.Body1" class="rz-mt-2">Not enough data yet: needs nights with consumption measured.</RadzenText>
+    }
+    else
+    {
+        <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-1">@SummaryText()</RadzenText>
+
+        <RadzenChart Style="width: 100%; height: 35vh; min-height: 300px;">
+            <RadzenChartTooltipOptions Shared="true" />
+            <RadzenLegend Visible="false" />
+
+            <RadzenLineSeries Data="@_result.Weeks"
+                              Title="Base load"
+                              CategoryProperty="Label"
+                              ValueProperty="MedianW"
+                              Stroke="var(--sessy-consumption-line)"
+                              StrokeWidth="2" />
+
+            <RadzenCategoryAxis LabelAutoRotation="-45">
+                <RadzenAxisTitle Text="Week" />
+            </RadzenCategoryAxis>
+            <RadzenValueAxis Min="@(0.0)" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+                <RadzenGridLines Visible="true" />
+                <RadzenAxisTitle Text="W" />
+            </RadzenValueAxis>
+        </RadzenChart>
+    }
+</RadzenCard>
