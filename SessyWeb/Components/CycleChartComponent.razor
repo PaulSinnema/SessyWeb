@@ -1,0 +1,55 @@
+﻿@using SessyController.Services.Statistics
+@using Radzen
+@using Radzen.Blazor
+
+@* Rebuilt on toggle: Radzen keeps the old axis scale when series/ValueProperty change in place. *@
+<RadzenChart @key="@ChartKey" Style="width: 100%; height: 35vh; min-height: 300px;">
+    <RadzenChartTooltipOptions Shared="true" />
+    <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
+
+    <RadzenStackedColumnSeries Data="@Series.Months"
+                               Title="Measured"
+                               CategoryProperty="Label"
+                               ValueProperty="MeasuredCycles"
+                               Fill="var(--sessy-discharge-area)"
+                               Stroke="var(--sessy-discharge-line)"
+                               StrokeWidth="1" />
+
+    <RadzenStackedColumnSeries Data="@Series.Months"
+                               Title="Reconstructed"
+                               CategoryProperty="Label"
+                               ValueProperty="ReconstructedCycles"
+                               Fill="var(--sessy-hold-reserve-area)"
+                               Stroke="var(--sessy-hold-reserve-line)"
+                               StrokeWidth="1" />
+
+    @if (WithEstimate)
+    {
+        <RadzenStackedColumnSeries Data="@Series.Months"
+                                   Title="Estimated"
+                                   CategoryProperty="Label"
+                                   ValueProperty="EstimatedCycles"
+                                   Fill="var(--sessy-delta-area)"
+                                   Stroke="var(--sessy-delta-line)"
+                                   StrokeWidth="1" />
+    }
+
+    <RadzenLineSeries Data="@Series.Months"
+                      Title="Total cycles"
+                      CategoryProperty="Label"
+                      ValueProperty="@CumulativeProperty"
+                      ValueAxisName="total"
+                      Stroke="var(--rz-text-color)"
+                      StrokeWidth="2" />
+
+    <RadzenCategoryAxis LabelAutoRotation="-45">
+        <RadzenAxisTitle Text="Month" />
+    </RadzenCategoryAxis>
+    <RadzenValueAxis Min="@(0.0)" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+        <RadzenGridLines Visible="true" />
+        <RadzenAxisTitle Text="Cycles per month" />
+    </RadzenValueAxis>
+    <RadzenValueAxis Name="total" Width="100" Min="@(0.0)" FormatString="{0:0}">
+        <RadzenAxisTitle Text="Total" />
+    </RadzenValueAxis>
+</RadzenChart>

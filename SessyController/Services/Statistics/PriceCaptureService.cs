@@ -37,7 +37,7 @@ namespace SessyController.Services.Statistics
 
         /// <summary>
         /// Captured: average buy price of the discharged energy minus that of the charged energy.
-        /// Best: the most expensive quarters (as many as were discharged) minus the cheapest (as many as were charged).
+        /// Best: the same kWh in the most expensive quarters minus the cheapest, at most the day's largest quarter each.
         /// </summary>
         public static PriceCaptureDay? Day(DateTime date, IReadOnlyList<MeasurementView> quarters)
         {
@@ -54,10 +54,30 @@ namespace SessyController.Services.Statistics
             var captured = discharged.Sum(q => q.BatteryDischargedKWh * q.BuyingPriceEur) / dischargedKWh
                          - charged.Sum(q => q.BatteryChargedKWh * q.BuyingPriceEur) / chargedKWh;
 
+            // Same kWh, each quarter capped at the day's largest measured quarter, so best bounds captured.
             var prices = priced.Select(q => q.BuyingPriceEur).OrderBy(p => p).ToList();
-            var best = prices.TakeLast(discharged.Count).Average() - prices.Take(charged.Count).Average();
+            var best = FillAverage(Enumerable.Reverse(prices), dischargedKWh, discharged.Max(q => q.BatteryDischargedKWh))
+                     - FillAverage(prices, chargedKWh, charged.Max(q => q.BatteryChargedKWh));
 
             return new PriceCaptureDay(date, captured, Math.Max(0.0, best), dischargedKWh);
+        }
+
+        /// <summary>Average price of kWh spread over the quarters in the given order, at most capKWh per quarter.</summary>
+        private static double FillAverage(IEnumerable<double> prices, double kWh, double capKWh)
+        {
+            var remaining = kWh;
+            var sum = 0.0;
+
+            foreach (var price in prices)
+            {
+                var take = Math.Min(capKWh, remaining);
+                sum += take * price;
+                remaining -= take;
+
+                if (remaining <= 1e-9) break;
+            }
+
+            return sum / kWh;
         }
 
         /// <summary>Discharge-weighted monthly averages.</summary>

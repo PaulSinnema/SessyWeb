@@ -53,11 +53,11 @@
             <RadzenCategoryAxis LabelAutoRotation="-45">
                 <RadzenAxisTitle Text="Month" />
             </RadzenCategoryAxis>
-            <RadzenValueAxis FormatString="{0:0.00}">
+            <RadzenValueAxis FormatString="{0:0.00}" Min="@(0.0)" Step="@(0.05)">
                 <RadzenGridLines Visible="true" />
                 <RadzenAxisTitle Text="€ / kWh" />
             </RadzenValueAxis>
-            <RadzenValueAxis Name="share" Width="100" Min="@(0.0)" Max="@(100.0)" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
+            <RadzenValueAxis Name="share" Width="100" Min="@(0.0)" Max="@(100.0)" Step="@(25.0)" FormatString="{0:0}">
                 <RadzenAxisTitle Text="%" />
             </RadzenValueAxis>
         </RadzenChart>

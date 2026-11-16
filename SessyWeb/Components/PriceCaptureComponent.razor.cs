@@ -12,8 +12,8 @@ namespace SessyWeb.Components
         private const string HowToRead =
             "Spread: the difference between the price at which the battery discharged and the price at which it " +
             "charged, per kWh (buying prices incl. taxes). Captured is what the battery achieved. Best possible is what " +
-            "the same number of charge and discharge quarters would have given in the cheapest and most expensive " +
-            "quarters of that day. The line shows the captured share. 100 % is out of reach in practice: the battery " +
+            "the same charged and discharged kWh would have given in the cheapest and most expensive quarters, each at most the day's largest quarter, " +
+            "of that day. The line shows the captured share. 100 % is out of reach in practice: the battery " +
             "cannot do everything at once, the plan works with forecasts and solar charging follows the sun, not the price.";
 
         private bool _loading = true;

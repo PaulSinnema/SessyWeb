@@ -86,6 +86,27 @@ namespace SessyTests.Services
         }
 
         [Fact]
+        public void PriceCapture_best_is_an_upper_bound_with_small_discharge_quarters()
+        {
+            // 1 kWh charged at 0.10; 1 kWh discharged at 0.40 plus two small house-cover quarters (0.04 kWh each).
+            var day = new DateTime(2026, 11, 2);
+            var quarters = new List<MeasurementView>
+            {
+                new() { Time = day, BuyingPriceEur = 0.10, BatteryPowerWatts = -4000 },
+                new() { Time = day.AddHours(1), BuyingPriceEur = 0.12 },
+                new() { Time = day.AddHours(2), BuyingPriceEur = 0.15, BatteryPowerWatts = 160 },
+                new() { Time = day.AddHours(3), BuyingPriceEur = 0.20, BatteryPowerWatts = 160 },
+                new() { Time = day.AddHours(4), BuyingPriceEur = 0.40, BatteryPowerWatts = 4000 }
+            };
+
+            var result = PriceCaptureService.Day(day, quarters)!;
+
+            Assert.Equal(0.414 / 1.08 - 0.10, result.CapturedEurPerKWh, 6);
+            Assert.Equal(0.416 / 1.08 - 0.10, result.BestEurPerKWh, 6);   // 1 kWh at 0.40, 0.08 kWh at 0.20
+            Assert.True(result.CapturedEurPerKWh <= result.BestEurPerKWh);
+        }
+
+        [Fact]
         public void PriceCapture_skips_days_without_trading()
         {
             var day = new DateTime(2026, 11, 2);

@@ -11,6 +11,46 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.195] — 2026-11-16
+
+### Fixed
+- **Full cycles: the total line ran off the chart** after switching the estimate on or off; the chart kept the
+  old scale. It is now redrawn with fresh axes on every switch.
+
+## [v1.0.194] — 2026-11-16
+
+### Added
+- **Power and state of charge per battery** are now stored every quarter (new table
+  `BatteryQuarterMeasurements`, created automatically at startup).
+- **Statistics, Battery tab: full cycles since purchase, in tabs for the total and per battery.** Bars are
+  stacked by source: *measured*, *reconstructed* from the energy balance (consumption − solar − grid) where no
+  battery reading was stored, and *estimated* from the measured average where no data exists at all, back to
+  each battery's purchase date. A switch hides the estimate. A single battery counts as measured from its own
+  readings only; before those it follows the bank.
+
+### Changed
+- The cycle totals and the rated-life line above the charts count from the purchase date (with or without the
+  estimate) instead of from the first stored measurement.
+
+## [v1.0.193] — 2026-11-16
+
+### Fixed
+- **Price capture: € axis labels.** The € axis showed only 0.00; it now has a label every € 0.05.
+
+## [v1.0.192] — 2026-11-16
+
+### Changed
+- **Price capture: honest scales.** The € axis starts at 0, so bar heights compare directly (it started at
+  0.15 and made an 80 % month look nearly empty). The % axis runs 0–100 in steps of 25.
+
+## [v1.0.191] — 2026-11-16
+
+### Fixed
+- **Price capture: best possible spread is a real upper bound.** It counted quarters instead of kWh, so days
+  with many small house-cover discharges lowered it and the captured share went above 100 % (121 %), with the
+  share line off the chart. It now spreads the same kWh over the cheapest and most expensive quarters, each at
+  most the day's largest measured quarter.
+
 ## [v1.0.190] — 2026-11-15
 
 ### Fixed

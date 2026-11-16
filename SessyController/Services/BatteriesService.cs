@@ -44,6 +44,7 @@ namespace SessyController.Services
         private ConsumptionMonitorService _consumptionMonitorService;
         private SessyWebControlDataService _sessyWebControlDataService;
         private QuarterlyMeasurementDataService? _measurementService;
+        private BatteryQuarterMeasurementDataService? _batteryMeasurementService;
         private InverterMeasurementDataService? _inverterMeasurementService;
         private TaxesDataService _taxesDataService;
         private IMilpService _milpService;
@@ -101,6 +102,7 @@ namespace SessyController.Services
             _consumptionMonitorService = _scope.ServiceProvider.GetRequiredService<ConsumptionMonitorService>();
             _sessyWebControlDataService = _scope.ServiceProvider.GetRequiredService<SessyWebControlDataService>();
             _measurementService = _scope.ServiceProvider.GetService<QuarterlyMeasurementDataService>();
+            _batteryMeasurementService = _scope.ServiceProvider.GetService<BatteryQuarterMeasurementDataService>();
             _inverterMeasurementService = _scope.ServiceProvider.GetService<InverterMeasurementDataService>();
             _taxesDataService = _scope.ServiceProvider.GetRequiredService<TaxesDataService>();
             _inverterCurtailmentService = _scope.ServiceProvider.GetRequiredService<InverterCurtailmentService>();
@@ -698,6 +700,8 @@ namespace SessyController.Services
             var socWh = await _batteryContainer.GetStateOfChargeInWatts().ConfigureAwait(false);
             var batteryPowerWatts = await _batteryContainer.GetTotalPowerInWatts().ConfigureAwait(false);
 
+            await StoreBatteryQuarterMeasurementsAsync(currentQuarterlyInfo.Time).ConfigureAwait(false);
+
             // Use the actually executed mode, not the planned mode from QuarterlyInfo.
             // The runtime may have overridden the plan (e.g. SOC guard → NZH, curtailment → Disabled).
             var (mode, _) = await _milpService.GetExecutableActionForNowAsync(nowQuarter).ConfigureAwait(false);
@@ -739,6 +743,45 @@ namespace SessyController.Services
                     new List<QuarterlyMeasurement> { measurement },
                     (item, set) => set.FirstOrDefault(m => m.Time == item.Time))
                     .ConfigureAwait(false);
+            }
+        }
+
+        /// <summary>Per-battery power and SOC for this quarter; a failure only logs, the bank total still stands.</summary>
+        private async Task StoreBatteryQuarterMeasurementsAsync(DateTime quarter)
+        {
+            if (_batteryMeasurementService == null || _batteryContainer.Batteries == null)
+                return;
+
+            try
+            {
+                var rows = new List<BatteryQuarterMeasurement>();
+
+                foreach (var battery in _batteryContainer.Batteries)
+                {
+                    var status = await battery.GetPowerStatus().ConfigureAwait(false);
+                    if (status?.Sessy == null) continue;
+
+                    rows.Add(new BatteryQuarterMeasurement
+                    {
+                        Time = quarter,
+                        BatteryId = battery.Id,
+                        Name = battery.GetName(),
+                        PowerWatts = status.Sessy.Power,
+                        StateOfChargeWh = status.Sessy.StateOfCharge * battery.GetCapacity(),
+                        CapacityWh = battery.GetCapacity()
+                    });
+                }
+
+                if (rows.Count > 0)
+                {
+                    await _batteryMeasurementService.AddOrUpdate(rows,
+                        (item, set) => set.FirstOrDefault(m => m.Time == item.Time && m.BatteryId == item.BatteryId))
+                        .ConfigureAwait(false);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"StoreBatteryQuarterMeasurements: per-battery readings not stored. {ex.Message}");
             }
         }
 

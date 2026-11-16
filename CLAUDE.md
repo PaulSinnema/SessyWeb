@@ -219,6 +219,15 @@ Conclusie: globale factor houden. De factor-logregels ("Historical performance f
 
 ## Belangrijke mechanismen (huidige staat)
 - **Financiële prognose** (Statistics, tab *Financial forecast*, v1.0.165). `FinancialForecastService` (scoped): P1-meterstanden (EnergyHistory, per meter, gat = één interval tegen gemiddelde EPEX) van de laatste 12 volle maanden, geprijsd met `Calculate` (pure; saldering: belasting+BTW op netto, ≥ 0; zonder: belasting op import, export = markt + negatieve vergoeding zonder BTW; vaste kosten/vermindering pro rata per dag) — kolom *afgelopen 12 mnd* (eigen tarieven) en *zelfde gebruik* (Taxes-rij op 1 jan volgend jaar, bovengrens). `FinancialForecastSimulationService` (singleton BackgroundService): planner-replay van die 12 maanden met volgend jaar's tarieven — per dag één solve over 48 u (eerste 96 kwartieren behouden), SOC doorgegeven, start op de minimum reserve; netload = Consumption (W×0,25) − InverterMeasurements, ontbrekend verbruik = daggemiddelde; huidige batterijmodellen/opties/strategie; grid = netload + (charge − discharge). Draait als de nieuwste rij in `FinancialForecastReplays` ≥ 7 dagen oud is of er geen is (check elk uur), dus hoogstens 1×/week; elke run = nieuwe rij (historie), de pagina toont de nieuwste (v1.0.172, voorheen `financial-forecast.json` naast de SQLite-file, 1×/dag). Bewust niet parallel (DS1618+: Atom C3538, 4 kernen; ~1 s/solve → ~6 min/jaar).
+- **Cycli sinds aankoop** (v1.0.194, `CycleHistoryService`, Statistics → Battery). Per kwartier de beste bron:
+  gemeten (`QuarterlyMeasurements`, vanaf 13-05-2026) → gereconstrueerd (verbruik − zon − net, alleen netdelta's
+  over precies 15 min; een delta over een gat stapelt uren op één kwartier) → geschat (gemiddelde gemeten cycli
+  per kwartier, inclusief stille kwartieren). Cycli = ontladen ÷ capaciteit in gebruik; een batterij telt vanaf de
+  `PurchaseDate` van zijn investering (match op naam, anders op nummer "Battery 1" ↔ "Sessy 1"). Per batterij
+  is alleen de eigen meting "gemeten"; daarvoor volgt hij de bank (als geschat). Toetsing reconstructie tegen
+  meting (productie-DB): aug +4 %, sep +2 %, okt +1 %, nov +2 % (juni/juli scheef door gaten in EnergyHistory).
+  Productie 16-11-2026: ~123 gemeten + ~221 gereconstrueerd + ~285 geschat ≈ 628 cycli; schatting 0,66
+  cycli/dag. De schatting neemt aan dat het gebruik vóór SessyWeb even zwaar was.
 - **ControlModeService** — `ControlMode` = SessyWeb/Manual/Charged/Provider, prioriteit leverancier > Charged > manual > wij. `WeMayDriveTheBatteries` is de enige schrijf-conditie op de hardware; **manual override = SessyWeb die een ander plan schrijft**, geen andere bestuurder. Lezers zijn ongeguard (`GetScheduleAsync`, identieke GET voor beide richtingen). Weigeren logt op Warning.
 - **Anti-flapping** (state machine) — `MinimumModeDwell` (120 s) in `EnergySystemStateMachine`, klok uit `EnergySystemInput.Now` (`DateTime.MinValue` = geen klok in de snapshot). Asymmetrisch: wissel naar een minder actieve modus mag altijd direct; her-inschakelen/wisselen tussen even actieve modi zit de dwell uit. **Naar HoldReserve gaat altijd direct** (v1.0.150; blijft op NOM, geen strategie-wissel); terug wacht de dwell. Guards: `GuardHolds(...)` met `GuardReleaseFactor = 4`. `SelectIdleMode` (ZNH ↔ Disabled op netto-last en cycle cost) staat sinds v1.0.150 uit (`RemapIdleModes = false`, code blijft staan): ZNH en Disabled lopen zoals gepland. Deadband schaalt mee: `MinimumUsefulEnergyWh(capWh) = max(25, capWh × 0,005)`.
 - **QuarterlyFactsService** — de enige plek waar een gemeten kwartier wordt samengesteld, één gezaghebbende tabel per grootheid: net ← `EnergyHistory` (delta, geklemd, per `MeterId`), zon ← `InverterMeasurements`, huisbelasting ← `Consumption`, batterij ← `QuarterlyMeasurements`, prijzen ← `EPEXPrices` + `Taxes`. Drager = `MeasurementView`. Twee regels: een totaal mag nooit begrensd worden door de tabel van een ándere grootheid (`GetDataRangeAsync` bepaalt het venster over álle bronnen); duplicaten in `QuarterlyMeasurements` worden bij lezen ontdubbeld (`GetAsync` groepeert op `Time`, hoogste `Id` — de unieke index staat nog niet terug).
@@ -345,7 +354,9 @@ selecteert dat juist de stille takken — zoek daar eerst.
 18. **(Opgelost v1.0.169.)** Tooltip grafiek: "Requested" (PlannedUnthrottledPowerW) staat nu naast
     "Planned" (de getemperde/Expected waarde); "Actual power" toont alleen nog bij HasActualPower
     (een echte meting/hardwarewaarde), niet meer bij toekomstige kwartieren.
-19. **Per batterij meten.** SOC/vermogen/status per batterij per kwartier vastleggen + kolom in het Throttling
+19. **Per batterij meten.** (Deels v1.0.194: vermogen + SOC per batterij per kwartier in `BatteryQuarterMeasurements`,
+    via `BatteriesService.StoreBatteryQuarterMeasurementsAsync`, zelfde snapshot als `QuarterlyMeasurement`; voedt de
+    cycli-tabs.) Open: status per batterij. SOC/vermogen/status per batterij per kwartier vastleggen + kolom in het Throttling
     report (Statistics, v1.0.158). Basis voor een melding aan Sessy.
 20. **Ontladen per SOC-band modelleren.** Nu één plateau (~3,65 kW); boven 80% SOC levert de bank 4,0–4,3 kW.
     Pas na punt 19.

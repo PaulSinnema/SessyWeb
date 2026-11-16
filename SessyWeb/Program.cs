@@ -141,6 +141,7 @@ builder.Services.AddScoped<WeatherCorrelationService>();
 builder.Services.AddScoped<ConsumptionModelService>();
 builder.Services.AddScoped<ForecastAccuracyService>();
 builder.Services.AddScoped<BatteryStatisticsService>();
+builder.Services.AddScoped<CycleHistoryService>();
 builder.Services.AddScoped<ConsumptionPatternService>();
 builder.Services.AddScoped<PriceCaptureService>();
 // Builds an in-memory JSON snapshot for analysing a plan over a period (Settings tab).
@@ -156,6 +157,7 @@ builder.Services.AddSingleton<PlannerLearningService>();
 builder.Services.AddSingleton<ForecastSnapshotDataService>();
 
 builder.Services.AddSingleton<QuarterlyMeasurementDataService>();
+builder.Services.AddSingleton<BatteryQuarterMeasurementDataService>();
 builder.Services.AddSingleton<InverterMeasurementDataService>();
 builder.Services.AddSingleton<ICalculationService, CalculationService>();
 builder.Services.AddSingleton<CalculationService>(sp => (CalculationService)sp.GetRequiredService<ICalculationService>());

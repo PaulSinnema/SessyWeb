@@ -317,6 +317,7 @@ a, .btn-link {
     --sessy-charged-area: color-mix(in srgb, var(--sessy-charged) 45%, transparent);
     --sessy-znh-area: color-mix(in srgb, var(--sessy-znh) 50%, transparent);
     --sessy-hold-reserve-area: color-mix(in srgb, var(--sessy-hold-reserve) 45%, transparent);
+    --sessy-delta-area: color-mix(in srgb, var(--sessy-delta) 35%, transparent);
     --sessy-consumption-area: color-mix(in srgb, var(--sessy-consumption) 60%, transparent);
     --sessy-year-0-area: color-mix(in srgb, var(--sessy-year-0) 60%, transparent);
     --sessy-year-1-area: color-mix(in srgb, var(--sessy-year-1) 60%, transparent);

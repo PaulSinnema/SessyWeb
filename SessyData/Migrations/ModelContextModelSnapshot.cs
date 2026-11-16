@@ -506,6 +506,39 @@ namespace SessyData.Migrations
                     b.ToTable("SessyWebControl");
                 });
 
+            modelBuilder.Entity("SessyData.Model.BatteryQuarterMeasurement", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("BatteryId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<double>("CapacityWh")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("Name")
+                        .HasColumnType("TEXT");
+
+                    b.Property<double>("PowerWatts")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("StateOfChargeWh")
+                        .HasColumnType("REAL");
+
+                    b.Property<DateTime>("Time")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Time", "BatteryId")
+                        .IsUnique();
+
+                    b.ToTable("BatteryQuarterMeasurements");
+                });
+
             modelBuilder.Entity("SessyData.Model.ChargedScheduleQuarter", b =>
                 {
                     b.Property<int>("Id")
