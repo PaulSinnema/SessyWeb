@@ -10,6 +10,7 @@ namespace SessyTests.Services
     /// (grid import − export from EnergyHistory, battery from QuarterlyMeasurements, solar from
     /// InverterMeasurements). Writes ConsumptionBalance.txt next to the test assembly. Skips without the local database.
     /// </summary>
+    [Trait("Category", "Probe")]
     public class ConsumptionBalanceProbeTests
     {
         private const string DatabasePath = @"C:\Projects\Sessy\SessyWeb\SessyController\Data\Sessy.db";

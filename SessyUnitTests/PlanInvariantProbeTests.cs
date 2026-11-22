@@ -11,6 +11,7 @@ namespace SessyTests.Services
     /// can execute what the plan says. Zero Net Home covers the whole house at runtime, so a ZNH
     /// quarter that plans only part of the deficit is a mismatch. Skips without the local database.
     /// </summary>
+    [Trait("Category", "Probe")]
     public class PlanInvariantProbeTests
     {
         private const string DatabasePath = @"C:\Projects\Sessy\SessyWeb\SessyController\Data\Sessy.db";

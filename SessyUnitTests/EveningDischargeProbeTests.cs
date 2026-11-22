@@ -18,6 +18,7 @@ namespace SessyTests.Services
     ///
     /// Skips itself when the database is not there, so it is harmless on any other machine.
     /// </summary>
+    [Trait("Category", "Probe")]
     public class EveningDischargeProbeTests
     {
         private const string DatabasePath = @"C:\Projects\Sessy\SessyWeb\SessyController\Data\Sessy.db";

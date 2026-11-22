@@ -21,13 +21,22 @@ dotnet build C:\Projects\Sessy\SessyController.sln
 # Run the app (SessyWeb is the only executable project; SessyController is OutputType=Library)
 dotnet run --project SessyWeb\SessyWeb.csproj
 
-# All tests
-dotnet test SessyUnitTests\SessyUnitTests.csproj
+# All tests except the probes (seconds instead of minutes)
+dotnet test SessyUnitTests\SessyUnitTests.csproj --filter "Category!=Probe"
+
+# Probes only: diagnostics on the local production copy (SessyWeb\SessyController\Data\Sessy.db), slow
+dotnet test SessyUnitTests\SessyUnitTests.csproj --filter "Category=Probe"
 
 # Single test class / single test (xunit v3)
 dotnet test SessyUnitTests\SessyUnitTests.csproj --filter "FullyQualifiedName~EnergySystemStateMachineTests"
 dotnet test SessyUnitTests\SessyUnitTests.csproj --filter "FullyQualifiedName~EnergySystemStateMachineTests.MethodName"
 ```
+
+Probes carry `[Trait("Category", "Probe")]`: they read the real database, print findings and assert little, so they
+can fail on data alone. Kept because they are reusable: `ConsumptionBalanceProbeTests` (daily energy balance),
+`ModeExecutionProbeTests` (planned vs executed modes), `PlanInvariantProbeTests` (runtime can execute the stored plan),
+`QuarterEnergyProbeTests` (planned vs delivered energy per quarter), `EveningDischargeProbeTests` (replay a stored plan
+input by input). One-off incident probes are deleted once the question is answered; a new probe gets the trait.
 
 ### EF Core migrations
 

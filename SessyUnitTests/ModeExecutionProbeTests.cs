@@ -7,6 +7,7 @@ namespace SessyTests.Services
     /// Diagnostic: how planned modes were actually executed, and where the SOC went below the
     /// planned reserve. Skips itself when the local database is not there.
     /// </summary>
+    [Trait("Category", "Probe")]
     public class ModeExecutionProbeTests
     {
         private const string DatabasePath = @"C:\Projects\Sessy\SessyWeb\SessyController\Data\Sessy.db";

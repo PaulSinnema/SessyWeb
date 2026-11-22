@@ -8,6 +8,7 @@ namespace SessyTests.Services
     /// SOC change with the measured one (last SOC sample of the quarter minus that of the previous
     /// quarter). Skips itself when the local database is not there.
     /// </summary>
+    [Trait("Category", "Probe")]
     public class QuarterEnergyProbeTests
     {
         private const string DatabasePath = @"C:\Projects\Sessy\SessyWeb\SessyController\Data\Sessy.db";
