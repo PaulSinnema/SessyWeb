@@ -18,9 +18,6 @@ namespace SessyWeb.Pages
         InverterMeasurementDataService? _measurementService { get; set; }
 
         [Inject]
-        TimeZoneService? _timeZoneService { get; set; }
-
-        [Inject]
         SolarService? _solarService { get; set; }
 
         private List<string> ProviderNames { get; set; } = new();
@@ -170,10 +167,12 @@ namespace SessyWeb.Pages
 
                     case PeriodsEnums.Week:
                         {
+                            var week = PeriodRange.For(PeriodsEnums.Week, DateChosen);
+
                             var result = await _measurementService!.GetList(async (set) =>
                             {
                                 var result = set
-                                    .Where(sed => DateChosen.StartOfIsoWeek() <= sed.Time && DateChosen!.EndOfIsoWeek().AddDays(1).AddSeconds(-1) >= sed.Time)
+                                    .Where(sed => week.Start <= sed.Time && sed.Time < week.End)
                                     .ToList();
 
                                 return await Task.FromResult(result);
@@ -204,10 +203,12 @@ namespace SessyWeb.Pages
 
                     case PeriodsEnums.Month:
                         {
+                            var month = PeriodRange.For(PeriodsEnums.Month, DateChosen);
+
                             var result = await _measurementService!.GetList(async (set) =>
                             {
                                 var result = set
-                                    .Where(sed => DateChosen.StartOfMonth() <= sed.Time && DateChosen!.EndOfMonth().AddDays(1).AddSeconds(-1) >= sed.Time)
+                                    .Where(sed => month.Start <= sed.Time && sed.Time < month.End)
                                     .ToList();
 
                                 return await Task.FromResult(result);
@@ -242,13 +243,12 @@ namespace SessyWeb.Pages
 
                     case PeriodsEnums.Year:
                         {
-                            var startDate = new DateTime(DateChosen.Year, 1, 1);
-                            var endDate = new DateTime(DateChosen.Year, 12, 31, 23, 59, 59);
+                            var (startDate, endDate) = PeriodRange.For(PeriodsEnums.Year, DateChosen);
 
                             var result = await _measurementService!.GetList(async (set) =>
                             {
                                 var result = set
-                                    .Where(sed => startDate <= sed.Time && endDate >= sed.Time)
+                                    .Where(sed => startDate <= sed.Time && sed.Time < endDate)
                                     .ToList();
 
                                 return await Task.FromResult(result);
@@ -283,13 +283,12 @@ namespace SessyWeb.Pages
 
                     case PeriodsEnums.All:
                         {
-                            var startDate = DateTime.MinValue;
-                            var endDate = DateTime.MaxValue;
+                            var (startDate, endDate) = PeriodRange.For(PeriodsEnums.All, DateChosen);
 
                             var result = await _measurementService!.GetList(async (set) =>
                             {
                                 var result = set
-                                    .Where(sed => startDate <= sed.Time && endDate >= sed.Time)
+                                    .Where(sed => startDate <= sed.Time && sed.Time < endDate)
                                     .ToList();
 
                                 return await Task.FromResult(result);
@@ -405,76 +404,10 @@ namespace SessyWeb.Pages
 
         private async Task<double> GetSolarPower(DateTime date)
         {
-            DateTime start;
-            DateTime end;
+            var range = PeriodRange.For(DateSelectionChosen!.PeriodChosen, date);
 
-            switch (DateSelectionChosen!.PeriodChosen)
-            {
-                case PeriodsEnums.Day:
-                    start = date.Date;
-                    end = start.AddDays(1).AddSeconds(-1);
-                    break;
-
-                case PeriodsEnums.Week:
-                    start = date.StartOfIsoWeek();
-                    end = date.EndOfIsoWeek().AddDays(1).AddSeconds(-1);
-                    break;
-
-                case PeriodsEnums.Month:
-                    start = date.StartOfMonth();
-                    end = date.EndOfMonth().AddDays(1).AddSeconds(-1);
-                    break;
-
-                case PeriodsEnums.Year:
-                    start = new DateTime(date.Year, 1, 1);
-                    end = new DateTime(date.Year, 12, 31, 23, 59, 59);
-                    break;
-
-                case PeriodsEnums.All:
-                    start = DateTime.MinValue;
-                    end = DateTime.MaxValue;
-                    break;
-
-                default:
-                    throw new InvalidOperationException($"Wrong period chosen {DateSelectionChosen!.PeriodChosen}");
-            }
-
-            return await _solarService!.GetRealizedSolarPower(start, end);
+            return await _solarService!.GetRealizedSolarPower(range.Start, range.LastSecond);
         }
 
-        public class SolarDisplayDayData
-        {
-            public string ProviderName { get; set; } = string.Empty;
-            public DateTime Time { get; set; }
-            public double Power { get; set; }
-        }
-
-        public class SolarDisplayWeekData
-        {
-            public string ProviderName { get; set; } = string.Empty;
-            public DayOfWeek Position { get; set; }
-            public double Power { get; set; }
-        }
-
-        public class SolarDisplayMonthData
-        {
-            public string ProviderName { get; set; } = string.Empty;
-            public DateTime Time { get; set; }
-            public double Power { get; set; }
-        }
-
-        public class SolarDisplayYearData
-        {
-            public string ProviderName { get; set; } = string.Empty;
-            public DateTime Time { get; set; }
-            public double Power { get; set; }
-        }
-
-        public class SolarDisplayAllData
-        {
-            public string ProviderName { get; set; } = string.Empty;
-            public DateTime Time { get; set; }
-            public double Power { get; set; }
-        }
     }
 }

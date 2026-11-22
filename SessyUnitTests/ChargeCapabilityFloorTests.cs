@@ -50,7 +50,7 @@ namespace SessyTests.Services
 
             var floor = ThrottleAnalysisService.FitChargeCapabilityFloor(Bin(0.72, powers), NameplateW);
 
-            double expected = Percentiles.Percentile([.. powers.OrderBy(p => p)], 90.0) * 0.9;
+            double expected = Stats.Percentile([.. powers.OrderBy(p => p)], 90.0) * 0.9;
 
             Assert.Equal(expected, floor.PowerW(0.72), 3);
 

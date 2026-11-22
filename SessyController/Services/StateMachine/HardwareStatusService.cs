@@ -17,7 +17,7 @@ namespace SessyController.Services.StateMachine
     /// IsReady is false until the first successful poll completes.
     /// Consumers must check IsReady before using any property.
     /// </summary>
-    public class HardwareStatusService : BackgroundService
+    public class HardwareStatusService : PollingBackgroundService
     {
         private readonly LoggingService<HardwareStatusService> _logger;
         private readonly BatteryContainer _batteryContainer;
@@ -31,7 +31,7 @@ namespace SessyController.Services.StateMachine
             LoggingService<HardwareStatusService> logger,
             BatteryContainer batteryContainer,
             SolarInverterManager solarInverterManager,
-            TimeZoneService timeZoneService)
+            TimeZoneService timeZoneService) : base(logger)
         {
             _logger = logger;
             _batteryContainer = batteryContainer;
@@ -109,31 +109,14 @@ namespace SessyController.Services.StateMachine
 
         // ── Background poll loop ──────────────────────────────────────────
 
-        protected override async Task ExecuteAsync(CancellationToken cancellationToken)
-        {
-            _logger.LogWarning("HardwareStatusService started.");
+        protected override string Name => "HardwareStatusService";
 
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                try
-                {
-                    await PollAsync().ConfigureAwait(false);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning($"HardwareStatusService poll error: {ex.Message}");
-                }
+        protected override TimeSpan NextDelay() => TimeSpan.FromSeconds(PollIntervalSeconds);
 
-                try
-                {
-                    await Task.Delay(TimeSpan.FromSeconds(PollIntervalSeconds), cancellationToken)
-                        .ConfigureAwait(false);
-                }
-                catch (TaskCanceledException) { }
-            }
+        protected override Task RunCycleAsync(CancellationToken cancellationToken) => PollAsync();
 
-            _logger.LogWarning("HardwareStatusService stopped.");
-        }
+        // A poll error is routine (a battery that does not answer): one line, no stack trace.
+        protected override void OnCycleError(Exception ex) => Log.LogWarning($"HardwareStatusService poll error: {ex.Message}");
 
         private async Task PollAsync()
         {

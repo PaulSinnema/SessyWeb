@@ -11,7 +11,7 @@ using static SessyController.Services.WeatherService;
 
 namespace SessyController.Services
 {
-    public class ConsumptionMonitorService : BackgroundService
+    public class ConsumptionMonitorService : PollingBackgroundService
     {
         private const int _hourDelta = 2;
         private const double _humidityDelta = 10.0;
@@ -51,7 +51,7 @@ namespace SessyController.Services
                                          P1MeterContainer p1MeterContainer,
                                          SettingsService settingsService,
                                          SystemCapabilitiesService capabilities,
-                                         IServiceScopeFactory serviceScopeFactory)
+                                         IServiceScopeFactory serviceScopeFactory) : base(logger)
         {
             _logger = logger;
             _weatherService = weatherService;
@@ -86,36 +86,13 @@ namespace SessyController.Services
             _batteryContainer = _scope.ServiceProvider.GetRequiredService<BatteryContainer>();
         }
 
-        protected override async Task ExecuteAsync(CancellationToken cancelationToken)
-        {
-            _logger.LogWarning("Consumption monitor service started ...");
+        protected override string Name => "Consumption monitor service";
 
-            await RemoveNegativeConsumptionData();
+        protected override TimeSpan NextDelay() => TimeSpan.FromSeconds(1);
 
-            while (!cancelationToken.IsCancellationRequested)
-            {
-                try
-                {
-                    await Process(cancelationToken);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogException(ex, "An error occurred while monitoring p1 meters.");
-                }
+        protected override Task OnStartingAsync(CancellationToken cancellationToken) => RemoveNegativeConsumptionData();
 
-                try
-                {
-                    await Task.Delay(TimeSpan.FromSeconds(1), cancelationToken);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogException(ex, "An error occurred during delay of thread.");
-                    // Ignore exception during delay
-                }
-            }
-
-            _logger.LogWarning("Consumption monitor service stopped");
-        }
+        protected override Task RunCycleAsync(CancellationToken cancellationToken) => Process(cancellationToken);
 
         private async Task RemoveNegativeConsumptionData()
         {
@@ -398,13 +375,6 @@ namespace SessyController.Services
             });
 
             return list.Count > 0 ? list.Average(c => c.Humidity) : 0.0;
-        }
-
-        private class ConsumptionCacheItem
-        {
-            public DateTime FirstTime { get; set; }
-            public DateTime LastTime { get; set; }
-            public List<Consumption> Consumptions { get; set; } = new List<Consumption>();
         }
 
         public async Task EstimateConsumptionInWattsPerQuarter(List<QuarterlyInfo> quarterlyInfos)

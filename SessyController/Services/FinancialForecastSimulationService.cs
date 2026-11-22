@@ -9,6 +9,7 @@ using SessyController.Services.Optimization;
 using SessyController.Services.Optimization.Strategies;
 using SessyData.Model;
 using SessyData.Services;
+using SessyCommon;
 
 namespace SessyController.Services
 {
@@ -25,7 +26,6 @@ namespace SessyController.Services
     /// </summary>
     public class FinancialForecastSimulationService : BackgroundService
     {
-        private const double QuarterHours = 0.25;
 
         /// <summary>At most one replay per week.</summary>
         private static readonly TimeSpan RecalculateAfter = TimeSpan.FromDays(7);
@@ -101,7 +101,7 @@ namespace SessyController.Services
         {
             var sp = _scope.ServiceProvider;
             var now = _timeZoneService.Now;
-            var to = new DateTime(now.Year, now.Month, 1);
+            var to = now.MonthStart();
             var from = to.AddYears(-1);
             var sw = System.Diagnostics.Stopwatch.StartNew();
 
@@ -117,7 +117,7 @@ namespace SessyController.Services
             var horizonEnd = to.AddDays(1);
             var prices = (await sp.GetRequiredService<EPEXPricesDataService>().GetList(async set =>
                     await Task.FromResult(set.Where(p => p.Time >= from && p.Time < horizonEnd && p.Price.HasValue).ToList())).ConfigureAwait(false))
-                .GroupBy(p => p.Time).ToDictionary(g => g.Key, g => g.First().Price!.Value);
+                .FirstPer(p => p.Time, p => p.Price!.Value);
 
             var consumption = (await sp.GetRequiredService<ConsumptionDataService>().GetList(async set =>
                     await Task.FromResult(set.Where(c => c.Time >= from && c.Time < horizonEnd).ToList())).ConfigureAwait(false))
@@ -163,15 +163,8 @@ namespace SessyController.Services
                 AllowCarryForward: settings.CarryForwardEnabled,
                 AllowShift: settings.ShiftDischargeEnabled);
 
-            IBatteryOptimizationStrategy strategy = settings.Strategy switch
-            {
-                OptimizationStrategy.SelfConsumption => new SelfConsumptionStrategy(),
-                OptimizationStrategy.BatterySaving => new BatterySavingStrategy(),
-                OptimizationStrategy.ProfitMaximization => new ProfitMaximizationStrategy(),
-                _ => new BalancedStrategy()
-            };
+            var strategy = GreedyStrategy.For(settings.Strategy);
 
-            double vat = 1.0 + tx.ValueAddedTax / 100.0;
             double socKWh = minSocKWh;
             var flows = new List<GridFlow>();
             int days = 0;
@@ -192,10 +185,11 @@ namespace SessyController.Services
 
                     // Missing load: the quarter is unknown, take the day's average rather than zero.
                     var load = consumption.TryGetValue(t, out var c) ? c : DayAverage(consumption, t);
-                    double netLoadWh = load.Watts * QuarterHours - solarKWh.GetValueOrDefault(t) * 1000.0;
+                    double netLoadWh = load.Watts * Units.QuarterHours - solarKWh.GetValueOrDefault(t) * 1000.0;
 
-                    double buy = EnergyPriceCalculator.Calculate(p.Value, 0.0, tx.EnergyTax, tx.PurchaseCompensation, vat, buying: true, netting: tx.Netting);
-                    double sell = EnergyPriceCalculator.Calculate(p.Value, 0.0, tx.EnergyTax, tx.SignedReturnDeliveryCompensation, vat, buying: false, netting: tx.Netting);
+                    bool daylight = _timeZoneService.GetSunlightLevel(t, settings.Latitude, settings.Longitude) == SolCalc.Data.SunlightLevel.Daylight;
+                    double buy = EnergyPriceCalculator.Buy(tx, p.Value);
+                    double sell = EnergyPriceCalculator.Sell(tx, p.Value, daylight);
 
                     points.Add(new PricePoint(t, buy, sell, netLoadWh, netLoadWh < 0.0 ? -netLoadWh : 0.0,
                         MaxChargeKW: baseChargeKW < maxChargeKW ? baseChargeKW : null,
@@ -218,7 +212,7 @@ namespace SessyController.Services
                 for (int i = 0; i < 96; i++)
                 {
                     var step = result.Plan[i];
-                    double gridWh = netLoads[i] + (step.ChargeKW - step.DischargeKW) * QuarterHours * 1000.0;
+                    double gridWh = netLoads[i] + (step.ChargeKW - step.DischargeKW) * Units.QuarterHours * 1000.0;
                     flows.Add(new GridFlow(step.Start, Math.Max(0.0, gridWh) / 1000.0, Math.Max(0.0, -gridWh) / 1000.0, marketPrices[i]));
                 }
 

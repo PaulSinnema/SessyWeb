@@ -18,9 +18,6 @@ namespace SessyWeb.Pages
         private FinancialResultsService? _financialResultsService { get; set; }
 
         [Inject]
-        private TimeZoneService? _timeZoneService { get; set; }
-
-        [Inject]
         private EnergyMonitorService? _energyMonitorService { get; set; }
 
         private List<FinancialMonthResult>? FinancialMonthResultsList { get; set; }
@@ -64,14 +61,6 @@ namespace SessyWeb.Pages
             return monthResult.FinancialResultsList!.Sum(fr => fr.Consumed) / 1000.0;
         }
 
-        public decimal GetTotalCost(List<FinancialMonthResult> list)
-        {
-            if (list != null)
-                return list.Sum(fr => fr.TotalCost);
-
-            return 0;
-        }
-
         public void OnRender(DataGridRenderEventArgs<FinancialMonthResult> args)
         {
             if (args.FirstRender)
@@ -98,43 +87,9 @@ namespace SessyWeb.Pages
                 if (financialResultsGrid == null) throw new InvalidOperationException($"{nameof(financialResultsGrid)} can not be null here, did you forget a @ref?");
 
                 var chosen = DateSelectionChosen!.DateChosen!.Value.DateFloorQuarter();
-                DateTime start;
-                DateTime end;
+                var (start, end) = PeriodRange.For(DateSelectionChosen.PeriodChosen, chosen);
 
-                ExpandAllGroups = true;
-
-                switch (DateSelectionChosen!.PeriodChosen)
-                {
-                    case PeriodsEnums.Day:
-                        start = chosen.Date;
-                        end = chosen.AddDays(1);
-                        break;
-
-                    case PeriodsEnums.Week:
-                        start = chosen.StartOfIsoWeek();
-                        end = chosen.EndOfIsoWeek().AddDays(1);
-                        break;
-
-                    case PeriodsEnums.Month:
-                        start = chosen.StartOfMonth();
-                        end = chosen.EndOfMonth().AddDays(1).AddSeconds(-1);
-                        break;
-
-                    case PeriodsEnums.Year:
-                        start = new DateTime(chosen.Year, 1, 1);
-                        end = new DateTime(chosen.Year, 12, 31);
-                        ExpandAllGroups = false;
-                        break;
-
-                    case PeriodsEnums.All:
-                        start = DateTime.MinValue;
-                        end = DateTime.MaxValue;
-                        ExpandAllGroups = false;
-                        break;
-
-                    default:
-                        throw new InvalidOperationException($"Invalid period {DateSelectionChosen!.PeriodChosen}");
-                }
+                ExpandAllGroups = DateSelectionChosen.PeriodChosen is not (PeriodsEnums.Year or PeriodsEnums.All);
 
                 var filter = financialResultsGrid.ColumnsCollection;
 

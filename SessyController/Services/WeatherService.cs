@@ -10,7 +10,7 @@ using System.Text.Json.Serialization;
 
 namespace SessyController.Services
 {
-    public class WeatherService : BackgroundService
+    public class WeatherService : PollingBackgroundService
     {
         private IHttpClientFactory _httpClientFactory { get; set; }
         private SolarDataService _solarDataService { get; set; }
@@ -32,7 +32,7 @@ namespace SessyController.Services
                               IHttpClientFactory httpClientFactory,
                               SolarDataService solarDataService,
                               IOptionsMonitor<WeatherExpectancyConfig> sunExpectancyConfigMonitor,
-                              NotificationService notificationService)
+                              NotificationService notificationService) : base(logger)
         {
             _logger = logger;
             _timeZoneService = timeZoneService;
@@ -44,51 +44,45 @@ namespace SessyController.Services
 
         private SemaphoreSlim WeatherDataSemaphore = new SemaphoreSlim(1);
 
-        protected override async Task ExecuteAsync(CancellationToken cancelationToken)
-        {
-            _logger.LogWarning("Weather service started ...");
+        protected override string Name => "Weather service";
 
-            while (!cancelationToken.IsCancellationRequested)
+        private bool _lastFetchSucceeded;
+
+        // Every 30 minutes; after a failure retry in 30 seconds.
+        protected override TimeSpan NextDelay() => _lastFetchSucceeded ? TimeSpan.FromMinutes(30) : TimeSpan.FromSeconds(30);
+
+        protected override async Task RunCycleAsync(CancellationToken cancellationToken)
+        {
+            _initialized = false;
+            _lastFetchSucceeded = false;
+
+            try
             {
-                _initialized = false;
+                await WeatherDataSemaphore.WaitAsync();
 
                 try
                 {
-                    await WeatherDataSemaphore.WaitAsync();
+                    WeatherData = await GetWeatherDataAsync();
 
-                    try
-                    {
-                        WeatherData = await GetWeatherDataAsync();
-
-                        await StoreWeatherData(WeatherData);
-
-                    }
-                    finally
-                    {
-                        WeatherDataSemaphore.Release();
-                    }
-
-                    _initialized = true;
-
-                    await _notificationService.ClearByKeyAsync("weather-fetch-failed");
-
-                    // Wait 30 minutes
-                    await Task.Delay(TimeSpan.FromMinutes(30), cancelationToken);
-
-                    continue;
+                    await StoreWeatherData(WeatherData);
                 }
-                catch (Exception ex)
+                finally
                 {
-                    _logger.LogException(ex, "An error occurred while getting the weather data.");
-                    await _notificationService.AddAsync(
-                        NotificationSeverity.Error, "Weather", "Weather data fetch failed",
-                        ex.RootMessage(), dedupKey: "weather-fetch-failed");
+                    WeatherDataSemaphore.Release();
                 }
 
-                await Task.Delay(TimeSpan.FromSeconds(30), cancelationToken);
-            }
+                _initialized = true;
+                _lastFetchSucceeded = true;
 
-            _logger.LogWarning("Weather service stopped.");
+                await _notificationService.ClearByKeyAsync("weather-fetch-failed");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogException(ex, "An error occurred while getting the weather data.");
+                await _notificationService.AddAsync(
+                    NotificationSeverity.Error, "Weather", "Weather data fetch failed",
+                    ex.RootMessage(), dedupKey: "weather-fetch-failed");
+            }
         }
 
         public bool IsInitialized()
@@ -157,17 +151,6 @@ namespace SessyController.Services
             }
         }
 
-        public double GetCurrentTemperature()
-        {
-            var now = _timeZoneService.Now.Date.AddHours(_timeZoneService.Now.Hour);
-
-            return WeatherData.UurVerwachting
-                .Where(uv => uv.TimeStamp.HasValue &&
-                             uv.TimeStamp.Value.Date.AddHours(uv.TimeStamp.Value.Hour) == now)
-                .Select(uv => uv.Temp)
-                .First();
-        }
-
         public int? GetTemperature(DateTime time)
         {
             UurVerwachting? data = null;
@@ -183,25 +166,6 @@ namespace SessyController.Services
             }
 
             return data == null ? null : data.Temp;
-        }
-
-        public (double? temperature, double? globalRadiation)? GetCurrentWeather()
-        {
-            if (WeatherData != null)
-            {
-                var now = _timeZoneService.Now.Date.AddHours(_timeZoneService.Now.Hour);
-                var liveWeer = WeatherData?.LiveWeer?.FirstOrDefault();
-
-
-                var currentWeather = WeatherData.UurVerwachting
-                    .Where(uv => uv.TimeStamp.HasValue &&
-                                 uv.TimeStamp.Value.Hour == now.Hour)
-                    .FirstOrDefault();
-
-                return (currentWeather?.Temp, currentWeather?.GlobalRadiation);
-            }
-
-            return null;
         }
 
         public class LiveWeer

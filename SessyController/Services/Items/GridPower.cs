@@ -55,9 +55,5 @@ namespace SessyController.Services.Items
         /// </summary>
         public double TotalProduced => _produced;
 
-        /// <summary>
-        /// Is this item a consumer of producer of energy?
-        /// </summary>
-        public bool IsConsumer => Total < 0.00;
     }
 }

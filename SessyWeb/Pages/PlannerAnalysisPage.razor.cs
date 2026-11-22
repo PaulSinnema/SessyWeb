@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Components;
 using Radzen;
 using SessyController.Services;
+using SessyCommon;
 
 namespace SessyWeb.Pages
 {
@@ -43,8 +44,8 @@ namespace SessyWeb.Pages
         // Per-quarter facts and calculations for the expanded row detail.
         private static List<PlannerParam> QuarterFacts(PlannerQuarterAnalysis q)
         {
-            double chargeKWh = q.ChargePowerW * 0.25 / 1000.0;
-            double dischargeKWh = q.DischargePowerW * 0.25 / 1000.0;
+            double chargeKWh = Units.QuarterKWh(q.ChargePowerW);
+            double dischargeKWh = Units.QuarterKWh(q.DischargePowerW);
 
             var list = new List<PlannerParam>
             {

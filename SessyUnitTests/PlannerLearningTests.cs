@@ -136,73 +136,6 @@ namespace SessyTests.Services
             Assert.Contains("kept", note);
         }
 
-        // ── Night reserve ─────────────────────────────────────────────────────
-
-        /// <summary>One quarter per night at 22:00, carrying that night's whole consumption.</summary>
-        private static Dictionary<DateTime, double> BuildNights(int count)
-        {
-            var nights = new Dictionary<DateTime, double>();
-
-            for (int i = 1; i <= count; i++)
-                nights[Now.Date.AddDays(-count + i - 1).AddHours(22)] = 1000.0 * i;
-
-            return nights;
-        }
-
-        [Fact]
-        public void NightReserve_TakesTheEightiethPercentileOfMeasuredNights()
-        {
-            // 21 nights of 1000..21000 Wh; the most recent is dropped because it is still running,
-            // leaving 1000..20000. P80 of those is 16200 Wh, which is half of a 32.4 kWh battery.
-            var (pct, pinned, _) = PlannerLearningService.FitNightReserve(BuildNights(21), 32400.0);
-
-            Assert.Equal(50.0, pct!.Value, 3);
-            Assert.False(pinned);
-        }
-
-        [Fact]
-        public void NightReserve_PinsWhenTheNightsDoNotFitTheBattery()
-        {
-            var (pct, pinned, note) = PlannerLearningService.FitNightReserve(BuildNights(21), 16200.0);
-
-            Assert.Equal(60.0, pct!.Value, 3);
-            Assert.True(pinned);
-            Assert.Contains("clamped", note);
-        }
-
-        [Fact]
-        public void NightReserve_LeavesTheSettingAloneWithoutEnoughNights()
-        {
-            var (pct, pinned, note) = PlannerLearningService.FitNightReserve(BuildNights(6), 32400.0);
-
-            Assert.Null(pct);
-            Assert.False(pinned);
-            Assert.Contains("unchanged", note);
-        }
-
-        [Fact]
-        public void NightReserve_JoinsTheHoursAfterMidnightToTheEveningBefore()
-        {
-            // A night straddles midnight, so 02:00 has to count towards the night that started
-            // the evening before. Split each night over 22:00 and 02:00: if the hours after
-            // midnight were filed under their own date, every night would be counted twice at
-            // part of its size and the percentile would collapse.
-            var nights = new Dictionary<DateTime, double>();
-
-            for (int i = 1; i <= 21; i++)
-            {
-                var evening = Now.Date.AddDays(-21 + i - 1);
-                nights[evening.AddHours(22)] = 600.0 * i;
-                nights[evening.AddDays(1).AddHours(2)] = 400.0 * i;
-            }
-
-            var (pct, pinned, _) = PlannerLearningService.FitNightReserve(nights, 32400.0);
-
-            // Same 1000..21000 Wh per night as the single-quarter case, so the same answer.
-            Assert.Equal(50.0, pct!.Value, 3);
-            Assert.False(pinned);
-        }
-
         [Fact]
         public void Discount_NetsSolarErrorAgainstConsumptionError()
         {
@@ -225,20 +158,6 @@ namespace SessyTests.Services
             Assert.Contains("clamped", note);
         }
 
-        [Fact]
-        public void NightReserve_IgnoresDaytimeQuarters()
-        {
-            var nights = BuildNights(21);
-
-            // A very expensive afternoon must not raise the night reserve.
-            foreach (var night in nights.Keys.ToList())
-                nights[night.Date.AddHours(14)] = 50000.0;
-
-            var (pct, _, _) = PlannerLearningService.FitNightReserve(nights, 32400.0);
-
-            Assert.Equal(50.0, pct!.Value, 3);
-        }
-
         // ── Supporting pieces ─────────────────────────────────────────────────
 
         [Theory]
@@ -258,13 +177,13 @@ namespace SessyTests.Services
         [InlineData(100.0, 5.0)]
         [InlineData(25.0, 2.0)]
         public void Percentile_InterpolatesBetweenNeighbours(double percentile, double expected)
-            => Assert.Equal(expected, Percentiles.Percentile([1.0, 2.0, 3.0, 4.0, 5.0], percentile), 6);
+            => Assert.Equal(expected, Stats.Percentile([1.0, 2.0, 3.0, 4.0, 5.0], percentile), 6);
 
         [Fact]
         public void Percentile_HandlesEmptyAndSingleValueLists()
         {
-            Assert.Equal(0.0, Percentiles.Percentile([], 50.0));
-            Assert.Equal(7.0, Percentiles.Percentile([7.0], 90.0));
+            Assert.Equal(0.0, Stats.Percentile([], 50.0));
+            Assert.Equal(7.0, Stats.Percentile([7.0], 90.0));
         }
     }
 }

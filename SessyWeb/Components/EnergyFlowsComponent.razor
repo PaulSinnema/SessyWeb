@@ -11,8 +11,8 @@
        daily averages are not distorted. Saying so is the point — a total covering five of the
        eight months you asked for looks like an error in the total. *@
     <RadzenText TextStyle="TextStyle.Caption" Style="opacity: 0.75;">
-        @($"{Dashboard!.EffectiveStart:dd-MM-yyyy} — {Dashboard!.EffectiveEnd:dd-MM-yyyy}")
-        @if (Dashboard!.ClampedByStatisticsFromDate)
+        @($"{Dashboard!.Period.ActualDataStart:dd-MM-yyyy} — {Dashboard!.Period.ActualDataEnd:dd-MM-yyyy}")
+        @if (Dashboard!.Period.ClampedByStatisticsFromDate)
         {
             <span> · starts at the configured "Statistics from date"</span>
         }
@@ -20,36 +20,36 @@
 
     <RadzenRow>
         <RadzenColumn Size="6">
-            <StatCardComponent Title="Total consumption" Value="@($"{Dashboard!.TotalConsumptionKWh:F1} kWh")" />
+            <StatCardComponent Title="Total consumption" Value="@($"{Dashboard!.Period.TotalConsumptionKWh:F1} kWh")" />
         </RadzenColumn>
         <RadzenColumn Size="6">
-            <StatCardComponent Title="Grid import" Value="@($"{Dashboard!.TotalGridImportKWh:F1} kWh")" />
+            <StatCardComponent Title="Grid import" Value="@($"{Dashboard!.Period.TotalGridImportKWh:F1} kWh")" />
         </RadzenColumn>
         <RadzenColumn Size="6">
-            <StatCardComponent Title="Grid export" Value="@($"{Dashboard!.TotalGridExportKWh:F1} kWh")" />
+            <StatCardComponent Title="Grid export" Value="@($"{Dashboard!.Period.TotalGridExportKWh:F1} kWh")" />
         </RadzenColumn>
         @* Own production versus consumption — meaningless without an inverter, where every kWh
            comes from the grid whether the battery is in between or not. *@
         @if (Dashboard!.SolarIsConfigured)
         {
             <RadzenColumn Size="6">
-                <StatCardComponent Title="Self sufficiency" Value="@($"{Dashboard!.SelfSufficiencyPct:F1} %")" />
+                <StatCardComponent Title="Self sufficiency" Value="@($"{Dashboard!.Period.SelfSufficiencyPct:F1} %")" />
             </RadzenColumn>
         }
     </RadzenRow>
     <RadzenText TextStyle="TextStyle.H6" Style="margin-top: 12px;">🏠 Consumption</RadzenText>
     <RadzenRow>
         <RadzenColumn Size="6">
-            <StatCardComponent Title="Avg daily" Value="@($"{Dashboard!.AvgDailyConsumptionKWh:F1} kWh/day")" />
+            <StatCardComponent Title="Avg daily" Value="@($"{Dashboard!.Period.AvgDailyConsumptionKWh:F1} kWh/day")" />
         </RadzenColumn>
         <RadzenColumn Size="6">
-            <StatCardComponent Title="Peak daily" Value="@($"{Dashboard!.PeakDailyConsumptionKWh:F1} kWh")" />
+            <StatCardComponent Title="Peak daily" Value="@($"{Dashboard!.Period.PeakDailyConsumptionKWh:F1} kWh")" />
         </RadzenColumn>
         <RadzenColumn Size="6">
-            <StatCardComponent Title="Weekday" Value="@($"{Dashboard!.WeekdayConsumptionKWh:F1} kWh")" />
+            <StatCardComponent Title="Weekday" Value="@($"{Dashboard!.Period.WeekdayConsumptionKWh:F1} kWh")" />
         </RadzenColumn>
         <RadzenColumn Size="6">
-            <StatCardComponent Title="Weekend" Value="@($"{Dashboard!.WeekendConsumptionKWh:F1} kWh")" />
+            <StatCardComponent Title="Weekend" Value="@($"{Dashboard!.Period.WeekendConsumptionKWh:F1} kWh")" />
         </RadzenColumn>
     </RadzenRow>
 </RadzenCard>

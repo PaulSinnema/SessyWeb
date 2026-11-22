@@ -10,7 +10,7 @@ using System.Text;
 /// <summary>
 /// API client for interacting with the P1 Meter.
 /// </summary>
-public class P1MeterService : BackgroundService, IDisposable
+public class P1MeterService : IDisposable
 {
     private LoggingService<P1MeterService> _logger { get; set; }
 
@@ -43,47 +43,6 @@ public class P1MeterService : BackgroundService, IDisposable
 
         _p1ConfigSubscription = _p1ConfigMonitor.OnChange((settings) => _p1Configuration = settings);
     }
-    protected override async Task ExecuteAsync(CancellationToken cancelationToken)
-    {
-        _logger.LogWarning("P1Meter service started ...");
-
-        // Loop to fetch prices every 5 seconds
-        while (!cancelationToken.IsCancellationRequested)
-        {
-            try
-            {
-                Process(cancelationToken);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogException(ex, "An error occurred while processing P1 meter data.");
-            }
-
-            try
-            {
-                int delayTime = 5; // Check again in 5 seconds
-
-                await Task.Delay(TimeSpan.FromSeconds(delayTime), cancelationToken);
-            }
-            catch (TaskCanceledException)
-            {
-                // Ignore cancellation exception during delay
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"Something went wrong during delay, keep processing {ex.ToDetailedString()}");
-            }
-        }
-
-        _logger.LogWarning("P1Meter service stopped.");
-    }
-
-    private void Process(CancellationToken cancelationToken)
-    {
-        var now = _timeZoneService.Now;
-
-
-    }
 
     /// <summary>
     /// Returns endpoint information for the P1 meter.
@@ -110,19 +69,7 @@ public class P1MeterService : BackgroundService, IDisposable
     /// <param name="id">Id of the P1 meteer in the Appsettings.json.</param>
     /// <returns>A configured <see cref="HttpClient"/> instance.</returns>
     private HttpClient CreateHttpClient(string id)
-    {
-        var endpoint = GetP1Endpoint(id);
-
-        if (string.IsNullOrWhiteSpace(endpoint.BaseUrl)) throw new InvalidOperationException($"Baseurl for P1 configuration with id {id} is empty");
-        if (string.IsNullOrWhiteSpace(endpoint.UserId)) throw new InvalidOperationException($"UserId for P1 configuration with id {id} is empty");
-        if (string.IsNullOrWhiteSpace(endpoint.Password)) throw new InvalidOperationException($"Password for P1 configuration with id {id} is empty");
-
-        var client = _httpClientFactory.CreateClient();
-        client.BaseAddress = new Uri(endpoint.BaseUrl);
-        var authToken = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{endpoint.UserId}:{endpoint.Password}"));
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", authToken);
-        return client;
-    }
+        => SessyHttp.CreateClient(_httpClientFactory, GetP1Endpoint(id), id, requireCredentials: true);
 
     /// <summary>
     /// Retrieves the details of the P1 Meter.
@@ -134,13 +81,7 @@ public class P1MeterService : BackgroundService, IDisposable
     public async Task<P1Details?> GetP1DetailsAsync(string id)
     {
         using var client = CreateHttpClient(id);
-        var response = await client.GetAsync("/api/v2/p1/details");
-
-        // Ensure the response is successful
-        response.EnsureSuccessStatusCode();
-
-        var content = await response.Content.ReadAsStringAsync();
-        return JsonConvert.DeserializeObject<P1Details>(content);
+        return await client.GetJsonAsync<P1Details>("/api/v2/p1/details").ConfigureAwait(false);
     }
 
     /// <summary>
@@ -153,13 +94,7 @@ public class P1MeterService : BackgroundService, IDisposable
     public async Task<GridTargetGet?> GetGridTargetAsync(string id)
     {
         using var client = CreateHttpClient(id);
-        var response = await client.GetAsync("/api/v1/meter/grid_target");
-
-        // Ensure the response is successful
-        response.EnsureSuccessStatusCode();
-
-        var content = await response.Content.ReadAsStringAsync();
-        return JsonConvert.DeserializeObject<GridTargetGet>(content);
+        return await client.GetJsonAsync<GridTargetGet>("/api/v1/meter/grid_target").ConfigureAwait(false);
     }
 
     /// <summary>
@@ -173,27 +108,18 @@ public class P1MeterService : BackgroundService, IDisposable
     public async Task SetGridTargetAsync(string id, GridTargetPost gridTarget)
     {
         // Same guard as SessyService.SetPowerSetpointAsync — do not drive when Charged or a provider is in control.
-        if (!_controlMode.WeMayDriveTheBatteries)
-        {
-            _logger.LogWarning($"SetGridTarget({id}, {gridTarget.GridTarget}) refused — {_controlMode.Current} is in control.");
+        if (_controlMode.RefusesWrite(_logger, $"SetGridTarget({id}, {gridTarget.GridTarget})"))
             return;
-        }
 
         _logger.LogInformation($"SetGridTarget({id}, {gridTarget.GridTarget})");
 
         using var client = CreateHttpClient(id);
-        var json = JsonConvert.SerializeObject(gridTarget);
-        var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-        var response = await client.PostAsync("/api/v1/meter/grid_target", content);
-
-        // Ensure the response is successful
-        response.EnsureSuccessStatusCode();
+        await client.PostJsonAsync("/api/v1/meter/grid_target", gridTarget).ConfigureAwait(false);
     }
 
     private bool isDisposed = false;
 
-    public override void Dispose()
+    public void Dispose()
     {
         if (!isDisposed)
         {
@@ -201,7 +127,6 @@ public class P1MeterService : BackgroundService, IDisposable
             isDisposed = true;
         }
 
-        base.Dispose();
     }
 
     /// <summary>

@@ -718,12 +718,6 @@ namespace SessyData.Migrations
                     b.Property<bool>("UseCalculatedCycleCost")
                         .HasColumnType("INTEGER");
 
-                    b.Property<bool>("UseCalculatedNightReserve")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<double>("NightReserveCapPct")
-                        .HasColumnType("REAL");
-
                     b.Property<int>("PlanningHorizonHours")
                         .HasColumnType("INTEGER");
 
@@ -744,9 +738,6 @@ namespace SessyData.Migrations
 
                     b.Property<string>("RequiredHomeEnergy")
                         .HasColumnType("TEXT");
-
-                    b.Property<double>("ReserveSafetyFactor")
-                        .HasColumnType("REAL");
 
                     b.Property<double>("RoundTripEfficiencyFallbackPct")
                         .HasColumnType("REAL");

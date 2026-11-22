@@ -3,25 +3,9 @@
 @using Radzen.Blazor
 @inherits BaseComponent
 
-<RadzenCard>
-    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
-        <RadzenText TextStyle="TextStyle.H6">🌦️ Consumption and weather <InfoTipComponent Text="@HowToRead" /></RadzenText>
-        <RadzenButton Icon="refresh" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
-                      Click="@LoadAsync" title="Reload" />
-    </RadzenStack>
-
-    @if (_loading)
-    {
-        <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" class="rz-mt-2" />
-    }
-    else if (_dayCount < 3)
-    {
-        <RadzenText TextStyle="TextStyle.Body1" class="rz-mt-2">
-            Not enough data: needs at least a few complete days in the Consumption table.
-        </RadzenText>
-    }
-    else
-    {
+<StatisticsCard Title="🌦️ Consumption and weather" Info="@HowToRead" OnRefresh="@LoadAsync" Loading="@Loading" IsEmpty="@(_dayCount < 3)">
+    <EmptyContent>Not enough data: needs at least a few complete days in the Consumption table.</EmptyContent>
+    <ChildContent>
         <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-1">
             One dot per complete day (@_dayCount days, @_firstDay?.ToString("dd-MM-yyyy") to @_lastDay?.ToString("dd-MM-yyyy")):
             the day's house consumption against its average weather, coloured per season. The line is the
@@ -75,5 +59,5 @@
                 </RadzenColumn>
             }
         </RadzenRow>
-    }
-</RadzenCard>
+    </ChildContent>
+</StatisticsCard>

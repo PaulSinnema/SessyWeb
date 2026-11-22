@@ -1,11 +1,12 @@
 ﻿using SessyCommon.Services;
 using SessyData.Model;
 using SessyData.Services;
+using SessyCommon.Extensions;
 
 namespace SessyController.Services
 {
-    /// <summary>One measured interval: grid import/export (kWh) and its EPEX price (EUR/kWh).</summary>
-    public readonly record struct GridFlow(DateTime Time, double ImportKWh, double ExportKWh, double MarketPrice);
+    /// <summary>One measured interval: grid import/export (kWh), its EPEX price (EUR/kWh) and whether it was daylight (Zonnebonus).</summary>
+    public readonly record struct GridFlow(DateTime Time, double ImportKWh, double ExportKWh, double MarketPrice, bool IsDaylight = false);
 
     /// <summary>Yearly electricity bill broken down per line, all amounts incl. VAT (EUR).</summary>
     public sealed record FinancialForecast(
@@ -39,13 +40,16 @@ namespace SessyController.Services
         private readonly EPEXPricesDataService _epexPricesDataService;
         private readonly TaxesDataService _taxesDataService;
         private readonly TimeZoneService _timeZoneService;
+        private readonly SettingsService _settingsService;
 
         public FinancialForecastService(
             EnergyHistoryDataService energyHistoryDataService,
             EPEXPricesDataService epexPricesDataService,
             TaxesDataService taxesDataService,
-            TimeZoneService timeZoneService)
+            TimeZoneService timeZoneService,
+            SettingsService settingsService)
         {
+            _settingsService = settingsService;
             _energyHistoryDataService = energyHistoryDataService;
             _epexPricesDataService = epexPricesDataService;
             _taxesDataService = taxesDataService;
@@ -56,7 +60,7 @@ namespace SessyController.Services
         public async Task<(FinancialForecast LastYear, FinancialForecast NextYear)?> GetForecastAsync()
         {
             var now = _timeZoneService.Now;
-            var to = new DateTime(now.Year, now.Month, 1);
+            var to = now.MonthStart();
             var from = to.AddYears(-1);
 
             var flows = await LoadFlowsAsync(from, to).ConfigureAwait(false);
@@ -101,8 +105,10 @@ namespace SessyController.Services
                 var tx = taxesAt(f.Time);
                 if (tx == null) continue;
 
-                double vat = 1.0 + tx.ValueAddedTax / 100.0;
+                double vat = tx.VatFactor;
                 vatFactorSum += vat; vatCount++;
+                double sellCompensation = EnergyPriceCalculator.SellCompensation(
+                    f.MarketPrice, tx.SignedReturnDeliveryCompensation, tx.SolarBonusPercentage, f.IsDaylight);
 
                 importKWh += f.ImportKWh;
                 exportKWh += f.ExportKWh;
@@ -111,13 +117,13 @@ namespace SessyController.Services
                 if (tx.Netting)
                 {
                     anyNetting = true;
-                    exportExcl += f.ExportKWh * (f.MarketPrice + tx.SignedReturnDeliveryCompensation);
+                    exportExcl += f.ExportKWh * (f.MarketPrice + sellCompensation);
                     netTaxBase += (f.ImportKWh - f.ExportKWh) * tx.EnergyTax;
                 }
                 else
                 {
                     // Export without netting: no tax, no VAT (see EnergyPriceCalculator).
-                    exportExcl += f.ExportKWh * (f.MarketPrice + tx.SignedReturnDeliveryCompensation) / vat;
+                    exportExcl += f.ExportKWh * (f.MarketPrice + sellCompensation) / vat;
                     importTaxNoNetting += f.ImportKWh * tx.EnergyTax;
                 }
             }
@@ -167,34 +173,28 @@ namespace SessyController.Services
                     await Task.FromResult(set
                         .Where(p => p.Time >= from.AddDays(-1) && p.Time <= to && p.Price.HasValue)
                         .ToList())).ConfigureAwait(false))
-                .GroupBy(p => p.Time)
-                .ToDictionary(g => g.Key, g => g.First().Price!.Value);
+                .FirstPer(p => p.Time, p => p.Price!.Value);
 
             var sortedPrices = prices.OrderBy(p => p.Key).ToList();
             var flows = new List<GridFlow>();
 
-            foreach (var meter in history.GroupBy(h => h.MeterId))
+            foreach (var interval in QuarterlyFactsService.GridIntervals(history))
             {
-                EnergyHistory? prev = null;
+                double importKWh = interval.ImportWh / 1000.0;
+                double exportKWh = interval.ExportWh / 1000.0;
 
-                foreach (var h in meter.OrderBy(h => h.Time))
-                {
-                    if (prev != null)
-                    {
-                        double importKWh = Math.Max(0.0, (h.ConsumedTariff1 + h.ConsumedTariff2) - (prev.ConsumedTariff1 + prev.ConsumedTariff2)) / 1000.0;
-                        double exportKWh = Math.Max(0.0, (h.ProducedTariff1 + h.ProducedTariff2) - (prev.ProducedTariff1 + prev.ProducedTariff2)) / 1000.0;
-
-                        double? price = PriceFor(prices, sortedPrices, prev.Time, h.Time);
-                        if (price.HasValue && (importKWh > 0.0 || exportKWh > 0.0))
-                            flows.Add(new GridFlow(prev.Time, importKWh, exportKWh, price.Value));
-                    }
-
-                    prev = h;
-                }
+                double? price = PriceFor(prices, sortedPrices, interval.Start, interval.End);
+                if (price.HasValue && (importKWh > 0.0 || exportKWh > 0.0))
+                    flows.Add(new GridFlow(interval.Start, importKWh, exportKWh, price.Value, IsDaylight(interval.Start)));
             }
 
             return flows;
         }
+
+        /// <summary>True between sunrise and sunset at the configured location (Zonnebonus).</summary>
+        private bool IsDaylight(DateTime time)
+            => _timeZoneService.GetSunlightLevel(time, _settingsService.Current.Latitude, _settingsService.Current.Longitude)
+               == SolCalc.Data.SunlightLevel.Daylight;
 
         /// <summary>Price of the quarter (or hour) at <paramref name="start"/>; over a gap the average price.</summary>
         private static double? PriceFor(Dictionary<DateTime, double> prices, List<KeyValuePair<DateTime, double>> sorted,

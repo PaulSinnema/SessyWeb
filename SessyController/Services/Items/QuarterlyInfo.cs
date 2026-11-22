@@ -240,13 +240,6 @@ namespace SessyController.Services.Items
         public void SetChargeLeft(double chargeLeftWh) => ChargeLeftWh = chargeLeftWh;
         public void SetChargeNeeded(double chargeNeededWh) => ChargeNeededWh = chargeNeededWh;
 
-        public void SetDeltaLowestPrice(double priceOfEnergyInBatteries)
-        {
-            // Legacy field; still useful for visualizing deltas.
-            // Use the effective price for the chosen mode.
-            DeltaLowestPrice = Price - priceOfEnergyInBatteries;
-        }
-
         /// <summary>
         /// Derived helpers for UI/backwards compatibility.
         /// </summary>
@@ -274,17 +267,12 @@ namespace SessyController.Services.Items
             EstimatedConsumptionPerQuarterInWatts * 0.25 - SolarPowerPerQuarterHour * 1000.0;
 
         public bool SellingPriceIsNegative => SellingPrice < 0.0;
-        public bool BuyingPriceIsPositive => BuyingPrice >= 0.0;
-        public bool SellingPriceIsPositive => SellingPrice >= 0.0;
 
         /// <summary>
         /// Effective price depending on Mode (legacy behavior).
         /// </summary>
         public double Price
             => Mode == Modes.Charging ? BuyingPrice : SellingPrice;
-
-        public double SmoothedPrice
-            => Mode == Modes.Charging ? SmoothedBuyingPrice : SmoothedSellingPrice;
 
         /// <summary>
         /// Cash-flow estimate for one quarter, for visualization only (battery-only).
@@ -404,20 +392,6 @@ namespace SessyController.Services.Items
         public string GetDisplayMode()
         {
             return ChargingModes.GetDisplayMode(Mode);
-        }
-
-        // Kept in case you still want to use solar activity checks in the UI/debugging.
-        private async Task<bool> SolarPowerIsActive()
-        {
-            var now = _timeZoneService.Now.DateFloorQuarter();
-
-            if (Time == now)
-            {
-                var totalSolarPowerW = await _solarInverterManager.GetTotalACPowerInWatts().ConfigureAwait(false);
-                return totalSolarPowerW > MinSolarPowerW;
-            }
-
-            return false;
         }
 
         public override string ToString()

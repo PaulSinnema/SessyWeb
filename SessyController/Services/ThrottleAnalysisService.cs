@@ -3,6 +3,8 @@ using SessyCommon.Services;
 using SessyController.Services.Items;
 using SessyData.Model;
 using SessyData.Services;
+using SessyCommon;
+using SessyCommon.Extensions;
 
 namespace SessyController.Services
 {
@@ -32,14 +34,10 @@ namespace SessyController.Services
         private readonly IBatteryContainer _batteryContainer;
         private readonly TimeZoneService _timeZoneService;
 
-        // Tuning constants.
-        private const int BucketWidthC = 2;       // temperature bucket width in °C
         private const double MinRequestedW = 3000; // only count quarters with a substantial request
         private const double MinSocPct = 10.0;     // ignore near-empty battery (not a throttle)
         private const double MaxSocPct = 90.0;     // ignore near-full battery (not a throttle)
-        private const double EmaAlpha = 0.2;       // EMA weight for newest sample
         private const int LookbackDays = 31;       // short horizon so cooling resolves within a month
-        public const int MinSamplesPerBucket = 3;  // below this a temperature bucket says nothing
         private const int MinSocOnlySamples = 20;  // enough for the SOC-only fallback fit
         private const int Mean48hHours = 48;       // window for the heat build-up term
 
@@ -120,6 +118,34 @@ namespace SessyController.Services
         }
 
         /// <summary>
+        /// Measurements per quarter (one quarter of run-up), our planned requests per quarter and the quarters
+        /// someone else drove, for [from, now]. requestSign: 1 charge only, -1 discharge only (returned positive), 0 both.
+        /// </summary>
+        private async Task<(Dictionary<DateTime, QuarterlyMeasurement> ByTime, Dictionary<DateTime, double> RequestByTime, HashSet<DateTime> Foreign)>
+            LoadRequestedQuartersAsync(DateTime from, DateTime now, int requestSign)
+        {
+            var fetchFrom = from > DateTime.MinValue.AddMinutes(15) ? from.AddMinutes(-15) : from;
+
+            var measurements = await _measurementDataService.GetList(async set =>
+                await Task.FromResult(set
+                    .Where(m => m.Time >= fetchFrom && m.Time <= now)
+                    .ToList()));
+
+            var plans = await _plannedQuarterDataService.GetList(async set =>
+                await Task.FromResult(set
+                    .Where(p => p.Time >= from && p.Time <= now && p.PlannedUnthrottledPowerW != 0.0)
+                    .ToList()));
+
+            var foreign = await LoadForeignQuartersAsync(from, now).ConfigureAwait(false);
+
+            var requests = plans
+                .Where(p => requestSign == 0 || Math.Sign(p.PlannedUnthrottledPowerW) == requestSign)
+                .FirstPer(p => p.Time, p => requestSign < 0 ? -p.PlannedUnthrottledPowerW : p.PlannedUnthrottledPowerW);
+
+            return (measurements.FirstPer(m => m.Time), requests, foreign);
+        }
+
+        /// <summary>
         /// True when the quarter was driven by someone other than our own planner, and therefore
         /// says nothing about our throttle. Empty means the row predates v1.0.51 — those count as
         /// ours, so the existing history stays in the fit.
@@ -127,112 +153,6 @@ namespace SessyController.Services
         internal static bool IsForeign(string? controlMode)
             => !string.IsNullOrEmpty(controlMode)
                && controlMode != nameof(ControlMode.SessyWeb);
-
-        /// <summary>
-        /// Computes throttle buckets over the look-back window. Buckets are returned ordered by
-        /// temperature. Buckets without samples keep the default ratio of 1.0 (no throttle).
-        /// </summary>
-        public async Task<List<ThrottleBucket>> GetThrottleBucketsAsync()
-        {
-            var now = _timeZoneService.Now;
-            var start = now.AddDays(-LookbackDays);
-
-            // Only quarters with a recorded throttle-free target count. Falling back to
-            // PlannedPowerW would divide by an already-throttled number, so every such sample
-            // reports a ratio near 1.0 and drags the measured throttle towards "none".
-            var plans = await _plannedQuarterDataService.GetList(async set =>
-                await Task.FromResult(set
-                    .Where(p => p.Time >= start && p.Time <= now && p.PlannedUnthrottledPowerW != 0.0)
-                    .ToList()));
-
-            // One quarter earlier so the first quarter has a previous SOC.
-            var measurements = await _measurementDataService.GetList(async set =>
-                await Task.FromResult(set
-                    .Where(m => m.Time >= start.AddMinutes(-15) && m.Time <= now)
-                    .ToList()));
-
-            var consumptions = await _consumptionDataService.GetList(async set =>
-                await Task.FromResult(set
-                    .Where(c => c.Time >= start && c.Time <= now)
-                    .ToList()));
-
-            var foreignQuarters = await LoadForeignQuartersAsync(start, now).ConfigureAwait(false);
-
-            // Index plan and temperature by quarter for a fast in-memory join.
-            var planByTime = plans
-                .GroupBy(p => p.Time)
-                .ToDictionary(g => g.Key, g => g.First().PlannedUnthrottledPowerW);
-
-            var tempByTime = consumptions
-                .Where(c => c.Temperature > -50.0) // drop the -999 sentinel
-                .GroupBy(c => c.Time)
-                .ToDictionary(g => g.Key, g => g.First().Temperature);
-
-            double capacity = _batteryContainer.GetTotalCapacity();
-            if (capacity <= 0) capacity = 1; // guard against divide-by-zero
-
-            var byTime = measurements.GroupBy(m => m.Time).ToDictionary(g => g.Key, g => g.First());
-
-            // Accumulate samples per bucket before smoothing.
-            var buckets = new Dictionary<int, ThrottleBucket>();
-
-            foreach (var m in byTime.Values.Where(m => m.Time >= start).OrderBy(m => m.Time))
-            {
-                if (foreignQuarters.Contains(m.Time)) continue;
-                if (!planByTime.TryGetValue(m.Time, out var requestedW)) continue;
-                if (!tempByTime.TryGetValue(m.Time, out var temperature)) continue;
-
-                if (Math.Abs(requestedW) < MinRequestedW) continue;
-
-                // Normalize direction. Plan: discharge < 0; measurement: discharge > 0.
-                // The battery must have ACTUALLY executed the planned mode. Direction alone
-                // is not enough: in ZeroNetHome the battery also delivers positive power (to
-                // cover the house), which would otherwise look like a heavily throttled
-                // discharge. Only count quarters where the real mode matches the plan.
-                bool planDischarging = requestedW < 0;
-                var expectedMode = planDischarging ? Modes.Discharging : Modes.Charging;
-                if (m.BatteryMode != expectedMode || !m.IsReliable) continue;
-
-                // Previous quarter in the same mode: no ramp-up inside this one.
-                if (!byTime.TryGetValue(m.Time.AddMinutes(-15), out var prev)) continue;
-                if (prev.BatteryMode != expectedMode || !prev.IsReliable) continue;
-
-                double socPct = prev.BatteryStateOfChargeWh / capacity * 100.0;
-                if (socPct < MinSocPct || socPct > MaxSocPct) continue;
-
-                // Realized power from the SOC change over the quarter (DC), not the momentary
-                // snapshot: 08-10 15:30 read +206 W while the bank stored 756 Wh.
-                double deltaWh = m.BatteryStateOfChargeWh - prev.BatteryStateOfChargeWh;
-                double realizedW = (planDischarging ? -deltaWh : deltaWh) * 4.0;
-                if (realizedW <= 0.0) continue;   // wrong direction: not a throttle sample
-
-                double ratio = Math.Min(realizedW / Math.Abs(requestedW), 1.0);
-
-                int low = (int)Math.Floor(temperature / BucketWidthC) * BucketWidthC;
-                if (!buckets.TryGetValue(low, out var bucket))
-                {
-                    bucket = new ThrottleBucket { TemperatureLow = low, Width = BucketWidthC };
-                    buckets[low] = bucket;
-                }
-
-                if (planDischarging)
-                {
-                    bucket.DischargeRatio = bucket.DischargeSamples == 0
-                        ? ratio
-                        : EmaAlpha * ratio + (1 - EmaAlpha) * bucket.DischargeRatio;
-                    bucket.DischargeSamples++;
-                }
-                else
-                {
-                    bucket.ChargeRatio = bucket.ChargeSamples == 0
-                        ? ratio
-                        : EmaAlpha * ratio + (1 - EmaAlpha) * bucket.ChargeRatio;
-                    bucket.ChargeSamples++;
-                }
-            }
-
-            return buckets.Values.OrderBy(b => b.TemperatureLow).ToList();
-        }
 
         /// <summary>
         /// Fits the charge taper:
@@ -295,7 +215,7 @@ namespace SessyController.Services
                 .ToList();
 
             var longFit = samples.Count >= MinEnvelopeSamples
-                ? SolveLeastSquares(BuildDesign(samples), samples.Select(s => s.Ratio).ToList(), weights)
+                ? Stats.LeastSquares(BuildDesign(samples), samples.Select(s => s.Ratio).ToList(), weights)
                 : null;
 
             if (longFit == null || longFit[1] >= 0.0)
@@ -455,7 +375,7 @@ namespace SessyController.Services
             var upper = bins.Where(b => b.Key >= DischargeBins / 2).Select(b => b.Value).ToList();
             if (upper.Count < 2) upper = bins.Select(b => b.Value).ToList();
 
-            double plateau = Math.Min(Median(upper), nameplateW);
+            double plateau = Math.Min(Stats.Median(upper), nameplateW);
             if (plateau <= 0.0) return DischargeCapability.None;
 
             // Lowest bin from which two consecutive bins both sit at the plateau.
@@ -497,7 +417,7 @@ namespace SessyController.Services
 
             if (above.Count < MinSustainedPlateauSamples) return capability;
 
-            double plateau = Median(above);
+            double plateau = Stats.Median(above);
             if (plateau >= capability.PlateauW) return capability;
 
             // The envelope knee marks where the per-bin MAXIMUM reaches the old plateau; against a
@@ -531,7 +451,7 @@ namespace SessyController.Services
                 .Where(s => s.PowerW > 0.0)
                 .GroupBy(s => Math.Min((int)(Math.Max(0.0, s.Soc) * 10), 9))
                 .Where(g => g.Count() >= MinSustainedKneeBinSamples)
-                .ToDictionary(g => g.Key, g => Median(g.Select(s => s.PowerW).ToList()));
+                .ToDictionary(g => g.Key, g => Stats.Median(g.Select(s => s.PowerW).ToList()));
 
             // Bottom-up, so a noisy high bin cannot push the knee up to full.
             double knee = 0.0;
@@ -556,7 +476,7 @@ namespace SessyController.Services
                 .Where(s => s.PowerW > 0.0)
                 .GroupBy(s => Math.Min((int)(Math.Max(0.0, s.Soc) * 10), 9))
                 .Where(g => g.Count() >= MinSustainedKneeBinSamples)
-                .ToDictionary(g => g.Key, g => Median(g.Select(s => s.PowerW).ToList()));
+                .ToDictionary(g => g.Key, g => Stats.Median(g.Select(s => s.PowerW).ToList()));
 
             if (bins.Count < 3) return null;
 
@@ -571,38 +491,12 @@ namespace SessyController.Services
             return knee.HasValue ? knee.Value / 10.0 : null;
         }
 
-        /// <summary>
-        /// (SOC fraction at the start, delivered watts) for discharge quarters at a full request,
-        /// executed by us, with the quarter before discharging too — same filter as the charge side,
-        /// see CollectSustainedChargeSamplesAsync. Snapshot watts, not SOC drop: the cap is AC and
-        /// the median of steady quarters needs no efficiency conversion.
-        /// </summary>
-        private async Task<List<(double Soc, double PowerW)>> CollectSustainedDischargeSamplesAsync(
-            DateTime now, double capacity, double nameplateW)
-            => (await CollectSustainedDischargeSamplesTimedAsync(now, capacity, nameplateW).ConfigureAwait(false))
-                .Select(x => (x.Soc, x.PowerW))
-                .ToList();
-
         private async Task<List<(DateTime Time, double Soc, double PowerW)>> CollectSustainedDischargeSamplesTimedAsync(
             DateTime now, double capacity, double nameplateW)
         {
             var from = now.AddDays(-ChargeCapabilityDays);
 
-            var measurements = await _measurementDataService.GetList(async set =>
-                await Task.FromResult(set
-                    .Where(m => m.Time >= from.AddMinutes(-15) && m.Time <= now)
-                    .ToList()));
-
-            // Plan stores discharge requests negative.
-            var plans = await _plannedQuarterDataService.GetList(async set =>
-                await Task.FromResult(set
-                    .Where(p => p.Time >= from && p.Time <= now && p.PlannedUnthrottledPowerW < 0.0)
-                    .ToList()));
-
-            var foreignQuarters = await LoadForeignQuartersAsync(from, now).ConfigureAwait(false);
-
-            var byTime = measurements.GroupBy(m => m.Time).ToDictionary(g => g.Key, g => g.First());
-            var requestByTime = plans.GroupBy(p => p.Time).ToDictionary(g => g.Key, g => -g.First().PlannedUnthrottledPowerW);
+            var (byTime, requestByTime, foreignQuarters) = await LoadRequestedQuartersAsync(from, now, requestSign: -1).ConfigureAwait(false);
 
             var samples = new List<(DateTime, double, double)>();
 
@@ -649,7 +543,7 @@ namespace SessyController.Services
             return capability with
             {
                 TemperatureSlopeWPerC = slope.Value,
-                ReferenceTemperatureC = Median(above.Select(x => x.T).ToList()),
+                ReferenceTemperatureC = Stats.Median(above.Select(x => x.T).ToList()),
                 MinTemperatureC = above.Min(x => x.T),
                 MaxTemperatureC = above.Max(x => x.T)
             };
@@ -692,8 +586,7 @@ namespace SessyController.Services
 
             return consumptions
                 .Where(c => c.Temperature > -50.0)
-                .GroupBy(c => c.Time)
-                .ToDictionary(g => g.Key, g => (double)g.First().Temperature);
+                .FirstPer(c => c.Time, c => (double)c.Temperature);
         }
 
         // ── Charge capability floor ───────────────────────────────────────────
@@ -811,7 +704,7 @@ namespace SessyController.Services
 
                 values.Sort();
 
-                double floor = Percentiles.Percentile(values, ChargeFloorPercentile) * ChargeFloorMargin;
+                double floor = Stats.Percentile(values, ChargeFloorPercentile) * ChargeFloorMargin;
 
                 floors[bin] = Math.Min(floor, nameplateW);
                 used += values.Count;
@@ -894,20 +787,7 @@ namespace SessyController.Services
         {
             var from = now.AddDays(-ChargeCapabilityDays);
 
-            var measurements = await _measurementDataService.GetList(async set =>
-                await Task.FromResult(set
-                    .Where(m => m.Time >= from.AddMinutes(-15) && m.Time <= now)
-                    .ToList()));
-
-            var plans = await _plannedQuarterDataService.GetList(async set =>
-                await Task.FromResult(set
-                    .Where(p => p.Time >= from && p.Time <= now && p.PlannedUnthrottledPowerW > 0.0)
-                    .ToList()));
-
-            var foreignQuarters = await LoadForeignQuartersAsync(from, now).ConfigureAwait(false);
-
-            var byTime = measurements.GroupBy(m => m.Time).ToDictionary(g => g.Key, g => g.First());
-            var requestByTime = plans.GroupBy(p => p.Time).ToDictionary(g => g.Key, g => g.First().PlannedUnthrottledPowerW);
+            var (byTime, requestByTime, foreignQuarters) = await LoadRequestedQuartersAsync(from, now, requestSign: 1).ConfigureAwait(false);
 
             var samples = new List<(DateTime, double, double)>();
 
@@ -964,10 +844,10 @@ namespace SessyController.Services
 
             // Bins without a temperature get the overall median (no NaN: the spec is serialized to JSON).
             var binTemps = new double[ChargeCapabilityBins];
-            Array.Fill(binTemps, Median(withTemp.Select(x => x.T).ToList()));
+            Array.Fill(binTemps, Stats.Median(withTemp.Select(x => x.T).ToList()));
 
             foreach (var group in withTemp.GroupBy(x => x.Bin))
-                binTemps[group.Key] = Median(group.Select(x => x.T).ToList());
+                binTemps[group.Key] = Stats.Median(group.Select(x => x.T).ToList());
 
             return baseFit with
             {
@@ -1001,21 +881,11 @@ namespace SessyController.Services
                 var values = perBin[bin];
                 if (values == null || values.Count < MinSamplesPerChargeCapabilityBin) continue;
 
-                bins[bin] = Median(values);
+                bins[bin] = Stats.Median(values);
                 used += values.Count;
             }
 
             return used == 0 ? ChargeCapability.None : new ChargeCapability(bins, used);
-        }
-
-        private static double Median(List<double> values)
-        {
-            var sorted = values.OrderBy(v => v).ToList();
-            int mid = sorted.Count / 2;
-
-            return sorted.Count % 2 == 1
-                ? sorted[mid]
-                : (sorted[mid - 1] + sorted[mid]) / 2.0;
         }
 
         /// <summary>
@@ -1060,7 +930,7 @@ namespace SessyController.Services
         {
             if (samples.Count < MinEnvelopeSamples) return FitSocOnly(samples);
 
-            var coefficients = SolveLeastSquares(BuildDesign(samples), samples.Select(s => s.Ratio).ToList());
+            var coefficients = Stats.LeastSquares(BuildDesign(samples), samples.Select(s => s.Ratio).ToList());
             if (coefficients == null) return FitSocOnly(samples);
 
             if (coefficients[1] >= 0.0) return ChargeTaper.None;
@@ -1111,9 +981,7 @@ namespace SessyController.Services
 
             var foreignQuarters = await LoadForeignQuartersAsync(historyStart, now).ConfigureAwait(false);
 
-            var planByTime = plans
-                .GroupBy(p => p.Time)
-                .ToDictionary(g => g.Key, g => g.First().PlannedUnthrottledPowerW);
+            var planByTime = plans.FirstPer(p => p.Time, p => p.PlannedUnthrottledPowerW);
 
             var temperatures = consumptions
                 .Where(c => c.Temperature > -50.0)          // drop the -999 sentinel
@@ -1269,116 +1137,6 @@ namespace SessyController.Services
             return new ChargeTaper(intercept, -slope, 0.0, 0.0, n);
         }
 
-        /// <summary>
-        /// Ordinary least squares via the normal equations, solved with Gaussian elimination and
-        /// partial pivoting. Returns null when the system is singular or near-singular.
-        /// </summary>
-        internal static double[]? SolveLeastSquares(
-            IReadOnlyList<double[]> design, IReadOnlyList<double> y, IReadOnlyList<double>? weights = null)
-        {
-            int k = design[0].Length;
-            var matrix = new double[k, k + 1];
-
-            for (int row = 0; row < k; row++)
-            {
-                for (int col = 0; col < k; col++)
-                {
-                    double sum = 0.0;
-                    for (int i = 0; i < design.Count; i++)
-                        sum += (weights?[i] ?? 1.0) * design[i][row] * design[i][col];
-                    matrix[row, col] = sum;
-                }
-
-                double rhs = 0.0;
-                for (int i = 0; i < design.Count; i++)
-                    rhs += (weights?[i] ?? 1.0) * design[i][row] * y[i];
-                matrix[row, k] = rhs;
-            }
-
-            for (int pivot = 0; pivot < k; pivot++)
-            {
-                int best = pivot;
-                for (int row = pivot + 1; row < k; row++)
-                    if (Math.Abs(matrix[row, pivot]) > Math.Abs(matrix[best, pivot]))
-                        best = row;
-
-                if (Math.Abs(matrix[best, pivot]) < 1e-9) return null;
-
-                if (best != pivot)
-                    for (int col = 0; col <= k; col++)
-                        (matrix[pivot, col], matrix[best, col]) = (matrix[best, col], matrix[pivot, col]);
-
-                for (int row = 0; row < k; row++)
-                {
-                    if (row == pivot) continue;
-                    double factor = matrix[row, pivot] / matrix[pivot, pivot];
-                    for (int col = pivot; col <= k; col++)
-                        matrix[row, col] -= factor * matrix[pivot, col];
-                }
-            }
-
-            var result = new double[k];
-            for (int i = 0; i < k; i++)
-                result[i] = matrix[i, k] / matrix[i, i];
-
-            return result;
-        }
-
-        /// <summary>
-        /// Returns the discharge throttle ratio for a given temperature (1.0 when no data).
-        /// Intended for the planner to scale the maximum discharge power per forecast quarter.
-        /// </summary>
-        public double GetDischargeRatio(IReadOnlyList<ThrottleBucket> buckets, double temperature)
-            => FindRatio(buckets, temperature, discharge: true);
-
-        /// <summary>
-        /// Returns the charge throttle ratio for a given temperature (1.0 when no data).
-        /// </summary>
-        public double GetChargeRatio(IReadOnlyList<ThrottleBucket> buckets, double temperature)
-            => FindRatio(buckets, temperature, discharge: false);
-
-        /// <summary>
-        /// Measured charge throttle ratio for a temperature. Returns false when no bucket has
-        /// been observed yet, so the caller can fall back to a configured estimate instead of
-        /// silently assuming there is no throttling at all.
-        /// </summary>
-        public bool TryGetChargeRatio(IReadOnlyList<ThrottleBucket> buckets, double temperature, out double ratio)
-            => TryFindRatio(buckets, temperature, discharge: false, out ratio);
-
-        /// <summary>
-        /// Measured discharge throttle ratio for a temperature. Returns false when no bucket has
-        /// been observed yet.
-        /// </summary>
-        public bool TryGetDischargeRatio(IReadOnlyList<ThrottleBucket> buckets, double temperature, out double ratio)
-            => TryFindRatio(buckets, temperature, discharge: true, out ratio);
-
-        private static bool TryFindRatio(IReadOnlyList<ThrottleBucket> buckets, double temperature, bool discharge, out double ratio)
-        {
-            ratio = 1.0;
-
-            if (buckets == null) return false;
-
-            int low = (int)Math.Floor(temperature / BucketWidthC) * BucketWidthC;
-            var bucket = buckets.FirstOrDefault(b => b.TemperatureLow == low);
-            if (bucket == null) return false;
-
-            int samples = discharge ? bucket.DischargeSamples : bucket.ChargeSamples;
-            if (samples < MinSamplesPerBucket) return false;
-
-            ratio = discharge ? bucket.DischargeRatio : bucket.ChargeRatio;
-            return ratio > 0.0;
-        }
-
-        private static double FindRatio(IReadOnlyList<ThrottleBucket> buckets, double temperature, bool discharge)
-        {
-            int low = (int)Math.Floor(temperature / BucketWidthC) * BucketWidthC;
-            var bucket = buckets.FirstOrDefault(b => b.TemperatureLow == low);
-            if (bucket == null) return 1.0;
-            int samples = discharge ? bucket.DischargeSamples : bucket.ChargeSamples;
-            if (samples < MinSamplesPerBucket) return 1.0;
-            return discharge ? bucket.DischargeRatio : bucket.ChargeRatio;
-        }
-
         // ── Throttle report ───────────────────────────────────────────────────
 
         /// <summary>SOC bands of the throttle report, 20% wide.</summary>
@@ -1398,22 +1156,8 @@ namespace SessyController.Services
 
             var now = _timeZoneService.Now;
             var from = days.HasValue ? now.AddDays(-days.Value) : DateTime.MinValue;
-            var fetchFrom = days.HasValue ? from.AddMinutes(-15) : DateTime.MinValue;
 
-            var measurements = await _measurementDataService.GetList(async set =>
-                await Task.FromResult(set
-                    .Where(m => m.Time >= fetchFrom && m.Time <= now)
-                    .ToList()));
-
-            var plans = await _plannedQuarterDataService.GetList(async set =>
-                await Task.FromResult(set
-                    .Where(p => p.Time >= from && p.Time <= now && p.PlannedUnthrottledPowerW != 0.0)
-                    .ToList()));
-
-            var foreignQuarters = await LoadForeignQuartersAsync(from, now).ConfigureAwait(false);
-
-            var byTime = measurements.GroupBy(m => m.Time).ToDictionary(g => g.Key, g => g.First());
-            var requestByTime = plans.GroupBy(p => p.Time).ToDictionary(g => g.Key, g => g.First().PlannedUnthrottledPowerW);
+            var (byTime, requestByTime, foreignQuarters) = await LoadRequestedQuartersAsync(from, now, requestSign: 0).ConfigureAwait(false);
 
             var charge = new List<ThrottleSample>();
             var discharge = new List<ThrottleSample>();
@@ -1460,8 +1204,8 @@ namespace SessyController.Services
             {
                 var c = charge.Where(s => Band(s.Soc) == b).Select(s => s.DeliveredW).ToList();
                 var d = discharge.Where(s => Band(s.Soc) == b).Select(s => s.DeliveredW).ToList();
-                double? chargeW = c.Count > 0 ? Median(c) : null;
-                double? dischargeW = d.Count > 0 ? Median(d) : null;
+                double? chargeW = c.Count > 0 ? Stats.Median(c) : null;
+                double? dischargeW = d.Count > 0 ? Stats.Median(d) : null;
 
                 bands.Add(new ThrottleBand(
                     b * 100 / ReportBands, (b + 1) * 100 / ReportBands,
@@ -1486,8 +1230,8 @@ namespace SessyController.Services
 
             return new ThrottleDirection(
                 samples.Count,
-                samples.Sum(s => s.RequestedW) * 0.25 / 1000.0,
-                samples.Sum(s => s.DeliveredW) * 0.25 / 1000.0,
+                Units.QuarterKWh(samples.Sum(s => s.RequestedW)),
+                Units.QuarterKWh(samples.Sum(s => s.DeliveredW)),
                 hours,
                 capacityWh / nameplateW);
         }

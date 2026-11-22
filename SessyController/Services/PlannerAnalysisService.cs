@@ -3,6 +3,7 @@ using SessyCommon.Extensions;
 using SessyCommon.Services;
 using SessyData.Model;
 using SessyData.Services;
+using SessyCommon;
 
 namespace SessyController.Services
 {
@@ -54,10 +55,10 @@ namespace SessyController.Services
             double capacityWh = _batteryContainer.GetTotalCapacity();
 
             var buys = planned.Select(p => p.BuyingPriceEurKWh).ToList();
-            double medianBuy = Median(buys);
+            double medianBuy = Stats.Median(buys);
             double maxBuy = buys.Max();
             double minBuy = buys.Min();
-            double p75Buy = Percentile(buys, 75);
+            double p75Buy = Stats.Percentile(buys.OrderBy(v => v).ToList(), 75);
 
             // Highest buy price still to come, per quarter — "is a dearer hour ahead?".
             int n = planned.Count;
@@ -94,8 +95,8 @@ namespace SessyController.Services
                 quarters.Add(q);
             }
 
-            double chargeKWh = planned.Sum(p => p.PlannedChargePowerW) * 0.25 / 1000.0;
-            double dischargeKWh = planned.Sum(p => p.PlannedDischargePowerW) * 0.25 / 1000.0;
+            double chargeKWh = Units.QuarterKWh(planned.Sum(p => p.PlannedChargePowerW));
+            double dischargeKWh = Units.QuarterKWh(planned.Sum(p => p.PlannedDischargePowerW));
             int remarkCount = quarters.Sum(q => q.Remarks.Count);
 
             var totals = new PlanTotals
@@ -266,7 +267,7 @@ namespace SessyController.Services
             var result = new Dictionary<DateTime, double>();
             if (consumptions == null || consumptions.Count == 0) return result;
 
-            var byTime = planned.GroupBy(p => p.Time).ToDictionary(g => g.Key, g => g.First());
+            var byTime = planned.FirstPer(p => p.Time);
             var sums = new Dictionary<DateTime, (double Wh, double MarginWh)>();
 
             void Add(DateTime t, double wh, double margin)
@@ -372,24 +373,6 @@ namespace SessyController.Services
 
         // ── small stats helpers ────────────────────────────────────────────
 
-        private static double Median(List<double> values)
-        {
-            if (values.Count == 0) return 0.0;
-            var sorted = values.OrderBy(v => v).ToList();
-            int mid = sorted.Count / 2;
-            return sorted.Count % 2 == 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2.0;
-        }
-
-        private static double Percentile(List<double> values, double percentile)
-        {
-            if (values.Count == 0) return 0.0;
-            var sorted = values.OrderBy(v => v).ToList();
-            double rank = percentile / 100.0 * (sorted.Count - 1);
-            int lo = (int)Math.Floor(rank);
-            int hi = (int)Math.Ceiling(rank);
-            if (lo == hi) return sorted[lo];
-            return sorted[lo] + (rank - lo) * (sorted[hi] - sorted[lo]);
-        }
     }
 
     public sealed class PlannerAnalysis

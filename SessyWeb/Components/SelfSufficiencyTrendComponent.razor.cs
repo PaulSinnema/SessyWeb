@@ -19,7 +19,6 @@ namespace SessyWeb.Components
             "production used in the house or stored in the battery instead of exported. Summer months are naturally " +
             "high, winter months low; compare a month with the same month a year earlier.";
 
-        private bool _loading = true;
         private bool _hasSolar;
         private List<Row> _months = new();
 
@@ -32,9 +31,7 @@ namespace SessyWeb.Components
         {
             if (EnergyStatisticsService == null) return;
 
-            _loading = true;
-
-            try
+            await WhileLoadingAsync(async () =>
             {
                 // MinValue: from the first stored data; one statistics pass per month, so off the circuit thread.
                 var trends = await Task.Run(() => EnergyStatisticsService.GetMonthlyTrendsAsync(DateTime.MinValue, DateTime.MaxValue)).ConfigureAwait(true);
@@ -45,11 +42,7 @@ namespace SessyWeb.Components
                     .ToList();
 
                 _hasSolar = trends.Any(t => t.SolarProductionKWh > 0.0);
-            }
-            finally
-            {
-                _loading = false;
-            }
+            });
         }
     }
 }

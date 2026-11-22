@@ -90,19 +90,10 @@ namespace SessyController.Services
         /// </summary>
         private const double GuardReleaseFactor = 4.0;
 
-        /// <summary>
-        /// Net load within this many Wh of zero is noise, not a sign. The previous quarter's
-        /// NetLoad is recomputed every cycle and its solar term is replaced by the measurement as
-        /// soon as that quarter closes, so around sunrise it crosses zero repeatedly — and the two
-        /// branches it selects between are NOM and API.
-        /// </summary>
-        private const double NetLoadDeadbandWh = 50.0;
-
         // Guard state has to survive between cycles, otherwise the hysteresis above is a no-op.
         private bool _chargeRoomGuardHeld;
         private bool _chargeTargetGuardHeld;
         private bool _dischargeGuardHeld;
-        private Modes _lastIdleMode = Modes.Unknown;
 
         private string? _lastRebuildReason;
         private DateTime? _lastBuildTime;
@@ -311,14 +302,10 @@ namespace SessyController.Services
         }
 
         public bool HasPlanFor(DateTime quarter) => _planByTime.ContainsKey(quarter);
-        public bool IsNettingActive(DateTime quarter) => _nettingByTime.TryGetValue(quarter, out var n) ? n : true;
 
         // Reuses the settings-changed path: RebuildIfNeededAsync treats a pending reason as a
         // forced rebuild and clears it after one use.
         public void ForceRebuild(string reason) => _configChangedReason = reason;
-
-        public void ApplyRuntimeOverride(DateTime time, Modes mode, double powerW)
-            => _planByTime[time] = new PlanAction { Mode = mode, PowerW = powerW };
 
         public async Task ClearPlanAsync()
         {
@@ -391,15 +378,6 @@ namespace SessyController.Services
             };
         }
 
-        /// <summary>
-        /// Night reserve as a fraction of capacity, default 33%. One definition: the planner uses it
-        /// both as the cap on the reserve and, since v1.0.103, as the floor where the horizon cuts a
-        /// night short, and the dashboard shows it.
-        /// </summary>
-        private double NightCapRatio => !_settingsConfig.UseCalculatedNightReserve
-            ? Math.Clamp(_settingsConfig.FixedNightReservePct, 0.0, 100.0) / 100.0
-            : _settingsConfig.NightReserveCapPct > 0 ? _settingsConfig.NightReserveCapPct / 100.0 : 0.33;
-
         /// <summary>Minimum reserve as a fraction of capacity: the one floor the planner keeps (default 0).</summary>
         private double MinimumReserveRatio => Math.Clamp(_settingsConfig.FixedNightReservePct, 0.0, 100.0) / 100.0;
 
@@ -471,7 +449,6 @@ namespace SessyController.Services
             }
 
             // Plain floor: the planner prices the night itself and the BMS protects the cells.
-            // The calculated night and bridge reserve live on in ApplyCalculatedNightReserve (unused).
             double minimumReserveWh = capWh * MinimumReserveRatio;
 
             foreach (var qi in ordered)
@@ -482,125 +459,6 @@ namespace SessyController.Services
                 _minSocWhByTime[qi.Time] = minimumReserveWh;
                 _maxSocWhByTime[qi.Time] = capWh;
             }
-        }
-
-        /// <summary>
-        /// Superseded: night reserve from the forecast plus the bridge reserve for the predicted-price
-        /// window. No longer called — the planner covers the night itself and carry-forward values
-        /// what is left at the end of the horizon. Kept for reference.
-        /// </summary>
-        private void ApplyCalculatedNightReserve(List<QuarterlyInfo> ordered, double capWh)
-        {
-            double nightCapRatio = NightCapRatio;
-            double reserveSafetyFactor = _settingsConfig.ReserveSafetyFactor > 0
-                ? _settingsConfig.ReserveSafetyFactor
-                : 1.10;
-
-            var netLoads = ordered.Select(q => q.NetLoadWh).ToList();
-
-            for (int i = 0; i < ordered.Count; i++)
-            {
-                var qi = ordered[i];
-
-                // maxSoc = full capacity. The grid-balance solver decides for itself
-                // whether to store solar surplus or export it, so no artificial headroom
-                // is needed — that previously forced pointless early dumping.
-                double maxSocWh = capWh;
-
-                _minSocWhByTime[qi.Time] = ComputeMinSocWh(
-                    netLoads, i, capWh, nightCapRatio, reserveSafetyFactor,
-                    !_settingsConfig.UseCalculatedNightReserve);
-                _maxSocWhByTime[qi.Time] = maxSocWh;
-            }
-
-            // Bridge reserve: at the last known-price quarter, ensure enough SOC to
-            // cover predicted-price window consumption.
-            var lastKnown = ordered.LastOrDefault(q => !q.IsPriceExpected);
-            if (lastKnown != null)
-            {
-                var predictedWindow = _quarterlyInfos
-                    .Where(q => q.IsPriceExpected && q.Time > lastKnown.Time)
-                    .OrderBy(q => q.Time)
-                    .ToList();
-
-                double bridgeWh = 0.0;
-                foreach (var pq in predictedWindow)
-                {
-                    if (pq.NetLoadWh <= 0.0) break;
-                    bridgeWh += pq.NetLoadWh;
-                }
-                bridgeWh *= reserveSafetyFactor;
-
-                if (_minSocWhByTime.TryGetValue(lastKnown.Time, out var existing))
-                    _minSocWhByTime[lastKnown.Time] = Math.Max(existing, bridgeWh);
-                else
-                    _minSocWhByTime[lastKnown.Time] = bridgeWh;
-            }
-        }
-
-        /// <summary>
-        /// Reserve (Wh) the plan has to keep at <paramref name="index"/> to cover the next no-solar
-        /// window. Only what the sun will not deliver first: reserving across a solar window meant
-        /// that at sunrise the battery still held energy for the NEXT evening — a night and a full
-        /// solar day away — so it could not be sold into the evening peak it was sitting in. On
-        /// 06-08 that left 21% in the battery at first light while the evening paid €0,30/kWh.
-        ///
-        /// Static and pure so the reserve can be tested without a database or a clock.
-        /// </summary>
-        /// <param name="netLoadWh">Household load minus solar per quarter, in horizon order.</param>
-        /// <param name="nightCapRatio">Night reserve cap as a fraction of capacity — also the
-        /// learned whole-night need, since PlannerLearningService fits it from measured nights.</param>
-        internal static double ComputeMinSocWh(
-            IReadOnlyList<double> netLoadWh,
-            int index,
-            double capacityWh,
-            double nightCapRatio,
-            double reserveSafetyFactor,
-            bool fixedReserve = false)
-        {
-            // Fixed reserve: hold the configured fraction as a firm floor with the safety surcharge
-            // on top, independent of the night forecast — "this reserve must be used" as set.
-            if (fixedReserve)
-                return Math.Min(capacityWh, capacityWh * nightCapRatio * reserveSafetyFactor);
-
-            double nightReserveWh = 0.0;
-            double solarBeforeWh = 0.0;
-            bool solarSeen = false;
-            bool truncated = true;
-
-            for (int j = index + 1; j < netLoadWh.Count; j++)
-            {
-                double future = netLoadWh[j];
-
-                if (future <= 0.0)
-                {
-                    if (solarSeen && nightReserveWh > 0.0)
-                    {
-                        truncated = false;   // Second solar window = the day after — stop here.
-                        break;
-                    }
-
-                    solarSeen = true;
-                    solarBeforeWh += -future;   // surplus that refills before then
-                    continue;
-                }
-
-                nightReserveWh += future;
-            }
-
-            // The forecast can be wrong, so the safety factor stays on the part that has to
-            // come out of the battery. When the sun covers it all, nothing is held back.
-            double neededWh = Math.Max(0.0, nightReserveWh - solarBeforeWh);
-
-            // The scan ran out of quarters instead of reaching a sunrise: the horizon ends at 23:45
-            // tomorrow, so the night behind it is simply not in the list. Summing what is visible
-            // then reserves a fraction of a night, and at the very last quarter nothing at all —
-            // which let the plan sell the battery down to 3% with a full night still to come.
-            // The learned night need is the better estimate of what the house still draws.
-            if (truncated)
-                neededWh = Math.Max(neededWh, capacityWh * nightCapRatio - solarBeforeWh);
-
-            return Math.Min(neededWh * reserveSafetyFactor, capacityWh * nightCapRatio);
         }
 
         // ── Rebuild logic ────────────────────────────────────────────────────
@@ -761,12 +619,6 @@ namespace SessyController.Services
                     floor = kv.Value;
             return floor;
         }
-
-        /// <summary>Same horizon as StrategyMilpService.BuildMilpPlanAsync. Superseded with PlannerFloorWh.</summary>
-        private DateTime PlanningHorizonEnd(DateTime nowQuarter)
-            => _settingsConfig.PlanningHorizonHours > 0
-                ? nowQuarter.AddHours(_settingsConfig.PlanningHorizonHours)
-                : DateTime.MaxValue;
 
         private static long CalculatePriceSignature(List<QuarterlyInfo> infos)
         {
@@ -977,32 +829,6 @@ namespace SessyController.Services
             => wasHolding ? availableWh < releaseWh : availableWh <= stopWh;
 
         /// <summary>
-        /// Picks between ZeroNetHome (store the surplus, Sessy strategy NOM) and Disabled (battery
-        /// off, Sessy strategy API at 0 W) for a quarter the plan left idle.
-        ///
-        /// Outside the deadband the rule is unchanged. Inside it the sign of the net load carries
-        /// no information, so the previous choice is kept rather than flipping the strategy every
-        /// cycle. Returns Modes.Unknown when neither rule applies — the caller then keeps the plan.
-        /// </summary>
-        internal static Modes SelectIdleMode(
-            double netLoadWh, bool hasRoom, bool belowCycleCost, Modes previous, double deadbandWh,
-            bool planWantsExport = false)
-        {
-            if (Math.Abs(netLoadWh) < deadbandWh &&
-                (previous == Modes.ZeroNetHome || previous == Modes.Disabled))
-                return previous;
-
-            // Surplus with room: store it (ZeroNetHome) unless the plan decided exporting it now
-            // is worth more (planWantsExport, i.e. the planned mode is Disabled). The economic
-            // choice lives in the greedy baseline; here we only honour it.
-            if (netLoadWh < 0.0 && hasRoom) return planWantsExport ? Modes.Disabled : Modes.ZeroNetHome;
-
-            if (netLoadWh >= 0.0 && belowCycleCost) return Modes.Disabled;
-
-            return Modes.Unknown;
-        }
-
-        /// <summary>
         /// Discharge power to ASK the batteries for — the same rule as RequestedChargePowerW, on
         /// the other side. The plan's own power is what the measured capability lets through and
         /// belongs to the SOC path; the setpoint is the request.
@@ -1188,9 +1014,6 @@ namespace SessyController.Services
 
         // ── Runtime action ───────────────────────────────────────────────────
 
-        /// <summary>Off: planned ZeroNetHome/Disabled are no longer remapped at runtime.</summary>
-        private static readonly bool RemapIdleModes = false;
-
         /// <summary>A guard stops the planned flow: hold the energy, store live surplus only.</summary>
         internal static PlanAction HoldAction(QuarterlyInfo? qi)
         {
@@ -1363,65 +1186,7 @@ namespace SessyController.Services
                 return planned;
             }
 
-            // Superseded: the plan is the single truth, ZeroNetHome and Disabled run as planned.
-            // The remap below (ZNH ↔ Disabled on net load and cycle cost) is kept for reference.
-            // ZeroNetHome — choose between ZNH (store surplus) and Disabled (battery off).
-            // Uses the measured NetLoad of the last completed quarter: the current quarter's
-            // forecast can be badly wrong and would wrongly Disable the battery.
-            if (RemapIdleModes && qi != null)
-            {
-                var prevQuarter = _quarterlyInfos
-                    .Where(q => q.Time < nowQuarter)
-                    .OrderByDescending(q => q.Time)
-                    .FirstOrDefault();
-
-                // NetLoad < 0 means solar surplus. Prefer ZeroNetHome so the surplus charges
-                // the battery instead of being exported cheaply. Only fall through to Disabled
-                // when there is a genuine deficit and the sell price is too low to make
-                // discharging worthwhile.
-                double effectiveNetLoadWh = prevQuarter?.NetLoadWh ?? qi.NetLoadWh;
-
-                var previousIdleMode = _lastIdleMode;
-
-                var idleMode = SelectIdleMode(
-                    effectiveNetLoadWh,
-                    socWh < maxSocWh,
-                    qi.SellingPrice < _settingsService.CycleCost,
-                    previousIdleMode,
-                    NetLoadDeadbandWh,
-                    planned.Mode == Modes.Disabled);
-
-                if (idleMode == Modes.ZeroNetHome)
-                {
-                    _lastIdleMode = idleMode;
-
-                    if (planned.Mode != Modes.ZeroNetHome && previousIdleMode != idleMode)
-                        _logger.LogWarning(
-                            $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: PLANNED_MODE_ALREADY_{planned.Mode} " +
-                            $"→ ZERO_NET_HOME_SOLAR_SURPLUS (effectiveNetLoadWh={effectiveNetLoadWh:F0}, socWh={socWh:F0}, maxSocWh={maxSocWh:F0})");
-
-                    var nzh = new PlanAction { Mode = Modes.ZeroNetHome, PowerW = 0 };
-                    qi.SetMode(Modes.ZeroNetHome);
-                    qi.SetPlanPower(0, 0);
-                    return nzh;
-                }
-
-                if (idleMode == Modes.Disabled)
-                {
-                    _lastIdleMode = idleMode;
-
-                    if (previousIdleMode != idleMode)
-                        _logger.LogWarning(
-                            $"GetExecutableAction[{nowQuarter:dd-MM HH:mm}]: PLANNED_MODE_{planned.Mode}_BELOW_CYCLE_COST " +
-                            $"→ Disabled (sellingPrice={qi.SellingPrice:F4}, cycleCost={_settingsService.CycleCost:F4})");
-
-                    var disabled = new PlanAction { Mode = Modes.Disabled, PowerW = 0 };
-                    qi.SetMode(Modes.Disabled);
-                    qi.SetPlanPower(0, 0);
-                    return disabled;
-                }
-            }
-
+            // The plan is the single truth: ZeroNetHome and Disabled run as planned.
             return planned;
         }
 

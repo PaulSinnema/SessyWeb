@@ -22,9 +22,7 @@ namespace SessyWeb.Pages
         [Inject] public InverterMeasurementDataService? _inverterMeasurementDataService { get; set; }
         [Inject] public PlannedQuarterDataService? _plannedQuarterDataService { get; set; }
         [Inject] public SolarService? _solarService { get; set; }
-        [Inject] public TimeZoneService? _timeZoneService { get; set; }
         [Inject] public ICalculationService? _calculationService { get; set; }
-        [Inject] public BatteryContainer? _batteryContainer { get; set; }
         [Inject] FinancialResultsService? _finacialResultsService { get; set; }
         [Inject] private HardwareStatusService? _hardwareStatusService { get; set; }
         [Inject] private EnergySystemStateMachine? _stateMachine { get; set; }
@@ -141,11 +139,6 @@ namespace SessyWeb.Pages
             {
                 // Keep it silent.
             }
-        }
-
-        private async Task _batteriesService_DataChanged()
-        {
-            await UpdateLoop();
         }
 
         /// <summary>
@@ -452,7 +445,7 @@ namespace SessyWeb.Pages
             QuarterlyInfo.ApplySolarSmoothing(listFromBatteryService, windowSize: 12);
             QuarterlyInfo.ApplyConsumptionSmoothing(listFromBatteryService, windowSize: 12);
 
-            double totalCapacityWh = _batteryContainer?.GetTotalCapacity() ?? 0.0;
+            double totalCapacityWh = batteryContainer?.GetTotalCapacity() ?? 0.0;
             double averageSellingPrice = listFromBatteryService.Count > 0 ? listFromBatteryService.Average(qi => qi.SellingPrice) : 0.0;
             double averageBuyingPrice = listFromBatteryService.Count > 0 ? listFromBatteryService.Average(qi => qi.BuyingPrice) : 0.0;
 

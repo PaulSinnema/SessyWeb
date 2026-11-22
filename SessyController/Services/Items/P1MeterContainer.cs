@@ -112,19 +112,6 @@ namespace SessyController.Services.Items
             await _p1MeterService.SetGridTargetAsync(meter.Name!, new GridTargetPost { GridTarget = gridTargetW });
         }
 
-        /// <summary>
-        /// The grid target (W) currently set on the first P1 meter, for display/verification.
-        /// Import +, export -. Null when no meter is configured. Reads silently — no Warning.
-        /// </summary>
-        public async Task<int?> GetFirstMeterGridTargetAsync()
-        {
-            var meter = P1Meters?.FirstOrDefault();
-            if (meter == null) return null;
-
-            var target = await _p1MeterService.GetGridTargetAsync(meter.Name!);
-            return target?.GridTarget;
-        }
-
         // One grid connection = one meter. Warn on none or extras; take the first.
         private P1Meter? FirstMeterOrNull()
         {

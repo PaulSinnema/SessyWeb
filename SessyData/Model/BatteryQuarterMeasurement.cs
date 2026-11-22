@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using SessyCommon;
 
 namespace SessyData.Model
 {
@@ -34,10 +35,10 @@ namespace SessyData.Model
         public double CapacityWh { get; set; }
 
         [NotMapped]
-        public double ChargedKWh => PowerWatts < 0 ? -PowerWatts * 0.25 / 1000.0 : 0.0;
+        public double ChargedKWh => Units.ChargedKWh(PowerWatts);
 
         [NotMapped]
-        public double DischargedKWh => PowerWatts > 0 ? PowerWatts * 0.25 / 1000.0 : 0.0;
+        public double DischargedKWh => Units.DischargedKWh(PowerWatts);
 
         public void Update(BatteryQuarterMeasurement updateInfo)
         {

@@ -1,4 +1,5 @@
 ﻿using SessyWeb.Pages;
+using SessyCommon;
 
 namespace SessyWeb.Services
 {
@@ -28,11 +29,10 @@ namespace SessyWeb.Services
     /// </remarks>
     public sealed class PlanExplanationService
     {
-        private const double QuarterHours = 0.25;
 
         private static string Euro(double v) => $"€{v:0.000}/kWh";
-        private static double ChargeKWh(QuarterlyInfoView q) => q.PlannedChargePowerW * QuarterHours / 1000.0;
-        private static double DischargeKWh(QuarterlyInfoView q) => q.PlannedDischargePowerW * QuarterHours / 1000.0;
+        private static double ChargeKWh(QuarterlyInfoView q) => Units.QuarterKWh(q.PlannedChargePowerW);
+        private static double DischargeKWh(QuarterlyInfoView q) => Units.QuarterKWh(q.PlannedDischargePowerW);
         // PlannedMode ("ZeroNetHome", "HoldReserve") and the display fallback ("Zero net home",
         // "Hold reserve") differ only in spaces and case.
         private static bool Is(QuarterlyInfoView q, string mode) =>
@@ -99,7 +99,7 @@ namespace SessyWeb.Services
 
             // ── Battery off: solar surplus exported straight to the grid ──
             double solarKWh = q.SolarPowerPerQuarterHour;
-            double houseKWh = q.EstimatedConsumptionPerQuarterHour * QuarterHours / 1000.0;
+            double houseKWh = Units.QuarterKWh(q.EstimatedConsumptionPerQuarterHour);
             if (Is(q, "Disabled") && solarKWh <= houseKWh)
                 return new QuarterWhy(
                     "Battery off: its energy went to a more expensive sale earlier, so the house imports here.",

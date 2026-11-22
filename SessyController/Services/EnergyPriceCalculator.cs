@@ -1,4 +1,6 @@
-﻿namespace SessyController.Services
+﻿using SessyData.Model;
+
+namespace SessyController.Services
 {
     /// <summary>
     /// Pure, side-effect-free energy price formulas. Kept separate from CalculationService
@@ -24,6 +26,25 @@
     /// </summary>
     public static class EnergyPriceCalculator
     {
+        /// <summary>Buying price (EUR/kWh) at the given tariffs.</summary>
+        public static double Buy(Taxes taxes, double marketPrice, double overhead = 0.0)
+            => Calculate(marketPrice, overhead, taxes.EnergyTax, taxes.PurchaseCompensation, taxes.VatFactor,
+                         buying: true, netting: taxes.Netting);
+
+        /// <summary>Selling price (EUR/kWh) at the given tariffs, incl. the Zonnebonus in daylight.</summary>
+        public static double Sell(Taxes taxes, double marketPrice, bool isDaylight, double overhead = 0.0)
+            => Calculate(marketPrice, overhead, taxes.EnergyTax, taxes.SignedReturnDeliveryCompensation, taxes.VatFactor,
+                         buying: false, netting: taxes.Netting, taxes.SolarBonusPercentage, isDaylight);
+
+        /// <summary>
+        /// Return compensation incl. the Zonnebonus: while selling in daylight and the market price is positive,
+        /// (marketPrice + compensation) * solarBonusPercentage / 100 is added.
+        /// </summary>
+        public static double SellCompensation(double marketPrice, double compensation, double solarBonusPercentage, bool isDaylight)
+            => isDaylight && marketPrice > 0.0 && solarBonusPercentage > 0.0
+                ? compensation + (marketPrice + compensation) * solarBonusPercentage / 100.0
+                : compensation;
+
         /// <param name="marketPrice">EPEX market price (EUR/kWh).</param>
         /// <param name="overhead">Supplier overhead cost (EUR/kWh), 0 when not included.</param>
         /// <param name="energyTax">Energy tax (EUR/kWh).</param>
@@ -45,10 +66,8 @@
             double solarBonusPercentage = 0.0,
             bool isDaylight = false)
         {
-            // Zonnebonus: a supplier bonus on top of the market price while selling in
-            // daylight, as long as the market price is itself positive.
-            if (!buying && isDaylight && marketPrice > 0.0 && solarBonusPercentage > 0.0)
-                compensation += (marketPrice + compensation) * solarBonusPercentage / 100.0;
+            if (!buying)
+                compensation = SellCompensation(marketPrice, compensation, solarBonusPercentage, isDaylight);
 
             if (buying)
                 return (marketPrice + overhead + energyTax + compensation) * vatFactor;

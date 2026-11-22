@@ -1,4 +1,6 @@
-﻿namespace SessyController.Services.Statistics
+﻿using SessyController.Services.Items;
+
+namespace SessyController.Services.Statistics
 {
     /// <summary>
     /// Expected daily house consumption from the weather and the calendar:
@@ -158,7 +160,7 @@
             }
 
             var rows = days.Select(Row).ToList();
-            var coefficients = LeastSquares(rows, days.Select(d => d.ConsumptionKWh).ToList());
+            var coefficients = Stats.LeastSquares(rows, days.Select(d => d.ConsumptionKWh).ToList());
 
             if (coefficients == null)
                 return null;
@@ -172,58 +174,6 @@
             }
 
             return new Candidate(heatingBase, coolingBase, coefficients, sse);
-        }
-
-        /// <summary>Ordinary least squares via the normal equations; null when they are singular.</summary>
-        public static double[]? LeastSquares(IReadOnlyList<double[]> rows, IReadOnlyList<double> y)
-        {
-            var n = rows[0].Length;
-            var a = new double[n, n + 1];
-
-            for (var r = 0; r < rows.Count; r++)
-            {
-                for (var i = 0; i < n; i++)
-                {
-                    for (var j = 0; j < n; j++)
-                        a[i, j] += rows[r][i] * rows[r][j];
-
-                    a[i, n] += rows[r][i] * y[r];
-                }
-            }
-
-            // Gaussian elimination with partial pivoting.
-            for (var col = 0; col < n; col++)
-            {
-                var pivot = col;
-
-                for (var r = col + 1; r < n; r++)
-                {
-                    if (Math.Abs(a[r, col]) > Math.Abs(a[pivot, col]))
-                        pivot = r;
-                }
-
-                if (Math.Abs(a[pivot, col]) < 1e-9)
-                    return null;
-
-                if (pivot != col)
-                {
-                    for (var j = 0; j <= n; j++)
-                        (a[col, j], a[pivot, j]) = (a[pivot, j], a[col, j]);
-                }
-
-                for (var r = 0; r < n; r++)
-                {
-                    if (r == col)
-                        continue;
-
-                    var factor = a[r, col] / a[col, col];
-
-                    for (var j = col; j <= n; j++)
-                        a[r, j] -= factor * a[col, j];
-                }
-            }
-
-            return Enumerable.Range(0, n).Select(i => a[i, n] / a[i, i]).ToArray();
         }
 
         /// <summary>Mean absolute error in percent over full ISO weeks: the noise band for weekly comparisons.</summary>

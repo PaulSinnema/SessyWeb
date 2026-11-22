@@ -1,6 +1,7 @@
 ﻿using SessyController.Services.Statistics;
 using SessyData.Model;
 using Xunit;
+using SessyController.Services;
 
 namespace SessyTests.Services
 {
@@ -9,7 +10,7 @@ namespace SessyTests.Services
         private static readonly DateTime Day = new(2026, 1, 1);
 
         [Fact]
-        public void QuarterGridDeltas_skips_intervals_longer_than_a_quarter()
+        public void GridDeltas_with_maxInterval_skips_gaps()
         {
             var histories = new[]
             {
@@ -18,7 +19,7 @@ namespace SessyTests.Services
                 new EnergyHistory { Time = Day.AddHours(5), MeterId = "P1", ConsumedTariff1 = 9000 }
             };
 
-            var deltas = CycleHistoryService.QuarterGridDeltas(histories);
+            var deltas = QuarterlyFactsService.GridDeltas(histories, maxInterval: TimeSpan.FromMinutes(15));
 
             var delta = Assert.Single(deltas);
             Assert.Equal(Day.AddMinutes(15), delta.Key);

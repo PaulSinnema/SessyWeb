@@ -3,9 +3,8 @@
 @using SessyController.Services.Items
 @inherits BaseComponent
 
-<RadzenCard>
-    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px" Wrap="FlexWrap.Wrap" Style="margin-bottom: 8px;">
-        <RadzenText TextStyle="TextStyle.H6" Style="margin:0;">📉 Throttling report</RadzenText>
+<StatisticsCard Title="📉 Throttling report" Loading="@Loading" IsEmpty="@(!_report.HasData)">
+    <HeaderContent>
         <RadzenSelectBar @bind-Value="_days" TValue="int" Change="@OnRangeChangedAsync">
             <Items>
                 <RadzenSelectBarItem Text="30d" Value="30" />
@@ -14,8 +13,8 @@
                 <RadzenSelectBarItem Text="All" Value="0" />
             </Items>
         </RadzenSelectBar>
-    </RadzenStack>
-
+    </HeaderContent>
+    <Intro>
     <RadzenText TextStyle="TextStyle.Body2" Style="margin-bottom: 8px;">
         How much power the batteries really deliver when SessyWeb asks for (nearly) full power. Only quarters
         count in which SessyWeb was in control, asked at least 90% of nameplate, and the quarter before was
@@ -26,19 +25,9 @@
         <b>Full charge / discharge</b> is the time a 0-100% pass takes at the measured powers, next to the
         time it would take at nameplate.
     </RadzenText>
-
-    @if (_loading)
-    {
-        <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
-    }
-    else if (!_report.HasData)
-    {
-        <RadzenText TextStyle="TextStyle.Body2" Style="opacity: 0.6;">
-            No full-power quarters in this period.
-        </RadzenText>
-    }
-    else
-    {
+    </Intro>
+    <EmptyContent>No full-power quarters in this period.</EmptyContent>
+    <ChildContent>
         @* ── Summary ─────────────────────────────────────────────── *@
         <RadzenRow Gap="8px" Style="margin-bottom: 8px;">
             <RadzenColumn Size="6" SizeMD="3">
@@ -151,5 +140,5 @@
                 <StatCardComponent Title="Total" Value="@KWh(_loss?.TotalKWh)" />
             </RadzenColumn>
         </RadzenRow>
-    }
-</RadzenCard>
+    </ChildContent>
+</StatisticsCard>

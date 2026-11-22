@@ -22,7 +22,6 @@ namespace SessyWeb.Components
             "period. The darker the square, the higher the load. You see at a glance when the house uses most, for " +
             "example the evening peak or the washing machine on Saturday morning. Hover a square for the exact value.";
 
-        private bool _loading = true;
         private int _days = 90;
         private HeatmapResult? _result;
         private Dictionary<(DayOfWeek, int), HeatmapCell> _cells = new();
@@ -36,18 +35,12 @@ namespace SessyWeb.Components
         {
             if (ConsumptionPatternService == null || _timeZoneService == null) return;
 
-            _loading = true;
-
-            try
+            await WhileLoadingAsync(async () =>
             {
                 var to = _timeZoneService.Now.Date;
                 _result = await Task.Run(() => ConsumptionPatternService.GetHeatmapAsync(to.AddDays(-_days), to)).ConfigureAwait(true);
                 _cells = _result.Cells.ToDictionary(c => (c.Day, c.Hour));
-            }
-            finally
-            {
-                _loading = false;
-            }
+            });
         }
 
         private HeatmapCell? Cell(DayOfWeek day, int hour) => _cells.TryGetValue((day, hour), out var cell) ? cell : null;

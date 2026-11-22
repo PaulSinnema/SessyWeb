@@ -122,7 +122,6 @@ namespace SessyWeb.Pages
         public DateTime Time { get; }
         public bool IsMeasured { get; }
         public bool IsPriceExpected { get; }
-        public int? SessionId => null;
 
         // ── Prices ───────────────────────────────────────────────────────────
         public double BuyingPrice { get; }
@@ -219,7 +218,6 @@ namespace SessyWeb.Pages
             PlannedDischargePowerW > 0 && PlannedUnthrottledPowerW > PlannedDischargePowerW
                 ? PlannedUnthrottledPowerW / 18000.0
                 : PlannedDischargePowerVisual;
-        public double PlannedChargeLeftVisual => PlannedChargeLeftWh / 100000.0;
 
         // Charged's schedule, same scale as the plan series so both overlay directly.
         public double ChargedChargePowerVisual => -(ChargedChargePowerW / 18000.0);
@@ -229,10 +227,8 @@ namespace SessyWeb.Pages
         public double ChargeNeededVisual => ChargeNeeded / 100000.0;
         public double ChargeLeftVisual => ChargeLeft / 100000.0;
 
-        public double EstimatedConsumptionPerQuarterHourVisual => EstimatedConsumptionPerQuarterHour / 5000.0;
         public double SmoothedConsumptionVisual => SmoothedConsumptionPerQuarterHour / 5000.0;
 
-        public double SolarPowerVisual => SolarPowerPerQuarterHour / 2.5;
         public double SmoothedSolarPowerVisual => SmoothedSolarPower / 2.5;
 
         public double ZeroNetHomeVisual =>

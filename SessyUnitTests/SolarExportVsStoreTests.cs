@@ -8,8 +8,7 @@ namespace SessyTests.Services
     /// <summary>
     /// The baseline no longer stores solar surplus unconditionally. It stores only when keeping the
     /// energy for a later quarter beats exporting it now; otherwise the battery stays idle
-    /// (ActionMode.Disabled) and the surplus is exported. This pins that decision down, and the
-    /// matching runtime rule in MilpServiceBase.SelectIdleMode.
+    /// (ActionMode.Disabled) and the surplus is exported. This pins that decision down.
     /// </summary>
     public class SolarExportVsStoreTests
     {
@@ -77,26 +76,6 @@ namespace SessyTests.Services
             Assert.NotEqual(ActionMode.Disabled, first.Mode);
             Assert.True(first.ChargeKW > 1.0,
                 $"cheap morning solar should be stored, but ChargeKW was {first.ChargeKW:F2}");
-        }
-
-        [Fact]
-        public void SelectIdleMode_exports_the_surplus_when_the_plan_wants_it()
-        {
-            var mode = MilpServiceBase.SelectIdleMode(
-                netLoadWh: -400.0, hasRoom: true, belowCycleCost: false,
-                previous: Modes.ZeroNetHome, deadbandWh: 50.0, planWantsExport: true);
-
-            Assert.Equal(Modes.Disabled, mode);
-        }
-
-        [Fact]
-        public void SelectIdleMode_still_stores_the_surplus_by_default()
-        {
-            var mode = MilpServiceBase.SelectIdleMode(
-                netLoadWh: -400.0, hasRoom: true, belowCycleCost: false,
-                previous: Modes.ZeroNetHome, deadbandWh: 50.0, planWantsExport: false);
-
-            Assert.Equal(Modes.ZeroNetHome, mode);
         }
     }
 }

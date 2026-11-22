@@ -1,6 +1,7 @@
 using SessyController.Services.Items;
 using SessyData.Model;
 using SessyData.Services;
+using SessyCommon;
 
 namespace SessyController.Services
 {
@@ -20,6 +21,9 @@ namespace SessyController.Services
     /// measured in the Consumption table and re-derived as an energy balance that left the battery
     /// out altogether, so charging from the grid counted as household load.
     /// </summary>
+    /// <summary>Grid import and export (Wh) between two consecutive readings of one meter.</summary>
+    public readonly record struct GridInterval(DateTime Start, DateTime End, double ImportWh, double ExportWh);
+
     public class QuarterlyFactsService
     {
         private readonly QuarterlyMeasurementDataService _measurementDataService;
@@ -68,27 +72,56 @@ namespace SessyController.Services
         /// handled per meter and then summed, so a second P1 meter no longer differences against
         /// the other one's registers.
         /// </summary>
+        /// <param name="maxInterval">When set, intervals longer than this (gaps) are left out.</param>
         public static Dictionary<DateTime, (double importWh, double exportWh)> GridDeltas(
-            IEnumerable<EnergyHistory> histories)
+            IEnumerable<EnergyHistory> histories, TimeSpan? maxInterval = null)
         {
             var result = new Dictionary<DateTime, (double importWh, double exportWh)>();
 
-            foreach (var perMeter in histories.GroupBy(h => h.MeterId))
+            foreach (var interval in GridIntervals(histories))
             {
-                var ordered = perMeter.OrderBy(h => h.Time).ToList();
+                if (maxInterval.HasValue && interval.End - interval.Start > maxInterval.Value)
+                    continue;
 
-                for (int i = 1; i < ordered.Count; i++)
-                {
-                    var (importWh, exportWh) = GridDelta(ordered[i - 1], ordered[i]);
-                    var time = ordered[i].Time;
-
-                    result.TryGetValue(time, out var running);
-                    result[time] = (running.importWh + importWh, running.exportWh + exportWh);
-                }
+                result.TryGetValue(interval.End, out var running);
+                result[interval.End] = (running.importWh + interval.ImportWh, running.exportWh + interval.ExportWh);
             }
 
             return result;
         }
+
+        /// <summary>
+        /// Every interval between two consecutive readings of the same meter, with its clamped
+        /// import and export. The one place the meter registers are differenced.
+        /// </summary>
+        public static IEnumerable<GridInterval> GridIntervals(IEnumerable<EnergyHistory> histories)
+        {
+            foreach (var perMeter in histories.GroupBy(h => h.MeterId))
+            {
+                EnergyHistory? previous = null;
+
+                foreach (var current in perMeter.OrderBy(h => h.Time))
+                {
+                    if (previous != null)
+                    {
+                        var (importWh, exportWh) = GridDelta(previous, current);
+                        yield return new GridInterval(previous.Time, current.Time, importWh, exportWh);
+                    }
+
+                    previous = current;
+                }
+            }
+        }
+
+        /// <summary>
+        /// One row per quarter: QuarterlyMeasurements has duplicates (see GetAsync), keep the highest Id.
+        /// </summary>
+        public static List<QuarterlyMeasurement> NewestPerQuarter(IEnumerable<QuarterlyMeasurement> rows)
+            => rows
+                .GroupBy(m => m.Time)
+                .Select(g => g.OrderByDescending(m => m.Id).First())
+                .OrderBy(m => m.Time)
+                .ToList();
 
         // ── Assembly ─────────────────────────────────────────────────────────
 
@@ -112,11 +145,7 @@ namespace SessyController.Services
             // is gone — a later EF table rebuild took it with it. The production database has 268
             // duplicate quarters as a result, and every one of them counted its battery energy and
             // its consumption twice. Keep the highest Id: that is the most recently written row.
-            var measurements = rows
-                .GroupBy(m => m.Time)
-                .Select(g => g.OrderByDescending(m => m.Id).First())
-                .OrderBy(m => m.Time)
-                .ToList();
+            var measurements = NewestPerQuarter(rows);
 
             // One quarter of run-up, so the first quarter inside the window has a predecessor to
             // difference against. DateTime.MinValue ("all data") has nothing before it and
@@ -235,28 +264,26 @@ namespace SessyController.Services
         {
             var byQuarter = await GetConsumptionByQuarterAsync(start, end);
 
-            double ToKWh(double averageW) => averageW * 0.25 / 1000.0;
-
             return new ConsumptionTotals
             {
-                TotalKWh = byQuarter.Values.Sum(ToKWh),
+                TotalKWh = byQuarter.Values.Sum(Units.QuarterKWh),
                 MeasuredQuarters = byQuarter.Count,
 
                 PeakDailyKWh = byQuarter
                     .GroupBy(kv => kv.Key.Date)
-                    .Select(g => g.Sum(kv => ToKWh(kv.Value)))
+                    .Select(g => g.Sum(kv => Units.QuarterKWh(kv.Value)))
                     .DefaultIfEmpty(0.0)
                     .Max(),
 
                 WeekdayKWh = byQuarter
                     .Where(kv => kv.Key.DayOfWeek != DayOfWeek.Saturday &&
                                  kv.Key.DayOfWeek != DayOfWeek.Sunday)
-                    .Sum(kv => ToKWh(kv.Value)),
+                    .Sum(kv => Units.QuarterKWh(kv.Value)),
 
                 WeekendKWh = byQuarter
                     .Where(kv => kv.Key.DayOfWeek == DayOfWeek.Saturday ||
                                  kv.Key.DayOfWeek == DayOfWeek.Sunday)
-                    .Sum(kv => ToKWh(kv.Value))
+                    .Sum(kv => Units.QuarterKWh(kv.Value))
             };
         }
 

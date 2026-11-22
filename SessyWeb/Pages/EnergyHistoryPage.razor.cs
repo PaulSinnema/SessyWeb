@@ -5,6 +5,7 @@ using SessyCommon.Services;
 using SessyData.Model;
 using SessyData.Services;
 using System.Linq.Dynamic.Core;
+using SessyWeb.Helpers;
 
 namespace SessyWeb.Pages
 {
@@ -15,9 +16,6 @@ namespace SessyWeb.Pages
 
         [Inject]
         private EnergyHistoryDataService? _energyHistoryService { get; set; }
-
-        [Inject]
-        private TimeZoneService? _timeZoneService { get; set; }
 
         private List<QuarterlyMeasurement>? MeasurementList { get; set; }
         private List<EnergyHistory>? MeterReadingsList { get; set; }
@@ -50,15 +48,10 @@ namespace SessyWeb.Pages
 
                     var query = await Task.FromResult(result);
 
-                    if (!string.IsNullOrEmpty(args.Filter))
-                        query = query.Where(energyGrid!.ColumnsCollection);
+                    var (page, total) = query.ToGridPage(args, energyGrid!);
+                    count = total;
 
-                    if (!string.IsNullOrEmpty(args.OrderBy))
-                        query = query.OrderBy(args.OrderBy);
-
-                    count = query.Count();
-
-                    return query.Skip(args.Skip!.Value).Take(args.Top!.Value).ToList();
+                    return page;
                 });
             }
             finally
@@ -90,15 +83,10 @@ namespace SessyWeb.Pages
 
                     var query = await Task.FromResult(result);
 
-                    if (!string.IsNullOrEmpty(args.Filter))
-                        query = query.Where(meterGrid!.ColumnsCollection);
+                    var (page, total) = query.ToGridPage(args, meterGrid!);
+                    meterCount = total;
 
-                    if (!string.IsNullOrEmpty(args.OrderBy))
-                        query = query.OrderBy(args.OrderBy);
-
-                    meterCount = query.Count();
-
-                    return query.Skip(args.Skip!.Value).Take(args.Top!.Value).ToList();
+                    return page;
                 });
             }
             finally

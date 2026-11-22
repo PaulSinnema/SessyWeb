@@ -54,6 +54,16 @@ namespace SessyController.Services
         /// </summary>
         public bool WeMayDriveTheBatteries => Current is ControlMode.SessyWeb or ControlMode.Manual;
 
+        /// <summary>True (and a warning logged) when a write to the hardware must be refused because someone else drives.</summary>
+        public bool RefusesWrite(ILog log, string action)
+        {
+            if (WeMayDriveTheBatteries)
+                return false;
+
+            log.LogWarning($"{action} refused — {Current} is in control.");
+            return true;
+        }
+
         /// <summary>
         /// True on the cycle where control just moved to Charged from a mode we were driving.
         ///

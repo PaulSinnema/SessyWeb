@@ -17,8 +17,23 @@ namespace SessyWeb.Components
         [Inject]
         public BatteriesService? _batteriesService { get; set; }
 
+        private ScreenInfo? _screenInfo;
+
         [CascadingParameter(Name = "ScreenInfo")]
-        public ScreenInfo? ScreenInfo{ get; set; }
+        public ScreenInfo? ScreenInfo
+        {
+            get => _screenInfo;
+            set
+            {
+                _screenInfo = value;
+
+                if (_screenInfo != null)
+                    ScreenInfoChanged(_screenInfo);
+            }
+        }
+
+        /// <summary>Called when the cascading ScreenInfo arrives or changes.</summary>
+        public virtual void ScreenInfoChanged(ScreenInfo screenInfo) { }
 
         public bool IsManualOverride => _batteriesService!.IsManualOverride;
 
@@ -27,6 +42,24 @@ namespace SessyWeb.Components
         public bool ChargedInControl => _batteriesService!.ChargedInControl;
 
 
+
+        /// <summary>True while WhileLoadingAsync runs; starts true so a page shows its spinner before the first load.</summary>
+        protected bool Loading { get; private set; } = true;
+
+        /// <summary>Runs the work with Loading set, also when it throws.</summary>
+        protected async Task WhileLoadingAsync(Func<Task> work)
+        {
+            Loading = true;
+
+            try
+            {
+                await work().ConfigureAwait(true);
+            }
+            finally
+            {
+                Loading = false;
+            }
+        }
 
         public IFormatProvider GetFormatProvider()
         {

@@ -44,18 +44,8 @@ namespace SessyController.Services
         /// </summary>
         private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(5);
 
-        private HttpClient CreateHttpClient(SessyBatteryEndpoint battery)
-        {
-            if (battery == null) throw new ArgumentNullException(nameof(battery));
-            if (string.IsNullOrWhiteSpace(battery.BaseUrl)) throw new ArgumentNullException(nameof(battery.BaseUrl));
-
-            var client = _httpClientFactory.CreateClient();
-            client.BaseAddress = new Uri(battery.BaseUrl);
-            client.Timeout = RequestTimeout;
-            var authToken = Encoding.ASCII.GetBytes($"{battery.UserId}:{battery.Password}");
-            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(authToken));
-            return client;
-        }
+        private HttpClient CreateHttpClient(string id)
+            => SessyHttp.CreateClient(_httpClientFactory, GetBatteryConfiguration(id), id, RequestTimeout);
 
         /// <summary>
         /// Retrieves the current power status of the battery, including charge state, power metrics, and phase details.
@@ -71,12 +61,8 @@ namespace SessyController.Services
         {
             _logger.LogInformation($"GetPowerStatusAsync({id})");
 
-            SessyBatteryEndpoint battery = GetBatteryConfiguration(id);
-            using var client = CreateHttpClient(battery);
-            var response = await client.GetAsync("/api/v1/power/status").ConfigureAwait(false);
-            response.EnsureSuccessStatusCode();
-            var content = await response.Content.ReadAsStringAsync();
-            return JsonConvert.DeserializeObject<PowerStatus>(content);
+            using var client = CreateHttpClient(id);
+            return await client.GetJsonAsync<PowerStatus>("/api/v1/power/status").ConfigureAwait(false);
         }
 
         /// <summary>
@@ -95,12 +81,8 @@ namespace SessyController.Services
             // Charged or the supplier set (same reasoning as the schedule fetch).
             _logger.LogInformation($"GetActivePowerStrategyAsync({id})");
 
-            SessyBatteryEndpoint battery = GetBatteryConfiguration(id);
-            using var client = CreateHttpClient(battery);
-            var response = await client.GetAsync("/api/v1/power/active_strategy");
-            response.EnsureSuccessStatusCode();
-            var content = await response.Content.ReadAsStringAsync();
-            return JsonConvert.DeserializeObject<ActivePowerStrategy>(content);
+            using var client = CreateHttpClient(id);
+            return await client.GetJsonAsync<ActivePowerStrategy>("/api/v1/power/active_strategy").ConfigureAwait(false);
         }
 
         /// <summary>
@@ -117,20 +99,13 @@ namespace SessyController.Services
         /// </param>
         public async Task SetActivePowerStrategyAsync(string id, ActivePowerStrategy strategy, bool handover = false)
         {
-            if (!handover && !_controlMode.WeMayDriveTheBatteries)
-            {
-                _logger.LogWarning($"SetActivePowerStrategyAsync({id}, {strategy.Strategy}) refused — {_controlMode.Current} is in control.");
+            if (!handover && _controlMode.RefusesWrite(_logger, $"SetActivePowerStrategyAsync({id}, {strategy.Strategy})"))
                 return;
-            }
 
             _logger.LogInformation($"SetActivePowerStrategyAsync({id}, {strategy.Strategy})");
 
-            SessyBatteryEndpoint battery = GetBatteryConfiguration(id);
-            using var client = CreateHttpClient(battery);
-            var json = JsonConvert.SerializeObject(strategy);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
-            var response = await client.PostAsync("/api/v1/power/active_strategy", content);
-            response.EnsureSuccessStatusCode();
+            using var client = CreateHttpClient(id);
+            await client.PostJsonAsync("/api/v1/power/active_strategy", strategy).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -141,20 +116,13 @@ namespace SessyController.Services
         /// <returns>An awaitable Task representing the asynchronous operation.</returns>
         public async Task SetPowerSetpointAsync(string id, PowerSetpoint setpoint)
         {
-            if (!_controlMode.WeMayDriveTheBatteries)
-            {
-                _logger.LogWarning($"SetPowerSetpoint({id}, {setpoint.Setpoint}) refused — {_controlMode.Current} is in control.");
+            if (_controlMode.RefusesWrite(_logger, $"SetPowerSetpoint({id}, {setpoint.Setpoint})"))
                 return;
-            }
 
             _logger.LogInformation($"SetPowerSetpoint({id}, {setpoint.Setpoint})");
 
-            SessyBatteryEndpoint battery = GetBatteryConfiguration(id);
-            using var client = CreateHttpClient(battery);
-            var json = JsonConvert.SerializeObject(setpoint);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
-            var response = await client.PostAsync("/api/v1/power/setpoint", content);
-            response.EnsureSuccessStatusCode();
+            using var client = CreateHttpClient(id);
+            await client.PostJsonAsync("/api/v1/power/setpoint", setpoint).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -166,12 +134,8 @@ namespace SessyController.Services
         {
             _logger.LogInformation($"GetScheduleAsync({id})");
 
-            SessyBatteryEndpoint battery = GetBatteryConfiguration(id);
-            using var client = CreateHttpClient(battery);
-            var response = await client.GetAsync("/api/v2/dynamic/schedule");
-            response.EnsureSuccessStatusCode();
-            var content = await response.Content.ReadAsStringAsync();
-            return JsonConvert.DeserializeObject<SessyScheduleResponse>(content);
+            using var client = CreateHttpClient(id);
+            return await client.GetJsonAsync<SessyScheduleResponse>("/api/v2/dynamic/schedule").ConfigureAwait(false);
         }
 
         /// <summary>

@@ -1,5 +1,6 @@
 ﻿using SessyData.Model;
 using SessyData.Services;
+using SessyController.Services.Items;
 
 namespace SessyController.Services.Statistics
 {
@@ -72,7 +73,7 @@ namespace SessyController.Services.Statistics
             var weeks = nights
                 .GroupBy(n => n.Date.AddDays(-(((int)n.Date.DayOfWeek + 6) % 7)))
                 .Where(g => g.Count() >= MinNightsPerWeek)
-                .Select(g => new BaseLoadWeek(g.Key, Median(g.Select(n => n.W)), g.Count()))
+                .Select(g => new BaseLoadWeek(g.Key, Stats.Median(g.Select(n => n.W)), g.Count()))
                 .OrderBy(w => w.WeekStart)
                 .ToList();
 
@@ -83,7 +84,7 @@ namespace SessyController.Services.Statistics
             double? Window(DateTime end)
             {
                 var window = nights.Where(n => n.Date > end.AddDays(-SummaryNights) && n.Date <= end).Select(n => n.W).ToList();
-                return window.Count > 0 ? Median(window) : null;
+                return window.Count > 0 ? Stats.Median(window) : null;
             }
 
             var yearAgo = last.AddYears(-1);
@@ -91,7 +92,7 @@ namespace SessyController.Services.Statistics
             return new BaseLoadResult(weeks,
                 Window(last),
                 nights[0].Date <= yearAgo.AddDays(-SummaryNights + 1) ? Window(yearAgo) : null,
-                Median(nights.Take(SummaryNights).Select(n => n.W)));
+                Stats.Median(nights.Take(SummaryNights).Select(n => n.W)));
         }
 
         /// <summary>Average load per weekday and hour over the given quarters.</summary>
@@ -108,15 +109,5 @@ namespace SessyController.Services.Statistics
                 cells.Count > 0 ? cells.Max(c => c.AverageW) : 0.0);
         }
 
-        public static double Median(IEnumerable<double> values)
-        {
-            var sorted = values.OrderBy(v => v).ToList();
-
-            if (sorted.Count == 0)
-                return 0.0;
-
-            var middle = sorted.Count / 2;
-            return sorted.Count % 2 == 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2.0;
-        }
     }
 }

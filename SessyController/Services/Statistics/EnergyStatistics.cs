@@ -1,4 +1,6 @@
-﻿namespace SessyController.Services.Statistics
+﻿using SessyCommon.Configurations;
+
+namespace SessyController.Services.Statistics
 {
     /// <summary>
     /// Energy flow statistics for a given period.
@@ -139,14 +141,6 @@
         /// </summary>
         public double PlannedArbitrageProfitEur { get; set; }
 
-        /// <summary>
-        /// Plan execution ratio: realized / planned arbitrage profit (%).
-        /// 100% = perfect execution, lower = losses due to price deviations or mode overrides.
-        /// </summary>
-        public double PlanExecutionRatioPct => PlannedArbitrageProfitEur > 0
-            ? ArbitrageProfitEur / PlannedArbitrageProfitEur * 100.0
-            : 0.0;
-
         /// <summary>Weighted average buy price per kWh (EUR/kWh).</summary>
         public double WeightedAvgBuyPriceEurPerKWh { get; set; }
 
@@ -280,9 +274,6 @@
         /// </summary>
         public bool UsesProjection => DataAvailableFrom > PeriodStart;
 
-        /// <summary>Per-category investment breakdown.</summary>
-        public List<InvestmentCategoryStats> CategoryBreakdown { get; set; } = new();
-
         /// <summary>
         /// Per-investment breakdown — each investment listed individually regardless of group.
         /// Used for the detail table in the UI.
@@ -300,7 +291,6 @@
         public double TotalSubsidyEur { get; set; }
         public double NetAmountEur => TotalAmountEur - TotalSubsidyEur;
         public int ExpectedLifetimeYears { get; set; }
-        public double AnnualDepreciationEur => ExpectedLifetimeYears > 0 ? NetAmountEur / ExpectedLifetimeYears : 0.0;
 
         /// <summary>Installation date of the earliest component in this category.</summary>
         public DateTime InstallationDate { get; set; }
@@ -334,9 +324,6 @@
 
         /// <summary>Description of how savings are calculated.</summary>
         public string SavingsSource { get; set; } = string.Empty;
-
-        /// <summary>Extrapolated battery cycles since installation date (Storage only).</summary>
-        public double BatteryCycles { get; set; }
     }
 
     /// <summary>
@@ -345,6 +332,9 @@
     /// </summary>
     public class HeatPumpStatistics
     {
+        /// <summary>The configured heat pump figures; the annual amounts below read from it.</summary>
+        public HeatPumpConfig Config { get; init; } = new();
+
         /// <summary>Effective gas price used for calculations (EUR/m³).</summary>
         public double GasPriceEurPerM3 { get; set; }
 
@@ -352,22 +342,22 @@
         public bool IsLiveGasPrice { get; set; }
 
         /// <summary>Annual gas consumption before heat pump installation (m³/year).</summary>
-        public double AnnualGasConsumptionM3 { get; set; }
+        public double AnnualGasConsumptionM3 => Config.AnnualGasConsumptionM3;
 
         /// <summary>Annual gas cost saved (EUR/year).</summary>
         public double AnnualGasCostSavedEur { get; set; }
 
         /// <summary>Annual gas standing charge saved (EUR/year).</summary>
-        public double GasStandingChargeEurPerYear { get; set; }
+        public double GasStandingChargeEurPerYear => Config.GasStandingChargeEurPerYear;
 
         /// <summary>Annual heat pump electricity consumption (kWh/year).</summary>
-        public double AnnualElectricityConsumptionKWh { get; set; }
+        public double AnnualElectricityConsumptionKWh => Config.AnnualElectricityConsumptionKWh;
 
         /// <summary>Effective electricity price used for calculations (EUR/kWh).</summary>
-        public double EffectiveElectricityPriceEurPerKWh { get; set; }
+        public double EffectiveElectricityPriceEurPerKWh => Config.EffectiveElectricityPriceEurPerKWh;
 
         /// <summary>Annual electricity cost of the heat pump (EUR/year).</summary>
-        public double AnnualElectricityCostEur { get; set; }
+        public double AnnualElectricityCostEur => Config.AnnualElectricityCostEur;
 
         /// <summary>Net annual savings: gas saved + standing charge - electricity cost (EUR/year).</summary>
         public double NetAnnualSavingsEur { get; set; }

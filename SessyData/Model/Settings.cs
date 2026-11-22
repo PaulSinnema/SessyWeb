@@ -83,17 +83,6 @@ namespace SessyData.Model
 
         // ── Battery planning ─────────────────────────────────────────────────
         /// <summary>
-        /// No longer used (calculated night reserve removed). Was the night reserve cap in % of capacity.
-        /// </summary>
-        public double NightReserveCapPct { get; set; }
-
-        /// <summary>
-        /// No longer used (calculated night reserve removed). Was the switch between the learned
-        /// and the fixed night reserve.
-        /// </summary>
-        public bool UseCalculatedNightReserve { get; set; }
-
-        /// <summary>
         /// Minimum reserve in % of total capacity (0-100): the planner never discharges below it.
         /// Default 0 — the planner covers the night itself and the BMS protects the cells.
         /// </summary>
@@ -272,11 +261,6 @@ namespace SessyData.Model
         public OptimizationStrategy Strategy { get; set; } = OptimizationStrategy.Balanced;
 
         // ── MILP tuning parameters ────────────────────────────────────────────
-
-        /// <summary>
-        /// No longer used (calculated night and bridge reserve removed). Was the safety margin on top.
-        /// </summary>
-        public double ReserveSafetyFactor { get; set; } = 1.10;
 
         /// <summary>
         /// Maximum planning horizon in hours. The solver ignores quarters beyond this

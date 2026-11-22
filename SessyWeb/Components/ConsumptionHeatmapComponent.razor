@@ -3,23 +3,13 @@
 @using Radzen.Blazor
 @inherits BaseComponent
 
-<RadzenCard>
-    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px" Wrap="FlexWrap.Wrap">
-        <RadzenText TextStyle="TextStyle.H6">🗓️ Consumption pattern <InfoTipComponent Text="@HowToRead" /></RadzenText>
+<StatisticsCard Title="🗓️ Consumption pattern" Info="@HowToRead" Loading="@Loading" IsEmpty="@(_result == null || _result.Cells.Count == 0)">
+    <HeaderContent>
         <RadzenDropDown TValue="int" Data="@Periods" TextProperty="Text" ValueProperty="Days"
                         @bind-Value="@_days" Change="@(_ => LoadAsync())" Style="width: 160px;" />
-    </RadzenStack>
-
-    @if (_loading)
-    {
-        <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" class="rz-mt-2" />
-    }
-    else if (_result == null || _result.Cells.Count == 0)
-    {
-        <RadzenText TextStyle="TextStyle.Body1" class="rz-mt-2">No consumption measured in this period.</RadzenText>
-    }
-    else
-    {
+    </HeaderContent>
+    <EmptyContent>No consumption measured in this period.</EmptyContent>
+    <ChildContent>
         <RadzenText TextStyle="TextStyle.Caption" class="rz-mt-1">@RangeText()</RadzenText>
 
         <div style="overflow-x: auto; margin-top: 8px;">
@@ -48,5 +38,5 @@
                 </tbody>
             </table>
         </div>
-    }
-</RadzenCard>
+    </ChildContent>
+</StatisticsCard>

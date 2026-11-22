@@ -31,6 +31,24 @@ namespace SessyData.Model
         /// </summary>
         [NotMapped]
         public double SignedReturnDeliveryCompensation => -ReturnDeliveryCompensation;
+
+        /// <summary>1 + VAT as a fraction (e.g. 1.21).</summary>
+        [NotMapped]
+        public double VatFactor => 1.0 + ValueAddedTax / 100.0;
+
+        /// <summary>The seed row written when the table is empty: the author's Frank Energie contract, excl. VAT.</summary>
+        public static Taxes CreateDefault() => new Taxes
+        {
+            Time = new DateTime(2025, 1, 1, 0, 0, 0),
+            EnergyTax = 0.10154,
+            ValueAddedTax = 21.0,
+            TaxReduction = 524.95,
+            PurchaseCompensation = 0.01504,
+            ReturnDeliveryCompensation = 0.0105,
+            NetManagementCost = 376.6435,
+            FixedTransportFee = 17.9945,
+            CapacityTransportFee = 69.48 // Frank Energie fixed supply fee
+        };
         /// <summary>
         /// Percentage some suppliers (e.g. Zonneplan) pay on top of the market price plus
         /// ReturnDeliveryCompensation for return delivery between sunrise and sunset, while the

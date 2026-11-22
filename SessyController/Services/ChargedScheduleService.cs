@@ -70,9 +70,6 @@ namespace SessyController.Services
         /// <summary>Day the history was last pruned.</summary>
         private DateTime? _lastCleanupDate;
 
-        /// <summary>True when the last fetch produced at least one quarter.</summary>
-        public bool HasSchedule => PowerByQuarter.Count > 0;
-
         /// <summary>
         /// Fetches the schedule from every battery and sums it per quarter. Returns the result and
         /// keeps it, so the UI can read it without triggering hardware calls of its own.

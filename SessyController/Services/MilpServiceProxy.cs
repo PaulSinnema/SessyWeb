@@ -23,14 +23,7 @@ namespace SessyController.Services
             _settings = settings;
         }
 
-        private IMilpService Current => _settings.Current.Strategy switch
-        {
-            OptimizationStrategy.SelfConsumption => _sp.GetRequiredService<SelfConsumptionMilpService>(),
-            OptimizationStrategy.Balanced => _sp.GetRequiredService<BalancedMilpService>(),
-            OptimizationStrategy.BatterySaving => _sp.GetRequiredService<BatterySavingMilpService>(),
-            OptimizationStrategy.ProfitMaximization => _sp.GetRequiredService<ProfitMaximizationMilpService>(),
-            _ => throw new InvalidOperationException($"Wrong strategy {_settings.Current.Strategy}")
-        };
+        private IMilpService Current => _sp.GetRequiredKeyedService<StrategyMilpService>(_settings.Current.Strategy);
 
         public Task BuildPlanAsync(List<QuarterlyInfo> quarterlyInfos, double currentSocWh)
             => Current.BuildPlanAsync(quarterlyInfos, currentSocWh);

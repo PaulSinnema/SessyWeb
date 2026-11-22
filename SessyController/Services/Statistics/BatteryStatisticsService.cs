@@ -1,6 +1,7 @@
 ﻿using SessyController.Services.Items;
 using SessyData.Model;
 using SessyData.Services;
+using SessyCommon.Extensions;
 
 namespace SessyController.Services.Statistics
 {
@@ -17,10 +18,6 @@ namespace SessyController.Services.Statistics
         double CyclesPerYear,
         DateTime? FirstDay)
     {
-        /// <summary>Years until the expected cycles are used at the current pace; null when unknown.</summary>
-        public double? YearsLeft => ExpectedCycles > 0 && CyclesPerYear > 0.0
-            ? Math.Max(0.0, ExpectedCycles - TotalCycles) / CyclesPerYear
-            : null;
     }
 
     /// <summary>Battery use per month: energy in and out, round-trip efficiency and full-cycle equivalents.</summary>
@@ -76,7 +73,7 @@ namespace SessyController.Services.Statistics
             var months = new List<BatteryMonth>();
             var cumulative = 0.0;
 
-            foreach (var month in measurements.GroupBy(m => new DateTime(m.Time.Year, m.Time.Month, 1)).OrderBy(g => g.Key))
+            foreach (var month in measurements.GroupBy(m => m.Time.MonthStart()).OrderBy(g => g.Key))
             {
                 var list = month.ToList();
                 var charged = list.Sum(m => m.BatteryChargedKWh);

@@ -7,7 +7,7 @@ using SessyData.Services;
 
 namespace SessyController.Services
 {
-    public class SessyMonitorService : BackgroundService
+    public class SessyMonitorService : PollingBackgroundService
     {
         private LoggingService<SessyMonitorService> _logger { get; set; }
         private IOptionsMonitor<SessyBatteryConfig> _sessyBatteryConfigMonitor { get; set; }
@@ -25,7 +25,7 @@ namespace SessyController.Services
                                   SettingsService settingsService,
                                   IOptionsMonitor<SessyBatteryConfig> sessyBatteryConfigMonitor,
                                   TimeZoneService timeZoneService,
-                                  IServiceScopeFactory serviceScopeFactory)
+                                  IServiceScopeFactory serviceScopeFactory) : base(logger)
         {
             _logger = logger;
             _sessyBatteryConfigMonitor = sessyBatteryConfigMonitor;
@@ -44,33 +44,11 @@ namespace SessyController.Services
 
         }
 
-        protected override async Task ExecuteAsync(CancellationToken cancelationToken)
-        {
-            _logger.LogWarning("Sessy monitor service started ...");
+        protected override string Name => "Sessy monitor service";
 
-            while (!cancelationToken.IsCancellationRequested)
-            {
-                try
-                {
-                    await Process(cancelationToken);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogException(ex, "An error occurred while monitoring batteries.");
-                }
+        protected override TimeSpan NextDelay() => TimeSpan.FromSeconds(10);
 
-                try
-                {
-                    await Task.Delay(TimeSpan.FromSeconds(10), cancelationToken);
-                }
-                catch (TaskCanceledException)
-                {
-                    // Ignore cancellation exception during delay
-                }
-            }
-
-            _logger.LogWarning("Sessy monitor service started ...");
-        }
+        protected override Task RunCycleAsync(CancellationToken cancellationToken) => Process(cancellationToken);
 
         public async Task Process(CancellationToken cancellationToken)
         {

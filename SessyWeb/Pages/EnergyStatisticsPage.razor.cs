@@ -12,16 +12,19 @@ namespace SessyWeb.Pages
         private EnergyStatisticsService? _statisticsService { get; set; }
 
         [Inject]
-        private TimeZoneService? _timeZoneService { get; set; }
-
-        [Inject]
         private IMilpService? _milpService { get; set; }
 
         [Inject]
         private LoggingService<EnergyStatisticsPage>? _logger { get; set; }
 
+        [Inject]
+        private CycleHistoryService? _cycleHistoryService { get; set; }
+
         // Single source of truth — the entire page binds to this object.
         private DashboardStatistics? Dashboard { get; set; }
+
+        /// <summary>Battery cycles per battery; the one source for cycle counts on this page.</summary>
+        private CycleHistoryResult? Cycles { get; set; }
 
         private bool IsLoading { get; set; } = false;
 
@@ -70,6 +73,8 @@ namespace SessyWeb.Pages
                 // resumes on the dispatcher and blocks every other click for the whole build.
                 Dashboard = await Task.Run(() => _statisticsService!.GetDashboardStatisticsAsync(DateTime.MinValue, DateTime.MaxValue))
                     .ConfigureAwait(true);
+
+                Cycles = await Task.Run(() => _cycleHistoryService!.GetAsync()).ConfigureAwait(true);
             }
             finally
             {

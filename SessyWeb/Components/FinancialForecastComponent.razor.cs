@@ -20,7 +20,6 @@ namespace SessyWeb.Components
             public double? Difference => Replay - LastYear;
         }
 
-        private bool _loading = true;
         private FinancialForecast? _lastYear;
         private FinancialForecast? _nextYear; // only for the tariff year and netting in the intro
         private FinancialForecastSimulation? _replay;
@@ -36,9 +35,7 @@ namespace SessyWeb.Components
         {
             if (FinancialForecastService == null) return;
 
-            _loading = true;
-
-            try
+            await WhileLoadingAsync(async () =>
             {
                 // Off the circuit thread: a year of meter readings.
                 var forecast = await Task.Run(() => FinancialForecastService.GetForecastAsync()).ConfigureAwait(true);
@@ -48,11 +45,7 @@ namespace SessyWeb.Components
                 _replay = SimulationService?.Result;
                 _replayProgress = SimulationService?.ProgressDays;
                 _lines = _lastYear == null ? new() : BuildLines(_lastYear, _replay?.Forecast);
-            }
-            finally
-            {
-                _loading = false;
-            }
+            });
         }
 
         private static List<Line> BuildLines(FinancialForecast last, FinancialForecast? replay) =>

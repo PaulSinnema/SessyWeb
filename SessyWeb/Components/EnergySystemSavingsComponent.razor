@@ -13,23 +13,23 @@
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
             <StatCardComponent Title="Period savings"
-                               Value="@($"€ {Dashboard!.PeriodSavingsEur:F2}")" />
+                               Value="@($"€ {Dashboard!.Period.TotalSavingsEur:F2}")" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
             <StatCardComponent Title="Export revenue"
-                               Value="@($"€ {Dashboard!.GridExportRevenueEur:F2} ({Dashboard.TotalGridExportKWh:F1} kWh)")" />
+                               Value="@($"€ {Dashboard!.Period.GridExportRevenueEur:F2} ({Dashboard.Period.TotalGridExportKWh:F1} kWh)")" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
             <StatCardComponent Title="Arbitrage profit (realized)"
-                               Value="@($"€ {Dashboard!.ArbitrageProfitEur:F2}")" />
+                               Value="@($"€ {Dashboard!.Period.ArbitrageProfitEur:F2}")" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
             <StatCardComponent Title="Arbitrage profit (planned)"
-                               Value="@($"€ {Dashboard!.PlannedArbitrageProfitEur:F2}")" />
+                               Value="@($"€ {Dashboard!.Period.PlannedArbitrageProfitEur:F2}")" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
             <StatCardComponent Title="Buy / sell price (avg)"
-                               Value="@($"€ {Dashboard!.WeightedAvgBuyPriceEurPerKWh:F4} / € {Dashboard.WeightedAvgSellPriceEurPerKWh:F4}/kWh")" />
+                               Value="@($"€ {Dashboard!.Period.WeightedAvgBuyPriceEurPerKWh:F4} / € {Dashboard.Period.WeightedAvgSellPriceEurPerKWh:F4}/kWh")" />
         </RadzenColumn>
         @* Five solar figures. Without an inverter they can only read zero, and self-sufficiency
            measures the share of consumption covered by own production — see DashboardStatistics. *@
@@ -37,30 +37,30 @@
         {
             <RadzenColumn Size="6" SizeMD="3">
                 <StatCardComponent Title="Solar production"
-                                   Value="@($"{Dashboard!.TotalSolarProductionKWh:F1} kWh")" />
+                                   Value="@($"{Dashboard!.Period.TotalSolarProductionKWh:F1} kWh")" />
             </RadzenColumn>
             <RadzenColumn Size="6" SizeMD="3">
                 <StatCardComponent Title="Self-sufficiency"
-                                   Value="@($"{Dashboard!.SelfSufficiencyPct:F1} %")"
+                                   Value="@($"{Dashboard!.Period.SelfSufficiencyPct:F1} %")"
                                    Highlight="true" />
             </RadzenColumn>
             <RadzenColumn Size="6" SizeMD="3">
                 <StatCardComponent Title="Self-consumption"
-                                   Value="@($"{Dashboard!.SelfConsumptionPct:F1} %")"
+                                   Value="@($"{Dashboard!.Period.SelfConsumptionPct:F1} %")"
                                    Highlight="true" />
             </RadzenColumn>
             <RadzenColumn Size="6" SizeMD="3">
                 <StatCardComponent Title="Performance ratio"
-                                   Value="@($"{Dashboard!.SolarPerformanceRatio * 100:F1} %")" />
+                                   Value="@($"{Dashboard!.Period.SolarPerformanceRatio * 100:F1} %")" />
             </RadzenColumn>
             <RadzenColumn Size="6" SizeMD="3">
                 <StatCardComponent Title="Avg / peak daily solar"
-                                   Value="@($"{Dashboard!.AvgDailySolarProductionKWh:F1} / {Dashboard.PeakDailySolarProductionKWh:F1} kWh")" />
+                                   Value="@($"{Dashboard!.Period.AvgDailySolarProductionKWh:F1} / {Dashboard.Period.PeakDailySolarProductionKWh:F1} kWh")" />
             </RadzenColumn>
         }
         <RadzenColumn Size="6" SizeMD="3">
             <StatCardComponent Title="Charged / discharged"
-                               Value="@($"{Dashboard!.TotalBatteryChargedKWh:F1} / {Dashboard.TotalBatteryDischargedKWh:F1} kWh")" />
+                               Value="@($"{Dashboard!.Period.TotalBatteryChargedKWh:F1} / {Dashboard.Period.TotalBatteryDischargedKWh:F1} kWh")" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
             <StatCardComponent Title="Round-trip efficiency (measured)"
@@ -69,11 +69,11 @@
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
             <StatCardComponent Title="Cycles (total / avg per battery)"
-                               Value="@($"{Dashboard!.BatteryCycles:F1} / {Dashboard.AvgCyclesPerBattery:F0}")" />
+                               Value="@($"{Dashboard!.Period.BatteryCycles:F1} / {AvgCyclesPerBattery}")" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
             <StatCardComponent Title="Cycles per day / avg SOC"
-                               Value="@($"{Dashboard!.BatteryCyclesPerDay:F2}/day — {Dashboard.AverageSocPct:F1} %")" />
+                               Value="@($"{Dashboard!.Period.BatteryCyclesPerDay:F2}/day — {Dashboard.Period.AverageSocPct:F1} %")" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
             <StatCardComponent Title="Cycle cost (derived)"
@@ -82,7 +82,7 @@
         </RadzenColumn>
     </RadzenRow>
     <RadzenText TextStyle="TextStyle.Caption" Style="margin-top: 0.75rem; opacity: 0.7;">
-        Annual savings = seasonal monthly averages (all historical data). Period savings = actual measured savings in the selected period (@($"{Dashboard!.PeriodDays:F0}") days).
+        Annual savings = seasonal monthly averages (all historical data). Period savings = actual measured savings in the selected period (@($"{Dashboard!.Period.PeriodDays:F0}") days).
         @if (Dashboard!.SolarIsConfigured)
         {
             <text>Solar and battery are treated as one integrated system.</text>

@@ -9,6 +9,7 @@ using SessyData.Model;
 using SessyData.Services;
 using System.Linq.Dynamic.Core;
 using static SessyWeb.Components.DateChooserComponent;
+using SessyWeb.Helpers;
 
 namespace SessyWeb.Pages
 {
@@ -16,12 +17,6 @@ namespace SessyWeb.Pages
     {
         [Inject]
         private SessyStatusHistoryService? _sessyStatusHistoryService { get; set; }
-
-        [Inject]
-        private TimeZoneService? _timeZoneService { get; set; }
-
-        [Inject]
-        private BatteryContainer? _batteryContainer { get; set; }
 
         public DateArgs? DateSelectionChosen { get; set; }
 
@@ -58,7 +53,7 @@ namespace SessyWeb.Pages
 
             if (firstRender)
             {
-                BatteryNames = _batteryContainer!.Batteries!
+                BatteryNames = batteryContainer!.Batteries!
                     .Select(b => b.GetName())
                     .OrderBy(bn => bn)
                     .ToList();
@@ -86,25 +81,10 @@ namespace SessyWeb.Pages
                 {
                     var query = GetGroupedList(modelContext);
 
-                    if (!string.IsNullOrEmpty(args.Filter))
-                    {
-                        query = query.Where(historyGrid.ColumnsCollection);
-                    }
+                    var (page, total) = query.ToGridPage(args, historyGrid);
+                    count = total;
 
-                    if (!string.IsNullOrEmpty(args.OrderBy))
-                    {
-                        query = query.OrderBy(args.OrderBy);
-                    }
-
-                    count = query.Count();
-
-                    if (args.Skip > count)
-                    {
-                        args.Skip = 0;
-                        historyGrid.CurrentPage = 0;
-                    }
-
-                    return query.Skip(args.Skip!.Value).Take(args.Top!.Value).ToList();
+                    return page;
                 });
             }
             finally
@@ -121,44 +101,12 @@ namespace SessyWeb.Pages
         public IQueryable<GroupedSessyStatus> GetGroupedList(ModelContext modelContext)
         {
             var dateChosen = DateSelectionChosen!.DateChosen!.Value;
-            DateTime start;
-            DateTime end;
+            var (start, end) = PeriodRange.For(DateSelectionChosen.PeriodChosen, dateChosen);
 
-            switch (DateSelectionChosen!.PeriodChosen)
-            {
-                case PeriodsEnums.Day:
-                    start = dateChosen.Date;
-                    end = dateChosen.Date.AddDays(1).AddSeconds(-1);
-                    break;
-
-                case PeriodsEnums.Week:
-                    start = dateChosen.StartOfIsoWeek();
-                    end = dateChosen.EndOfIsoWeek(); ;
-                    break;
-
-                case PeriodsEnums.Month:
-                    start = dateChosen.StartOfMonth();
-                    end = start.EndOfMonth();
-                    break;
-
-                case PeriodsEnums.Year:
-                    start = new DateTime(dateChosen.Year, 1, 1);
-                    end = start.AddYears(1).AddDays(-1);
-                    break;
-
-                case PeriodsEnums.All:
-                    start = DateTime.MinValue;
-                    end = DateTime.MaxValue;
-                    break;
-
-                default:
-                    throw new InvalidOperationException($"Wrong period {DateSelectionChosen!.PeriodChosen}");
-            }
-
-            var battery = _batteryContainer!.Batteries!.SingleOrDefault(b => b.GetName() == selectedBattery);
+            var battery = batteryContainer!.Batteries!.SingleOrDefault(b => b.GetName() == selectedBattery);
 
             return modelContext.SessyStatusHistory
-                .Where(sh => sh.Time >= start && sh.Time <= end && (battery == null || sh.Name == battery.Id))
+                .Where(sh => sh.Time >= start && sh.Time < end && (battery == null || sh.Name == battery.Id))
                 .OrderByDescending(x => x.Time)
                 .ThenBy(x => x.Name)
                 .AsEnumerable() // Stap over naar LINQ-to-Objects
@@ -180,7 +128,7 @@ namespace SessyWeb.Pages
                         {
                             groupedList.Add(new GroupedSessyStatus
                             {
-                                Name = _batteryContainer.GetName(startEntry.Name!),
+                                Name = batteryContainer.GetName(startEntry.Name!),
                                 Status = startEntry.Status,
                                 StatusDetails = startEntry.StatusDetails,
                                 StartTime = endEntry.Time,
@@ -197,7 +145,7 @@ namespace SessyWeb.Pages
                     {
                         groupedList.Add(new GroupedSessyStatus
                         {
-                            Name = _batteryContainer.GetName(startEntry.Name!),
+                            Name = batteryContainer.GetName(startEntry.Name!),
                             Status = startEntry.Status,
                             StatusDetails = startEntry.StatusDetails,
                             StartTime = startEntry.Time,

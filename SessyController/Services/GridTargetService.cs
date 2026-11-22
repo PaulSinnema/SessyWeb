@@ -22,7 +22,7 @@ namespace SessyController.Services
     /// With BatteryControlMethod.BatterySetpoint the grid target stays 0 (ZeroNetHome is still NOM)
     /// and HoldReserve gets an Open API setpoint that follows the solar surplus instead.
     /// </summary>
-    public sealed class GridTargetService : BackgroundService
+    public sealed class GridTargetService : PollingBackgroundService
     {
         private readonly LoggingService<GridTargetService> _logger;
         private readonly EnergySystemStateMachine _stateMachine;
@@ -51,7 +51,7 @@ namespace SessyController.Services
                                  ControlModeService controlMode,
                                  P1MeterContainer p1MeterContainer,
                                  BatteryContainer batteryContainer,
-                                 SettingsService settingsService)
+                                 SettingsService settingsService) : base(logger)
         {
             _logger = logger;
             _stateMachine = stateMachine;
@@ -61,33 +61,11 @@ namespace SessyController.Services
             _settingsService = settingsService;
         }
 
-        protected override async Task ExecuteAsync(CancellationToken cancellationToken)
-        {
-            _logger.LogWarning("GridTargetService started ...");
+        protected override string Name => "GridTargetService";
 
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                try
-                {
-                    await ApplyForCurrentActionAsync().ConfigureAwait(false);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogException(ex, "Error refreshing the P1 grid target.");
-                }
+        protected override TimeSpan NextDelay() => TimeSpan.FromSeconds(5);
 
-                try
-                {
-                    await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(false);
-                }
-                catch (TaskCanceledException)
-                {
-                    // Ignore cancellation during delay.
-                }
-            }
-
-            _logger.LogWarning("GridTargetService stopped.");
-        }
+        protected override Task RunCycleAsync(CancellationToken cancellationToken) => ApplyForCurrentActionAsync();
 
         /// <summary>
         /// Compute and post the grid target for the mode/power currently in CurrentAction.

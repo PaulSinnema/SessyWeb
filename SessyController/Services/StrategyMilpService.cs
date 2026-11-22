@@ -11,16 +11,15 @@ using SessyData.Services;
 namespace SessyController.Services
 {
     /// <summary>
-    /// Generic strategy-based MILP service.
-    /// Eliminates code duplication: all concrete strategy services share
-    /// the same BuildMilpPlanAsync implementation, differing only in strategy.
+    /// The MILP planner for one optimisation strategy. One instance per strategy is registered
+    /// as a keyed singleton (key: OptimizationStrategy); MilpServiceProxy picks the current one.
     /// </summary>
-    public abstract class StrategyMilpService : MilpServiceBase
+    public sealed class StrategyMilpService : MilpServiceBase
     {
         private readonly IBatteryOptimizationStrategy _strategy;
         private readonly BatteryEfficiencyService _batteryEfficiencyService;
 
-        protected StrategyMilpService(
+        public StrategyMilpService(
             IBatteryOptimizationStrategy strategy,
             LoggingService<MilpServiceBase> logger,
             SettingsService settingsService,
@@ -284,7 +283,7 @@ namespace SessyController.Services
                     _timeZoneService.Now, message => _logger.LogWarning(message));
 
                 var sw = System.Diagnostics.Stopwatch.StartNew();
-                var result = await _strategy.SolveAsync(context).ConfigureAwait(false); PlannerShadow.Compare(context, result, _timeZoneService.Now, m => _logger.LogWarning(m));
+                var result = await _strategy.SolveAsync(context).ConfigureAwait(false);
                 sw.Stop();
 
                 return ApplySolveResult(result, sw.ElapsedMilliseconds, quarters.Count, socKWh);
@@ -294,39 +293,6 @@ namespace SessyController.Services
                 _logger.LogError($"{GetType().Name}.BuildMilpPlanAsync failed: {ex.ToDetailedString()}");
                 return false;
             }
-        }
-
-        /// <summary>
-        /// Superseded: per-temperature bucket caps, replaced by PowerLimits (one place for the
-        /// power limits). No longer called. Kept for reference.
-        /// </summary>
-        private (double? ChargeKW, double? DischargeKW) LegacyBucketCaps(
-            IReadOnlyList<ThrottleBucket> throttleBuckets, double? temp, double maxChargeKW, double maxDischargeKW,
-            ChargeTaper chargeTaper, DischargeCapability dischargeCapability, double throttleFallback)
-        {
-            double? qMaxChargeKW = null;
-            double? qMaxDischargeKW = null;
-
-            if (temp.HasValue)
-            {
-                if (dischargeCapability.Samples == 0)
-                {
-                    if (!_throttleAnalysisService.TryGetDischargeRatio(throttleBuckets, temp.Value, out double dischargeRatio))
-                        dischargeRatio = throttleFallback;
-
-                    qMaxDischargeKW = maxDischargeKW * dischargeRatio;
-                }
-
-                if (chargeTaper.Samples == 0)
-                {
-                    if (!_throttleAnalysisService.TryGetChargeRatio(throttleBuckets, temp.Value, out double chargeRatio))
-                        chargeRatio = throttleFallback;
-
-                    qMaxChargeKW = maxChargeKW * chargeRatio;
-                }
-            }
-
-            return (qMaxChargeKW, qMaxDischargeKW);
         }
 
         /// <summary>Length of the heat build-up window used by the charge taper.</summary>

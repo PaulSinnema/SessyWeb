@@ -17,8 +17,6 @@ namespace SessyWeb.Pages
     public partial class ConsumptionPage : PageBase
     {
         [Inject]
-        private TimeZoneService? _timeZoneService { get; set; }
-        [Inject]
         private ConsumptionDataService? _consumptionDataService { get; set; }
         [Inject]
         private ConsumptionMonitorService? _consumptionMonitorService { get; set; }

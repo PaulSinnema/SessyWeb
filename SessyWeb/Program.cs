@@ -21,6 +21,7 @@ using SessyData.Helpers;
 using SessyData.Model;
 using SessyData.Services;
 using SessyWeb.Controllers;
+using SessyController.Services.Optimization.Strategies;
 
 AppDomain.CurrentDomain.UnhandledException += (sender, eventArgs) =>
 {
@@ -65,6 +66,10 @@ else
 {
     Console.WriteLine("⚠️ Warning: appsettings.json missing!");
 }
+
+// Registers the planner for one strategy under its OptimizationStrategy key.
+void AddStrategyPlanner(OptimizationStrategy strategy) =>
+    builder.Services.AddKeyedSingleton(strategy, (sp, _) => ActivatorUtilities.CreateInstance<StrategyMilpService>(sp, (IBatteryOptimizationStrategy)GreedyStrategy.For(strategy)));
 
 static void RemoveBuiltInAppSettings(IConfigurationBuilder configuration)
 {
@@ -120,7 +125,6 @@ builder.Services.AddTransient<Battery>();
 // What this installation has (solar, …) so the UI can leave out what does not apply.
 builder.Services.AddSingleton<SystemCapabilitiesService>();
 
-builder.Services.AddScoped<ConfigurationService>();
 builder.Services.AddScoped<SessyService>();
 builder.Services.AddScoped<SolarService>();
 builder.Services.AddScoped<TcpClientProvider>();
@@ -172,10 +176,9 @@ builder.Services.AddSingleton<WeatherService>();
 builder.Services.AddSingleton<EPEXPricesService>();
 builder.Services.AddSingleton<GasPriceService>();
 builder.Services.AddSingleton<IGasPriceService>(sp => sp.GetRequiredService<GasPriceService>());
-builder.Services.AddSingleton<ProfitMaximizationMilpService>();
-builder.Services.AddSingleton<SelfConsumptionMilpService>();
-builder.Services.AddSingleton<BalancedMilpService>();
-builder.Services.AddSingleton<BatterySavingMilpService>();
+// One planner per strategy, resolved by MilpServiceProxy from Settings.Strategy.
+foreach (var strategy in Enum.GetValues<OptimizationStrategy>())
+    AddStrategyPlanner(strategy);
 builder.Services.AddSingleton<IMilpService, MilpServiceProxy>();
 builder.Services.AddSingleton<ConfigurationCheckService>();
 // ── State machine ─────────────────────────────────────────────────────────
@@ -221,13 +224,11 @@ builder.Services.AddSingleton<SolarInverterManager>();
 builder.Services.AddSingleton<InverterCurtailmentService>();
 
 // For now only the SolarEdge inverter is implemented (for obvious reasons :-), I don't have the other inverters.
-builder.Services.AddSingleton<ISolarInverterService, SolarEdgeInverterService>();
-// These are not implemented yet, but the interfaces are there for future use.
-builder.Services.AddSingleton<ISolarInverterService, EnphaseInverterService>();
-builder.Services.AddSingleton<ISolarInverterService, GoodWeInverterService>();
-builder.Services.AddSingleton<ISolarInverterService, HuaweiInverterService>();
-builder.Services.AddSingleton<ISolarInverterService, SungrowInverterService>();
-builder.Services.AddSingleton<ISolarInverterService, VictronInverterService>();
+builder.Services.AddSingleton<ISolarInverterService>(sp => sp.GetRequiredService<SolarEdgeInverterService>());
+// Modbus-only providers: the generic SunSpec reader under the provider name used in the config.
+foreach (var provider in new[] { "Enphase", "GoodWe", "Huawei", "Sungrow", "Victron" })
+    builder.Services.AddSingleton<ISolarInverterService>(sp => ActivatorUtilities.CreateInstance<SunspecInverterService>(
+        sp, sp.GetRequiredService<LoggingService<SunspecInverterService>>(), provider));
 // Reads PV from the Sessy batteries themselves — for households whose inverter cannot be read.
 builder.Services.AddSingleton<SessyInverterService>();
 builder.Services.AddSingleton<ISolarInverterService>(provider => provider.GetRequiredService<SessyInverterService>());
@@ -242,7 +243,6 @@ builder.Services.AddHostedService(provider => provider.GetRequiredService<GridTa
 builder.Services.AddHostedService(provider => provider.GetRequiredService<WeatherService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<SessyMonitorService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<EnergyMonitorService>());
-builder.Services.AddHostedService(provider => provider.GetRequiredService<P1MeterService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<SolarInverterManager>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<ConsumptionMonitorService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<DatabaseBackupService>());

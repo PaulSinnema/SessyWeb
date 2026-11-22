@@ -1,5 +1,6 @@
 ﻿using SessyCommon.Enums;
 using static SessyController.Services.Items.ChargingModes;
+using SessyCommon;
 
 namespace SessyController.Services.Items
 {
@@ -61,15 +62,11 @@ namespace SessyController.Services.Items
         /// convention of the Consumption table is converted — readers used to do it themselves,
         /// some with * 0.25, some with / 4, and one not at all.
         /// </summary>
-        public double ConsumptionKWh => ConsumptionAverageW * 0.25 / 1000.0;
+        public double ConsumptionKWh => Units.QuarterKWh(ConsumptionAverageW);
 
-        public double BatteryChargedKWh => BatteryPowerWatts < 0
-            ? Math.Abs(BatteryPowerWatts) * 0.25 / 1000.0
-            : 0.0;
+        public double BatteryChargedKWh => Units.ChargedKWh(BatteryPowerWatts);
 
-        public double BatteryDischargedKWh => BatteryPowerWatts > 0
-            ? BatteryPowerWatts * 0.25 / 1000.0
-            : 0.0;
+        public double BatteryDischargedKWh => Units.DischargedKWh(BatteryPowerWatts);
 
         /// <summary>
         /// Economic value (EUR) of this quarter's battery discharge. Self-consumed energy

@@ -2,17 +2,12 @@
 using SessyController.Services;
 using SessyController.Services.Items;
 using SessyWeb.Helpers;
+using SessyWeb.Components;
 
 namespace SessyWeb.Pages
 {
-    public class PageBase : ComponentBase, IDisposable
+    public class PageBase : BaseComponent, IDisposable
     {
-        [Inject]
-        public BatteryContainer? batteryContainer { get; set; }
-
-        [Inject]
-        public BatteriesService? _batteriesService { get; set; }
-
         [Inject]
         public SystemCapabilitiesService? _capabilities { get; set; }
 
@@ -24,23 +19,6 @@ namespace SessyWeb.Pages
 #else
         public bool HideId = true;
 #endif
-
-        private ScreenInfo? _screenInfo;
-
-        [CascadingParameter(Name = "ScreenInfo")]
-        public ScreenInfo? ScreenInfo
-        {
-            get => _screenInfo;
-            set
-            {
-                _screenInfo = value;
-
-                if (_screenInfo != null)
-                {
-                    ScreenInfoChanged(_screenInfo);
-                }
-            }
-        }
 
         [CascadingParameter]
         public Action<bool> SetIsBusy { get; set; } = default!;
@@ -54,17 +32,7 @@ namespace SessyWeb.Pages
             }
         }
 
-        public virtual void ScreenInfoChanged(ScreenInfo screenInfo) { }
-
         public bool IsComponentActive { get; internal set; } = false;
-
-        public bool IsManualOverride => _batteriesService!.IsManualOverride;
-
-        public bool WeAreInControl => _batteriesService!.WeAreInControl;
-
-        public bool ChargedInControl => _batteriesService!.ChargedInControl;
-
-
 
         protected override void OnInitialized()
         {
@@ -81,11 +49,6 @@ namespace SessyWeb.Pages
 
                 _isDisposed = true;
             }
-        }
-
-        public IFormatProvider GetFormatProvider()
-        {
-            return new System.Globalization.CultureInfo("nl-NL");
         }
     }
 }

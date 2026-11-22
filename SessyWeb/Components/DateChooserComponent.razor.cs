@@ -3,6 +3,7 @@ using SessyCommon.Extensions;
 using Radzen.Blazor.Rendering;
 using SessyCommon.Services;
 using System.ComponentModel.DataAnnotations;
+using SessyWeb.Helpers;
 
 namespace SessyWeb.Components
 {
@@ -186,7 +187,7 @@ namespace SessyWeb.Components
                     break;
 
                 case PeriodsEnums.Month:
-                    DateFromChosen = new DateTime(date.Year, date.Month, 1);
+                    DateFromChosen = date.MonthStart();
                     break;
 
                 case PeriodsEnums.Year:
@@ -253,28 +254,13 @@ namespace SessyWeb.Components
                     switch (PeriodChosen)
                     {
                         case PeriodsEnums.Day:
-                            Start = DateChosen.Value.Date;
-                            End = DateChosen.Value.Date.AddDays(1).AddSeconds(-1);
-                            break;
-
                         case PeriodsEnums.Week:
-                            Start = DateChosen.Value.StartOfIsoWeek();
-                            End = DateChosen.Value.EndOfIsoWeek();
-                            break;
-
                         case PeriodsEnums.Month:
-                            Start = DateChosen.Value.StartOfMonth();
-                            End = DateChosen.Value.EndOfMonth();
-                            break;
-
                         case PeriodsEnums.Year:
-                            Start = new DateTime(DateChosen.Value.Year, 1, 1).Date;
-                            End = Start.Value.AddYears(1).AddSeconds(-1);
-                            break;
-
                         case PeriodsEnums.All:
-                            Start = DateTime.MinValue;
-                            End = DateTime.MaxValue;
+                            var range = PeriodRange.For(PeriodChosen, DateChosen.Value);
+                            Start = range.Start;
+                            End = range.End;
                             break;
 
                         case PeriodsEnums.Custom:

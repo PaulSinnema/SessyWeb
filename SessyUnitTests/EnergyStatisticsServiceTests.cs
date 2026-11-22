@@ -731,7 +731,7 @@ namespace SessyTests.Services
             var result = await _sut.GetInvestmentStatisticsAsync();
 
             Assert.Equal(0.0, result.TotalNetInvestmentEur);
-            Assert.Empty(result.CategoryBreakdown);
+            Assert.Empty(result.ComponentBreakdown);
         }
 
         // ── Monthly trend tests ──────────────────────────────────────────────
@@ -962,7 +962,7 @@ namespace SessyTests.Services
                     y.Add(2.0 - 0.5 * x1 + 0.25 * x2);
                 }
 
-            var beta = ThrottleAnalysisService.SolveLeastSquares(design, y);
+            var beta = Stats.LeastSquares(design, y);
 
             Assert.NotNull(beta);
             Assert.Equal(2.0, beta![0], 6);
@@ -993,8 +993,8 @@ namespace SessyTests.Services
                 weights.Add(1.0);           // recent regime, full weight
             }
 
-            var unweighted = ThrottleAnalysisService.SolveLeastSquares(design, y);
-            var weighted = ThrottleAnalysisService.SolveLeastSquares(design, y, weights);
+            var unweighted = Stats.LeastSquares(design, y);
+            var weighted = Stats.LeastSquares(design, y, weights);
 
             Assert.NotNull(unweighted);
             Assert.NotNull(weighted);
@@ -1022,7 +1022,7 @@ namespace SessyTests.Services
                 y.Add(i * 0.5);
             }
 
-            Assert.Null(ThrottleAnalysisService.SolveLeastSquares(design, y));
+            Assert.Null(Stats.LeastSquares(design, y));
         }
 
         [Fact]
@@ -1042,7 +1042,7 @@ namespace SessyTests.Services
                 .Select(r => 1.054 - 0.535 * r[1] - 0.0237 * r[2] - 0.0152 * r[3])
                 .ToList();
 
-            var beta = ThrottleAnalysisService.SolveLeastSquares(design, y);
+            var beta = Stats.LeastSquares(design, y);
 
             Assert.NotNull(beta);
             Assert.Equal(1.054, beta![0], 4);

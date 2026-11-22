@@ -38,7 +38,7 @@
                         <RadzenRow Gap="12px" RowGap="12px" AlignItems="AlignItems.Stretch">
 
                             <RadzenColumn Size="12" class="rz-display-flex">
-                                <ReturnOnInvestmentComponent Dashboard="@Dashboard" />
+                                <ReturnOnInvestmentComponent Dashboard="@Dashboard" Cycles="@Cycles" />
                             </RadzenColumn>
 
                             @if (Dashboard.HeatPumpIsConfigured)
@@ -49,7 +49,7 @@
                             }
 
                             <RadzenColumn Size="12" class="rz-display-flex">
-                                <EnergySystemSavingsComponent Dashboard="@Dashboard" />
+                                <EnergySystemSavingsComponent Dashboard="@Dashboard" Cycles="@Cycles" />
                             </RadzenColumn>
 
                             @if (Dashboard.Plan != null)

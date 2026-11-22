@@ -34,12 +34,12 @@ namespace SessyTests.Services
 
             using (var settings = connection.CreateCommand())
             {
-                settings.CommandText = "select FixedNightReservePct, UseCalculatedNightReserve, ManualOverride, ShiftDischargeEnabled from Settings";
+                settings.CommandText = "select FixedNightReservePct, ManualOverride, ShiftDischargeEnabled from Settings";
                 try
                 {
                     using var r = settings.ExecuteReader();
                     while (r.Read())
-                        _output.WriteLine($"Settings: reserve {r.GetValue(0)}% calc {r.GetValue(1)} manual {r.GetValue(2)} shift {r.GetValue(3)}");
+                        _output.WriteLine($"Settings: reserve {r.GetValue(0)}% manual {r.GetValue(1)} shift {r.GetValue(2)}");
                 }
                 catch (Exception ex) { _output.WriteLine("Settings: " + ex.Message); }
             }

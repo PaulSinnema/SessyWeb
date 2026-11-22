@@ -1,4 +1,5 @@
 ﻿using SessyController.Services.Items;
+using SessyCommon.Extensions;
 
 namespace SessyController.Services.Statistics
 {
@@ -83,7 +84,7 @@ namespace SessyController.Services.Statistics
         /// <summary>Discharge-weighted monthly averages.</summary>
         public static List<PriceCaptureMonth> Months(IEnumerable<PriceCaptureDay> days) =>
             days
-                .GroupBy(d => new DateTime(d.Date.Year, d.Date.Month, 1))
+                .GroupBy(d => d.Date.MonthStart())
                 .OrderBy(g => g.Key)
                 .Select(g =>
                 {

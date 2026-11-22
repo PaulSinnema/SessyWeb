@@ -118,27 +118,11 @@ namespace SessyController.Services.Items
         }
 
         /// <summary>
-        /// Get the total charging capacity for all batteries per quarter.
-        /// </summary>
-        public double GetChargingCapacityInWattsPerQuarter()
-        {
-            return Batteries!.Sum(bat => bat.GetMaxCharge()) / 4.0;
-        }
-
-        /// <summary>
         /// Get the total discharging capacity for all batteries per hour.
         /// </summary>
         public double GetDischargingCapacityInWattsPerHour()
         {
             return Batteries!.Sum(bat => bat.GetMaxDischarge());
-        }
-
-        /// <summary>
-        /// Get the total discharging capacity for all batteries per quarter.
-        /// </summary>
-        public double GetDischargingCapacityInWattsPerQuarter()
-        {
-            return Batteries!.Sum(bat => bat.GetMaxDischarge()) / 4.0;
         }
 
         /// <summary>

@@ -1,0 +1,35 @@
+﻿@using Radzen
+@using Radzen.Blazor
+
+<RadzenCard>
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px" Wrap="FlexWrap.Wrap">
+        <RadzenText TextStyle="TextStyle.H6" Style="margin: 0;">
+            @Title
+            @if (!string.IsNullOrEmpty(Info))
+            {
+                <InfoTipComponent Text="@Info" />
+            }
+        </RadzenText>
+        @if (OnRefresh.HasDelegate)
+        {
+            <RadzenButton Icon="refresh" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                          Click="@OnRefresh" title="@RefreshTitle" />
+        }
+        @HeaderContent
+    </RadzenStack>
+
+    @Intro
+
+    @if (Loading)
+    {
+        <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" class="rz-mt-2" />
+    }
+    else if (IsEmpty)
+    {
+        <RadzenText TextStyle="TextStyle.Body1" class="rz-mt-2">@EmptyContent</RadzenText>
+    }
+    else
+    {
+        @ChildContent
+    }
+</RadzenCard>

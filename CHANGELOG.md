@@ -11,6 +11,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.196] — 2026-11-22
+
+Code clean-up: duplicate routines made generic, duplicate properties merged, dead code removed. Most of it is
+invisible; what you may notice:
+
+### Fixed
+- **Financial forecast and simulation now include the Zonnebonus** on daytime export, like the rest of the app.
+- **EPEX prices, status history and financial results for a week or month** now cover the whole period. Some
+  pages stopped at Sunday 00:00 or at the last day of the month 00:00, or skipped 31 December.
+- **Statistics, Return on Investment:** the heat-pump savings basis showed a fixed 950 m³ instead of the
+  configured gas consumption.
+- **SolarEdge** was created twice (once for the batteries, once for the inverter manager); it is now one instance.
+
+### Changed
+- **Statistics: battery cycles per battery** (Energy system card and the *Battery cycles* column under Return on
+  Investment) now come from the full-cycle history, the same numbers as on the Battery tab, instead of a
+  separate extrapolation.
+- Log lines of the Modbus inverters now name the brand instead of always saying "SolarEdge".
+
+### Removed
+- The hidden pages `/investment`, `/investmentgroups`, `/taxes` and `/control`; the same grids are tabs on
+  Settings.
+- The settings of the old calculated night reserve (`UseCalculatedNightReserve`, `NightReserveCapPct`,
+  `ReserveSafetyFactor`); a migration drops the columns at startup. They had no effect since v1.0.160.
+- The DP shadow comparison that ran on every plan and wrote a Warning every 15 minutes.
+- The idle P1 meter background loop (it did nothing).
+
 ## [v1.0.195] — 2026-11-16
 
 ### Fixed

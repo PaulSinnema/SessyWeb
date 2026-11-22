@@ -2,6 +2,7 @@
 using SessyController.Services;
 using SessyController.Services.Items;
 using SessyController.Services.Optimization;
+using SessyCommon;
 
 namespace SessyWeb.Components
 {
@@ -37,10 +38,7 @@ namespace SessyWeb.Components
             public double DischargeNameplateW { get; init; }
         }
 
-        private const double QuarterHours = 0.25;
-
         private List<PowerPoint> _points = new();
-        private bool _loading = true;
         private double _temperatureC;
         private string _chargeSource = string.Empty;
         private string _dischargeSource = string.Empty;
@@ -65,11 +63,10 @@ namespace SessyWeb.Components
             if (ThrottleAnalysisService == null || BatteryEfficiencyService == null || SettingsService == null
                 || WeatherService == null || batteryContainer == null || _timeZoneService == null) return;
 
-            _loading = true;
-            StateHasChanged();
-
-            try
+            await WhileLoadingAsync(async () =>
             {
+                StateHasChanged();
+
                 double chargeNameplateW = batteryContainer.GetChargingCapacityInWattsPerHour();
                 double dischargeNameplateW = batteryContainer.GetDischargingCapacityInWattsPerHour();
                 double maxChargeKW = chargeNameplateW / 1000.0;
@@ -83,14 +80,14 @@ namespace SessyWeb.Components
                 var efficiency = await BatteryEfficiencyService.GetEfficiencyCurveAsync();
 
                 double fallback = PowerLimits.FallbackRatio(SettingsService.Current.ThrottleFallbackPct);
-                double chargeCapKWh = PowerLimits.BaseChargeKW(maxChargeKW, taper, fallback) * QuarterHours;
-                double dischargeCapKWh = PowerLimits.BaseDischargeKW(maxDischargeKW, dischargeCapability, fallback) * QuarterHours;
+                double chargeCapKWh = PowerLimits.BaseChargeKW(maxChargeKW, taper, fallback) * Units.QuarterHours;
+                double dischargeCapKWh = PowerLimits.BaseDischargeKW(maxDischargeKW, dischargeCapability, fallback) * Units.QuarterHours;
 
-                double ChargeW(double soc, double tempC) => Math.Round(PowerLimits.ChargeKWh(chargeCapKWh, soc, QuarterHours,
-                    maxChargeKW, chargeCapability, taper, floor, efficiency, tempC, tempC) / QuarterHours * 1000.0);
+                double ChargeW(double soc, double tempC) => Math.Round(PowerLimits.ChargeKWh(chargeCapKWh, soc, Units.QuarterHours,
+                    maxChargeKW, chargeCapability, taper, floor, efficiency, tempC, tempC) / Units.QuarterHours * 1000.0);
 
                 double DischargeW(double soc, double tempC) => Math.Round(PowerLimits.DischargeKWh(dischargeCapKWh, soc,
-                    QuarterHours, dischargeCapability, tempC) / QuarterHours * 1000.0);
+                    Units.QuarterHours, dischargeCapability, tempC) / Units.QuarterHours * 1000.0);
 
                 _temperatureC = WeatherService.GetTemperature(_timeZoneService.Now) ?? ChargeTaper.RefTemperatureC;
 
@@ -130,12 +127,9 @@ namespace SessyWeb.Components
                 _dischargeTemperatureText = dischargeCapability.HasTemperatureSlope
                     ? SlopeText(dischargeCapability.TemperatureSlopeWPerC, dischargeCapability.MinTemperatureC, dischargeCapability.MaxTemperatureC)
                     : "no temperature effect measured yet";
-            }
-            finally
-            {
-                _loading = false;
-                StateHasChanged();
-            }
+            });
+
+            StateHasChanged();
         }
 
         private static string SlopeText(double slopeWPerC, double minC, double maxC)

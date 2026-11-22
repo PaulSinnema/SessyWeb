@@ -20,7 +20,6 @@ namespace SessyWeb.Components
 
         // 0 = whole history.
         private int _days = 30;
-        private bool _loading = true;
         private ThrottleReport _report = ThrottleReport.Empty;
         private double? _roundTrip;
         private CycleLoss? _loss;
@@ -42,11 +41,10 @@ namespace SessyWeb.Components
         {
             if (ThrottleAnalysisService == null || BatteryEfficiencyService == null || batteryContainer == null) return;
 
-            _loading = true;
-            StateHasChanged();
-
-            try
+            await WhileLoadingAsync(async () =>
             {
+                StateHasChanged();
+
                 int? days = _days > 0 ? _days : null;
                 var now = _timeZoneService!.Now;
                 var from = days.HasValue ? now.AddDays(-days.Value) : DateTime.MinValue;
@@ -68,12 +66,9 @@ namespace SessyWeb.Components
                 _dischargePoints = _report.Bands
                     .Select(b => new ChartPoint { Band = b.Label, Pct = Math.Round((b.DischargeShare ?? 0.0) * 100.0, 1) })
                     .ToList();
-            }
-            finally
-            {
-                _loading = false;
-                StateHasChanged();
-            }
+            });
+
+            StateHasChanged();
         }
 
         private static string Watts(double? w) => w.HasValue ? $"{w.Value:F0} W" : "–";

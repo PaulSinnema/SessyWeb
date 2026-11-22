@@ -24,14 +24,12 @@ namespace SessyController.Services.InverterServices
     ///
     /// What it cannot do is curtail — see SupportsCurtailment.
     /// </summary>
-    public class SessyInverterService : ISolarInverterService
+    public class SessyInverterService : SolarInverterServiceBase
     {
         /// <summary>Provider key in PowerSystems:Endpoints that activates this service.</summary>
         public const string SessyProviderName = "Sessy";
 
         private readonly LoggingService<SessyInverterService> _logger;
-        private readonly IOptionsMonitor<PowerSystemsConfig> _powerSystemsConfigMonitor;
-        private PowerSystemsConfig _powerSystemConfig { get; set; }
         private readonly IServiceScope _scope;
         private readonly TimeZoneService _timeZoneService;
         private readonly SettingsService _settingsService;
@@ -44,34 +42,11 @@ namespace SessyController.Services.InverterServices
         private readonly IServiceScopeFactory _serviceScopeFactory;
         private BatteryContainer? _batteryContainer;
 
-        public string ProviderName => SessyProviderName;
-
-        /// <summary>
-        /// This provider's endpoints, empty when it is not configured. Mirrors SunspecInverterService:
-        /// DI constructs every inverter service, also the ones nobody uses.
-        /// </summary>
-        public Dictionary<string, Endpoint> Endpoints =>
-            _powerSystemConfig?.Endpoints != null && _powerSystemConfig.Endpoints.TryGetValue(ProviderName, out var endpoints)
-                ? endpoints
-                : new Dictionary<string, Endpoint>();
-
-        public double TotalCapacity => Endpoints.Sum(ep => ep.Value.InverterMaxCapacity);
-
-        public double ActualSolarPowerInWatts { get; private set; }
-
-        public bool IsAvailable { get; set; } = true;
-
-        public DateTime LastSuccessfulReadUtc { get; private set; } = DateTime.MinValue;
-
-        public bool SupportsFallback => false;
-
-        public Task<double> GetFallbackACPowerInWattsAsync() => Task.FromResult(0.0);
-
         /// <summary>
         /// The Sessy measures production; it cannot reduce it. Everything that curtails must fall
         /// back rather than pretend — see EnergySystemStateMachine.EvaluateCurtailment.
         /// </summary>
-        public bool SupportsCurtailment => false;
+        public override bool SupportsCurtailment => false;
 
         /// <summary>
         /// Quarters in which the summed reading exceeded the configured array capacity, and the last
@@ -107,15 +82,12 @@ namespace SessyController.Services.InverterServices
                                     SettingsService settingsService,
                                     IOptionsMonitor<PowerSystemsConfig> powerSystemsConfigMonitor,
                                     IServiceScopeFactory serviceScopeFactory)
+            : base(SessyProviderName, powerSystemsConfigMonitor)
         {
             _logger = logger;
             _settingsService = settingsService;
             _settingsConfig = _settingsService.Current;
             _settingsService.SettingsChanged += (s, _) => _settingsConfig = s;
-
-            _powerSystemsConfigMonitor = powerSystemsConfigMonitor;
-            _powerSystemConfig = _powerSystemsConfigMonitor.CurrentValue;
-            _powerSystemsConfigMonitor.OnChange((config) => _powerSystemConfig = config);
 
             _serviceScopeFactory = serviceScopeFactory;
             _scope = _serviceScopeFactory.CreateScope();
@@ -139,7 +111,7 @@ namespace SessyController.Services.InverterServices
         /// the same clamps the sum runs into the cap, which is counted and surfaced in Tips & Checks;
         /// the Batteries field on the endpoint narrows it down explicitly.
         /// </summary>
-        public async Task<double> GetTotalACPowerInWatts()
+        public override async Task<double> GetTotalACPowerInWatts()
         {
             var batteries = SelectBatteries();
 
@@ -281,16 +253,16 @@ namespace SessyController.Services.InverterServices
         }
 
         /// <summary>Single endpoint reads the same total — the batteries are not split per inverter id.</summary>
-        public Task<double> GetACPowerInWatts(string id) => GetTotalACPowerInWatts();
+        public override Task<double> GetACPowerInWatts(string id) => GetTotalACPowerInWatts();
 
         /// <summary>No Modbus status register exists here; 1 means "running" for display purposes.</summary>
-        public Task<ushort> GetStatus(string id) => Task.FromResult((ushort)(IsAvailable ? 1 : 0));
+        public override Task<ushort> GetStatus(string id) => Task.FromResult((ushort)(IsAvailable ? 1 : 0));
 
         /// <summary>
         /// Nothing to write to. Logged rather than ignored, because a silent no-op here is exactly
         /// the failure mode SupportsCurtailment exists to prevent.
         /// </summary>
-        public Task ThrottleInverterToPercentage(ushort percentage)
+        public override Task ThrottleInverterToPercentage(ushort percentage)
         {
             _logger.LogWarning($"Sessy solar: throttle to {percentage}% ignored — the Sessy measures " +
                                "production but cannot reduce it.");
@@ -299,7 +271,7 @@ namespace SessyController.Services.InverterServices
 
         // ── Sampling loop ─────────────────────────────────────────────────────
 
-        public async Task Start(CancellationToken cancelationToken)
+        public override async Task Start(CancellationToken cancelationToken)
         {
             if (Endpoints.Count == 0)
                 return;
@@ -313,7 +285,7 @@ namespace SessyController.Services.InverterServices
             await Task.Yield();
         }
 
-        public async Task Stop(CancellationToken cancelationToken)
+        public override async Task Stop(CancellationToken cancelationToken)
         {
             _isRunning = false;
             await Task.Yield();

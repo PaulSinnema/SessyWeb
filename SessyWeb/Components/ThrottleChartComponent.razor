@@ -4,13 +4,8 @@
 @using SessyController.Services.Items
 @inherits BaseComponent
 
-<RadzenCard>
-    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
-        <RadzenText TextStyle="TextStyle.H6">🔋 Battery power vs state of charge</RadzenText>
-        <RadzenButton Icon="refresh" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
-                      Click="@RefreshAsync" title="Recompute from the measured models" />
-    </RadzenStack>
-
+<StatisticsCard Title="🔋 Battery power vs state of charge" OnRefresh="@RefreshAsync" RefreshTitle="Recompute from the measured models" Loading="@Loading" IsEmpty="@(_points.Count == 0)">
+    <Intro>
     <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-1">
         The power the planner assumes per quarter at each state of charge, from the same calculation
         the plan uses, at the current @_temperatureC.ToString("F0") °C. <b>Charge</b>: @_chargeSource.
@@ -26,17 +21,9 @@
             with the current one.
         </RadzenText>
     }
-
-    @if (_loading)
-    {
-        <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" class="rz-mt-2" />
-    }
-    else if (_points.Count == 0)
-    {
-        <RadzenText TextStyle="TextStyle.Body1" class="rz-mt-2">No battery configured.</RadzenText>
-    }
-    else
-    {
+    </Intro>
+    <EmptyContent>No battery configured.</EmptyContent>
+    <ChildContent>
         <div style="width: 100%; overflow-x: auto;">
             <RadzenChart Style="height: 320px; min-width: 600px; width: 100%;"
                          MarginTop="20" MarginLeft="70" MarginRight="40" MarginBottom="60">
@@ -114,5 +101,5 @@
                 <RadzenLegend Position="LegendPosition.Bottom" />
             </RadzenChart>
         </div>
-    }
-</RadzenCard>
+    </ChildContent>
+</StatisticsCard>

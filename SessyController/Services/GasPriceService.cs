@@ -15,7 +15,7 @@ namespace SessyController.Services
     /// https://enever.nl/token-aanmaken/. Add it to appsettings.json as "Enever:Token".
     /// The price in field "prijsEGSI" is the TTF wholesale price (excl. taxes) in EUR/m³.
     /// </summary>
-    public class GasPriceService : BackgroundService, IGasPriceService
+    public class GasPriceService : PollingBackgroundService, IGasPriceService
     {
         // Enever.nl gas price feed (free, personal use, daily TTF price in EUR/m³)
         private const string EneverGasApiUrl = "https://enever.nl/apiv3/gasprijs_vandaag.php";
@@ -41,7 +41,7 @@ namespace SessyController.Services
                                IHttpClientFactory httpClientFactory,
                                GasPricesDataService gasPricesDataService,
                                CalculationService calculationService,
-                               NotificationService notificationService)
+                               NotificationService notificationService) : base(logger)
         {
             _logger = logger;
             _timeZoneService = timeZoneService;
@@ -59,34 +59,13 @@ namespace SessyController.Services
         /// </summary>
         public virtual double? CurrentGasPriceEurPerM3 { get; private set; }
 
-        protected override async Task ExecuteAsync(CancellationToken cancellationToken)
-        {
-            _logger.LogWarning("Gas price service started ...");
+        protected override string Name => "Gas price service";
 
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                try
-                {
-                    await FetchGasPriceAsync(cancellationToken);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogException(ex, "An error occurred while fetching the gas price.");
-                }
+        // The price is a daily value (cached per day in the DB) and the feed is rate-limited,
+        // so a modest poll plus the backoff in FetchGasPriceAsync is plenty.
+        protected override TimeSpan NextDelay() => TimeSpan.FromMinutes(15);
 
-                try
-                {
-                    // The price is a daily value (cached per day in the DB) and the feed is
-                    // rate-limited, so a modest poll plus the backoff below is plenty.
-                    await Task.Delay(TimeSpan.FromMinutes(15), cancellationToken);
-                }
-                catch (TaskCanceledException)
-                {
-                }
-            }
-
-            _logger.LogWarning("Gas price service stopped.");
-        }
+        protected override Task RunCycleAsync(CancellationToken cancellationToken) => FetchGasPriceAsync(cancellationToken);
 
         private async Task FetchGasPriceAsync(CancellationToken cancellationToken)
         {
@@ -253,7 +232,7 @@ namespace SessyController.Services
 
             if (tokenLimit)
             {
-                _nextGasAttempt = new DateTime(now.Year, now.Month, 1).AddMonths(1);
+                _nextGasAttempt = now.MonthStart().AddMonths(1);
             }
             else
             {

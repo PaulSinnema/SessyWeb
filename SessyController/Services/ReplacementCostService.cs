@@ -169,8 +169,8 @@ namespace SessyController.Services
 
             if (dailyMinima.Count < MinDays) return empty;
 
-            double value = Percentiles.Percentile(dailyMinima, percentile);
-            double medianBuy = dailyMedians.Count > 0 ? Percentiles.Percentile(dailyMedians, 50.0) : double.MaxValue;
+            double value = Stats.Percentile(dailyMinima, percentile);
+            double medianBuy = dailyMedians.Count > 0 ? Stats.Percentile(dailyMedians, 50.0) : double.MaxValue;
 
             // Negative days pull the percentile below zero. Carry-forward is worth nothing then,
             // and a negative floor would let the planner sell at any price at all.

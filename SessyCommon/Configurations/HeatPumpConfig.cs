@@ -73,11 +73,6 @@
             AnnualGasCostSavedEur + GasStandingChargeEurPerYear - AnnualElectricityCostEur;
 
         /// <summary>
-        /// Monthly net savings.
-        /// </summary>
-        public double MonthlyAverageSavingsEur => TotalAnnualSavingsEur / 12.0;
-
-        /// <summary>
         /// True when heat pump config is properly configured.
         /// </summary>
         public bool IsConfigured => AnnualGasConsumptionM3 > 0 &&

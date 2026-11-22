@@ -7,17 +7,15 @@ using SessyData.Services;
 namespace SessyController.Services
 {
     /// <summary>
-    /// Derives two planner parameters from measured forecast error instead of leaving them to be
+    /// Derives a planner parameter from measured forecast error instead of leaving it to be
     /// guessed:
     ///
     ///   FutureValueDiscountPerHour  how much less a quarter further away is worth when the
     ///                               planner decides where to send stored energy. This is a
     ///                               statement about forecast uncertainty, so it should be
     ///                               measured on forecasts, not chosen.
-    ///   NightReserveCapPct          how much energy to hold back for the night — no longer
-    ///                               applied: the planner prices the night itself.
     ///
-    /// Both come from the same 21-day window of ForecastSnapshot rows, which record the solar and
+    /// It comes from a 21-day window of ForecastSnapshot rows, which record the solar and
     /// consumption forecast at a series of lead times, joined with what actually happened. Solar
     /// and consumption are combined into one net-load error, because that is the quantity the
     /// planner actually plans against — an underestimated cloud and an overestimated dishwasher
@@ -32,10 +30,6 @@ namespace SessyController.Services
     ///
     /// The learned rate is the median of r(h) over the lead buckets that have enough samples —
     /// median, not mean, so one bad bucket cannot carry the result.
-    ///
-    /// The night reserve: the 80th percentile of what the house actually drew between 21:00 and
-    /// 07:00 over the window. A percentile rather than the mean is where forecast error enters
-    /// here: reserving the average night leaves the battery short on half of them.
     ///
     /// Bounds are deliberate. Below MinDiscountPerHour the discount stops doing anything and a
     /// single distant peak claims the whole battery again; above MaxDiscountPerHour the planner
@@ -78,22 +72,10 @@ namespace SessyController.Services
         /// <summary>A lead bucket needs this many matched quarters to contribute.</summary>
         private const int MinBucketSamples = 40;
 
-        /// <summary>Complete nights needed before the reserve is touched.</summary>
-        private const int MinNights = 14;
-
-        /// <summary>Hour the night window opens and closes (local time).</summary>
-        private const int NightStartHour = 21;
-        private const int NightEndHour = 7;
-
-        /// <summary>Fraction of nights the reserve should cover.</summary>
-        private const double NightReservePercentile = 80.0;
-
         // ── Bounds ────────────────────────────────────────────────────────────
 
         private const double MinDiscountPerHour = 0.005;
         private const double MaxDiscountPerHour = 0.03;
-        private const double MinNightReservePct = 5.0;
-        private const double MaxNightReservePct = 60.0;
 
         /// <summary>Hour of the day the nightly run happens, once the day's data is complete.</summary>
         private const int LearnAtHour = 3;
@@ -178,8 +160,7 @@ namespace SessyController.Services
 
             var (discount, discountPinned, discountNote) = FitDiscount(snapshots, actualNetWhByTime);
 
-            // Night reserve no longer learned: the planner prices the night itself (FitNightReserve kept for reference).
-            await ApplyAsync(now, discount, null, discountPinned, discountNote).ConfigureAwait(false);
+            await ApplyAsync(now, discount, discountPinned, discountNote).ConfigureAwait(false);
 
             await PurgeOldSnapshotsAsync(now).ConfigureAwait(false);
         }
@@ -264,53 +245,9 @@ namespace SessyController.Services
             return (clamped, pinned, note);
         }
 
-        // ── Night reserve ─────────────────────────────────────────────────────
-
-        /// <summary>
-        /// Fitted night reserve as a percentage of capacity, or null to leave the setting alone.
-        /// </summary>
-        internal static (double? Pct, bool Pinned, string Note) FitNightReserve(
-            IReadOnlyDictionary<DateTime, double> actualNetWhByTime, double capacityWh)
-        {
-            if (capacityWh <= 0.0)
-                return (null, false, "Night reserve: unchanged, battery capacity unknown.");
-
-            // Group quarters by the night they belong to; a night is labelled by the date it
-            // started, so the hours after midnight join the evening before them.
-            var nights = new Dictionary<DateTime, double>();
-
-            foreach (var (time, netWh) in actualNetWhByTime)
-            {
-                bool isNight = time.Hour >= NightStartHour || time.Hour < NightEndHour;
-                if (!isNight) continue;
-
-                var night = time.Hour < NightEndHour ? time.Date.AddDays(-1) : time.Date;
-                nights[night] = nights.GetValueOrDefault(night) + Math.Max(0.0, netWh);
-            }
-
-            // The current night is still running and would look unusually cheap.
-            var latest = nights.Keys.Count > 0 ? nights.Keys.Max() : DateTime.MinValue;
-            nights.Remove(latest);
-
-            if (nights.Count < MinNights)
-                return (null, false, $"Night reserve: unchanged, {nights.Count} of {MinNights} nights measured.");
-
-            var totals = nights.Values.OrderBy(v => v).ToList();
-            double needWh = Percentiles.Percentile(totals, NightReservePercentile);
-            double fitted = needWh / capacityWh * 100.0;
-
-            double clamped = Math.Clamp(fitted, MinNightReservePct, MaxNightReservePct);
-            bool pinned = Math.Abs(clamped - fitted) > 1e-9;
-
-            string note = $"Night reserve: {clamped:F0}% (P{NightReservePercentile:F0} of {totals.Count} nights"
-                        + (pinned ? $", fit was {fitted:F0}%, clamped)." : ").");
-
-            return (clamped, pinned, note);
-        }
-
         // ── Applying ──────────────────────────────────────────────────────────
 
-        private async Task ApplyAsync(DateTime now, double? discount, double? reservePct, bool pinned, string note)
+        private async Task ApplyAsync(DateTime now, double? discount, bool pinned, string note)
         {
             var stored = await _settingsDataService.GetList(async set =>
                 await Task.FromResult(set.ToList())).ConfigureAwait(false);
@@ -325,9 +262,6 @@ namespace SessyController.Services
             // Null means the fit had nothing to say; the configured value stays untouched.
             if (discount.HasValue)
                 settings.FutureValueDiscountPerHour = discount.Value;
-
-            if (reservePct.HasValue)
-                settings.NightReserveCapPct = reservePct.Value;
 
             settings.LastLearnedAt = now;
             settings.LastLearnedSummary = note;

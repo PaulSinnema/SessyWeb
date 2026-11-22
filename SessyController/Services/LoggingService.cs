@@ -5,7 +5,7 @@
     /// </summary>
 
     /// <typeparam name="T"></typeparam>
-    public class LoggingService<T> where T : class
+    public class LoggingService<T> : ILog where T : class
     {
         private readonly ILogger<T> _logger;
 

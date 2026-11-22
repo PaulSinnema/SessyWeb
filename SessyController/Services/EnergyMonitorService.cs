@@ -13,7 +13,7 @@ namespace SessyController.Services
     /// plus weather data into QuarterlyMeasurement records.
     /// Battery and solar data are filled in by BatteriesService.StoreQuarterlyMeasurement().
     /// </summary>
-    public class EnergyMonitorService : BackgroundService
+    public class EnergyMonitorService : PollingBackgroundService
     {
         public WeatherService? _weatherService { get; set; }
         public EPEXPricesService? _epexPricesService { get; set; }
@@ -42,7 +42,7 @@ namespace SessyController.Services
                                     TimeZoneService timeZoneService,
                                     P1MeterContainer p1meterContainer,
                                     BatteryContainer batteryContainer,
-                                    IServiceScopeFactory serviceScopeFactory)
+                                    IServiceScopeFactory serviceScopeFactory) : base(logger)
         {
             _logger = logger;
             _weatherService = weatherService;
@@ -67,37 +67,16 @@ namespace SessyController.Services
             return base.StopAsync(cancellationToken);
         }
 
-        protected override async Task ExecuteAsync(CancellationToken cancelationToken)
+        protected override string Name => "Energy monitor service";
+
+        // Five seconds past the next quarter boundary.
+        protected override TimeSpan NextDelay()
         {
-            _logger.LogWarning("Energy monitor service started ...");
-
-            while (!cancelationToken.IsCancellationRequested)
-            {
-                try
-                {
-                    await Process(cancelationToken);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogException(ex, "An error occurred while monitoring p1 meters.");
-                }
-
-                var now = _timeZoneService.Now;
-                var dateCeiling = now.DateCeilingQuarter();
-                var delayTime = (dateCeiling - now).TotalSeconds + 5;
-
-                try
-                {
-                    await Task.Delay(TimeSpan.FromSeconds(delayTime), cancelationToken);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogException(ex, $"An error occurred during delay. Now {now}, Ceiling: {dateCeiling}.");
-                }
-            }
-
-            _logger.LogWarning("Energy monitor service stopped");
+            var now = _timeZoneService.Now;
+            return now.DateCeilingQuarter() - now + TimeSpan.FromSeconds(5);
         }
+
+        protected override Task RunCycleAsync(CancellationToken cancellationToken) => Process(cancellationToken);
 
         private async Task Process(CancellationToken cancelationToken)
         {

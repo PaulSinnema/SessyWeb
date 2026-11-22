@@ -28,7 +28,6 @@ namespace SessyWeb.Components
             "exists at all. A single battery counts as measured only from its own readings; before those it follows the " +
             "whole bank. Line: all cycles added up. Switch the estimate off to see only what the data supports.";
 
-        private bool _loading = true;
         private bool _withEstimate = true;
         private BatteryStatisticsResult? _result;
         private CycleHistoryResult? _cycles;
@@ -49,18 +48,12 @@ namespace SessyWeb.Components
         {
             if (BatteryStatisticsService == null || CycleHistoryService == null) return;
 
-            _loading = true;
-
-            try
+            await WhileLoadingAsync(async () =>
             {
                 // Off the circuit thread: all battery quarters since the start of recording.
                 _result = await Task.Run(() => BatteryStatisticsService.GetAsync()).ConfigureAwait(true);
                 _cycles = await Task.Run(() => CycleHistoryService.GetAsync()).ConfigureAwait(true);
-            }
-            finally
-            {
-                _loading = false;
-            }
+            });
         }
 
         private double TotalCycles => _cycles?.Total.TotalCycles(_withEstimate) ?? _result!.TotalCycles;

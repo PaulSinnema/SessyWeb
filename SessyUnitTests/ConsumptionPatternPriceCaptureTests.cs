@@ -58,8 +58,8 @@ namespace SessyTests.Services
         [Fact]
         public void Median_handles_even_and_odd_counts()
         {
-            Assert.Equal(2.0, ConsumptionPatternService.Median([3, 1, 2]));
-            Assert.Equal(2.5, ConsumptionPatternService.Median([4, 1, 2, 3]));
+            Assert.Equal(2.0, Stats.Median([3, 1, 2]));
+            Assert.Equal(2.5, Stats.Median([4, 1, 2, 3]));
         }
 
         [Fact]

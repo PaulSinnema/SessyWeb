@@ -1,5 +1,6 @@
 ﻿using SessyController.Services.Statistics;
 using Xunit;
+using SessyController.Services.Items;
 
 namespace SessyTests.Services
 {
@@ -119,7 +120,7 @@ namespace SessyTests.Services
         {
             var rows = new List<double[]> { new[] { 1.0, 0.0 }, new[] { 1.0, 0.0 }, new[] { 1.0, 0.0 } };
 
-            Assert.Null(ConsumptionModel.LeastSquares(rows, new List<double> { 1, 2, 3 }));
+            Assert.Null(Stats.LeastSquares(rows, new List<double> { 1, 2, 3 }));
         }
     }
 }

@@ -49,7 +49,6 @@ namespace SessyWeb.Components
             (Season.Autumn, "var(--sessy-charge-line)")
         ];
 
-        private bool _loading = true;
         private int _dayCount;
         private DateTime? _firstDay;
         private DateTime? _lastDay;
@@ -64,9 +63,7 @@ namespace SessyWeb.Components
         {
             if (WeatherCorrelationService == null) return;
 
-            _loading = true;
-
-            try
+            await WhileLoadingAsync(async () =>
             {
                 // Off the circuit thread: all quarters since the start of recording.
                 var days = await Task.Run(() => WeatherCorrelationService.GetDaysAsync()).ConfigureAwait(true);
@@ -80,11 +77,7 @@ namespace SessyWeb.Components
                     BuildPanel("Global radiation", "W/m²", RadiationInfo, days, d => d.GlobalRadiation),
                     BuildPanel("Humidity", "%", HumidityInfo, days, d => d.Humidity)
                 ];
-            }
-            finally
-            {
-                _loading = false;
-            }
+            });
         }
 
         private static Panel BuildPanel(string title, string unit, string info, List<WeatherDay> days, Func<WeatherDay, double> x)

@@ -260,34 +260,6 @@ namespace SessyController.Services.Items
         }
 
         /// <summary>
-        /// Get the charged capacity for a battery
-        /// </summary>
-        public async Task<double> GetChargedCapacity()
-        {
-            EnsureInitialized();
-
-            PowerStatus? powerStatus = await GetPowerStatus().ConfigureAwait(false);
-
-            var charged = _endpoint.Capacity * powerStatus.Sessy.StateOfCharge;
-
-            return charged;
-        }
-
-        /// <summary>
-        /// Get the remaining capacity for a battery
-        /// </summary>
-        public async Task<double> GetFreeCapacity()
-        {
-            EnsureInitialized();
-
-            PowerStatus? powerStatus = await GetPowerStatus().ConfigureAwait(false);
-
-            var remaining = _endpoint.Capacity * (1 - powerStatus.Sessy.StateOfCharge);
-
-            return remaining;
-        }
-
-        /// <summary>
         /// Get the schedule the battery planned for itself, plus the EPEX prices it used.
         /// </summary>
         public async Task<SessyScheduleResponse?> GetScheduleAsync()

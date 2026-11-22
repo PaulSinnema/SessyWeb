@@ -5,6 +5,7 @@ using SessyCommon.Services;
 using SessyData.Model;
 using SessyData.Services;
 using static SessyWeb.Components.DateChooserComponent;
+using SessyWeb.Helpers;
 
 namespace SessyWeb.Pages
 {
@@ -12,9 +13,6 @@ namespace SessyWeb.Pages
     {
         [Inject]
         private EPEXPricesDataService? _epexPricesDataService { get; set; }
-
-        [Inject]
-        private TimeZoneService? _timeZoneService { get; set; }
 
         private List<EPEXPrices>? EPEXPricesList { get; set; }
 
@@ -53,25 +51,10 @@ namespace SessyWeb.Pages
 
                         var query = await Task.FromResult(result);
 
-                        if (!string.IsNullOrEmpty(args.Filter))
-                        {
-                            query = query.Where(epexPricesGrid.ColumnsCollection);
-                        }
+                        var (page, total) = query.ToGridPage(args, epexPricesGrid);
+                        Count = total;
 
-                        if (!string.IsNullOrEmpty(args.OrderBy))
-                        {
-                            query = query.OrderBy(args.OrderBy);
-                        }
-
-                        Count = query.Count();
-
-                        if (args.Skip > Count)
-                        {
-                            args.Skip = 0;
-                            epexPricesGrid.CurrentPage = 0;
-                        }
-
-                        return query.Skip(args.Skip!.Value).Take(args.Top!.Value).ToList();
+                        return page;
                     });
                 }
             }

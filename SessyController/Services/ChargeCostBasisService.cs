@@ -182,24 +182,6 @@ namespace SessyController.Services
             }
         }
 
-        /// <summary>
-        /// Total energy currently tracked in the FIFO queue (Wh). For diagnostics.
-        /// </summary>
-        public async Task<double> GetTrackedWh()
-        {
-            await EnsureUpToDateAsync().ConfigureAwait(false);
-
-            await _semaphore.WaitAsync().ConfigureAwait(false);
-            try
-            {
-                return _layers.Sum(l => l.Wh);
-            }
-            finally
-            {
-                _semaphore.Release();
-            }
-        }
-
         // ── Forward projection ───────────────────────────────────────────────
 
         /// <summary>

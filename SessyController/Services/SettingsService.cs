@@ -115,12 +115,6 @@ namespace SessyController.Services
                 dirty = true;
             }
 
-            if (record.ReserveSafetyFactor == 0.0)
-            {
-                record.ReserveSafetyFactor = 1.10;
-                dirty = true;
-            }
-
             if (record.ThrottleFallbackPct == 0.0)
             {
                 record.ThrottleFallbackPct = 80.0;

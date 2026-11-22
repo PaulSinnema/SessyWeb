@@ -166,9 +166,6 @@ namespace SessyController.Managers
             return total;
         }
 
-        public ISolarInverterService? GetByName(string name) =>
-            _activeInverterServices.FirstOrDefault(s => s.ProviderName.Equals(name, StringComparison.OrdinalIgnoreCase));
-
         protected override async Task ExecuteAsync(CancellationToken cancellationToken)
         {
             // Start all inverter services.

@@ -18,7 +18,7 @@ namespace SessyController.Services
     /// <summary>
     /// This background service fetches the prices from a Sessy battery..
     /// </summary>
-    public class EPEXPricesService : BackgroundService, IDisposable
+    public class EPEXPricesService : PollingBackgroundService, IDisposable
     {
         private const string ApiUrl = "https://web-api.tp.entsoe.eu/api";
         private const string FormatDate = "yyyyMMdd";
@@ -82,7 +82,7 @@ namespace SessyController.Services
                                     CalculationService calculationService,
                                     IHttpClientFactory httpClientFactory,
                                     IServiceScopeFactory serviceScopeFactory,
-                                    NotificationService notificationService)
+                                    NotificationService notificationService) : base(logger)
         {
             _securityToken = configuration[ConfigSecurityTokenKey];
             _inDomain = configuration[ConfigInDomain];
@@ -117,59 +117,29 @@ namespace SessyController.Services
         /// <summary>
         /// Executes the background service, fetching prices periodically.
         /// </summary>
-        protected override async Task ExecuteAsync(CancellationToken cancelationToken)
+        protected override string Name => "EPEX Hourly Infos Service";
+
+        protected override async Task OnStartingAsync(CancellationToken cancellationToken)
         {
             // Wait until SettingsService has loaded settings from the database.
             await _settingsService.WaitForReadyAsync().ConfigureAwait(false);
             _settingsConfig = _settingsService.Current;
 
             _taxes = await _taxesService.GetTaxesForDate(_timeZoneService.Now.Date);
+        }
 
-            _logger.LogWarning("EPEX Hourly Infos Service started ...");
+        protected override Task RunCycleAsync(CancellationToken cancellationToken) => Process(cancellationToken);
 
-            // await TemporaryRemoveAllNoneWholeHours();
-
-            // Loop to fetch prices every day
-            while (!cancelationToken.IsCancellationRequested)
+        // After the next whole quarter (+1 minute) when prices are in, otherwise again in 5 minutes.
+        protected override TimeSpan NextDelay()
+        {
+            if (!PricesAvailable)
             {
-                try
-                {
-                    await Process(cancelationToken);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogException(ex, "An error occurred while processing EPEX prices.");
-                }
-
-                try
-                {
-                    int delayTime = 5; // Check again in 5 minutes if no prices available
-
-                    if (PricesAvailable)
-                    {
-                        // Wait until the next whole quarter or until cancellation
-                        var localTime = _timeZoneService.Now;
-
-                        delayTime = 15 - (localTime.Minute % 15) + 1; // 1 minute extra to be sure
-                    }
-                    else
-                    {
-                        _logger.LogWarning("No prices available from Sessy, checking again in 5 minutes.");
-                    }
-
-                    await Task.Delay(TimeSpan.FromMinutes(delayTime), cancelationToken);
-                }
-                catch (TaskCanceledException)
-                {
-                    // Ignore cancellation exception during delay
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError($"Something went wrong during delay, keep processing {ex.ToDetailedString()}");
-                }
+                _logger.LogWarning("No prices available from Sessy, checking again in 5 minutes.");
+                return TimeSpan.FromMinutes(5);
             }
 
-            _logger.LogWarning("EPEX HourlyInfos Service stopped.");
+            return TimeSpan.FromMinutes(15 - (_timeZoneService.Now.Minute % 15) + 1);
         }
 
 
@@ -381,27 +351,6 @@ namespace SessyController.Services
         }
 
         private SemaphoreSlim GetPricesSemaphore = new SemaphoreSlim(1);
-
-        /// <summary>
-        /// Returns the selling price for the given quarter.
-        /// Returns 0.0 when not found.
-        /// Note: GetPrices() is async — call this only when quarterly infos are already available
-        /// via BatteriesService.GetQuarterlyInfos() to avoid extra async overhead.
-        /// </summary>
-        public double GetSellingPriceForQuarter(DateTime quarter)
-        {
-            // _prices is the internal cache — Price field is the market price.
-            // For the all-in selling price we need QuarterlyInfo which is built
-            // by BuildQuarterliesAsync. Use the cached list if available.
-            var prices = _prices;
-            if (prices == null) return 0.0;
-            if (!prices.TryGetValue(quarter, out var schedule)) return 0.0;
-
-            // DynamichSchedule only has raw Price — return it as a best effort.
-            // EnergySystemInput uses BatteriesService.GetQuarterlyInfos() for the
-            // all-in selling price; this method is kept for other callers.
-            return schedule.Price;
-        }
 
         public async Task<List<QuarterlyInfo>> GetPrices()
         {

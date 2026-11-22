@@ -436,11 +436,11 @@
                     <RadzenDataGrid @ref="groupsGrid"
                                     Data="@GroupList"
                                     TItem="InvestmentGroup"
-                                    Count="@groupCount"
+                                    Count="@groupEditor.Count"
                                     LoadData="@LoadGroupData"
                                     IsLoading="@isGroupLoading"
-                                    RowUpdate="@OnUpdateGroup"
-                                    RowCreate="@OnCreateGroup"
+                                    RowUpdate="@groupEditor.OnUpdate"
+                                    RowCreate="@groupEditor.OnCreate"
                                     Responsive="true"
                                     AllowSorting="true"
                                     AllowFiltering="true"
@@ -452,7 +452,7 @@
                             <RadzenButton ButtonStyle="ButtonStyle.Success"
                                           Icon="add_circle"
                                           Text="Add group"
-                                          Click="@InsertGroup" />
+                                          Click="@groupEditor.Insert" />
                         </HeaderTemplate>
                         <Columns>
                             <RadzenDataGridColumn Property="@nameof(InvestmentGroup.Name)" Title="Name">
@@ -478,20 +478,20 @@
                                 <Template Context="grp">
                                     <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
                                                   Size="ButtonSize.Small" class="rz-my-1"
-                                                  Click="@(args => EditGroup(grp))" @onclick:stopPropagation="true" />
+                                                  Click="@(args => groupEditor.Edit(grp))" @onclick:stopPropagation="true" />
                                     <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Flat"
                                                   Size="ButtonSize.Small" Shade="Shade.Lighter" class="rz-my-1 rz-ms-1"
-                                                  Click="@(args => DeleteGroup(grp))" @onclick:stopPropagation="true" />
+                                                  Click="@(args => groupEditor.Delete(grp))" @onclick:stopPropagation="true" />
                                 </Template>
                                 <EditTemplate Context="grp">
                                     <RadzenButton Icon="check" ButtonStyle="ButtonStyle.Success" Variant="Variant.Flat"
-                                                  Size="ButtonSize.Small" Click="@((args) => SaveGroup(grp))" aria-label="Save" />
+                                                  Size="ButtonSize.Small" Click="@((args) => groupEditor.Save(grp))" aria-label="Save" />
                                     <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
                                                   Size="ButtonSize.Small" class="rz-my-1 rz-ms-1"
-                                                  Click="@((args) => CancelGroupEdit(grp))" aria-label="Cancel" />
+                                                  Click="@((args) => groupEditor.Cancel(grp))" aria-label="Cancel" />
                                     <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Flat"
                                                   Size="ButtonSize.Small" Shade="Shade.Lighter" class="rz-my-1 rz-ms-1"
-                                                  Click="@(args => DeleteGroup(grp))" aria-label="Delete" />
+                                                  Click="@(args => groupEditor.Delete(grp))" aria-label="Delete" />
                                 </EditTemplate>
                             </RadzenDataGridColumn>
                         </Columns>
@@ -503,11 +503,11 @@
                     <RadzenDataGrid @ref="investmentsGrid"
                                     Data="@InvestmentList"
                                     TItem="Investment"
-                                    Count="@investmentCount"
+                                    Count="@investmentEditor.Count"
                                     LoadData="@LoadInvestmentData"
                                     IsLoading="@isInvestmentLoading"
-                                    RowUpdate="@OnUpdateInvestment"
-                                    RowCreate="@OnCreateInvestment"
+                                    RowUpdate="@investmentEditor.OnUpdate"
+                                    RowCreate="@investmentEditor.OnCreate"
                                     Responsive="true"
                                     AllowSorting="true"
                                     AllowFiltering="true"
@@ -517,7 +517,7 @@
                                     PagerHorizontalAlign="HorizontalAlign.Left">
                         <HeaderTemplate>
                             <RadzenButton ButtonStyle="ButtonStyle.Success" Icon="add_circle"
-                                          Text="Add investment" Click="@InsertInvestment" />
+                                          Text="Add investment" Click="@investmentEditor.Insert" />
                             <RadzenText TextStyle="TextStyle.Body1" class="rz-ms-4">
                                 Total: <strong>€ @InvestmentList?.Sum(i => i.AmountEur).ToString("F2")</strong> |
                                 Subsidies: <strong>€ @InvestmentList?.Sum(i => i.SubsidyEur).ToString("F2")</strong> |
@@ -599,24 +599,24 @@
                                 <Template Context="inv">
                                     <RadzenButton Icon="add_circle" ButtonStyle="ButtonStyle.Success" Variant="Variant.Flat"
                                                   Size="ButtonSize.Small" Shade="Shade.Lighter"
-                                                  Click="@(() => InsertInvestmentAfterRow(inv))"
+                                                  Click="@(() => investmentEditor.InsertAfter(inv))"
                                                   title="Add new row after this row" />
                                     <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
                                                   Size="ButtonSize.Small" class="rz-my-1 rz-ms-1"
-                                                  Click="@(args => EditInvestment(inv))" @onclick:stopPropagation="true" />
+                                                  Click="@(args => investmentEditor.Edit(inv))" @onclick:stopPropagation="true" />
                                     <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Flat"
                                                   Size="ButtonSize.Small" Shade="Shade.Lighter" class="rz-my-1 rz-ms-1"
-                                                  Click="@(args => DeleteInvestment(inv))" @onclick:stopPropagation="true" />
+                                                  Click="@(args => investmentEditor.Delete(inv))" @onclick:stopPropagation="true" />
                                 </Template>
                                 <EditTemplate Context="inv">
                                     <RadzenButton Icon="check" ButtonStyle="ButtonStyle.Success" Variant="Variant.Flat"
-                                                  Size="ButtonSize.Small" Click="@((args) => SaveInvestment(inv))" aria-label="Save" />
+                                                  Size="ButtonSize.Small" Click="@((args) => investmentEditor.Save(inv))" aria-label="Save" />
                                     <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
                                                   Size="ButtonSize.Small" class="rz-my-1 rz-ms-1"
-                                                  Click="@((args) => CancelInvestmentEdit(inv))" aria-label="Cancel" />
+                                                  Click="@((args) => investmentEditor.Cancel(inv))" aria-label="Cancel" />
                                     <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Flat"
                                                   Size="ButtonSize.Small" Shade="Shade.Lighter" class="rz-my-1 rz-ms-1"
-                                                  Click="@(args => DeleteInvestment(inv))" aria-label="Delete" />
+                                                  Click="@(args => investmentEditor.Delete(inv))" aria-label="Delete" />
                                 </EditTemplate>
                             </RadzenDataGridColumn>
                         </Columns>
@@ -628,11 +628,11 @@
                     <RadzenDataGrid @ref="taxesGrid"
                                     Data="@TaxesList"
                                     TItem="Taxes"
-                                    Count="@taxCount"
+                                    Count="@taxEditor.Count"
                                     LoadData="@LoadTaxData"
                                     IsLoading="@isTaxLoading"
-                                    RowUpdate="@OnUpdateTax"
-                                    RowCreate="@OnCreateTax"
+                                    RowUpdate="@taxEditor.OnUpdate"
+                                    RowCreate="@taxEditor.OnCreate"
                                     Responsive="true"
                                     AllowSorting="true"
                                     AllowFiltering="true"
@@ -642,7 +642,7 @@
                                     PagerHorizontalAlign="HorizontalAlign.Left">
                         <HeaderTemplate>
                             <RadzenButton ButtonStyle="ButtonStyle.Success" Icon="add_circle"
-                                          Text="Add taxes" Click="@InsertTax" />
+                                          Text="Add taxes" Click="@taxEditor.Insert" />
                         </HeaderTemplate>
                         <Columns>
                             <RadzenDataGridColumn Property="@nameof(Taxes.Time)" Title="Time" SortOrder="SortOrder.Ascending">
@@ -721,24 +721,24 @@
                                 <Template Context="t">
                                     <RadzenButton Icon="add_circle" ButtonStyle="ButtonStyle.Success" Variant="Variant.Flat"
                                                   Size="ButtonSize.Small" Shade="Shade.Lighter"
-                                                  Click="@(() => InsertTaxAfterRow(t))"
+                                                  Click="@(() => taxEditor.InsertAfter(t))"
                                                   title="Add new row after this row" />
                                     <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
                                                   Size="ButtonSize.Small" class="rz-my-1 rz-ms-1"
-                                                  Click="@(args => EditTax(t))" @onclick:stopPropagation="true" />
+                                                  Click="@(args => taxEditor.Edit(t))" @onclick:stopPropagation="true" />
                                     <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Flat"
                                                   Size="ButtonSize.Small" Shade="Shade.Lighter" class="rz-my-1 rz-ms-1"
-                                                  Click="@(args => DeleteTax(t))" @onclick:stopPropagation="true" />
+                                                  Click="@(args => taxEditor.Delete(t))" @onclick:stopPropagation="true" />
                                 </Template>
                                 <EditTemplate Context="t">
                                     <RadzenButton Icon="check" ButtonStyle="ButtonStyle.Success" Variant="Variant.Flat"
-                                                  Size="ButtonSize.Small" Click="@((args) => SaveTax(t))" aria-label="Save" />
+                                                  Size="ButtonSize.Small" Click="@((args) => taxEditor.Save(t))" aria-label="Save" />
                                     <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
                                                   Size="ButtonSize.Small" class="rz-my-1 rz-ms-1"
-                                                  Click="@((args) => CancelTaxEdit(t))" aria-label="Cancel" />
+                                                  Click="@((args) => taxEditor.Cancel(t))" aria-label="Cancel" />
                                     <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Flat"
                                                   Size="ButtonSize.Small" Shade="Shade.Lighter" class="rz-my-1 rz-ms-1"
-                                                  Click="@(args => DeleteTax(t))" aria-label="Delete" />
+                                                  Click="@(args => taxEditor.Delete(t))" aria-label="Delete" />
                                 </EditTemplate>
                             </RadzenDataGridColumn>
                         </Columns>

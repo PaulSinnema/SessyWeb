@@ -14,7 +14,7 @@ namespace SessyController.Services
     public class SolarService : IDisposable
     {
         private IConfiguration _configuration { get; set; }
-        private LoggingService<SolarEdgeInverterService> _logger { get; set; }
+        private LoggingService<SolarService> _logger { get; set; }
 
         private WeatherService _weatherService { get; set; }
 
@@ -43,15 +43,12 @@ namespace SessyController.Services
 
         private TimeZoneService _timeZoneService { get; set; }
 
-        // Exponentially smoothed performance factor — avoids wild swings from
-        // momentary cloud cover. Alpha = 0.3: new observations have 30% weight.
+        // Global performance factor (realized / base), reset daily to the historical value.
         private double _smoothedPerformanceFactor = 1.0;
         private double _lastLoggedPerformanceFactor = 1.0;
-        private DateTime _lastEmaUpdateQuarter = DateTime.MinValue;
         private Dictionary<DateTime, double>? _inverterMeasurementCache;
         private DateTime _lastLoggedPerformanceDate = DateTime.MinValue;
         private DateTime _historicalFactorDate = DateTime.MinValue;
-        private const double PerformanceFactorAlpha = 0.2;  // EMA — responds faster to intraday conditions
         private const double PerformanceFactorLogThreshold = 0.05;
         private const int HistoricalFactorLookbackDays = 14;
 
@@ -60,7 +57,7 @@ namespace SessyController.Services
 
         public SolarService(IConfiguration configuration,
                             TimeZoneService timeZoneService,
-                            LoggingService<SolarEdgeInverterService> logger,
+                            LoggingService<SolarService> logger,
                             IOptionsMonitor<PowerSystemsConfig> powerSystemsConfigMonitor,
                             BatteryContainer batteryContainer,
                             WeatherService weatherService,
@@ -553,13 +550,6 @@ namespace SessyController.Services
                 currentHourlyInfo.SolarPowerPerQuarterHour += CalculateSolarPowerPerQuarterHour(solarData.GlobalRadiation, solarFactor, solarPanel, solarAltitude);
             }
         }
-
-        /// <summary>
-        /// Applies one EMA step. Internal for unit testing.
-        /// newEma = alpha * rawFactor + (1 - alpha) * currentEma
-        /// </summary>
-        internal static double UpdateEma(double currentEma, double rawFactor, double alpha)
-            => alpha * rawFactor + (1.0 - alpha) * currentEma;
 
 
         /// <summary>

@@ -1,4 +1,6 @@
-﻿namespace SessyController.Services.Statistics
+﻿using SessyCommon.Extensions;
+
+namespace SessyController.Services.Statistics
 {
     /// <summary>One category (day or month) of a comparison; From/To are the first and last compared current days.</summary>
     public sealed record VarianceItem(string Label, ConsumptionDifference Difference, int PreviousDays, int CurrentDays,
@@ -72,7 +74,7 @@
             var cumulative = 0.0;
 
             return days
-                .GroupBy(d => new DateTime(d.Date.Year, d.Date.Month, 1))
+                .GroupBy(d => d.Date.MonthStart())
                 .OrderBy(g => g.Key)
                 .Select(g =>
                 {

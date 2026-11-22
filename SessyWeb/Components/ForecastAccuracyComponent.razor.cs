@@ -16,7 +16,6 @@ namespace SessyWeb.Components
             "weather forecast were perfect, so it has a head start. Mean error: how far off a forecast is on average. " +
             "Bias: whether it is structurally too high (+) or too low (−). The planner's forecasts are kept 40 days.";
 
-        private bool _loading = true;
         private ForecastAccuracyResult? _result;
 
         protected override async Task OnInitializedAsync()
@@ -28,17 +27,11 @@ namespace SessyWeb.Components
         {
             if (ForecastAccuracyService == null) return;
 
-            _loading = true;
-
-            try
+            await WhileLoadingAsync(async () =>
             {
                 // Off the circuit thread: the model is fitted on all stored consumption.
                 _result = await Task.Run(() => ForecastAccuracyService.GetAsync()).ConfigureAwait(true);
-            }
-            finally
-            {
-                _loading = false;
-            }
+            });
         }
 
         private string SummaryText() => string.Format(GetFormatProvider(),

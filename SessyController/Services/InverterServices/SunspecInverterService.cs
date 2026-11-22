@@ -13,36 +13,14 @@ using Endpoint = SessyCommon.Configurations.Endpoint;
 
 namespace SessyController.Services.InverterServices
 {
-    public class SunspecInverterService : ISolarInverterService
+    public class SunspecInverterService : SolarInverterServiceBase
     {
-        public string ProviderName { get; private set; }
-
         private SettingsService _settingsService;
         private Settings _settingsConfig;
 
-        private LoggingService<SolarEdgeInverterService> _logger { get; set; }
-        private IOptionsMonitor<PowerSystemsConfig> _powerSystemsConfigMonitor { get; set; }
-        private PowerSystemsConfig _powerSystemConfig { get; set; }
+        private ILog _logger { get; set; }
         private IServiceScope _scope { get; set; }
         private TcpClientProvider _tcpClientProvider { get; set; }
-
-        /// <summary>
-        /// Most recently measured AC power in Watts. Updated every second by the
-        /// background Process() loop. Use this for non-blocking reads instead of
-        /// calling GetACPowerInWatts() directly.
-        /// </summary>
-        public double ActualSolarPowerInWatts { get; private set; }
-
-        /// <summary>
-        /// This provider's endpoints, empty when it is not configured. SolarInverterManager only
-        /// activates services that appear in the config, but the DI container still constructs
-        /// every one of them, so an indexer here throws for providers nobody uses.
-        /// </summary>
-        public Dictionary<string, Endpoint> Endpoints =>
-            _powerSystemConfig?.Endpoints != null && _powerSystemConfig.Endpoints.TryGetValue(ProviderName, out var endpoints)
-                ? endpoints
-                : new Dictionary<string, Endpoint>();
-        public double TotalCapacity => Endpoints.Sum(ep => ep.Value.InverterMaxCapacity);
 
         private bool _IsRunning { get; set; } = false;
 
@@ -55,52 +33,22 @@ namespace SessyController.Services.InverterServices
         // inverter concurrently over the same TCP connection.
         private readonly SemaphoreSlim _modbusSemaphore = new SemaphoreSlim(1, 1);
 
-        /// <summary>
-        /// True when the inverter is reachable via Modbus TCP.
-        /// Set by SolarInverterManager health check — not by this class itself.
-        /// </summary>
-        public bool IsAvailable { get; set; } = true;
-
-        /// <summary>
-        /// Timestamp of the last successful Modbus read in UTC.
-        /// Updated by GetACPowerInWatts on every successful read.
-        /// Used by SolarInverterManager health check to determine availability
-        /// without making a new Modbus connection.
-        /// </summary>
-        public DateTime LastSuccessfulReadUtc { get; private set; } = DateTime.MinValue;
-
-        /// <summary>
-        /// Base implementation does not support a cloud fallback.
-        /// Override in provider-specific subclasses (e.g. SolarEdgeInverterService).
-        /// </summary>
-        public virtual bool SupportsFallback => false;
-
-        /// <summary>
-        /// Base implementation returns 0.0 — no fallback available.
-        /// Override in provider-specific subclasses.
-        /// </summary>
-        public virtual Task<double> GetFallbackACPowerInWattsAsync()
-            => Task.FromResult(0.0);
-
         /// <summary>Modbus can write the active power limit, so curtailment reaches the hardware.</summary>
-        public virtual bool SupportsCurtailment => true;
+        public override bool SupportsCurtailment => true;
 
-        public SunspecInverterService(LoggingService<SolarEdgeInverterService> logger,
+        public SunspecInverterService(ILog logger,
                                       string providerName,
                                       IHttpClientFactory httpClientFactory,
                                       SettingsService settingsService,
                                       IOptionsMonitor<PowerSystemsConfig> powerSystemsConfigMonitor,
                                       IServiceScopeFactory serviceScopeFactory)
+            : base(providerName, powerSystemsConfigMonitor)
         {
             _logger = logger;
-            ProviderName = providerName;
             _settingsService = settingsService;
             _settingsConfig = _settingsService.Current;
-            _powerSystemsConfigMonitor = powerSystemsConfigMonitor;
-            _powerSystemConfig = _powerSystemsConfigMonitor.CurrentValue;
 
             _settingsService.SettingsChanged += (s, _) => _settingsConfig = s;
-            _powerSystemsConfigMonitor.OnChange((config) => _powerSystemConfig = config);
 
             _scope = serviceScopeFactory.CreateScope();
 
@@ -110,9 +58,9 @@ namespace SessyController.Services.InverterServices
             _measurementWriter = new InverterMeasurementWriter(_inverterMeasurementService, _timeZoneService);
         }
 
-        public async Task Start(CancellationToken cancelationToken)
+        public override async Task Start(CancellationToken cancelationToken)
         {
-            _logger.LogWarning("SolarEdge service started ...");
+            _logger.LogWarning($"{ProviderName} service started ...");
 
             _IsRunning = true;
 
@@ -126,7 +74,7 @@ namespace SessyController.Services.InverterServices
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogException(ex, "An error occurred while processing SolarEdge data.");
+                    _logger.LogException(ex, $"An error occurred while processing {ProviderName} data.");
                 }
 
                 try
@@ -143,10 +91,10 @@ namespace SessyController.Services.InverterServices
                 }
             }
 
-            _logger.LogWarning("SolarEdge stopped.");
+            _logger.LogWarning($"{ProviderName} stopped.");
         }
 
-        public async Task Stop(CancellationToken cancelationToken)
+        public override async Task Stop(CancellationToken cancelationToken)
         {
             _IsRunning = false;
             await Task.Yield();
@@ -168,7 +116,7 @@ namespace SessyController.Services.InverterServices
                 return;
             }
 
-            foreach (var powerSystemConfig in _powerSystemConfig.Endpoints)
+            foreach (var powerSystemConfig in PowerSystemConfig.Endpoints)
             {
                 var level = _timeZoneService.GetSunlightLevel(_settingsConfig.Latitude, _settingsConfig.Longitude);
 
@@ -217,7 +165,7 @@ namespace SessyController.Services.InverterServices
         /// Used by SolarInverterManager health check.
         /// Returns 0.0 when the inverter is offline.
         /// </summary>
-        public async Task<double> GetTotalACPowerInWatts()
+        public override async Task<double> GetTotalACPowerInWatts()
         {
             if (!IsAvailable)
                 return 0.0;
@@ -236,29 +184,12 @@ namespace SessyController.Services.InverterServices
         }
 
         /// <summary>
-        /// Get the total AC lifetime energy production in Wh for all endpoints.
-        /// Returns 0.0 when the inverter is offline.
-        /// </summary>
-        public async Task<double> GetTotalACEnergyInWh()
-        {
-            if (!IsAvailable)
-                return 0.0;
-
-            var energy = 0.0;
-
-            foreach (var endpoint in Endpoints)
-                energy += await GetACEnergyInWh(endpoint.Key).ConfigureAwait(false);
-
-            return energy;
-        }
-
-        /// <summary>
         /// Get the AC power output in Watts for a single endpoint.
         /// Reads I_AC_Power and I_AC_Power_SF in a single Modbus transaction
         /// to prevent race conditions between the value and scale factor reads.
         /// Returns 0.0 when the inverter is offline.
         /// </summary>
-        public async Task<double> GetACPowerInWatts(string id)
+        public override async Task<double> GetACPowerInWatts(string id)
         {
             if (!IsAvailable)
                 return 0.0;
@@ -331,7 +262,7 @@ namespace SessyController.Services.InverterServices
         /// Retrieves the current operational status of the inverter.
         /// Returns 0 when the inverter is offline.
         /// </summary>
-        public async Task<ushort> GetStatus(string id)
+        public override async Task<ushort> GetStatus(string id)
         {
             if (!IsAvailable)
                 return 0;
@@ -344,7 +275,7 @@ namespace SessyController.Services.InverterServices
             }).ConfigureAwait(false);
         }
 
-        public async Task ThrottleInverterToPercentage(ushort percentage)
+        public override async Task ThrottleInverterToPercentage(ushort percentage)
         {
             if (!IsAvailable)
                 return;
@@ -500,52 +431,6 @@ namespace SessyController.Services.InverterServices
             }
 
             throw new InvalidOperationException("Failed to commit values");
-        }
-
-        /// <summary>
-        /// Restores the inverter to default power control settings.
-        /// Note: the inverter restarts after this call (takes several minutes).
-        /// </summary>
-        public async Task RestoreDynamicPowerSettings(string id)
-        {
-            await ExecuteModbusAsync(async () =>
-            {
-                uint advancedPwrControlEnValue = 1;
-                uint reactivePwrConfigValue = 0;
-                ushort restoreValue = 1;
-
-                try
-                {
-                    using var client = await GetModbusClient(id).ConfigureAwait(false);
-
-                    await client.WriteSingleRegister(SunspecConsts.RestorePowerControlDefaultSettings, restoreValue).ConfigureAwait(false);
-
-                    await CommitValues(client).ConfigureAwait(false);
-
-                    var enableRead = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.Int32>(SunspecConsts.AdvancedPwrControlEn).ConfigureAwait(false);
-                    var configRead = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.Int32>(SunspecConsts.ReactivePwrConfig).ConfigureAwait(false);
-
-                    if (enableRead.Value != advancedPwrControlEnValue || configRead.Value != reactivePwrConfigValue)
-                        throw new InvalidOperationException("Restore advanced power settings failed");
-                }
-                catch (Exception ex)
-                {
-                    throw new InvalidOperationException($"Restore advanced power control settings failed {ex.ToDetailedString()}");
-                }
-            }).ConfigureAwait(false);
-        }
-
-        /// <summary>
-        /// Gets the current active power limit percentage.
-        /// </summary>
-        public async Task<float> GetActivePowerLimit(string id)
-        {
-            return await ExecuteModbusAsync(async () =>
-            {
-                using var client = await GetModbusClient(id).ConfigureAwait(false);
-                var result = await client.ReadHoldingRegisters<Djohnnie.SolarEdge.ModBus.TCP.Types.UInt16>(SunspecConsts.ActivePowerLimit).ConfigureAwait(false);
-                return (float)result.Value;
-            }).ConfigureAwait(false);
         }
 
         /// <summary>

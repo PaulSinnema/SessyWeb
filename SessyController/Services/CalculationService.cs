@@ -120,24 +120,11 @@ namespace SessyController.Services
 
                 if (epexPrice != null && taxes != null && epexPrice.Price.HasValue)
                 {
-                    var compensation = buying ? taxes.PurchaseCompensation : taxes.SignedReturnDeliveryCompensation;
-                    var valueAddedTaxFactor = taxes.ValueAddedTax / 100 + 1;
+                    var overheadCost = includeOverheadCosts ? GetOverheadCost(time, taxes) ?? 0.0 : 0.0;
 
-                    var overheadCost = 0.0;
-
-                    if (includeOverheadCosts)
-                        overheadCost = GetOverheadCost(time, taxes) ?? 0.0;
-
-                    return EnergyPriceCalculator.Calculate(
-                        marketPrice: epexPrice.Price.Value,
-                        overhead: overheadCost,
-                        energyTax: taxes.EnergyTax,
-                        compensation: compensation,
-                        vatFactor: valueAddedTaxFactor,
-                        buying: buying,
-                        solarBonusPercentage: taxes.SolarBonusPercentage,
-                        isDaylight: IsDaylight(time),
-                        netting: taxes.Netting);
+                    return buying
+                        ? EnergyPriceCalculator.Buy(taxes, epexPrice.Price.Value, overheadCost)
+                        : EnergyPriceCalculator.Sell(taxes, epexPrice.Price.Value, IsDaylight(time), overheadCost);
                 }
 
                 return null;
@@ -175,29 +162,8 @@ namespace SessyController.Services
                     if (epexPrice?.Price == null || taxes == null)
                         continue;
 
-                    var vatFactor = taxes.ValueAddedTax / 100.0 + 1.0;
-
-                    var buying = EnergyPriceCalculator.Calculate(
-                        marketPrice: epexPrice.Price.Value,
-                        overhead: 0.0,
-                        energyTax: taxes.EnergyTax,
-                        compensation: taxes.PurchaseCompensation,
-                        vatFactor: vatFactor,
-                        buying: true,
-                        solarBonusPercentage: taxes.SolarBonusPercentage,
-                        isDaylight: false,
-                        netting: taxes.Netting);
-
-                    var selling = EnergyPriceCalculator.Calculate(
-                        marketPrice: epexPrice.Price.Value,
-                        overhead: 0.0,
-                        energyTax: taxes.EnergyTax,
-                        compensation: taxes.SignedReturnDeliveryCompensation,
-                        vatFactor: vatFactor,
-                        buying: false,
-                        solarBonusPercentage: taxes.SolarBonusPercentage,
-                        isDaylight: IsDaylight(time),
-                        netting: taxes.Netting);
+                    var buying = EnergyPriceCalculator.Buy(taxes, epexPrice.Price.Value);
+                    var selling = EnergyPriceCalculator.Sell(taxes, epexPrice.Price.Value, IsDaylight(time));
 
                     result[time] = new EnergyPrice(buying, selling);
                 }
@@ -312,47 +278,5 @@ namespace SessyController.Services
         }
 
 
-        /// <summary>
-        /// Calculates available room in Watts for (dis)charging based on a QuarterlyMeasurement.
-        /// Room = gap between current SOC and target SOC, converted to Watts.
-        /// </summary>
-        public static double CalculateRoomInWatt(
-            QuarterlyMeasurement measurement,
-            double chargingCapacityW,
-            double dischargingCapacityW,
-            double totalCapacityWh)
-        {
-            double roomInWatt = 0.0;
-
-            switch (measurement.BatteryMode)
-            {
-                case Modes.Charging:
-                    // Room = capacity left to fill (Wh → W per quarter).
-                    roomInWatt = (totalCapacityWh - measurement.BatteryStateOfChargeWh) * 4.0;
-                    roomInWatt = Math.Min(roomInWatt, chargingCapacityW);
-                    break;
-
-                case Modes.Discharging:
-                    // Room = energy available to discharge.
-                    roomInWatt = measurement.BatteryStateOfChargeWh * 4.0;
-                    roomInWatt = Math.Min(roomInWatt, dischargingCapacityW);
-                    break;
-
-                case Modes.ZeroNetHome:
-                    // Room = SOC available for self-consumption balancing.
-                    // Solar is not stored on QuarterlyMeasurement — use SOC only.
-                    roomInWatt = measurement.BatteryStateOfChargeWh * 4.0;
-                    roomInWatt = Math.Min(roomInWatt, dischargingCapacityW);
-                    break;
-
-                case Modes.HoldReserve:   // never discharges
-                case Modes.Disabled:
-                default:
-                    roomInWatt = 0.0;
-                    break;
-            }
-
-            return Math.Max(roomInWatt, 0.0);
-        }
     }
 }

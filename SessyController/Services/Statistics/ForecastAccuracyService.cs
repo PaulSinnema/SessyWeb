@@ -1,5 +1,6 @@
 ﻿using SessyData.Model;
 using SessyData.Services;
+using SessyCommon;
 
 namespace SessyController.Services.Statistics
 {
@@ -22,9 +23,6 @@ namespace SessyController.Services.Statistics
     {
         /// <summary>Lead time compared: the forecast as it stood a day ahead.</summary>
         public const int DefaultLeadHours = 24;
-
-        /// <summary>Fewest quarters for a forecast day to count; a DST day has 92.</summary>
-        private const int MinQuartersPerDay = 92;
 
         private readonly ConsumptionModelService _consumptionModelService;
         private readonly ForecastSnapshotDataService _forecastSnapshotDataService;
@@ -51,8 +49,8 @@ namespace SessyController.Services.Statistics
             // W per quarter to kWh: × 0.25 h / 1000.
             var planner = snapshots
                 .GroupBy(s => s.Time.Date)
-                .Where(g => g.Count() >= MinQuartersPerDay)
-                .ToDictionary(g => g.Key, g => g.Sum(s => s.ConsumptionForecastW) * 0.25 / 1000.0);
+                .Where(g => g.Count() >= WeatherCorrelationService.MinQuartersPerDay)
+                .ToDictionary(g => g.Key, g => Units.QuarterKWh(g.Sum(s => s.ConsumptionForecastW)));
 
             var result = days
                 .Where(d => planner.ContainsKey(d.Date))

@@ -66,8 +66,6 @@ namespace SessyController.Services
         // Track the last quarter for which a snapshot was written.
         private DateTime _lastSnapshotQuarter = DateTime.MinValue;
 
-        private const double FullThresholdRatio = 0.995;
-
         public bool IsManualOverride => _controlMode.Current == ControlMode.Manual;
         public bool WeAreInControl => _controlMode.WeMayDriveTheBatteries;
         public bool ChargedInControl => _controlMode.Current == ControlMode.Charged;

@@ -4,6 +4,9 @@ namespace SessyCommon.Extensions
 {
     public static class DateTimeExtension
     {
+        /// <summary>Midnight on the first day of the month.</summary>
+        public static DateTime MonthStart(this DateTime date) => new DateTime(date.Year, date.Month, 1);
+
         private static readonly long QuarterHourTicks = TimeSpan.FromMinutes(15).Ticks;
 
         /// <summary>
@@ -84,22 +87,5 @@ namespace SessyCommon.Extensions
         /// <summary>Sunday 00:00: the last day of the ISO 8601 week that holds the date.</summary>
         public static DateTime EndOfIsoWeek(this DateTime date) => date.StartOfIsoWeek().AddDays(6);
 
-        /// <summary>
-        /// Returns the ISO 8601 week number for the given date.
-        /// </summary>
-        public static int WeekNumber(this DateTime date)
-        {
-            // ISO 8601 weeks start on Monday, and the first week has at least 4 days
-            var day = CultureInfo.InvariantCulture.Calendar.GetDayOfWeek(date);
-            if (day == DayOfWeek.Sunday)
-            {
-                date = date.AddDays(-1);
-            }
-
-            return CultureInfo.InvariantCulture.Calendar.GetWeekOfYear(
-                date,
-                CalendarWeekRule.FirstFourDayWeek,
-                DayOfWeek.Monday);
-        }
     }
 }

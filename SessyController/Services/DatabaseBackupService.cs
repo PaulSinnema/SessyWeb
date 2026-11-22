@@ -7,7 +7,7 @@ using System.Threading;
 
 namespace SessyController.Services
 {
-    public class DatabaseBackupService : BackgroundService
+    public class DatabaseBackupService : PollingBackgroundService
     {
         private LoggingService<DatabaseBackupService> _logger { get; set; }
 
@@ -20,7 +20,7 @@ namespace SessyController.Services
         public DatabaseBackupService(LoggingService<DatabaseBackupService> logger,
                                      TimeZoneService timeZoneService,
                                      DatabaseBackupDataService databaseBackupDataService,
-                                     NotificationService notificationService)
+                                     NotificationService notificationService) : base(logger)
         {
             _logger = logger;
             _timeZoneService = timeZoneService;
@@ -35,45 +35,19 @@ namespace SessyController.Services
         public DateTime? LastBackupSuccessAt { get; private set; }
         public string? LastBackupError { get; private set; }
 
-        protected override async Task ExecuteAsync(CancellationToken cancelationToken)
+        protected override string Name => "Database Backup Service";
+
+        // Wait until the next day starts, then back up.
+        protected override bool DelayFirst => true;
+
+        protected override TimeSpan NextDelay()
         {
-            _logger.LogWarning("Database Backup Service started ...");
-
-            // await TemporaryRemoveAllNoneWholeHours();
-
-            // Loop to fetch prices every day
-            while (!cancelationToken.IsCancellationRequested)
-            {
-                try
-                {
-                    var now = _timeZoneService.Now;
-                    var tomorrow = now.Date.AddDays(1);
-                    var minutes = (tomorrow - now).TotalMinutes; // Wait until the next day starts
-
-                    await Task.Delay(TimeSpan.FromMinutes(minutes), cancelationToken);
-                }
-                catch (TaskCanceledException)
-                {
-                    // Ignore cancellation exception during delay
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError($"Something went wrong during delay, keep processing {ex.ToDetailedString()}");
-                }
-
-                try
-                {
-                    await BackupNowAsync();
-                }
-                catch (Exception ex)
-                {
-                    // BackupNowAsync already raised the failure notification; just log here.
-                    _logger.LogException(ex, "An error occurred while processing Database Backup.");
-                }
-            }
-
-            _logger.LogWarning("Database Backup service stopped.");
+            var now = _timeZoneService.Now;
+            return now.Date.AddDays(1) - now;
         }
+
+        // BackupNowAsync raises the failure notification itself; the base class logs the exception.
+        protected override Task RunCycleAsync(CancellationToken cancellationToken) => BackupNowAsync();
 
         /// <summary>
         /// Runs a backup and raises the matching notification. This is the single place both the

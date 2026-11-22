@@ -16,7 +16,6 @@ namespace SessyWeb.Components
             "of that day. The line shows the captured share. 100 % is out of reach in practice: the battery " +
             "cannot do everything at once, the plan works with forecasts and solar charging follows the sun, not the price.";
 
-        private bool _loading = true;
         private List<PriceCaptureMonth> _months = new();
 
         private List<PriceCaptureMonth> CaptureMonths => _months.Where(m => m.CapturePercent.HasValue).ToList();
@@ -30,17 +29,11 @@ namespace SessyWeb.Components
         {
             if (PriceCaptureService == null || _timeZoneService == null) return;
 
-            _loading = true;
-
-            try
+            await WhileLoadingAsync(async () =>
             {
                 var to = _timeZoneService.Now.Date;
                 _months = await Task.Run(() => PriceCaptureService.GetAsync(to.AddYears(-1), to)).ConfigureAwait(true);
-            }
-            finally
-            {
-                _loading = false;
-            }
+            });
         }
 
         private string SummaryText()

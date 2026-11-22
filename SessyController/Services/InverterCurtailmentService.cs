@@ -18,7 +18,7 @@ namespace SessyController.Services
     /// Herstartbaar: the current inverter state is read from HardwareStatusService
     /// on every cycle — no local state flags that become stale after a restart.
     /// </summary>
-    public class InverterCurtailmentService : BackgroundService
+    public class InverterCurtailmentService : PollingBackgroundService
     {
         private readonly LoggingService<InverterCurtailmentService> _logger;
         private readonly SolarInverterManager _solarInverterManager;
@@ -43,7 +43,7 @@ namespace SessyController.Services
             SolarInverterManager solarInverterManager,
             P1MeterContainer p1MeterContainer,
             EnergySystemStateMachine stateMachine,
-            HardwareStatusService hardwareStatus)
+            HardwareStatusService hardwareStatus) : base(logger)
         {
             _logger = logger;
             _solarInverterManager = solarInverterManager;
@@ -52,34 +52,16 @@ namespace SessyController.Services
             _hardwareStatus = hardwareStatus;
         }
 
-        protected override async Task ExecuteAsync(CancellationToken cancellationToken)
-        {
-            _logger.LogWarning("InverterCurtailmentService started.");
+        protected override string Name => "InverterCurtailmentService";
 
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                try
-                {
-                    await ControlCycleAsync().ConfigureAwait(false);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError($"InverterCurtailmentService error: {ex.Message}");
-                }
+        protected override TimeSpan NextDelay() => TimeSpan.FromSeconds(LoopIntervalSeconds);
 
-                try
-                {
-                    await Task.Delay(TimeSpan.FromSeconds(LoopIntervalSeconds), cancellationToken)
-                        .ConfigureAwait(false);
-                }
-                catch (TaskCanceledException) { }
-            }
+        protected override Task RunCycleAsync(CancellationToken cancellationToken) => ControlCycleAsync();
 
-            // Restore inverter to full output on shutdown.
-            await ReleaseAsync().ConfigureAwait(false);
+        protected override void OnCycleError(Exception ex) => Log.LogError($"InverterCurtailmentService error: {ex.Message}");
 
-            _logger.LogWarning("InverterCurtailmentService stopped.");
-        }
+        // Restore inverter to full output on shutdown.
+        protected override Task OnStoppedAsync() => ReleaseAsync();
 
         private async Task ControlCycleAsync()
         {

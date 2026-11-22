@@ -13,6 +13,7 @@ using SessyData.Services;
 using System.Linq.Dynamic.Core;
 using NotificationService = SessyController.Services.NotificationService;
 using NotificationSeverity = SessyData.Model.NotificationSeverity;
+using SessyWeb.Helpers;
 
 namespace SessyWeb.Pages
 {
@@ -24,7 +25,6 @@ namespace SessyWeb.Pages
         [Inject] private InvestmentDataService? _investmentService { get; set; }
         [Inject] private TaxesDataService? _taxesService { get; set; }
         [Inject] private SessyWebControlDataService? _controlService { get; set; }
-        [Inject] private TimeZoneService? _timeZoneService { get; set; }
         [Inject] private ConfigurationCheckService? _checkService { get; set; }
         [Inject] private NotificationService? _notificationService { get; set; }
 
@@ -274,13 +274,24 @@ namespace SessyWeb.Pages
             base.Dispose();
         }
 
+        private GridEditor<InvestmentGroup>? _groupEditor;
+        private GridEditor<InvestmentGroup> groupEditor => _groupEditor ??= new(_groupService!, () => groupsGrid);
+
+        private GridEditor<Investment>? _investmentEditor;
+        private GridEditor<Investment> investmentEditor => _investmentEditor ??= new(_investmentService!, () => investmentsGrid,
+            () => new Investment { PurchaseDate = _timeZoneService!.Now.Date, ExpectedLifetimeYears = 25 },
+            RefreshSettingsAfterInvestmentChange);
+
+        private GridEditor<Taxes>? _taxEditor;
+        private GridEditor<Taxes> taxEditor => _taxEditor ??= new(_taxesService!, () => taxesGrid,
+            () => new Taxes { Time = _timeZoneService!.Now.Date });
+
         // ── Investment Groups ─────────────────────────────────────────────────
 
         private List<InvestmentGroup>? GroupList { get; set; } = new();
         private IEnumerable<InvestmentCategory> Categories => Enum.GetValues<InvestmentCategory>();
         RadzenDataGrid<InvestmentGroup>? groupsGrid { get; set; }
         private bool isGroupLoading { get; set; }
-        private int groupCount { get; set; }
 
         async Task LoadGroupData(LoadDataArgs args)
         {
@@ -294,59 +305,14 @@ namespace SessyWeb.Pages
                 {
                     var query = set.OrderBy(g => g.Name).AsQueryable();
 
-                    if (!string.IsNullOrEmpty(args.Filter))
-                        query = query.Where(groupsGrid!.ColumnsCollection);
+                    var (page, total) = query.ToGridPage(args, groupsGrid!);
+                    groupEditor.Count = total;
 
-                    if (!string.IsNullOrEmpty(args.OrderBy))
-                        query = query.OrderBy(args.OrderBy);
-
-                    groupCount = query.Count();
-
-                    if (args.Skip.HasValue && args.Top.HasValue)
-                        return await Task.FromResult(query.Skip(args.Skip.Value).Take(args.Top.Value).ToList());
-
-                    return await Task.FromResult(query.ToList());
+                    return await Task.FromResult(page);
                 });
             }
             finally { isGroupLoading = false; IsBusy = false; }
         }
-
-        async Task InsertGroup()
-        {
-            if (!groupsGrid!.IsValid) return;
-            await groupsGrid.InsertRow(new InvestmentGroup());
-            groupCount++;
-        }
-
-        async Task EditGroup(InvestmentGroup group)
-        {
-            if (!groupsGrid!.IsValid) return;
-            await groupsGrid!.EditRow(group);
-        }
-
-        async Task OnUpdateGroup(InvestmentGroup group) =>
-            await _groupService!.Update(new List<InvestmentGroup> { group },
-                (item, set) => set.FirstOrDefault(g => g.Id == group.Id));
-
-        async Task SaveGroup(InvestmentGroup group) => await groupsGrid!.UpdateRow(group);
-
-        async Task CancelGroupEdit(InvestmentGroup group)
-        {
-            groupsGrid!.CancelEditRow(group);
-            await groupsGrid.Reload();
-        }
-
-        async Task DeleteGroup(InvestmentGroup group)
-        {
-            if (group.Id != 0)
-                await _groupService!.Remove(new List<InvestmentGroup> { group },
-                    (item, set) => set.FirstOrDefault(g => g.Id == item.Id));
-            await groupsGrid!.Reload();
-        }
-
-        async Task OnCreateGroup(InvestmentGroup group) =>
-            await _groupService!.Add(new List<InvestmentGroup> { group },
-                (item, set) => set.Contains(group));
 
         // ── Investments ───────────────────────────────────────────────────────
 
@@ -354,7 +320,6 @@ namespace SessyWeb.Pages
         private List<InvestmentGroup> Groups { get; set; } = new();
         RadzenDataGrid<Investment>? investmentsGrid { get; set; }
         private bool isInvestmentLoading { get; set; }
-        private int investmentCount { get; set; }
 
         // ── Initialisation flags — set to true after FirstPage is called ──────
         private bool _groupsInitialised;
@@ -458,80 +423,13 @@ namespace SessyWeb.Pages
                 {
                     var query = set.OrderBy(i => i.PurchaseDate).AsQueryable();
 
-                    if (!string.IsNullOrEmpty(args.Filter))
-                        query = query.Where(investmentsGrid!.ColumnsCollection);
+                    var (page, total) = query.ToGridPage(args, investmentsGrid!);
+                    investmentEditor.Count = total;
 
-                    if (!string.IsNullOrEmpty(args.OrderBy))
-                        query = query.OrderBy(args.OrderBy);
-
-                    investmentCount = query.Count();
-
-                    if (args.Skip.HasValue && args.Top.HasValue)
-                        return await Task.FromResult(query.Skip(args.Skip.Value).Take(args.Top.Value).ToList());
-
-                    return await Task.FromResult(query.ToList());
+                    return await Task.FromResult(page);
                 });
             }
             finally { isInvestmentLoading = false; IsBusy = false; }
-        }
-
-        async Task InsertInvestment()
-        {
-            if (!investmentsGrid!.IsValid) return;
-            await investmentsGrid.InsertRow(new Investment
-            {
-                PurchaseDate = _timeZoneService!.Now.Date,
-                ExpectedLifetimeYears = 25
-            });
-            investmentCount++;
-        }
-
-        async Task InsertInvestmentAfterRow(Investment row)
-        {
-            if (!investmentsGrid!.IsValid) return;
-            await investmentsGrid.InsertAfterRow(new Investment
-            {
-                PurchaseDate = _timeZoneService!.Now.Date,
-                ExpectedLifetimeYears = 25
-            }, row);
-            investmentCount++;
-        }
-
-        async Task EditInvestment(Investment investment)
-        {
-            if (!investmentsGrid!.IsValid) return;
-            await investmentsGrid!.EditRow(investment);
-        }
-
-        async Task OnUpdateInvestment(Investment investment)
-        {
-            await _investmentService!.Update(new List<Investment> { investment },
-                (item, set) => set.FirstOrDefault(i => i.Id == investment.Id));
-            await RefreshSettingsAfterInvestmentChange();
-        }
-
-        async Task SaveInvestment(Investment investment) => await investmentsGrid!.UpdateRow(investment);
-
-        async Task CancelInvestmentEdit(Investment investment)
-        {
-            investmentsGrid!.CancelEditRow(investment);
-            await investmentsGrid.Reload();
-        }
-
-        async Task DeleteInvestment(Investment investment)
-        {
-            if (investment.Id != 0)
-                await _investmentService!.Remove(new List<Investment> { investment },
-                    (item, set) => set.FirstOrDefault(i => i.Id == item.Id));
-            await investmentsGrid!.Reload();
-            await RefreshSettingsAfterInvestmentChange();
-        }
-
-        async Task OnCreateInvestment(Investment investment)
-        {
-            await _investmentService!.Add(new List<Investment> { investment },
-                (item, set) => set.Contains(investment));
-            await RefreshSettingsAfterInvestmentChange();
         }
 
         /// <summary>
@@ -550,7 +448,6 @@ namespace SessyWeb.Pages
         private List<Taxes>? TaxesList { get; set; } = new();
         RadzenDataGrid<Taxes>? taxesGrid { get; set; }
         private bool isTaxLoading { get; set; }
-        private int taxCount { get; set; }
 
         async Task LoadTaxData(LoadDataArgs args)
         {
@@ -565,18 +462,10 @@ namespace SessyWeb.Pages
                 {
                     var query = set.OrderBy(t => t.Time).AsQueryable();
 
-                    if (!string.IsNullOrEmpty(args.Filter))
-                        query = query.Where(taxesGrid!.ColumnsCollection);
+                    var (page, total) = query.ToGridPage(args, taxesGrid!);
+                    taxEditor.Count = total;
 
-                    if (!string.IsNullOrEmpty(args.OrderBy))
-                        query = query.OrderBy(args.OrderBy);
-
-                    taxCount = query.Count();
-
-                    if (args.Skip.HasValue && args.Top.HasValue)
-                        return await Task.FromResult(query.Skip(args.Skip.Value).Take(args.Top.Value).ToList());
-
-                    return await Task.FromResult(query.ToList());
+                    return await Task.FromResult(page);
                 });
             }
             finally { isTaxLoading = false; IsBusy = false; }
@@ -589,70 +478,11 @@ namespace SessyWeb.Pages
 
             if (list.Count == 0)
             {
-                await _taxesService.Add(new List<Taxes>
-                {
-                    new Taxes
-                    {
-                        // Author's Frank Energie contract, excl. VAT; return delivery costs positive.
-                        Time = new DateTime(2025, 1, 1, 0, 0, 0),
-                        EnergyTax = 0.10154,
-                        ValueAddedTax = 21.0,
-                        TaxReduction = 524.95,
-                        PurchaseCompensation = 0.01504,
-                        ReturnDeliveryCompensation = 0.0105,
-                        NetManagementCost = 376.6435,
-                        FixedTransportFee = 17.9945,
-                        CapacityTransportFee = 69.48 // Frank Energie fixed supply fee
-                    }
-                }, (tax, set) => { return false; });
+                await _taxesService.Add(new List<Taxes> { Taxes.CreateDefault() }, (tax, set) => { return false; });
 
                 await taxesGrid!.Reload();
             }
         }
-
-        async Task InsertTax()
-        {
-            if (!taxesGrid!.IsValid) return;
-            await taxesGrid.InsertRow(new Taxes { Time = _timeZoneService!.Now.Date });
-            taxCount++;
-        }
-
-        async Task InsertTaxAfterRow(Taxes row)
-        {
-            if (!taxesGrid!.IsValid) return;
-            await taxesGrid.InsertAfterRow(new Taxes(), row);
-            taxCount++;
-        }
-
-        async Task EditTax(Taxes tax)
-        {
-            if (!taxesGrid!.IsValid) return;
-            await taxesGrid!.EditRow(tax);
-        }
-
-        async Task OnUpdateTax(Taxes tax) =>
-            await _taxesService!.Update(new List<Taxes> { tax },
-                (item, set) => set.FirstOrDefault(t => t.Id == tax.Id));
-
-        async Task SaveTax(Taxes tax) => await taxesGrid!.UpdateRow(tax);
-
-        async Task CancelTaxEdit(Taxes tax)
-        {
-            taxesGrid!.CancelEditRow(tax);
-            await taxesGrid.Reload();
-        }
-
-        async Task DeleteTax(Taxes tax)
-        {
-            if (tax.Id != 0)
-                await _taxesService!.Remove(new List<Taxes> { tax },
-                    (item, set) => set.FirstOrDefault(t => t.Id == item.Id));
-            await taxesGrid!.Reload();
-        }
-
-        async Task OnCreateTax(Taxes tax) =>
-            await _taxesService!.Add(new List<Taxes> { tax },
-                (item, set) => set.Contains(tax));
 
         // ── Who's in control ──────────────────────────────────────────────────
 
@@ -669,18 +499,10 @@ namespace SessyWeb.Pages
                 {
                     var query = set.OrderBy(c => c.Time).AsQueryable();
 
-                    if (!string.IsNullOrEmpty(args.Filter))
-                        query = query.Where(controlGrid!.ColumnsCollection);
+                    var (page, total) = query.ToGridPage(args, controlGrid!);
+                    controlCount = total;
 
-                    if (!string.IsNullOrEmpty(args.OrderBy))
-                        query = query.OrderBy(args.OrderBy);
-
-                    controlCount = query.Count();
-
-                    if (args.Skip.HasValue && args.Top.HasValue)
-                        return await Task.FromResult(query.Skip(args.Skip.Value).Take(args.Top.Value).ToList());
-
-                    return await Task.FromResult(query.ToList());
+                    return await Task.FromResult(page);
                 });
             }
             finally { IsBusy = false; }
@@ -723,7 +545,6 @@ namespace SessyWeb.Pages
         private void ResetPlannerDefaults()
         {
             if (_settings == null) return;
-            _settings.ReserveSafetyFactor = 1.10;
             _settings.PlanningHorizonHours = 0;
             _settings.FutureValueDiscountPerHour = 0.003;
             _settings.CarryForwardEnabled = false;
@@ -1136,15 +957,6 @@ namespace SessyWeb.Pages
             return string.Join(" ", parts);
         }
 
-
-        private string GetExportDirectory()
-        {
-            var dir = _settings?.ExportDirectory;
-            if (string.IsNullOrWhiteSpace(dir)) dir = "/SessyController/Data/exports";
-            if (!System.IO.Directory.Exists(dir))
-                System.IO.Directory.CreateDirectory(dir);
-            return dir;
-        }
 
         private async Task ExportCsvAsync()
         {

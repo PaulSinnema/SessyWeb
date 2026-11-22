@@ -15,7 +15,6 @@ namespace SessyWeb.Components
             "those nights is shown, so one restless night does not count. A line that creeps up means devices were " +
             "added that are always on. Every 10 W more is about 88 kWh a year.";
 
-        private bool _loading = true;
         private BaseLoadResult? _result;
 
         protected override async Task OnInitializedAsync()
@@ -27,16 +26,10 @@ namespace SessyWeb.Components
         {
             if (ConsumptionPatternService == null) return;
 
-            _loading = true;
-
-            try
+            await WhileLoadingAsync(async () =>
             {
                 _result = await Task.Run(() => ConsumptionPatternService.GetBaseLoadAsync()).ConfigureAwait(true);
-            }
-            finally
-            {
-                _loading = false;
-            }
+            });
         }
 
         private string SummaryText()

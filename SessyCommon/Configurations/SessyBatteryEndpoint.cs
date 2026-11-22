@@ -3,36 +3,8 @@
     /// <summary>
     /// This class holds the information for 1 Sessy battery.
     /// </summary>
-    public class SessyBatteryEndpoint
+    public class SessyBatteryEndpoint : SessyDeviceEndpoint
     {
-        /// <summary>
-        /// A custom name for the battery.
-        /// </summary>
-        public string? Name { get; set; }
-
-        /// <summary>
-        /// Userid from the installation card.
-        /// </summary>
-        public string? UserId { get; set; }
-
-        /// <summary>
-        /// Password from the installation card.
-        /// </summary>
-        public string? Password { get; set; }
-
-        /// <summary>
-        /// Base url where the API can be found of the battery.
-        /// </summary>
-        public string? BaseUrl { get; set; }
-
-        /// <summary>
-        /// True when this entry describes a real device. Configuration merges per key across
-        /// appsettings.json and secrets.json, so credentials left behind in secrets.json for a
-        /// battery that was removed from appsettings.json otherwise conjure up a battery with no
-        /// address at all — which then fails on every poll with "Value cannot be null (BaseUrl)".
-        /// Secrets augment a declared device; they do not declare one.
-        /// </summary>
-        public bool IsConfigured => !string.IsNullOrWhiteSpace(BaseUrl);
 
         /// <summary>
         /// The maximum charging capacity in Watts.

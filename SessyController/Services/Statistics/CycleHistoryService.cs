@@ -3,6 +3,7 @@ using SessyCommon.Services;
 using SessyController.Services.Items;
 using SessyData.Model;
 using SessyData.Services;
+using SessyCommon;
 
 namespace SessyController.Services.Statistics
 {
@@ -22,7 +23,17 @@ namespace SessyController.Services.Statistics
             Months.Sum(m => m.KnownCycles + (withEstimate ? m.EstimatedCycles : 0.0));
     }
 
-    public sealed record CycleHistoryResult(CycleSeries Total, List<CycleSeries> Batteries);
+    public sealed record CycleHistoryResult(CycleSeries Total, List<CycleSeries> Batteries)
+    {
+        /// <summary>Average lifetime cycles over the batteries.</summary>
+        public double AveragePerBattery(bool withEstimate) =>
+            Batteries.Count > 0 ? Batteries.Average(b => b.TotalCycles(withEstimate)) : Total.TotalCycles(withEstimate);
+
+        /// <summary>The battery matching a name ("Sessy 2" also matches "Battery 2"); null when none does.</summary>
+        public CycleSeries? Find(string? name) =>
+            Batteries.FirstOrDefault(b => string.Equals(b.Name.Trim(), name?.Trim(), StringComparison.OrdinalIgnoreCase))
+            ?? Batteries.FirstOrDefault(b => CycleHistoryService.Number(name) is string n && n == CycleHistoryService.Number(b.Name));
+    }
 
     /// <summary>One battery as the history sees it: capacity and the first quarter it was in use.</summary>
     public sealed record CycleBattery(string Id, string Name, double CapacityKWh, DateTime ActiveFrom);
@@ -70,9 +81,8 @@ namespace SessyController.Services.Statistics
                 Task.FromResult(set.Where(m => m.IsReliable).ToList()));
 
             // Duplicates exist (see QuarterlyFactsService.GetAsync): keep the newest row per quarter.
-            var measured = measurements
-                .GroupBy(m => m.Time)
-                .ToDictionary(g => g.Key, g => g.OrderByDescending(m => m.Id).First().BatteryDischargedKWh);
+            var measured = QuarterlyFactsService.NewestPerQuarter(measurements)
+                .ToDictionary(m => m.Time, m => m.BatteryDischargedKWh);
 
             var perBattery = (await _batteryMeasurementDataService.GetList(set => Task.FromResult(set.ToList())))
                 .GroupBy(m => m.BatteryId)
@@ -80,7 +90,7 @@ namespace SessyController.Services.Statistics
 
             // ── Reconstructed ────────────────────────────────────────────────
             var histories = await _energyHistoryDataService.GetList(set => Task.FromResult(set.ToList()));
-            var grid = QuarterGridDeltas(histories);
+            var grid = QuarterlyFactsService.GridDeltas(histories, maxInterval: TimeSpan.FromMinutes(15));
             var solar = await _quarterlyFactsService.GetSolarByQuarterAsync(DateTime.MinValue, DateTime.MaxValue);
             var consumption = await _quarterlyFactsService.GetConsumptionByQuarterAsync(DateTime.MinValue, DateTime.MaxValue);
 
@@ -130,32 +140,6 @@ namespace SessyController.Services.Statistics
         }
 
         /// <summary>
-        /// Grid deltas keyed by end time like QuarterlyFactsService.GridDeltas, but only over exactly one quarter:
-        /// a delta across a gap lumps hours of energy onto one quarter and would wreck the balance.
-        /// </summary>
-        public static Dictionary<DateTime, (double importWh, double exportWh)> QuarterGridDeltas(IEnumerable<EnergyHistory> histories)
-        {
-            var result = new Dictionary<DateTime, (double importWh, double exportWh)>();
-
-            foreach (var perMeter in histories.GroupBy(h => h.MeterId))
-            {
-                var ordered = perMeter.OrderBy(h => h.Time).ToList();
-
-                for (int i = 1; i < ordered.Count; i++)
-                {
-                    if (ordered[i].Time - ordered[i - 1].Time != TimeSpan.FromMinutes(15))
-                        continue;
-
-                    var (importWh, exportWh) = QuarterlyFactsService.GridDelta(ordered[i - 1], ordered[i]);
-                    result.TryGetValue(ordered[i].Time, out var running);
-                    result[ordered[i].Time] = (running.importWh + importWh, running.exportWh + exportWh);
-                }
-            }
-
-            return result;
-        }
-
-        /// <summary>
         /// Discharged kWh per quarter as the remainder of the energy balance: battery = consumption − solar − grid.
         /// Only quarters with both a consumption row and a grid delta; consumption timestamps are floored to the quarter.
         /// </summary>
@@ -177,7 +161,7 @@ namespace SessyController.Services.Statistics
 
                 solarKWh.TryGetValue(time, out var solar);
 
-                var batteryKWh = averageW * 0.25 / 1000.0 - solar - (importWh - exportWh) / 1000.0;
+                var batteryKWh = Units.QuarterKWh(averageW) - solar - (importWh - exportWh) / 1000.0;
                 result[time] = Math.Max(0.0, batteryKWh);
             }
 
@@ -248,7 +232,7 @@ namespace SessyController.Services.Statistics
 
             public void Add(DateTime t, double measured = 0.0, double reconstructed = 0.0, double estimated = 0.0)
             {
-                var key = new DateTime(t.Year, t.Month, 1);
+                var key = t.MonthStart();
                 if (!_months.TryGetValue(key, out var sums))
                     _months[key] = sums = new double[3];
 

@@ -39,18 +39,6 @@ namespace SessyWeb.Helpers
             return "No DateTime";
         }
 
-        public static string FormatAsDate(object value)
-        {
-            if (value is DateTime)
-            {
-                var dateTime = (DateTime)value;
-
-                return $"{dateTime.Day}/{dateTime.Month}/{dateTime.Year}";
-            }
-
-            return "No DateTime";
-        }
-
         public static string FormatAsDay(object value)
         {
             try
@@ -137,37 +125,9 @@ namespace SessyWeb.Helpers
         /// <summary>
         /// Format the prices displayed in the X-axis.
         /// </summary>
-        public static string FormatAsWatt(object value)
-        {
-            if (value is double)
-            {
-                var kwh = (double)value;
-
-                return $"{kwh:n0}W";
-            }
-
-            return "";
-        }
-
-        /// <summary>
-        /// Format the prices displayed in the X-axis.
-        /// </summary>
         public static string FormatAsRoundedNumberWithZeroSuppression(object value)
         {
             return FormatDoubleAsRoundedNumberWithZeroSuppression(value, true);
-        }
-
-        /// <summary>
-        /// Format the prices displayed in the X-axis.
-        /// </summary>
-        public static string FormatAsRoundedNumber(object value)
-        {
-            if (value is double)
-            {
-                return FormatDoubleAsRoundedNumberWithZeroSuppression(value, false);
-            }
-
-            return "";
         }
 
         private static string FormatDoubleAsRoundedNumberWithZeroSuppression(object value, bool suppressZero)

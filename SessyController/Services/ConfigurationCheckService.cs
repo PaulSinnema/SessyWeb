@@ -121,7 +121,6 @@ namespace SessyController.Services
 
         public int ErrorCount { get; private set; }
         public int WarningCount { get; private set; }
-        public bool HasIssues => ErrorCount > 0 || WarningCount > 0;
 
         /// <summary>Raised after every run so open circuits can refresh their badge.</summary>
         public event Action? ChecksChanged;
@@ -990,39 +989,6 @@ namespace SessyController.Services
                 ActionUrl = "/settings",
                 ActionLabel = "Open settings"
             });
-        }
-
-        /// <summary>Superseded checks on the removed night reserve settings. No longer called.</summary>
-        private static void CheckNightReserveSettings(List<ConfigurationCheck> checks, SessyData.Model.Settings s)
-        {
-            // Reserve safety surcharge (factor 1.x, shown as % above 100).
-            double reservePct = (s.ReserveSafetyFactor - 1.0) * 100.0;
-            if (reservePct > 50.0)
-            {
-                checks.Add(new ConfigurationCheck
-                {
-                    Severity = CheckSeverity.Warning,
-                    Title = "Reserve safety surcharge very high",
-                    Description = $"Reserve safety surcharge is {reservePct:F0}%. The battery will hold a large " +
-                                  "reserve and rarely discharge. Typical value is around 10%.",
-                    ActionUrl = "/settings",
-                    ActionLabel = "Open settings"
-                });
-            }
-
-            // Night reserve cap (already a whole percentage of capacity).
-            if (s.NightReserveCapPct > 80.0)
-            {
-                checks.Add(new ConfigurationCheck
-                {
-                    Severity = CheckSeverity.Warning,
-                    Title = "Night reserve cap very high",
-                    Description = $"Night reserve cap is {s.NightReserveCapPct:F0}%. The battery keeps most of its " +
-                                  "capacity in reserve and barely discharges overnight. Typical value is around 33%.",
-                    ActionUrl = "/settings",
-                    ActionLabel = "Open settings"
-                });
-            }
         }
 
         private void CheckSettingsExtremes(List<ConfigurationCheck> checks)

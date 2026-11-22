@@ -2,6 +2,7 @@
 using SessyCommon.Enums;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using SessyCommon;
 
 namespace SessyData.Model
 {
@@ -86,15 +87,11 @@ namespace SessyData.Model
 
         /// <summary>Battery charged energy this quarter in kWh.</summary>
         [NotMapped]
-        public double BatteryChargedKWh => BatteryPowerWatts < 0
-            ? Math.Abs(BatteryPowerWatts) * 0.25 / 1000.0
-            : 0.0;
+        public double BatteryChargedKWh => Units.ChargedKWh(BatteryPowerWatts);
 
         /// <summary>Battery discharged energy this quarter in kWh.</summary>
         [NotMapped]
-        public double BatteryDischargedKWh => BatteryPowerWatts > 0
-            ? BatteryPowerWatts * 0.25 / 1000.0
-            : 0.0;
+        public double BatteryDischargedKWh => Units.DischargedKWh(BatteryPowerWatts);
 
         public override string ToString() =>
             $"{Time:yyyy-MM-dd HH:mm} | Mode={BatteryMode} | " +

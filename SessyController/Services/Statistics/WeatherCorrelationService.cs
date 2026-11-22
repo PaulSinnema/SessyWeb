@@ -1,5 +1,6 @@
 ﻿using SessyData.Model;
 using SessyData.Services;
+using SessyCommon;
 
 namespace SessyController.Services.Statistics
 {
@@ -63,7 +64,7 @@ namespace SessyController.Services.Statistics
                 .Select(g => new WeatherDay(
                     g.Key,
                     // ConsumptionWh is the average power (W) over the quarter: W × 0.25 h = Wh.
-                    g.Sum(q => q.ConsumptionWh) * 0.25 / 1000.0,
+                    Units.QuarterKWh(g.Sum(q => q.ConsumptionWh)),
                     g.Average(q => q.Temperature),
                     g.Average(q => q.GlobalRadiation),
                     g.Average(q => q.Humidity)))
