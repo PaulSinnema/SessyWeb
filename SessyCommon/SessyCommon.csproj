@@ -12,4 +12,8 @@
     <PackageReference Include="SolCalc" Version="1.0.2" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Converters\" />
+  </ItemGroup>
+
 </Project>
