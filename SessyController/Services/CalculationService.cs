@@ -153,11 +153,16 @@ namespace SessyController.Services
             {
                 await FillTaxesCache().ConfigureAwait(false);
 
+                var timeList = times.ToList();
+                await PreloadEpexPricesAsync(timeList).ConfigureAwait(false);
+
                 var result = new Dictionary<DateTime, EnergyPrice>();
 
-                foreach (var time in times)
+                foreach (var time in timeList)
                 {
-                    (EPEXPrices? epexPrice, Taxes taxes) = await GetEpexPriceFromCache(time);
+                    // The whole range is preloaded: a quarter missing from the cache has no price, no query needed.
+                    _epexPricesCache.TryGetValue(time, out var epexPrice);
+                    var taxes = TaxesAt(time);
 
                     if (epexPrice?.Price == null || taxes == null)
                         continue;
@@ -200,6 +205,46 @@ namespace SessyController.Services
         private DateTime _invalidateEpexPricesCacheDateTime { get; set; } = DateTime.MinValue;
 
         /// <summary>
+        /// Loads the EPEX prices of the whole range in one query. Without it a batch of a year (35,000
+        /// quarters) ran one query per uncached quarter while holding the price semaphore, so every other
+        /// price calculation in the application waited until it was done.
+        /// </summary>
+        private async Task PreloadEpexPricesAsync(List<DateTime> times)
+        {
+            if (times.Count == 0)
+                return;
+
+            ExpireEpexPricesCache();
+
+            var from = times.Min();
+            var to = times.Max();
+
+            var prices = await _epexPricesDataService.GetList(async set =>
+                await Task.FromResult(set.Where(ep => ep.Time >= from && ep.Time <= to).ToList()));
+
+            // Same order as the per-quarter lookup: the first row wins.
+            foreach (var price in prices)
+                _epexPricesCache.TryAdd(price.Time, price);
+        }
+
+        /// <summary>The tax record in force at the given time.</summary>
+        private Taxes? TaxesAt(DateTime time) =>
+            _taxesCache.Where(tx => tx.Key <= time).OrderByDescending(tx => tx.Key).FirstOrDefault().Value;
+
+        /// <summary>Clears the EPEX cache once a day, unless expected prices are loaded into it.</summary>
+        private void ExpireEpexPricesCache()
+        {
+            if (_invalidateEpexPricesCacheDateTime >= _timezoneService.Now)
+                return;
+
+            // Clearing while expected prices are active would lose them until the next PreloadExpectedPrices().
+            if (!_hasExpectedPrices)
+                _epexPricesCache.Clear();
+
+            _invalidateEpexPricesCacheDateTime = _timezoneService.Now.AddHours(24);
+        }
+
+        /// <summary>
         /// Retrieves the EPEXPrice from cache if present.
         /// If not present in the cache it is fetched from the table and added to the cache.
         /// The cache is invalidated every 24 hours.
@@ -211,18 +256,7 @@ namespace SessyController.Services
         {
             EPEXPrices? epexPrice;
 
-            if (_invalidateEpexPricesCacheDateTime < _timezoneService.Now)
-            {
-                // Only clear if no expected prices are loaded — clearing the cache
-                // while expected prices are active would lose them until the next
-                // PreloadExpectedPrices() call.
-                if (!_hasExpectedPrices)
-                {
-                    _epexPricesCache.Clear();
-                }
-
-                _invalidateEpexPricesCacheDateTime = _timezoneService.Now.AddHours(24);
-            }
+            ExpireEpexPricesCache();
 
             if (_epexPricesCache.ContainsKey(time))
             {
@@ -241,12 +275,7 @@ namespace SessyController.Services
                     _epexPricesCache.TryAdd(time, epexPrice);
             }
 
-            var cache = _taxesCache.Where(tx => tx.Key <= time)
-                                   .OrderByDescending(tx => tx.Key)
-                                   .FirstOrDefault();
-
-            var taxes = cache.Value;
-            return (epexPrice, taxes);
+            return (epexPrice, TaxesAt(time)!);
         }
 
         /// <summary>

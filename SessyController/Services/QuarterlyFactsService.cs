@@ -5,6 +5,9 @@ using SessyCommon;
 
 namespace SessyController.Services
 {
+    /// <summary>Grid import and export (Wh) between two consecutive readings of one meter.</summary>
+    public readonly record struct GridInterval(DateTime Start, DateTime End, double ImportWh, double ExportWh);
+
     /// <summary>
     /// The one place a measured quarter is assembled. Every reader of measured energy goes through
     /// here, so each physical quantity has exactly one authoritative table:
@@ -21,9 +24,6 @@ namespace SessyController.Services
     /// measured in the Consumption table and re-derived as an energy balance that left the battery
     /// out altogether, so charging from the grid counted as household load.
     /// </summary>
-    /// <summary>Grid import and export (Wh) between two consecutive readings of one meter.</summary>
-    public readonly record struct GridInterval(DateTime Start, DateTime End, double ImportWh, double ExportWh);
-
     public class QuarterlyFactsService
     {
         private readonly QuarterlyMeasurementDataService _measurementDataService;

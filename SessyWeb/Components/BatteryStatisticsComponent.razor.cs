@@ -41,10 +41,12 @@ namespace SessyWeb.Components
 
         protected override async Task OnInitializedAsync()
         {
-            await LoadAsync();
+            await LoadAsync(refresh: false);
         }
 
-        private async Task LoadAsync()
+        private Task RefreshAsync() => LoadAsync(refresh: true);
+
+        private async Task LoadAsync(bool refresh)
         {
             if (BatteryStatisticsService == null || CycleHistoryService == null) return;
 
@@ -52,7 +54,7 @@ namespace SessyWeb.Components
             {
                 // Off the circuit thread: all battery quarters since the start of recording.
                 _result = await Task.Run(() => BatteryStatisticsService.GetAsync()).ConfigureAwait(true);
-                _cycles = await Task.Run(() => CycleHistoryService.GetAsync()).ConfigureAwait(true);
+                _cycles = await Task.Run(() => CycleHistoryService.GetAsync(refresh)).ConfigureAwait(true);
             });
         }
 

@@ -11,6 +11,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.198] — 2026-11-22
+
+### Fixed
+- **Statistics, Battery tab: Price capture stalled the whole application while it loaded.** Pricing a year of
+  quarters ran one database query per quarter, and it did so while holding the lock every price calculation
+  in the application shares, so the planner and every other page waited too. The prices of the whole range are
+  now read in one query.
+
+## [v1.0.197] — 2026-11-22
+
+### Fixed
+- **Statistics: the page could stall the whole application** (Price capture kept spinning). Since v1.0.196 the
+  full-cycle history, which reads every battery quarter since the start of recording, was loaded twice at the
+  same time on that page. It is now loaded once per session and shared; the refresh button on the battery card
+  still reloads it.
+
 ## [v1.0.196] — 2026-11-22
 
 Code clean-up: duplicate routines made generic, duplicate properties merged, dead code removed. Most of it is

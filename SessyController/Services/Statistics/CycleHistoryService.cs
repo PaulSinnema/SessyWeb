@@ -74,7 +74,26 @@ namespace SessyController.Services.Statistics
             _timeZoneService = timeZoneService;
         }
 
-        public async Task<CycleHistoryResult> GetAsync()
+        private readonly object _lock = new();
+        private Task<CycleHistoryResult>? _load;
+
+        /// <summary>
+        /// The cycle history, loaded once per scope (one browser session) and shared by every caller:
+        /// it reads all battery quarters since the start of recording, so loading it twice at the same
+        /// time doubles the database load. Pass refresh to load it again.
+        /// </summary>
+        public Task<CycleHistoryResult> GetAsync(bool refresh = false)
+        {
+            lock (_lock)
+            {
+                if (refresh || _load == null || _load.IsFaulted || _load.IsCanceled)
+                    _load = LoadAsync();
+
+                return _load;
+            }
+        }
+
+        private async Task<CycleHistoryResult> LoadAsync()
         {
             // ── Measured ─────────────────────────────────────────────────────
             var measurements = await _measurementDataService.GetList(set =>

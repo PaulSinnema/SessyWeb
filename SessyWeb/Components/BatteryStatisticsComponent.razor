@@ -3,7 +3,7 @@
 @using Radzen.Blazor
 @inherits BaseComponent
 
-<StatisticsCard Title="🔋 Battery use and efficiency" Info="@HowToRead" OnRefresh="@LoadAsync" Loading="@Loading" IsEmpty="@(_result == null || _result.Months.Count == 0)">
+<StatisticsCard Title="🔋 Battery use and efficiency" Info="@HowToRead" OnRefresh="@RefreshAsync" Loading="@Loading" IsEmpty="@(_result == null || _result.Months.Count == 0)">
     <EmptyContent>Not enough data yet: no battery measurements stored.</EmptyContent>
     <ChildContent>
         <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-1">@CyclesText()</RadzenText>
