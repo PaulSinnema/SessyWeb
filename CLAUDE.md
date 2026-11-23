@@ -36,7 +36,20 @@ Probes carry `[Trait("Category", "Probe")]`: they read the real database, print 
 can fail on data alone. Kept because they are reusable: `ConsumptionBalanceProbeTests` (daily energy balance),
 `ModeExecutionProbeTests` (planned vs executed modes), `PlanInvariantProbeTests` (runtime can execute the stored plan),
 `QuarterEnergyProbeTests` (planned vs delivered energy per quarter), `EveningDischargeProbeTests` (replay a stored plan
-input by input). One-off incident probes are deleted once the question is answered; a new probe gets the trait.
+input by input), `PriceCaptureProbeTests` (timings of the Statistics reads and the price batch). One-off incident
+probes are deleted once the question is answered; a new probe gets the trait.
+
+### Statistics performance
+
+- The SQLite provider runs synchronously: `GetList(set => Task.FromResult(...ToList()))` blocks the caller. Reads that
+  should run side by side are started with `Task.Run` and awaited with `Task.WhenAll` (each has its own context).
+- Project to only the needed columns (`new QuarterlyMeasurement { Id, Time, ... }`) for statistics reads.
+- `CalculationService.PriceBatchAsync` holds `_calcuculateEnergyPriceSemaphore` only to refresh caches; never hold it
+  around per-quarter work (it blocks the planner). `IsDaylight` is memoized; use `CalculateBuyingPricesBatchAsync`
+  when selling prices are not needed.
+- Battery degradation: `BatteryHealth` (capacity from discharge runs, relative to the first measured months, AC
+  side) feeds `CycleSeries.Health`; `CycleLifetime.End` is the earliest of cycles, age and capacity.
+- `BaseComponent.WhileLoadingAsync` logs and swallows load exceptions so one card cannot kill the circuit.
 
 ### EF Core migrations
 

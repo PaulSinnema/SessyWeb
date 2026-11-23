@@ -41,13 +41,27 @@ namespace SessyController.Services.Statistics
 
         public async Task<BatteryStatisticsResult> GetAsync()
         {
-            var measurements = await _measurementDataService.GetList(async set =>
-                await Task.FromResult(set.Where(m => m.IsReliable).OrderBy(m => m.Time).ToList()));
+            // Side by side, and only the columns the energy and efficiency figures use.
+            var measurementsTask = Task.Run(() => _measurementDataService.GetList(set => Task.FromResult(set
+                .Where(m => m.IsReliable)
+                .OrderBy(m => m.Time)
+                .Select(m => new QuarterlyMeasurement
+                {
+                    Id = m.Id,
+                    Time = m.Time,
+                    BatteryPowerWatts = m.BatteryPowerWatts,
+                    BatteryStateOfChargeWh = m.BatteryStateOfChargeWh
+                })
+                .ToList())));
+            var groupsTask = Task.Run(() => _investmentGroupDataService.GetList(set => Task.FromResult(set.ToList())));
+            var investmentsTask = Task.Run(() => _investmentDataService.GetList(set => Task.FromResult(set.ToList())));
 
-            var groups = await _investmentGroupDataService.GetList(set => Task.FromResult(set.ToList()));
-            var storageGroupIds = groups.Where(g => g.Category == InvestmentCategory.Storage).Select(g => g.Id).ToHashSet();
+            await Task.WhenAll(measurementsTask, groupsTask, investmentsTask);
 
-            var batteries = (await _investmentDataService.GetList(set => Task.FromResult(set.ToList())))
+            var measurements = measurementsTask.Result;
+            var storageGroupIds = groupsTask.Result.Where(g => g.Category == InvestmentCategory.Storage).Select(g => g.Id).ToHashSet();
+
+            var batteries = investmentsTask.Result
                 .Where(i => i.InvestmentGroupId.HasValue && storageGroupIds.Contains(i.InvestmentGroupId.Value) && i.CapacityWh > 0.0)
                 .ToList();
 

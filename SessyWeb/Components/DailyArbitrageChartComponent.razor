@@ -1,38 +1,44 @@
 ﻿@using SessyController.Services.Statistics
 @using Radzen
 @using Radzen.Blazor
+@inherits BaseComponent
 
 <RadzenCard>
-    <RadzenText TextStyle="TextStyle.H6">📊 Arbitrage: Planned vs Realized</RadzenText>
-    <div style="width: 100%; overflow: auto;">
-        <RadzenChart Style="@($"height: 260px; width: {Math.Max(800, Dashboard!.DailyArbitrageTrends.Count * 80)}px")" MarginTop="30" MarginLeft="60" MarginRight="60">
-            <RadzenColumnSeries Data="@Dashboard.DailyArbitrageTrends"
-                                CategoryProperty="@nameof(DailyArbitrageTrend.Date)"
-                                ValueProperty="@nameof(DailyArbitrageTrend.PlannedEur)"
-                                Title="Planned (€)"
-                                Fill="var(--sessy-planned)">
-                <ChildContent>
-                    <RadzenSeriesDataLabels Visible="true" />
-                </ChildContent>
-            </RadzenColumnSeries>
-            <RadzenColumnSeries Data="@Dashboard.DailyArbitrageTrends"
-                                CategoryProperty="@nameof(DailyArbitrageTrend.Date)"
-                                ValueProperty="@nameof(DailyArbitrageTrend.RealizedEur)"
-                                Title="Realized (€)"
-                                Fill="var(--sessy-actual)">
-                <ChildContent>
-                    <RadzenSeriesDataLabels Visible="true" />
-                </ChildContent>
-            </RadzenColumnSeries>
-            <RadzenCategoryAxis FormatString="{0:dd-MM}" />
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
+        <RadzenText TextStyle="TextStyle.H6" class="rz-m-0">📊 Arbitrage: Planned vs Realized</RadzenText>
+        <InfoTipComponent Text="@HowToRead" />
+    </RadzenStack>
+
+    @if (Buckets.Count == 0)
+    {
+        <RadzenText TextStyle="TextStyle.Body2">No arbitrage in this period.</RadzenText>
+    }
+    else
+    {
+        <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-1">@SummaryText</RadzenText>
+
+        <RadzenChart Style="width: 100%; height: 320px;">
+            <RadzenChartTooltipOptions Shared="true" />
+            <RadzenLegend Position="LegendPosition.Bottom" />
+
+            <RadzenColumnSeries Data="@Buckets"
+                                CategoryProperty="@nameof(ArbitrageBucket.Label)"
+                                ValueProperty="@nameof(ArbitrageBucket.PlannedEur)"
+                                Title="Planned"
+                                Fill="var(--sessy-planned)" />
+            <RadzenColumnSeries Data="@Buckets"
+                                CategoryProperty="@nameof(ArbitrageBucket.Label)"
+                                ValueProperty="@nameof(ArbitrageBucket.RealizedEur)"
+                                Title="Realized"
+                                Fill="var(--sessy-actual)" />
+
+            <RadzenColumnOptions Margin="4" />
+            <RadzenCategoryAxis LabelAutoRotation="-45">
+                <RadzenAxisTitle Text="@PeriodTitle" />
+            </RadzenCategoryAxis>
             <RadzenValueAxis FormatString="€ {0:F2}">
                 <RadzenGridLines Visible="true" />
             </RadzenValueAxis>
-            <RadzenLegend Position="LegendPosition.Bottom" />
         </RadzenChart>
-    </div>
+    }
 </RadzenCard>
-
-@code {
-    [Parameter, EditorRequired] public DashboardStatistics? Dashboard { get; set; }
-}

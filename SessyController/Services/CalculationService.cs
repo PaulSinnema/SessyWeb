@@ -135,52 +135,100 @@ namespace SessyController.Services
             }
         }
 
-        /// <summary>
-        /// Calculates the all-in consumer gas price in EUR/m³ from the TTF market price.
-        /// Applies supplier markup, gas energy tax (Energiebelasting aardgas) and VAT (BTW)
-        /// from the most recently applicable Taxes record.
-        /// Formula: (marketPriceEurPerM3 + GasSupplierMarkupEurPerM3 + GasEnergyTaxEurPerM3)
-        ///          × (1 + GasValueAddedTaxPct / 100)
-        /// Batch-calculates buying and selling prices for a list of timestamps using
-        /// the EPEXPrices and Taxes caches — avoids per-item semaphore overhead.
-        /// </summary>
+        /// <summary>Buying and selling prices for a batch of quarters, see PriceBatchAsync.</summary>
         public async Task<Dictionary<DateTime, EnergyPrice>> CalculateEnergyPricesBatchAsync(
             IEnumerable<DateTime> times)
         {
-            await _calcuculateEnergyPriceSemaphore.WaitAsync();
+            var priced = await PriceBatchAsync(times, includeSelling: true).ConfigureAwait(false);
+
+            return priced.ToDictionary(p => p.Time, p => new EnergyPrice(p.Buying, p.Selling));
+        }
+
+        public async Task<Dictionary<DateTime, double>> CalculateBuyingPricesBatchAsync(IEnumerable<DateTime> times)
+        {
+            var priced = await PriceBatchAsync(times, includeSelling: false).ConfigureAwait(false);
+
+            return priced.ToDictionary(p => p.Time, p => p.Buying);
+        }
+
+        /// <summary>
+        /// Prices a batch of quarters. The shared lock is held only to refresh the caches: the prices
+        /// of the range come in one query into a local table, and the quarters are priced in parallel
+        /// without the lock. A year of quarters used to keep the lock for seconds, and every other price
+        /// calculation in the application, the planner's included, waited behind it.
+        /// </summary>
+        private async Task<List<(DateTime Time, double Buying, double Selling)>> PriceBatchAsync(IEnumerable<DateTime> times, bool includeSelling)
+        {
+            var timeList = times.Distinct().ToList();
+
+            if (timeList.Count == 0)
+                return new();
+
+            KeyValuePair<DateTime, Taxes>[] taxes;
+
+            await _calcuculateEnergyPriceSemaphore.WaitAsync().ConfigureAwait(false);
 
             try
             {
                 await FillTaxesCache().ConfigureAwait(false);
+                ExpireEpexPricesCache();
 
-                var timeList = times.ToList();
-                await PreloadEpexPricesAsync(timeList).ConfigureAwait(false);
-
-                var result = new Dictionary<DateTime, EnergyPrice>();
-
-                foreach (var time in timeList)
-                {
-                    // The whole range is preloaded: a quarter missing from the cache has no price, no query needed.
-                    _epexPricesCache.TryGetValue(time, out var epexPrice);
-                    var taxes = TaxesAt(time);
-
-                    if (epexPrice?.Price == null || taxes == null)
-                        continue;
-
-                    var buying = EnergyPriceCalculator.Buy(taxes, epexPrice.Price.Value);
-                    var selling = EnergyPriceCalculator.Sell(taxes, epexPrice.Price.Value, IsDaylight(time));
-
-                    result[time] = new EnergyPrice(buying, selling);
-                }
-
-                return result;
+                // Snapshot under the lock: FillTaxesCache clears and refills the shared cache.
+                taxes = _taxesCache.OrderBy(tx => tx.Key).ToArray();
             }
             finally
             {
                 _calcuculateEnergyPriceSemaphore.Release();
             }
+
+            var from = timeList.Min();
+            var to = timeList.Max();
+
+            var rows = await _epexPricesDataService.GetList(set =>
+                Task.FromResult(set.Where(ep => ep.Time >= from && ep.Time <= to && ep.Price != null).ToList())).ConfigureAwait(false);
+
+            // First row per quarter, as the single-quarter lookup does.
+            var epex = new Dictionary<DateTime, double>();
+            foreach (var row in rows)
+                epex.TryAdd(row.Time, row.Price!.Value);
+
+            // Tax records ordered by start, for a binary search per quarter.
+            var taxStarts = taxes.Select(tx => tx.Key).ToArray();
+
+            var result = new (DateTime Time, double Buying, double Selling)?[timeList.Count];
+
+            Parallel.For(0, timeList.Count, i =>
+            {
+                var time = timeList[i];
+
+                // Database price first; a future quarter can still carry an expected price in the cache.
+                double market;
+                if (epex.TryGetValue(time, out var price))
+                    market = price;
+                else if (_epexPricesCache.TryGetValue(time, out var expected) && expected.Price.HasValue)
+                    market = expected.Price.Value;
+                else
+                    return;
+
+                var index = Array.BinarySearch(taxStarts, time);
+                if (index < 0) index = ~index - 1;
+                if (index < 0) return;
+
+                var tax = taxes[index].Value;
+
+                result[i] = (time,
+                    EnergyPriceCalculator.Buy(tax, market),
+                    includeSelling ? EnergyPriceCalculator.Sell(tax, market, IsDaylight(time)) : 0.0);
+            });
+
+            return result.Where(r => r.HasValue).Select(r => r!.Value).ToList();
         }
 
+        /// <summary>
+        /// The all-in consumer gas price in EUR/m³ from the TTF market price: supplier markup, gas energy
+        /// tax and VAT from the most recently applicable Taxes record.
+        /// Formula: (marketPriceEurPerM3 + GasSupplierMarkupEurPerM3 + GasEnergyTaxEurPerM3) × (1 + GasValueAddedTaxPct / 100)
+        /// </summary>
         public virtual async Task<double?> CalculateGasPriceAsync(double marketPriceEurPerM3)
         {
             await FillTaxesCache().ConfigureAwait(false);
@@ -203,29 +251,6 @@ namespace SessyController.Services
 
         private ConcurrentDictionary<DateTime, EPEXPrices> _epexPricesCache = new();
         private DateTime _invalidateEpexPricesCacheDateTime { get; set; } = DateTime.MinValue;
-
-        /// <summary>
-        /// Loads the EPEX prices of the whole range in one query. Without it a batch of a year (35,000
-        /// quarters) ran one query per uncached quarter while holding the price semaphore, so every other
-        /// price calculation in the application waited until it was done.
-        /// </summary>
-        private async Task PreloadEpexPricesAsync(List<DateTime> times)
-        {
-            if (times.Count == 0)
-                return;
-
-            ExpireEpexPricesCache();
-
-            var from = times.Min();
-            var to = times.Max();
-
-            var prices = await _epexPricesDataService.GetList(async set =>
-                await Task.FromResult(set.Where(ep => ep.Time >= from && ep.Time <= to).ToList()));
-
-            // Same order as the per-quarter lookup: the first row wins.
-            foreach (var price in prices)
-                _epexPricesCache.TryAdd(price.Time, price);
-        }
 
         /// <summary>The tax record in force at the given time.</summary>
         private Taxes? TaxesAt(DateTime time) =>
@@ -287,9 +312,12 @@ namespace SessyController.Services
         {
             var settings = _settingsService.Current;
 
-            return _timezoneService.GetSunlightLevel(time, settings.Latitude, settings.Longitude)
-                == SolCalc.Data.SunlightLevel.Daylight;
+            // The sun position is costly (tens of µs) and a quarter's answer never changes for a location.
+            return _daylightCache.GetOrAdd((time, settings.Latitude, settings.Longitude), key =>
+                _timezoneService.GetSunlightLevel(key.Time, key.Latitude, key.Longitude) == SolCalc.Data.SunlightLevel.Daylight);
         }
+
+        private readonly ConcurrentDictionary<(DateTime Time, double Latitude, double Longitude), bool> _daylightCache = new();
 
         /// <summary>
         /// Calculate the overhead cost per quarter for the date.

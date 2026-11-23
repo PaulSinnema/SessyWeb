@@ -1177,23 +1177,30 @@ namespace SessyController.Services
             // ── Step 2: Resolve gas & electricity price ───────────────────────
             var heatPumpStats = await GetHeatPumpStatisticsAsync();
 
-            // ── Step 3: Build seasonal savings averages ───────────────────────
+            // ── Steps 3, 5 and 6 are independent of each other ────────────────
+            // Each walks its own data on its own contexts, so they run side by side instead of
+            // one after the other (Task.Run: the SQLite provider works synchronously).
             var dataStart = await GetEarliestDataDateAsync();
-            var monthlySolarSavings = await BuildSeasonalSolarSavingsAsync(dataStart, now);
-            var monthlyArbitrageSavings = await BuildSeasonalArbitrageSavingsAsync(dataStart, now);
 
-            double energySystemAnnualSavings = monthlySolarSavings.Values.Sum()
-                                             + monthlyArbitrageSavings.Values.Sum();
+            var solarSavingsTask = Task.Run(() => BuildSeasonalSolarSavingsAsync(dataStart, now));
+            var arbitrageSavingsTask = Task.Run(() => BuildSeasonalArbitrageSavingsAsync(dataStart, now));
+            var periodStatsTask = Task.Run(() => GetEnergyStatisticsAsync(start, end));
+            var arbitrageTrendsTask = Task.Run(() => GetDailyArbitrageTrendsAsync(start, end));
+            var planVsActualPointsTask = Task.Run(() => BuildPlanVsActualChartPointsAsync(now));
+            var planVsActualStatsTask = Task.Run(() => _planVsActualService.GetStatsAsync(now.AddDays(-7), now));
+            var planTask = Task.Run(() => _milpService.GetPlanStatisticsAsync(now, _hardwareStatusService.CurrentSocWh));
+
+            // ── Step 3: Seasonal savings averages ─────────────────────────────
+            double energySystemAnnualSavings = (await solarSavingsTask).Values.Sum()
+                                             + (await arbitrageSavingsTask).Values.Sum();
             double heatPumpAnnualSavings = heatPumpStats.NetAnnualSavingsEur;
 
             // ── Step 4: ROI statistics ────────────────────────────────────────
             var investment = await BuildInvestmentStatisticsAsync(now, dataStart, energySystemAnnualSavings, heatPumpAnnualSavings);
 
-            // ── Step 5: Period measurements ───────────────────────────────────
-            var periodStats = await GetEnergyStatisticsAsync(start, end);
-
-            // ── Step 6: Daily arbitrage trends ────────────────────────────────
-            var arbitrageTrends = await GetDailyArbitrageTrendsAsync(start, end);
+            // ── Steps 5 and 6: Period measurements and daily arbitrage trends ──
+            var periodStats = await periodStatsTask;
+            var arbitrageTrends = await arbitrageTrendsTask;
 
             // ── Step 7: Assemble DashboardStatistics ─────────────────────────
             return new DashboardStatistics
@@ -1209,12 +1216,11 @@ namespace SessyController.Services
                 DailyArbitrageTrends = arbitrageTrends,
 
                 // Plan vs Actual — fixed 7-day window, independent of date chooser.
-                PlanVsActualChartPoints = await BuildPlanVsActualChartPointsAsync(now),
-                PlanVsActualStats = await _planVsActualService
-                                              .GetStatsAsync(now.AddDays(-7), now),
+                PlanVsActualChartPoints = await planVsActualPointsTask,
+                PlanVsActualStats = await planVsActualStatsTask,
 
                 // Plan
-                Plan = await _milpService.GetPlanStatisticsAsync(now, _hardwareStatusService.CurrentSocWh),
+                Plan = await planTask,
             };
         }
 

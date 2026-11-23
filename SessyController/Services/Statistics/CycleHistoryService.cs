@@ -16,11 +16,77 @@ namespace SessyController.Services.Statistics
         public double KnownCycles => MeasuredCycles + ReconstructedCycles;
     }
 
-    /// <summary>The cycle history of the whole bank or of one battery.</summary>
-    public sealed record CycleSeries(string Name, double CapacityKWh, DateTime? Start, List<CycleMonth> Months)
+    /// <summary>What decides the expected end of life.</summary>
+    public enum LifeLimit { None, Cycles, Age, Capacity }
+
+    /// <summary>
+    /// Expected end of life: by cycles (rated cycles left at the current pace), by age (purchase + rated lifetime in
+    /// years) and by capacity (measured fade reaching CapacityHealth.EndOfLifePercent), whichever comes first.
+    /// </summary>
+    public sealed record CycleLifetime(string Name, double UsedCycles, int RatedCycles, double CyclesPerYear, bool PaceOverFullYear,
+                                       DateTime? CyclesEnd, DateTime? CalendarEnd, CapacityHealth? Health = null,
+                                       DateTime? Start = null)
     {
+        public DateTime? CapacityEnd => Health?.EndOfLife;
+
+        /// <summary>The earliest of the ends; null when none is known.</summary>
+        public DateTime? End => new[] { CyclesEnd, CalendarEnd, CapacityEnd }.Where(d => d.HasValue).Min();
+
+        public LifeLimit LimitedBy =>
+            End == null ? LifeLimit.None
+            : End == CapacityEnd ? LifeLimit.Capacity
+            : End == CyclesEnd ? LifeLimit.Cycles
+            : LifeLimit.Age;
+
+        public double? UsedPercent => RatedCycles > 0 ? UsedCycles / RatedCycles * 100.0 : null;
+    }
+
+    /// <summary>The cycle history of the whole bank or of one battery.</summary>
+    public sealed record CycleSeries(string Name, double CapacityKWh, DateTime? Start, List<CycleMonth> Months,
+                                     int RatedCycles = 0, int LifetimeYears = 0, CapacityHealth? Health = null)
+    {
+        /// <summary>Beyond this a forecast says nothing useful.</summary>
+        private const double MaxForecastYears = 100.0;
+
+        /// <summary>Less history than this gives no pace.</summary>
+        private const double MinPaceDays = 30.0;
+
         public double TotalCycles(bool withEstimate) =>
             Months.Sum(m => m.KnownCycles + (withEstimate ? m.EstimatedCycles : 0.0));
+
+        private double CyclesOf(CycleMonth month, bool withEstimate) =>
+            month.KnownCycles + (withEstimate ? month.EstimatedCycles : 0.0);
+
+        /// <summary>
+        /// Forecast from the pace of the last twelve complete months (a full year evens out the seasons);
+        /// with less history the average since the start, which leans towards the season it covers.
+        /// </summary>
+        public CycleLifetime Lifetime(bool withEstimate, DateTime now)
+        {
+            var used = TotalCycles(withEstimate);
+            var thisMonth = now.MonthStart();
+            var yearAgo = thisMonth.AddMonths(-12);
+
+            double pace = 0.0;
+            bool fullYear = Start.HasValue && Start.Value <= yearAgo;
+
+            if (fullYear)
+                pace = Months.Where(m => m.Month >= yearAgo && m.Month < thisMonth).Sum(m => CyclesOf(m, withEstimate));
+            else if (Start.HasValue && (now - Start.Value).TotalDays >= MinPaceDays)
+                pace = used / ((now - Start.Value).TotalDays / 365.25);
+
+            DateTime? cyclesEnd = null;
+            if (RatedCycles > 0 && pace > 0.0)
+            {
+                var years = Math.Max(0.0, RatedCycles - used) / pace;
+                if (years <= MaxForecastYears)
+                    cyclesEnd = now.Date.AddDays(years * 365.25);
+            }
+
+            DateTime? calendarEnd = LifetimeYears > 0 && Start.HasValue ? Start.Value.Date.AddYears(LifetimeYears) : null;
+
+            return new CycleLifetime(Name, used, RatedCycles, pace, fullYear, cyclesEnd, calendarEnd, Health, Start);
+        }
     }
 
     public sealed record CycleHistoryResult(CycleSeries Total, List<CycleSeries> Batteries)
@@ -29,6 +95,10 @@ namespace SessyController.Services.Statistics
         public double AveragePerBattery(bool withEstimate) =>
             Batteries.Count > 0 ? Batteries.Average(b => b.TotalCycles(withEstimate)) : Total.TotalCycles(withEstimate);
 
+        /// <summary>Lifetime forecast of every battery, or of the bank when there are none.</summary>
+        public List<CycleLifetime> Lifetimes(bool withEstimate, DateTime now) =>
+            (Batteries.Count > 0 ? Batteries : new List<CycleSeries> { Total }).Select(b => b.Lifetime(withEstimate, now)).ToList();
+
         /// <summary>The battery matching a name ("Sessy 2" also matches "Battery 2"); null when none does.</summary>
         public CycleSeries? Find(string? name) =>
             Batteries.FirstOrDefault(b => string.Equals(b.Name.Trim(), name?.Trim(), StringComparison.OrdinalIgnoreCase))
@@ -36,7 +106,8 @@ namespace SessyController.Services.Statistics
     }
 
     /// <summary>One battery as the history sees it: capacity and the first quarter it was in use.</summary>
-    public sealed record CycleBattery(string Id, string Name, double CapacityKWh, DateTime ActiveFrom);
+    public sealed record CycleBattery(string Id, string Name, double CapacityKWh, DateTime ActiveFrom,
+                                      int RatedCycles = 0, int LifetimeYears = 0);
 
     /// <summary>
     /// Full cycles since the batteries were bought. Per quarter the discharged energy is taken from the best
@@ -95,31 +166,53 @@ namespace SessyController.Services.Statistics
 
         private async Task<CycleHistoryResult> LoadAsync()
         {
-            // ── Measured ─────────────────────────────────────────────────────
-            var measurements = await _measurementDataService.GetList(set =>
-                Task.FromResult(set.Where(m => m.IsReliable).ToList()));
+            // Every read is independent: run them side by side, each on its own context and thread
+            // (the SQLite provider works synchronously, so without Task.Run they would queue up).
+            // Only the columns the cycles need are read.
+            var measurementsTask = Task.Run(() => _measurementDataService.GetList(set => Task.FromResult(set
+                .Where(m => m.IsReliable)
+                .Select(m => new QuarterlyMeasurement { Id = m.Id, Time = m.Time, BatteryPowerWatts = m.BatteryPowerWatts })
+                .ToList())));
+            var batteryRowsTask = Task.Run(() => _batteryMeasurementDataService.GetList(set => Task.FromResult(set
+                .Select(m => new BatteryQuarterMeasurement
+                {
+                    Id = m.Id, BatteryId = m.BatteryId, Time = m.Time, PowerWatts = m.PowerWatts,
+                    StateOfChargeWh = m.StateOfChargeWh, CapacityWh = m.CapacityWh
+                })
+                .ToList())));
+            var historiesTask = Task.Run(() => _energyHistoryDataService.GetList(set => Task.FromResult(set.ToList())));
+            var solarTask = Task.Run(() => _quarterlyFactsService.GetSolarByQuarterAsync(DateTime.MinValue, DateTime.MaxValue));
+            var consumptionTask = Task.Run(() => _quarterlyFactsService.GetConsumptionByQuarterAsync(DateTime.MinValue, DateTime.MaxValue));
+            var groupsTask = Task.Run(() => _investmentGroupDataService.GetList(set => Task.FromResult(set.ToList())));
+            var investmentsTask = Task.Run(() => _investmentDataService.GetList(set => Task.FromResult(set.ToList())));
 
+            await Task.WhenAll(measurementsTask, batteryRowsTask, historiesTask, solarTask, consumptionTask, groupsTask, investmentsTask);
+
+            // ── Measured ─────────────────────────────────────────────────────
             // Duplicates exist (see QuarterlyFactsService.GetAsync): keep the newest row per quarter.
-            var measured = QuarterlyFactsService.NewestPerQuarter(measurements)
+            var measured = QuarterlyFactsService.NewestPerQuarter(measurementsTask.Result)
                 .ToDictionary(m => m.Time, m => m.BatteryDischargedKWh);
 
-            var perBattery = (await _batteryMeasurementDataService.GetList(set => Task.FromResult(set.ToList())))
-                .GroupBy(m => m.BatteryId)
-                .ToDictionary(g => g.Key, g => g.GroupBy(m => m.Time).ToDictionary(t => t.Key, t => t.Last().DischargedKWh));
+            var rowsPerBattery = batteryRowsTask.Result.GroupBy(m => m.BatteryId).ToDictionary(g => g.Key, g => g.ToList());
+
+            var perBattery = rowsPerBattery
+                .ToDictionary(kv => kv.Key, kv => kv.Value.GroupBy(m => m.Time).ToDictionary(t => t.Key, t => t.Last().DischargedKWh));
+
+            // Measured capacity per battery, from its long discharges.
+            var now = _timeZoneService.Now;
+            var health = rowsPerBattery
+                .Select(kv => (kv.Key, Health: BatteryHealth.Estimate(kv.Value, now)))
+                .Where(h => h.Health != null)
+                .ToDictionary(h => h.Key, h => h.Health!);
 
             // ── Reconstructed ────────────────────────────────────────────────
-            var histories = await _energyHistoryDataService.GetList(set => Task.FromResult(set.ToList()));
-            var grid = QuarterlyFactsService.GridDeltas(histories, maxInterval: TimeSpan.FromMinutes(15));
-            var solar = await _quarterlyFactsService.GetSolarByQuarterAsync(DateTime.MinValue, DateTime.MaxValue);
-            var consumption = await _quarterlyFactsService.GetConsumptionByQuarterAsync(DateTime.MinValue, DateTime.MaxValue);
-
-            var reconstructed = Reconstruct(consumption, solar, grid);
+            var grid = QuarterlyFactsService.GridDeltas(historiesTask.Result, maxInterval: TimeSpan.FromMinutes(15));
+            var reconstructed = Reconstruct(consumptionTask.Result, solarTask.Result, grid);
 
             // ── Batteries and when they came into use ────────────────────────
-            var groups = await _investmentGroupDataService.GetList(set => Task.FromResult(set.ToList()));
-            var storageGroupIds = groups.Where(g => g.Category == InvestmentCategory.Storage).Select(g => g.Id).ToHashSet();
+            var storageGroupIds = groupsTask.Result.Where(g => g.Category == InvestmentCategory.Storage).Select(g => g.Id).ToHashSet();
 
-            var investments = (await _investmentDataService.GetList(set => Task.FromResult(set.ToList())))
+            var investments = investmentsTask.Result
                 .Where(i => i.InvestmentGroupId.HasValue && storageGroupIds.Contains(i.InvestmentGroupId.Value) && i.CapacityWh > 0.0)
                 .ToList();
 
@@ -130,7 +223,7 @@ namespace SessyController.Services.Statistics
 
             var batteries = Batteries(investments, firstData);
 
-            return Build(measured, reconstructed, perBattery, batteries, _timeZoneService.Now.DateFloorQuarter());
+            return Build(measured, reconstructed, perBattery, batteries, now.DateFloorQuarter(), health);
         }
 
         /// <summary>Configured batteries, each active from its own investment's purchase date (matched by name).</summary>
@@ -146,7 +239,8 @@ namespace SessyController.Services.Statistics
                     var investment = investments.FirstOrDefault(i => string.Equals(i.Description?.Trim(), name.Trim(), StringComparison.OrdinalIgnoreCase))
                                   ?? investments.FirstOrDefault(i => Number(i.Description) is string n && (n == Number(name) || n == Number(b.Id)));
 
-                    return new CycleBattery(b.Id, name, b.GetCapacity() / 1000.0, (investment?.PurchaseDate ?? earliestPurchase).DateFloorQuarter());
+                    return new CycleBattery(b.Id, name, b.GetCapacity() / 1000.0, (investment?.PurchaseDate ?? earliestPurchase).DateFloorQuarter(),
+                                            investment?.ExpectedTotalCycles ?? 0, investment?.ExpectedLifetimeYears ?? 0);
                 })
                 .ToList();
         }
@@ -192,7 +286,8 @@ namespace SessyController.Services.Statistics
             IReadOnlyDictionary<DateTime, double> reconstructedKWh,
             IReadOnlyDictionary<string, Dictionary<DateTime, double>> perBatteryKWh,
             IReadOnlyList<CycleBattery> batteries,
-            DateTime now)
+            DateTime now,
+            IReadOnlyDictionary<string, CapacityHealth>? health = null)
         {
             var empty = new CycleHistoryResult(new CycleSeries("Total", 0.0, null, new()), new());
 
@@ -239,9 +334,17 @@ namespace SessyController.Services.Statistics
                 }
             }
 
+            // Bank: capacity-weighted rated cycles; it lasts as long as its first battery to reach its rated age.
+            var rated = batteries.Where(b => b.RatedCycles > 0).ToList();
+            var ratedCapacity = rated.Sum(b => b.CapacityKWh);
+            var bankRatedCycles = ratedCapacity > 0.0 ? (int)Math.Round(rated.Sum(b => b.CapacityKWh * b.RatedCycles) / ratedCapacity) : 0;
+            var aged = batteries.Where(b => b.LifetimeYears > 0).ToList();
+            var bankLifetimeYears = aged.Count > 0 ? aged.Min(b => b.LifetimeYears) : 0;
+
             return new CycleHistoryResult(
-                new CycleSeries("Total", totalCapacity, start, bank.Months()),
-                batteries.Select(b => new CycleSeries(b.Name, b.CapacityKWh, b.ActiveFrom, own[b.Id].Months())).ToList());
+                new CycleSeries("Total", totalCapacity, start, bank.Months(), bankRatedCycles, bankLifetimeYears),
+                batteries.Select(b => new CycleSeries(b.Name, b.CapacityKWh, b.ActiveFrom, own[b.Id].Months(), b.RatedCycles, b.LifetimeYears,
+                                                      health != null && health.TryGetValue(b.Id, out var h) ? h : null)).ToList());
         }
 
         /// <summary>Sums cycles per month and source.</summary>

@@ -17,5 +17,8 @@
         /// </summary>
         Task<Dictionary<DateTime, EnergyPrice>> CalculateEnergyPricesBatchAsync(
             IEnumerable<DateTime> times);
+
+        /// <summary>Buying prices only: skips the selling side and its daylight calculation.</summary>
+        Task<Dictionary<DateTime, double>> CalculateBuyingPricesBatchAsync(IEnumerable<DateTime> times);
     }
 }

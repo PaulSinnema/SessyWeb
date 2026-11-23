@@ -1,5 +1,7 @@
 ﻿using SessyController.Services.Items;
 using SessyCommon.Extensions;
+using SessyData.Model;
+using SessyData.Services;
 
 namespace SessyController.Services.Statistics
 {
@@ -22,16 +24,36 @@ namespace SessyController.Services.Statistics
         /// <summary>Days with less discharge than this say nothing about timing.</summary>
         private const double MinDischargedKWh = 0.5;
 
-        private readonly QuarterlyFactsService _quarterlyFactsService;
+        private readonly QuarterlyMeasurementDataService _measurementDataService;
+        private readonly ICalculationService _calculationService;
 
-        public PriceCaptureService(QuarterlyFactsService quarterlyFactsService)
+        public PriceCaptureService(QuarterlyMeasurementDataService measurementDataService, ICalculationService calculationService)
         {
-            _quarterlyFactsService = quarterlyFactsService;
+            _measurementDataService = measurementDataService;
+            _calculationService = calculationService;
         }
 
+        /// <summary>
+        /// Only battery power and the buying price per quarter are needed, so this reads just those
+        /// columns and prices the buying side. The full quarterly join (grid, solar, consumption,
+        /// selling prices with their daylight check) cost a year of work for nothing.
+        /// </summary>
         public async Task<List<PriceCaptureMonth>> GetAsync(DateTime from, DateTime to)
         {
-            var quarters = await _quarterlyFactsService.GetAsync(from, to);
+            var rows = await _measurementDataService.GetList(set => Task.FromResult(set
+                .Where(m => m.Time >= from && m.Time <= to)
+                .Select(m => new QuarterlyMeasurement { Id = m.Id, Time = m.Time, BatteryPowerWatts = m.BatteryPowerWatts })
+                .ToList()));
+
+            var measurements = QuarterlyFactsService.NewestPerQuarter(rows);
+            var prices = await _calculationService.CalculateBuyingPricesBatchAsync(measurements.Select(m => m.Time));
+
+            var quarters = measurements.Select(m => new MeasurementView
+            {
+                Time = m.Time,
+                BatteryPowerWatts = m.BatteryPowerWatts,
+                BuyingPriceEur = prices.TryGetValue(m.Time, out var price) ? price : 0.0
+            });
 
             return Months(quarters.GroupBy(q => q.Time.Date).Select(g => Day(g.Key, g.ToList())).OfType<PriceCaptureDay>());
         }

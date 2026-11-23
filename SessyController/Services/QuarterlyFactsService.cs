@@ -134,19 +134,6 @@ namespace SessyController.Services
         /// </summary>
         public async Task<List<MeasurementView>> GetAsync(DateTime start, DateTime end)
         {
-            var rows = await _measurementDataService.GetList(async set =>
-                await Task.FromResult(set
-                    .Where(m => m.Time >= start && m.Time <= end)
-                    .ToList()));
-
-            // One row per quarter, whatever the table holds. QuarterlyMeasurements is written by
-            // two services (EnergyMonitorService creates it, BatteriesService updates it) and the
-            // unique index on Time that migration RepairQuarterlyMeasurements created in raw SQL
-            // is gone — a later EF table rebuild took it with it. The production database has 268
-            // duplicate quarters as a result, and every one of them counted its battery energy and
-            // its consumption twice. Keep the highest Id: that is the most recently written row.
-            var measurements = NewestPerQuarter(rows);
-
             // One quarter of run-up, so the first quarter inside the window has a predecessor to
             // difference against. DateTime.MinValue ("all data") has nothing before it and
             // subtracting from it throws.
@@ -154,18 +141,33 @@ namespace SessyController.Services
                 ? start.AddMinutes(-15)
                 : start;
 
-            var histories = await _energyHistoryDataService.GetList(async set =>
-                await Task.FromResult(set
-                    .Where(h => h.Time >= historyStart && h.Time <= end)
-                    .ToList()));
+            // The four tables are independent: read them at the same time, each on its own context.
+            // Task.Run because the SQLite provider does its work synchronously, so a plain call
+            // would run the whole query before the next one even starts.
+            var rowsTask = Task.Run(() => _measurementDataService.GetList(set =>
+                Task.FromResult(set.Where(m => m.Time >= start && m.Time <= end).ToList())));
+            var historiesTask = Task.Run(() => _energyHistoryDataService.GetList(set =>
+                Task.FromResult(set.Where(h => h.Time >= historyStart && h.Time <= end).ToList())));
+            var solarTask = Task.Run(() => GetSolarByQuarterAsync(start, end));
+            var consumptionTask = Task.Run(() => GetConsumptionByQuarterAsync(start, end));
 
-            var gridByTime = GridDeltas(histories);
+            // One row per quarter, whatever the table holds. QuarterlyMeasurements is written by
+            // two services (EnergyMonitorService creates it, BatteriesService updates it) and the
+            // unique index on Time that migration RepairQuarterlyMeasurements created in raw SQL
+            // is gone — a later EF table rebuild took it with it. The production database has 268
+            // duplicate quarters as a result, and every one of them counted its battery energy and
+            // its consumption twice. Keep the highest Id: that is the most recently written row.
+            var measurements = NewestPerQuarter(await rowsTask);
 
-            var solarByTime = await GetSolarByQuarterAsync(start, end);
-            var consumptionByTime = await GetConsumptionByQuarterAsync(start, end);
+            // Pricing needs the quarters, and runs while the other reads finish.
+            var pricesTask = _calculationService.CalculateEnergyPricesBatchAsync(measurements.Select(m => m.Time));
 
-            var prices = await _calculationService.CalculateEnergyPricesBatchAsync(
-                measurements.Select(m => m.Time));
+            await Task.WhenAll(historiesTask, solarTask, consumptionTask, pricesTask);
+
+            var gridByTime = GridDeltas(historiesTask.Result);
+            var solarByTime = solarTask.Result;
+            var consumptionByTime = consumptionTask.Result;
+            var prices = pricesTask.Result;
 
             return measurements.Select(m =>
             {

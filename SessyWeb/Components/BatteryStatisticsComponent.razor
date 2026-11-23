@@ -6,7 +6,39 @@
 <StatisticsCard Title="🔋 Battery use and efficiency" Info="@HowToRead" OnRefresh="@RefreshAsync" Loading="@Loading" IsEmpty="@(_result == null || _result.Months.Count == 0)">
     <EmptyContent>Not enough data yet: no battery measurements stored.</EmptyContent>
     <ChildContent>
-        <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-1">@CyclesText()</RadzenText>
+        @if (_cycles != null && _cycles.Total.Months.Count > 0)
+        {
+            <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-m-0">Lifetime forecast <InfoTipComponent Text="@ForecastInfo" /></RadzenText>
+
+            <RadzenDataGrid Data="@Lifetimes" TItem="CycleLifetime" AllowSorting="false" Density="Density.Compact">
+                <Columns>
+                    <RadzenDataGridColumn TItem="CycleLifetime" Property="@nameof(CycleLifetime.Name)" Title="Battery" />
+                    <RadzenDataGridColumn TItem="CycleLifetime" Title="Cycles used" TextAlign="TextAlign.Right">
+                        <Template Context="l">@UsedText(l)</Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="CycleLifetime" Title="Pace / year" TextAlign="TextAlign.Right">
+                        <Template Context="l">@PaceText(l)</Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="CycleLifetime" Title="Cycles used up" TextAlign="TextAlign.Right">
+                        <Template Context="l">@DateText(l.CyclesEnd)</Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="CycleLifetime" Title="Rated age reached" TextAlign="TextAlign.Right">
+                        <Template Context="l">@DateText(l.CalendarEnd)</Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="CycleLifetime" Title="Capacity" TextAlign="TextAlign.Right">
+                        <Template Context="l">@CapacityText(l)</Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="CycleLifetime" Title="@CapacityEndTitle" TextAlign="TextAlign.Right">
+                        <Template Context="l">@DateText(l.CapacityEnd)</Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="CycleLifetime" Title="Expected end of life" TextAlign="TextAlign.Right">
+                        <Template Context="l"><strong>@EndText(l)</strong></Template>
+                    </RadzenDataGridColumn>
+                </Columns>
+            </RadzenDataGrid>
+        }
+
+        <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-3">@CyclesText()</RadzenText>
         <RadzenText TextStyle="TextStyle.Caption">@LifetimeText()</RadzenText>
 
         <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mt-3">Energy and round-trip efficiency per month <InfoTipComponent Text="@EnergyInfo" /></RadzenText>
@@ -62,13 +94,36 @@
 
         @if (_cycles != null && _cycles.Total.Months.Count > 0)
         {
-            <RadzenTabs>
+            <RadzenTabs class="rz-mt-3">
                 <Tabs>
                     @foreach (var series in AllSeries)
                     {
                         <RadzenTabsItem Text="@series.Name">
                             <RadzenText TextStyle="TextStyle.Caption">@SeriesText(series)</RadzenText>
                             <CycleChartComponent Series="@series" WithEstimate="@_withEstimate" />
+
+                            @if (series.Health is CapacityHealth health && health.Months.Count > 0)
+                            {
+                                <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mt-3">Measured capacity per month <InfoTipComponent Text="@CapacityInfo" /></RadzenText>
+
+                                <RadzenChart Style="width: 100%; height: 260px;">
+                                    <RadzenChartTooltipOptions Shared="true" />
+                                    <RadzenLegend Visible="false" />
+                                    <RadzenLineSeries Data="@health.Months"
+                                                      Title="Usable capacity"
+                                                      CategoryProperty="@nameof(CapacityMonth.Label)"
+                                                      ValueProperty="@nameof(CapacityMonth.CapacityKWh)"
+                                                      Stroke="var(--sessy-discharge-line)"
+                                                      StrokeWidth="2">
+                                        <RadzenMarkers MarkerType="MarkerType.Circle" />
+                                    </RadzenLineSeries>
+                                    <RadzenCategoryAxis LabelAutoRotation="-45" />
+                                    <RadzenValueAxis Min="0" FormatString="{0:0.0}">
+                                        <RadzenGridLines Visible="true" />
+                                        <RadzenAxisTitle Text="kWh" />
+                                    </RadzenValueAxis>
+                                </RadzenChart>
+                            }
                         </RadzenTabsItem>
                     }
                 </Tabs>

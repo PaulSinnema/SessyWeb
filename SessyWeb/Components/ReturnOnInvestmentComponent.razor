@@ -45,6 +45,35 @@
         </RadzenColumn>
     </RadzenRow>
 
+    @if (BatteryLives.Count > 0)
+    {
+        <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mt-4">Battery life <InfoTipComponent Text="@BatteryLifeInfo" /></RadzenText>
+
+        <RadzenChart Style="@BatteryLifeChartStyle">
+            <RadzenChartTooltipOptions Shared="true" />
+            <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
+
+            <RadzenStackedBarSeries Data="@BatteryLives"
+                                    Title="Used"
+                                    CategoryProperty="@nameof(BatteryLife.Label)"
+                                    ValueProperty="@nameof(BatteryLife.UsedYears)"
+                                    Fill="var(--sessy-actual)"
+                                    Stroke="var(--sessy-actual)" />
+            <RadzenStackedBarSeries Data="@BatteryLives"
+                                    Title="Remaining"
+                                    CategoryProperty="@nameof(BatteryLife.Label)"
+                                    ValueProperty="@nameof(BatteryLife.RemainingYears)"
+                                    Fill="var(--sessy-planned)"
+                                    Stroke="var(--sessy-planned)" />
+
+            <RadzenCategoryAxis />
+            <RadzenValueAxis Min="0" FormatString="{0:0}">
+                <RadzenGridLines Visible="true" />
+                <RadzenAxisTitle Text="Years since purchase" />
+            </RadzenValueAxis>
+        </RadzenChart>
+    }
+
     @if (Dashboard!.Investment.ComponentBreakdown.Any())
     {
         <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mt-4">Per component</RadzenText>
@@ -74,6 +103,11 @@
                 <RadzenDataGridColumn TItem="InvestmentCategoryStats" Title="Battery cycles">
                     <Template Context="cat">
                         @(CyclesOf(cat) is double cycles ? $"{cycles:F0}" : "—")
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="InvestmentCategoryStats" Title="Expected end of life">
+                    <Template Context="cat">
+                        @EndOfLifeText(cat)
                     </Template>
                 </RadzenDataGridColumn>
                 <RadzenDataGridColumn Property="@nameof(InvestmentCategoryStats.SavingsSource)" Title="Savings basis" />

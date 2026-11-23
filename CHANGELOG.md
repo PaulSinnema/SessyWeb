@@ -11,6 +11,67 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.204] — 2026-11-23
+
+### Changed
+- **Battery life chart in Return on Investment** instead of the single end-of-life card: one bar per battery with
+  the years used since purchase and the years left, labelled with the expected end of life and what decides it.
+
+## [v1.0.203] — 2026-11-23
+
+### Added
+- **Battery end of life at the top of Return on Investment.** Next to the break-even date, a card shows the
+  battery expected to wear out first, when, and whether cycles, age or capacity decide it.
+
+## [v1.0.202] — 2026-11-23
+
+### Added
+- **Battery degradation in the lifetime forecast.** Each battery's usable capacity is measured from its long
+  discharges (energy delivered ÷ share of the state of charge it took, at least 40 %), as a monthly median. The
+  forecast table shows the capacity against the first measured months with the fade per year, and when the fade
+  reaches 70 % (the usual warranty threshold); the expected end of life is now the earliest of cycles, age and
+  capacity. Each battery's tab gets a chart of its measured capacity per month. The fade needs half a year of
+  measurements before it gives a date.
+
+## [v1.0.201] — 2026-11-23
+
+### Added
+- **Expected end of life on the Overview tab.** The Return on Investment table shows, per battery, the expected end
+  of life from the Battery tab's forecast, with whether the cycles or the age decide it.
+- The lifetime forecast table now heads the Battery tab.
+
+## [v1.0.200] — 2026-11-23
+
+### Added
+- **Battery lifetime forecast** (Statistics → Battery). Per battery and for the bank: cycles used against the rated
+  cycles, the current pace (last twelve complete months, or the average so far with less history), when the rated
+  cycles run out, when the rated age is reached, and the expected end of life, whichever comes first. Uses the
+  expected cycles and lifetime entered with each battery investment, and follows the estimate switch.
+
+### Changed
+- **Arbitrage: Planned vs Realized is readable again.** Longer periods are grouped per week (up to half a year) or
+  per month instead of one bar pair per day; the chart fits the card instead of scrolling sideways; the amount labels
+  on every bar are replaced by a tooltip; a line above the chart gives the period totals and the share of plan realized.
+
+## [v1.0.199] — 2026-11-23
+
+### Changed
+- **Statistics loads much faster, and no longer holds up the rest of the application.**
+  - Price calculation for a batch of quarters (used by Statistics, the charts and the cost basis) no
+    longer holds the shared price lock while it works: it reads the prices of the range in one query and
+    prices the quarters in parallel. The sun-position check behind the Zonnebonus is computed once per
+    quarter and then remembered; it was most of the time spent.
+  - Price capture reads only battery power and buying prices, instead of the full quarterly join with
+    grid, solar, consumption and selling prices.
+  - The tables behind the quarterly figures, the cycle history and the battery statistics are read side
+    by side instead of one after the other, and only the columns that are needed.
+  - The overview's seasonal savings, period figures, arbitrage trend and plan are built side by side; the
+    overview appears as soon as it is ready, the two cycle figures follow.
+
+### Fixed
+- **Switching tabs on Statistics while cards were still loading could crash the page.** A card whose
+  load fails now logs the error and stays empty instead of taking the whole session down.
+
 ## [v1.0.198] — 2026-11-22
 
 ### Fixed

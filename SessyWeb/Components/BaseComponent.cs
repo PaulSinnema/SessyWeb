@@ -3,6 +3,7 @@ using SessyCommon.Services;
 using SessyController.Services;
 using SessyController.Services.Items;
 using SessyWeb.Helpers;
+using Microsoft.Extensions.Logging;
 
 namespace SessyWeb.Components
 {
@@ -46,7 +47,14 @@ namespace SessyWeb.Components
         /// <summary>True while WhileLoadingAsync runs; starts true so a page shows its spinner before the first load.</summary>
         protected bool Loading { get; private set; } = true;
 
-        /// <summary>Runs the work with Loading set, also when it throws.</summary>
+        [Inject]
+        private ILoggerFactory? LoggerFactory { get; set; }
+
+        /// <summary>
+        /// Runs the work with Loading set. A failing load is logged and leaves the card empty: an
+        /// exception escaping a lifecycle method would take the whole circuit down with it, so one
+        /// card that cannot load (or is torn down by a tab switch halfway) no longer breaks the page.
+        /// </summary>
         protected async Task WhileLoadingAsync(Func<Task> work)
         {
             Loading = true;
@@ -54,6 +62,10 @@ namespace SessyWeb.Components
             try
             {
                 await work().ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                LoggerFactory?.CreateLogger(GetType()).LogError(ex, "{Component}: loading failed", GetType().Name);
             }
             finally
             {

@@ -71,10 +71,25 @@ namespace SessyWeb.Pages
                 // context, so without it every continuation inside the statistics service — and it
                 // walks the data month by month, with database round trips and LINQ per month —
                 // resumes on the dispatcher and blocks every other click for the whole build.
+                // The cycle history runs alongside; the Battery tab shares the same load.
+                var cyclesTask = Task.Run(() => _cycleHistoryService!.GetAsync());
+
                 Dashboard = await Task.Run(() => _statisticsService!.GetDashboardStatisticsAsync(DateTime.MinValue, DateTime.MaxValue))
                     .ConfigureAwait(true);
 
-                Cycles = await Task.Run(() => _cycleHistoryService!.GetAsync()).ConfigureAwait(true);
+                // Show the overview now; the two cycle figures follow when the history is in.
+                IsLoading = false;
+                StateHasChanged();
+
+                try
+                {
+                    Cycles = await cyclesTask.ConfigureAwait(true);
+                }
+                catch (Exception ex)
+                {
+                    // The overview still works without the two cycle figures.
+                    _logger?.LogError($"Loading the cycle history failed: {ex.Message}");
+                }
             }
             finally
             {

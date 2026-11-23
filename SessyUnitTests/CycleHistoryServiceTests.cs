@@ -81,5 +81,53 @@ namespace SessyTests.Services
             Assert.Equal(0.0, two.MeasuredCycles, 6);
             Assert.Equal(0.5, two.EstimatedCycles, 6);           // only active from 00:15
         }
+
+        private static List<CycleMonth> MonthsOf(DateTime first, int count, double cyclesPerMonth) =>
+            Enumerable.Range(0, count).Select(i => new CycleMonth(first.AddMonths(i), cyclesPerMonth, 0.0, 0.0, 0.0, 0.0)).ToList();
+
+        [Fact]
+        public void Lifetime_uses_the_last_full_year_and_the_earlier_end()
+        {
+            // 24 months of 20 cycles: 480 used, pace 240/yr, 6000 rated → 23 years; 15 years of age comes first.
+            var start = new DateTime(2024, 1, 1);
+            var now = new DateTime(2026, 1, 15);
+            var series = new CycleSeries("Sessy 1", 5.0, start, MonthsOf(start, 24, 20.0), RatedCycles: 6000, LifetimeYears: 15);
+
+            var life = series.Lifetime(withEstimate: true, now);
+
+            Assert.True(life.PaceOverFullYear);
+            Assert.Equal(240.0, life.CyclesPerYear, 6);
+            Assert.Equal(8.0, life.UsedPercent!.Value, 6);
+            Assert.Equal(new DateTime(2039, 1, 1), life.CalendarEnd);
+            Assert.Equal(2049, life.CyclesEnd!.Value.Year);
+            Assert.Equal(life.CalendarEnd, life.End);
+            Assert.Equal(LifeLimit.Age, life.LimitedBy);
+        }
+
+        [Fact]
+        public void Lifetime_with_short_history_averages_since_the_start()
+        {
+            // 100 cycles in half a year → 200/yr; 900 rated → 4 years left, before the 25 years.
+            var start = new DateTime(2026, 1, 1);
+            var now = start.AddDays(182.625);
+            var series = new CycleSeries("Sessy 1", 5.0, start, MonthsOf(start, 6, 100.0 / 6.0), RatedCycles: 900, LifetimeYears: 25);
+
+            var life = series.Lifetime(withEstimate: true, now);
+
+            Assert.False(life.PaceOverFullYear);
+            Assert.Equal(200.0, life.CyclesPerYear, 6);
+            Assert.Equal(LifeLimit.Cycles, life.LimitedBy);
+            Assert.Equal(2030, life.End!.Value.Year);
+        }
+
+        [Fact]
+        public void Lifetime_without_ratings_has_no_end()
+        {
+            var start = new DateTime(2026, 1, 1);
+            var life = new CycleSeries("Total", 5.0, start, MonthsOf(start, 3, 10.0)).Lifetime(true, start.AddMonths(3));
+
+            Assert.Null(life.End);
+            Assert.Null(life.UsedPercent);
+        }
     }
 }
