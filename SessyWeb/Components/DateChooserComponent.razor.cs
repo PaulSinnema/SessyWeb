@@ -77,25 +77,28 @@ namespace SessyWeb.Components
             Last365Days
         };
 
-        List<PeriodsEnums> Periods = new List<PeriodsEnums>
+        /// <summary>A dropdown choice: the enum value and its text in the interface language.</summary>
+        public sealed record Choice(object Value, string Text);
+
+        private List<Choice> Periods => new[]
         {
             PeriodsEnums.Day, PeriodsEnums.Week, PeriodsEnums.Month, PeriodsEnums.Year, PeriodsEnums.All, PeriodsEnums.Custom
-        };
+        }.Where(p => CustomChooserEnabled || p != PeriodsEnums.Custom).Select(p => new Choice(p, T(DisplayName(p)))).ToList();
 
-        List<DurationEnums> Durations = new List<DurationEnums>
+        private List<Choice> Durations => new[]
         {
             DurationEnums.Last7Days, DurationEnums.Last30Days, DurationEnums.Last90Days, DurationEnums.Last180Days, DurationEnums.Last365Days
-        };
+        }.Select(d => new Choice(d, T(DisplayName(d)))).ToList();
+
+        /// <summary>The [Display(Name)] of an enum value, else its name.</summary>
+        private static string DisplayName(Enum value) =>
+            value.GetType().GetField(value.ToString())?.GetCustomAttributes(typeof(DisplayAttribute), false)
+                .OfType<DisplayAttribute>().FirstOrDefault()?.Name ?? value.ToString();
 
         protected override async Task OnAfterRenderAsync(bool firstRender)
         {
             if (firstRender)
             {
-                if(!CustomChooserEnabled)
-                {
-                    Periods.Remove(PeriodsEnums.Custom);
-                }
-
                 DateFromChosen = _TimeZoneService!.Now.Date;
                 PeriodChosen = PeriodsEnums.Day;
 

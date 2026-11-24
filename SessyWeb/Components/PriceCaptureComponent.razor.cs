@@ -9,12 +9,11 @@ namespace SessyWeb.Components
         [Inject]
         private PriceCaptureService? PriceCaptureService { get; set; }
 
-        private const string HowToRead =
-            "Spread: the difference between the price at which the battery discharged and the price at which it " +
+        private string HowToRead => T("Spread: the difference between the price at which the battery discharged and the price at which it " +
             "charged, per kWh (buying prices incl. taxes). Captured is what the battery achieved. Best possible is what " +
             "the same charged and discharged kWh would have given in the cheapest and most expensive quarters, each at most the day's largest quarter, " +
             "of that day. The line shows the captured share. 100 % is out of reach in practice: the battery " +
-            "cannot do everything at once, the plan works with forecasts and solar charging follows the sun, not the price.";
+            "cannot do everything at once, the plan works with forecasts and solar charging follows the sun, not the price.");
 
         private List<PriceCaptureMonth> _months = new();
 
@@ -42,8 +41,7 @@ namespace SessyWeb.Components
             var captured = _months.Sum(m => m.CapturedEurPerKWh * m.DischargedKWh) / kWh;
             var best = _months.Sum(m => m.BestEurPerKWh * m.DischargedKWh) / kWh;
 
-            return string.Format(GetFormatProvider(),
-                "Last 12 months: captured € {0:0.000} of a possible € {1:0.000} per kWh ({2:0} %), over {3} days and {4:0} kWh discharged.",
+            return T("Last 12 months: captured € {0:0.000} of a possible € {1:0.000} per kWh ({2:0} %), over {3} days and {4:0} kWh discharged.",
                 captured, best, best > 0.0 ? captured / best * 100.0 : 0.0, _months.Sum(m => m.Days), kWh);
         }
     }

@@ -16,35 +16,35 @@
 <div class="sw-tt">
     <div class="sw-tt-head">
         <span class="sw-tt-title">@q?.Time.ToString("dd MMM HH:mm", System.Globalization.CultureInfo.GetCultureInfo("nl-NL"))</span>
-        <span class="sw-tt-state" style="color:@stateColor;">@q?.DisplayState</span>
+        <span class="sw-tt-state" style="color:@stateColor;">@ModeText(q?.DisplayState)</span>
     </div>
 
     <div class="sw-tt-grid">
-        <span class="sw-tt-k">Buy / Sell</span>
+        <span class="sw-tt-k">@(T("Buy / Sell"))</span>
         <span class="sw-tt-v">@fmt(q?.BuyingPrice, "0.0000") / @fmt(q?.SellingPrice, "0.0000")</span>
 
-        <span class="sw-tt-k">Market</span>
+        <span class="sw-tt-k">@(T("Market"))</span>
         <span class="sw-tt-v">@fmt(q?.MarketPrice, "0.0000")</span>
 
-        <span class="sw-tt-k">Revenue</span>
+        <span class="sw-tt-k">@(T("Revenue"))</span>
         <span class="sw-tt-v">@fmt(q?.Profit)</span>
 
-        <span class="sw-tt-k">Solar / radiation</span>
+        <span class="sw-tt-k">@(T("Solar / radiation"))</span>
         <span class="sw-tt-v">@fmt(q?.SolarPowerPerQuarterHour) / @fmt(q?.SolarGlobalRadiation)</span>
 
-        <span class="sw-tt-k">Consumption</span>
+        <span class="sw-tt-k">@(T("Consumption"))</span>
         <span class="sw-tt-v">@fmt(q?.EstimatedConsumptionPerQuarterHour)</span>
 
-        <span class="sw-tt-k">Charge left</span>
+        <span class="sw-tt-k">@(T("Charge left"))</span>
         <span class="sw-tt-v">@fmt(q?.ChargeLeft, "0") Wh · @fmt(q?.ChargeLeftPercentage, "0.0")%</span>
 
-        <span class="sw-tt-k">Charge needed</span>
+        <span class="sw-tt-k">@(T("Charge needed"))</span>
         <span class="sw-tt-v">@fmt(q?.ChargeNeeded, "0") Wh · @fmt(q?.ChargeNeededPercentage, "0.0")%</span>
 
-        <span class="sw-tt-k">Cost basis delivered</span>
+        <span class="sw-tt-k">@(T("Cost basis delivered"))</span>
         <span class="sw-tt-v">@fmt(q?.ProjectedCostBasisDeliveredEur, "0.0000")</span>
 
-        <span class="sw-tt-k">Cost basis stored</span>
+        <span class="sw-tt-k">@(T("Cost basis stored"))</span>
         <span class="sw-tt-v">@fmt(q?.ProjectedCostBasisEur, "0.0000")</span>
     </div>
 
@@ -53,7 +53,7 @@
     <div class="sw-tt-grid">
         @if (q?.HasActualPower ?? false)
         {
-        <span class="sw-tt-k">Actual power</span>
+        <span class="sw-tt-k">@(T("Actual power"))</span>
         <span class="sw-tt-v">
             @if (charging)
             {
@@ -65,7 +65,7 @@
             }
             else
             {
-                <span>idle</span>
+                <span>@(T("Idle"))</span>
             }
         </span>
 
@@ -73,9 +73,9 @@
 
         @if (hasPlan)
         {
-            <span class="sw-tt-k">Planned</span>
+            <span class="sw-tt-k">@(T("Planned"))</span>
             <span class="sw-tt-v">
-                @q?.PlannedDisplayState
+                @ModeText(q?.PlannedDisplayState)
                 @if ((q?.PlannedChargePowerW ?? 0) > 10)
                 {
                     <text> · </text><span class="sessy-text-charge">@fmt(q?.PlannedChargePowerW, "0") W</span>
@@ -88,7 +88,7 @@
 
             @if ((q?.PlannedUnthrottledPowerW ?? 0) > 10)
             {
-                <span class="sw-tt-k">Requested</span>
+                <span class="sw-tt-k">@(T("Requested"))</span>
                 <span class="sw-tt-v">
                     @if ((q?.PlannedChargePowerW ?? 0) > 10)
                     {
@@ -101,7 +101,7 @@
                 </span>
             }
 
-            <span class="sw-tt-k">Planned SOC</span>
+            <span class="sw-tt-k">@(T("Planned SOC"))</span>
             <span class="sw-tt-v">@fmt(q?.PlannedChargeLeftWh, "0") Wh</span>
         }
 
@@ -109,21 +109,21 @@
            the batteries are actually going to do. *@
         @if (q?.HasChargedPlan ?? false)
         {
-            <span class="sw-tt-k sw-tt-caption">Charged = Sessy's own cloud strategy (the battery manufacturer)</span>
+            <span class="sw-tt-k sw-tt-caption">@(T("Charged = Sessy's own cloud strategy (the battery manufacturer)"))</span>
 
-            <span class="sw-tt-k">Charged</span>
+            <span class="sw-tt-k">@(T("Charged"))</span>
             <span class="sw-tt-v">
                 @if (q!.ChargedChargePowerW > 10)
                 {
-                    <text>charging · </text><span class="sessy-text-charge">@fmt(q.ChargedChargePowerW, "0") W</span>
+                    <text>@(T("charging ·")) </text><span class="sessy-text-charge">@fmt(q.ChargedChargePowerW, "0") W</span>
                 }
                 else
                 {
-                    <text>discharging · </text><span class="sessy-text-discharge">@fmt(q.ChargedDischargePowerW, "0") W</span>
+                    <text>@(T("discharging ·")) </text><span class="sessy-text-discharge">@fmt(q.ChargedDischargePowerW, "0") W</span>
                 }
             </span>
 
-            <span class="sw-tt-k">Charged SOC</span>
+            <span class="sw-tt-k">@(T("Charged SOC"))</span>
             <span class="sw-tt-v">@fmt(q?.ChargedChargeLeftWh, "0") Wh</span>
         }
     </div>

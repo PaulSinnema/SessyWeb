@@ -3,24 +3,28 @@
 <RadzenCard Gap="0.5rem">
     <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.Center" AlignItems="AlignItems.Center" Gap="0.5rem">
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.Center" Gap="0.5rem">
-            <RadzenLabel Text="Period:" Component="DropDownBindValue" />
+            <RadzenLabel Text="@T("Period:")" Component="DropDownBindValue" />
             <RadzenDropDown @bind-Value=@PeriodChosen
                             Data=@Periods
+                            TextProperty="@nameof(Choice.Text)"
+                            ValueProperty="@nameof(Choice.Value)"
                             Change="@(period => PeriodChanged(period))"
                             Style="width: 100%; max-width: 400px;"
                             PageSize="10"
                             Name="DropDownBindValue" />
 
-            <RadzenLabel Text="Duration:" Component="DropDownBindValue" />
+            <RadzenLabel Text="@T("Duration:")" Component="DropDownBindValue" />
             <RadzenDropDown @bind-Value=@DurationChosen
                             Data=@Durations
+                            TextProperty="@nameof(Choice.Text)"
+                            ValueProperty="@nameof(Choice.Value)"
                             Change="@(duration => DurationChanged(duration))"
                             Style="width: 100%; max-width: 400px;"
                             Name="DropDownBindValue"
                             Visible=@DurationVisible />
         </RadzenStack>
         <RadzenStack Orientation="Orientation.Horizontal" Visible=@DatePickerVisible JustifyContent="JustifyContent.Center" AlignItems="AlignItems.Center" Gap="0.5rem">
-            <RadzenLabel Text="Select Date:" Component="RadzenDatePickerBindValue" />
+            <RadzenLabel Text="@T("Select Date:")" Component="RadzenDatePickerBindValue" />
             <RadzenDatePicker @bind-Value=@DateFromChosen
                               Visible=@(!YearDisplay)
                               DateFormat=@DateFormat
@@ -40,7 +44,7 @@
                             Data=@Years
                             Visible=@YearDisplay />
 
-            <RadzenButton Text="Today"
+            <RadzenButton Text="@T("Today")"
                           Click=@TodayClicked />
 
         </RadzenStack>

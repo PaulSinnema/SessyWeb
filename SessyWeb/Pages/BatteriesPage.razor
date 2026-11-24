@@ -5,7 +5,7 @@
 @using SessyController.Services.Items
 @using SessyWeb.Components
 
-<PageTitle>Sessy</PageTitle>
+<PageTitle>@(T("Sessy"))</PageTitle>
 
 <div>
 	@* The grid target only steers the batteries with the P1 method. *@
@@ -26,7 +26,7 @@
 
 				<RadzenStack Orientation="Orientation.Vertical" AlignItems="AlignItems.Normal" Style="width: 100%; max-width: 1000px;">
 					<RadzenCard class="rz-background-color-primary-light rz-shadow-0 rz-border-radius-0 rz-p-8 rz-border-radius-2" style="margin: 1rem calc(-1 * var(--rz-card-padding));">
-						<RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-0 rz-mb-0">Grid target (P1)</RadzenText>
+						<RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-0 rz-mb-0">@(T("Grid target (P1)"))</RadzenText>
 						<RadzenText TextStyle="TextStyle.H6" class="rz-color-on-primary-light"><strong>@(GridTargetW?.ToString() ?? "—") W</strong></RadzenText>
 					</RadzenCard>
 				</RadzenStack>

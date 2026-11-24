@@ -82,6 +82,12 @@ usual day of that weekday.
 
 ## User interface
 
+### Language
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| **Language** | English | Chosen with the two flags in the header bar (not on this page), stored with the settings. Language of the menus, titles and explanations: English or Nederlands. Numbers and dates keep the Dutch format either way. Applies to every browser that opens the application afterwards; the open page switches at once, without reloading. Pages not yet translated stay in English. |
+
 ### Navigation menu
 
 | Setting | Default | What it does |

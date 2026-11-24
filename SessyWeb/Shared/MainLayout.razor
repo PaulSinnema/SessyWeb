@@ -45,10 +45,10 @@
                         <RadzenImage Path="/Images/sessy.svg" Style="padding: 5px;" />
                     </a>
 
-                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" class="header-theme">
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" class="header-theme" Style="margin-left: 16px;">
                         @if (!isMobile)
                         {
-                            <RadzenLabel Text="Theme:" Style="margin-right: 10px;" />
+                            <RadzenLabel Text="@T("Theme:")" Style="margin-right: 10px;" />
                         }
                         <RadzenDropDown Style="@(isMobile ? "width: 110px;" : "width: 200px;")"
                                         Name="ThemeDropDown"
@@ -60,8 +60,19 @@
                                         ValueProperty=@nameof(Theme.Value) />
                         @if (HostEnvironment.IsDevelopment())
                         {
-                            <RadzenBadge Text="TEST" BadgeStyle="BadgeStyle.Warning" Style="margin-left: 10px; font-weight: bold;" />
+                            <RadzenBadge Text="@T("TEST")" BadgeStyle="BadgeStyle.Warning" Style="margin-left: 10px; font-weight: bold;" />
                         }
+                        <span class="language-flags">
+                            @foreach (var language in SessyWeb.Texts.Languages)
+                            {
+                                <button type="button"
+                                        class="@(language.Code == CurrentLanguage ? "language-flag active" : "language-flag")"
+                                        title="@language.Name"
+                                        @onclick="() => ChangeLanguageAsync(language.Code)">
+                                    <img src="@language.Flag" alt="@language.Name" />
+                                </button>
+                            }
+                        </span>
                         @if (!isMobile)
                         {
                             <RadzenText TextStyle="TextStyle.Caption" Style="margin-left: 10px; color:var(--rz-text-secondary-color)">@Version</RadzenText>
@@ -76,13 +87,13 @@
             </RadzenHeader>
 
             <RadzenPanelMenu DisplayStyle="@DisplayStyle" Style="@MenuStyle">
-                <RadzenPanelMenuItem Text="Charging hours"
+                <RadzenPanelMenuItem Text="@T("Charging hours")"
                                      Path="charginghours"
                                      Click="@CollapseMenu"
                                      Icon="bolt" />
                 @if (DeveloperOptions)
                 {
-                    <RadzenPanelMenuItem Text="Planner analysis"
+                    <RadzenPanelMenuItem Text="@T("Planner analysis")"
                                          Path="planneranalysis"
                                          Click="@CollapseMenu"
                                          Icon="analytics" />
@@ -90,36 +101,36 @@
                 @* No inverter configured means no measurements to show — see SystemCapabilitiesService. *@
                 @if (Capabilities.HasSolar)
                 {
-                    <RadzenPanelMenuItem Text="Solar power"
+                    <RadzenPanelMenuItem Text="@T("Solar power")"
                                          Click="@CollapseMenu"
                                          Path="solarpower"
                                          Icon="wb_sunny" />
                 }
-                <RadzenPanelMenuItem Text="Consumption"
+                <RadzenPanelMenuItem Text="@T("Consumption")"
                                      Click="@CollapseMenu"
                                      Path="consumption"
                                      Icon="energy" />
-                <RadzenPanelMenuItem Text="Batteries"
+                <RadzenPanelMenuItem Text="@T("Batteries")"
                                      Click="@CollapseMenu"
                                      Path="batteries"
                                      Icon="battery_6_bar" />
-                <RadzenPanelMenuItem Text="Status history"
+                <RadzenPanelMenuItem Text="@T("Status history")"
                                      Path="sessystatushistory"
                                      Click="@CollapseMenu"
                                      Icon="timeline" />
-                <RadzenPanelMenuItem Text="Sessy energy history"
+                <RadzenPanelMenuItem Text="@T("Sessy energy history")"
                                      Path="energyhistory"
                                      Click="@CollapseMenu"
                                      Icon="history" />
-                <RadzenPanelMenuItem Text="Epex prices"
+                <RadzenPanelMenuItem Text="@T("EPEX prices")"
                                      Path="epexprices"
                                      Click="@CollapseMenu"
                                      Icon="price_change" />
-                <RadzenPanelMenuItem Text="Sessy financial results"
+                <RadzenPanelMenuItem Text="@T("Sessy financial results")"
                                      Path="financialResults"
                                      Click="@CollapseMenu"
                                      Icon="savings" />
-                <RadzenPanelMenuItem Text="Statistics"
+                <RadzenPanelMenuItem Text="@T("Statistics")"
                                      Path="energystatistics"
                                      Click="@CollapseMenu"
                                      Icon="monitoring" />
@@ -127,13 +138,13 @@
                    on the <li> and the dot is drawn on the icon, so it is visible with the menu
                    collapsed to icons as well. Radzen writes class= after @attributes, so a class of
                    our own would be overwritten — see site.css. *@
-                <RadzenPanelMenuItem Text="Settings"
+                <RadzenPanelMenuItem Text="@T("Settings")"
                                      Path="settings"
                                      Click="@CollapseMenu"
                                      data-sessy-badge="@SettingsBadge"
                                      title="@SettingsMenuTitle"
                                      Icon="settings" />
-                <RadzenPanelMenuItem Text="Data Editor"
+                <RadzenPanelMenuItem Text="@T("Data Editor")"
                                      Path="dataeditor"
                                      Click="@CollapseMenu"
                                      Icon="table_edit" />
@@ -141,7 +152,9 @@
             <RadzenBody Style="height: 100%; overflow-y: auto;">
                 @* <RadzenText>Width: @screenWidth height: @screenHeight</RadzenText> *@
                 <div class="rz-p-4">
-                    @Body
+                    <CascadingValue Name="Language" Value="@LanguageState.Code">
+                        @Body
+                    </CascadingValue>
                 </div>
             </RadzenBody>
             <RadzenFooter>

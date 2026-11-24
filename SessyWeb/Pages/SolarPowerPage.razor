@@ -16,10 +16,9 @@
 @if (!HasSolar)
 {
     <RadzenCard>
-        <RadzenText TextStyle="TextStyle.H6">☀️ No solar inverter configured</RadzenText>
+        <RadzenText TextStyle="TextStyle.H6">☀️ @T("No solar inverter configured")</RadzenText>
         <RadzenText TextStyle="TextStyle.Body1">
-            This page shows measurements read from a solar inverter. Add a <b>PowerSystems</b> section
-            to appsettings.json to enable it.
+            @TM("This page shows measurements read from a solar inverter. Add a <b>PowerSystems</b> section to appsettings.json to enable it.")
         </RadzenText>
     </RadzenCard>
 }
@@ -30,24 +29,24 @@ else
         <RadzenStack Orientation=Orientation.Horizontal AlignItems="AlignItems.Center" Style="height:100%;margin: 0px; padding: 0px;">
             @* TickDistance: <p>@TickDistance</p> *@
 
-            <RadzenLabel Text="Solar power" Component="RadzenDropDownBindValue" class="h4 m-2" />
+            <RadzenLabel Text="@T("Solar power")" Component="RadzenDropDownBindValue" class="h4 m-2" />
 
             <DateChooserComponent SelectionChanged="@((DateArgs d) => DateSelectionChanged(d))" />
 
-            <RadzenLabel Text="Select provider" Component="RadzenDropDownBindValue" />
+            <RadzenLabel Text="@T("Select provider")" Component="RadzenDropDownBindValue" />
 
             <RadzenDropDown TValue="string"
                             @bind-Value="SelectedProvider"
                             Data="@ProviderNames"
-                            Placeholder="Select provider"
+                            Placeholder="@T("Select provider")"
                             Change=@ProviderChanged
                             Style="width: 200px;" />
 
 
-            <RadzenLabel Text="Show labels" Component="ShowDataLabels" />
+            <RadzenLabel Text="@T("Show labels")" Component="ShowDataLabels" />
             <RadzenCheckBox @bind-Value="@ShowDataLabels" Name="ShowDataLabels" />
 
-            <RadzenLabel Text="Show markers" Component="ShowMarkers" />
+            <RadzenLabel Text="@T("Show markers")" Component="ShowMarkers" />
             <RadzenCheckBox @bind-Value="@ShowMarkers" Name="ShowMarkers" />
         </RadzenStack>
     </RadzenHeader>
@@ -81,7 +80,7 @@ else
 
                     <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance>
                         <RadzenGridLines Visible="true" />
-                        <RadzenAxisTitle Text="Time" />
+                        <RadzenAxisTitle Text="@T("Time")" />
                     </RadzenCategoryAxis>
 
                 </RadzenChart>
@@ -114,7 +113,7 @@ else
 
                     <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance>
                         <RadzenGridLines Visible="true" />
-                        <RadzenAxisTitle Text="Time" />
+                        <RadzenAxisTitle Text="@T("Time")" />
                     </RadzenCategoryAxis>
 
                 </RadzenChart>
@@ -147,7 +146,7 @@ else
 
                     <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance>
                         <RadzenGridLines Visible="true" />
-                        <RadzenAxisTitle Text="Time" />
+                        <RadzenAxisTitle Text="@T("Time")" />
                     </RadzenCategoryAxis>
 
                 </RadzenChart>
@@ -180,7 +179,7 @@ else
 
                     <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance>
                         <RadzenGridLines Visible="true" />
-                        <RadzenAxisTitle Text="Time" />
+                        <RadzenAxisTitle Text="@T("Time")" />
                     </RadzenCategoryAxis>
 
                 </RadzenChart>
@@ -213,7 +212,7 @@ else
 
                     <RadzenCategoryAxis Formatter=@Formatter TickDistance=@TickDistance>
                         <RadzenGridLines Visible="true" />
-                        <RadzenAxisTitle Text="Time" />
+                        <RadzenAxisTitle Text="@T("Time")" />
                     </RadzenCategoryAxis>
 
                 </RadzenChart>
@@ -222,7 +221,7 @@ else
     </RadzenBody>
 
     <RadzenFooter>
-        <b>@String.Format(GetFormatProvider(), "Total solar power: {0:N2} kWh", SolarPower)</b>
+        <b>@T("Total solar power: {0:N2} kWh", SolarPower)</b>
     </RadzenFooter>
 </RadzenLayout>
 }

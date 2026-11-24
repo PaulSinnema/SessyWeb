@@ -8,7 +8,7 @@
 <RadzenLayout Style="height: 100%;margin: 0px; padding: 0px;">
     <RadzenHeader Style="height: 100%;margin: 0px; padding: 0px;">
         <RadzenStack Orientation=Orientation.Horizontal AlignItems="AlignItems.Center" Style="height:100%;margin: 0px; padding: 0px;">
-            <RadzenLabel Text="EPEX prices" class="h4 m-2" />
+            <RadzenLabel Text="@T("EPEX prices")" class="h4 m-2" />
 
             <DateChooserComponent SelectionChanged="@((DateArgs d) => SelectionChanged(d))" />
         </RadzenStack>
@@ -28,15 +28,15 @@
                         Density="Density.Compact"
                         PagerHorizontalAlign="HorizontalAlign.Center">
             <HeaderTemplate>
-                <RadzenButton ButtonStyle="ButtonStyle.Success" Icon="add_circle" Text="Add energy data" Click="@InsertRow" />
+                <RadzenButton ButtonStyle="ButtonStyle.Success" Icon="add_circle" Text="@T("Add energy data")" Click="@InsertRow" />
             </HeaderTemplate>
             <Columns>
                 @if(!HideId)
                 {
-                    <RadzenDataGridColumn Property="@nameof(EPEXPrices.Id)" Title="Id"/>
+                    <RadzenDataGridColumn Property="@nameof(EPEXPrices.Id)" Title="@T("Id")"/>
                 }
-                <RadzenDataGridColumn Property="@nameof(EPEXPrices.Time)" Title="Time" SortOrder="SortOrder.Ascending" />
-                <RadzenDataGridColumn Property="@nameof(EPEXPrices.Price)" Title="Price" FormatString="{0:F6}">
+                <RadzenDataGridColumn Property="@nameof(EPEXPrices.Time)" Title="@T("Time")" SortOrder="SortOrder.Ascending" />
+                <RadzenDataGridColumn Property="@nameof(EPEXPrices.Price)" Title="@T("Price")" FormatString="{0:F6}">
                     <EditTemplate Context="fr">
                         <RadzenNumeric @bind-Value="fr.Price" 
                                        Style="width:100%"
@@ -52,7 +52,7 @@
                                       Size="ButtonSize.Small"
                                       Shade="Shade.Lighter"
                                       Click="@(() => InsertAfterRow(fr))"
-                                      title="Add new row after this row" />
+                                      title="@T("Add new row after this row")" />
                         <RadzenButton Icon="edit"
                                       ButtonStyle="ButtonStyle.Light"
                                       Variant="Variant.Flat"
@@ -74,20 +74,20 @@
                                       ButtonStyle="ButtonStyle.Success"
                                       Variant="Variant.Flat"
                                       Size="ButtonSize.Small"
-                                      Click="@((args) => SaveRow(fr))" aria-label="Save" />
+                                      Click="@((args) => SaveRow(fr))" aria-label="@T("Save")" />
                         <RadzenButton Icon="close"
                                       ButtonStyle="ButtonStyle.Light"
                                       Variant="Variant.Flat"
                                       Size="ButtonSize.Small"
                                       class="rz-my-1 rz-ms-1"
-                                      Click="@((args) => CancelEdit(fr))" aria-label="Cancel" />
+                                      Click="@((args) => CancelEdit(fr))" aria-label="@T("Cancel")" />
                         <RadzenButton Icon="delete"
                                       ButtonStyle="ButtonStyle.Danger"
                                       Variant="Variant.Flat"
                                       Size="ButtonSize.Small"
                                       Shade="Shade.Lighter"
                                       class="rz-my-1 rz-ms-1"
-                                      Click="@(args => DeleteRow(fr))" aria-label="Delete" />
+                                      Click="@(args => DeleteRow(fr))" aria-label="@T("Delete")" />
                     </EditTemplate>
                 </RadzenDataGridColumn>
             </Columns>

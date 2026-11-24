@@ -1,0 +1,913 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dutch interface texts. The key is the English text as written in the code; keep both identical. -->
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Settings" xml:space="preserve"><value>Instellingen</value></data>
+  <data name="Management Settings" xml:space="preserve"><value>Beheerinstellingen</value></data>
+  <data name="Location" xml:space="preserve"><value>Locatie</value></data>
+  <data name="Latitude" xml:space="preserve"><value>Breedtegraad</value></data>
+  <data name="Longitude" xml:space="preserve"><value>Lengtegraad</value></data>
+  <data name="Timezone" xml:space="preserve"><value>Tijdzone</value></data>
+  <data name="Solar" xml:space="preserve"><value>Zon</value></data>
+  <data name="Annual production (kWh)" xml:space="preserve"><value>Jaaropbrengst (kWh)</value></data>
+  <data name="Battery control" xml:space="preserve"><value>Batterijaansturing</value></data>
+  <data name="Optimization strategy" xml:space="preserve"><value>Optimalisatiestrategie</value></data>
+  <data name="Battery control method" xml:space="preserve"><value>Aansturingsmethode batterij</value></data>
+  <data name="Default: P1 grid target — balances the batteries." xml:space="preserve"><value>Standaard: P1-netdoel — houdt de batterijen in balans.</value></data>
+  <data name="P1 grid target (recommended): every battery runs in NOM and follows the grid target on the P1 meter. The Sessy firmware then divides the power over all batteries itself and keeps them in balance, and it follows the real house load in real time. Setpoint per battery: SessyWeb sends each battery a fixed share of the power (by nameplate) on the Open API. Nothing balances the batteries then, so their state of charge can drift apart and one battery runs full or empty before the others; the setpoint also only changes once per control cycle, so changes in house load in between are not followed. Zero Net Home stays NOM in both methods; Hold reserve follows the solar surplus every 5 seconds in both." xml:space="preserve"><value>P1-netdoel (aanbevolen): elke batterij draait in NOM en volgt het netdoel op de P1-meter. De Sessy-firmware verdeelt het vermogen dan zelf over alle batterijen en houdt ze in balans, en volgt de werkelijke huislast in real time. Setpoint per batterij: SessyWeb stuurt elke batterij via de Open API een vast deel van het vermogen (naar nominaal). Niets houdt de batterijen dan in balans, dus hun laadtoestand kan uit elkaar lopen en één batterij is eerder vol of leeg dan de rest; het setpoint verandert ook maar één keer per regelronde, dus veranderingen in de huislast daartussen worden niet gevolgd. Nul op de meter blijft NOM in beide methoden; Reserve vasthouden volgt in beide het zonne-overschot elke 5 seconden.</value></data>
+  <data name="Minimum reserve (%)" xml:space="preserve"><value>Minimale reserve (%)</value></data>
+  <data name="Default 0. Never discharge below this." xml:space="preserve"><value>Standaard 0. Nooit onder deze waarde ontladen.</value></data>
+  <data name="Percent of capacity the planner never discharges below. Not needed to protect the cells — the batteries&#x27; BMS already does that — and not needed for the night either: the planner weighs covering the house at night against selling in the evening peak itself. Set it only if you want energy held back on purpose, for example as a buffer. Every percent above 0 is capacity the planner cannot use." xml:space="preserve"><value>Percentage van de capaciteit waar de planner nooit onder ontlaadt. Niet nodig om de cellen te beschermen — het BMS van de batterijen doet dat al — en ook niet voor de nacht: de planner weegt zelf het dekken van het huis 's nachts af tegen verkopen in de avondpiek. Stel het alleen in als je bewust energie wilt achterhouden, bijvoorbeeld als buffer. Elk procent boven 0 is capaciteit die de planner niet kan gebruiken.</value></data>
+  <data name="Throttle fallback (%)" xml:space="preserve"><value>Begrenzing terugval (%)</value></data>
+  <data name="Power cap used only while the throttle at the current temperature has not been measured yet. Once samples exist the measured ratio takes over. Assuming no throttle at all would make the planner ask for power the battery cannot deliver." xml:space="preserve"><value>Vermogensgrens die alleen geldt zolang de begrenzing bij de huidige temperatuur nog niet gemeten is. Zodra er metingen zijn, neemt de gemeten verhouding het over. Helemaal geen begrenzing aannemen zou de planner laten vragen om vermogen dat de batterij niet kan leveren.</value></data>
+  <data name="Round-trip efficiency fallback (%)" xml:space="preserve"><value>Rendement heen-en-terug terugval (%)</value></data>
+  <data name="Round-trip energy efficiency used until enough charging and discharging has been measured. This is how much of the stored energy comes back out, which decides whether arbitrage pays at all — a different quantity from the throttle, which limits power. The planner derives the one-way efficiencies as the square root of this." xml:space="preserve"><value>Rendement heen-en-terug dat geldt tot er genoeg laden en ontladen gemeten is. Dit is hoeveel van de opgeslagen energie er weer uit komt, en dat bepaalt of arbitrage überhaupt loont — iets anders dan de begrenzing, die het vermogen beperkt. De planner leidt de rendementen per richting af als de wortel hiervan.</value></data>
+  <data name="Charged in control" xml:space="preserve"><value>Charged heeft de regie</value></data>
+  <data name="Manual override" xml:space="preserve"><value>Handmatig ingrijpen</value></data>
+  <data name="Manual charging hours" xml:space="preserve"><value>Handmatige laaduren</value></data>
+  <data name="— select hours —" xml:space="preserve"><value>— kies uren —</value></data>
+  <data name="Manual discharging hours" xml:space="preserve"><value>Handmatige ontlaaduren</value></data>
+  <data name="Manual Zero Net Home hours" xml:space="preserve"><value>Handmatige uren nul op de meter</value></data>
+  <data name="Diagnostics" xml:space="preserve"><value>Diagnostiek</value></data>
+  <data name="Record planner solve inputs" xml:space="preserve"><value>Solver-invoer van de planner vastleggen</value></data>
+  <data name="Default: Off. Writes one JSON file per rebuild to the export directory." xml:space="preserve"><value>Standaard: uit. Schrijft per herberekening één JSON-bestand naar de exportmap.</value></data>
+  <data name="When on, the planner saves its exact solve input (prices, battery spec, options, SOC bounds) to the export directory on every rebuild, so a suspect plan can be replayed. The export directory must exist and, in Docker, be a mounted volume — otherwise the files land inside the container and are lost on restart. The SESSY_RECORD_SOLVE_INPUTS environment variable forces this on regardless of this switch." xml:space="preserve"><value>Als dit aan staat, slaat de planner bij elke herberekening zijn exacte solver-invoer (prijzen, batterijspecificatie, opties, SoC-grenzen) op in de exportmap, zodat een verdacht plan opnieuw afgespeeld kan worden. De exportmap moet bestaan en in Docker een gekoppeld volume zijn — anders belanden de bestanden in de container en zijn ze na een herstart weg. De omgevingsvariabele SESSY_RECORD_SOLVE_INPUTS zet dit aan, ongeacht deze schakelaar.</value></data>
+  <data name="Enabled" xml:space="preserve"><value>Ingeschakeld</value></data>
+  <data name="Solve inputs to keep" xml:space="preserve"><value>Te bewaren solver-invoer</value></data>
+  <data name="Oldest files are pruned. Default: 20." xml:space="preserve"><value>Oudste bestanden worden opgeruimd. Standaard: 20.</value></data>
+  <data name="How many solve-input files to keep in the export directory; the oldest are deleted beyond this count. 0 or less falls back to 20." xml:space="preserve"><value>Hoeveel solver-invoerbestanden in de exportmap bewaard blijven; daarboven worden de oudste verwijderd. 0 of minder valt terug op 20.</value></data>
+  <data name="Charged schedule history (days)" xml:space="preserve"><value>Historie Charged-schema (dagen)</value></data>
+  <data name="Older quarters are pruned once a day. Default: 30." xml:space="preserve"><value>Oudere kwartieren worden eens per dag opgeruimd. Standaard: 30.</value></data>
+  <data name="Every time Charged&#x27;s schedule is read from the batteries, the quarters that changed are stored in the database, so Charged&#x27;s plan can be compared with ours afterwards (Plan dump). This sets how many days of that history are kept. 0 or less falls back to 30." xml:space="preserve"><value>Elke keer dat het schema van Charged uit de batterijen gelezen wordt, worden de gewijzigde kwartieren in de database opgeslagen, zodat het plan van Charged achteraf met het onze vergeleken kan worden (Plan-dump). Dit bepaalt hoeveel dagen van die historie bewaard blijven. 0 of minder valt terug op 30.</value></data>
+  <data name="Export directory" xml:space="preserve"><value>Exportmap</value></data>
+  <data name="Where solve inputs are written. In Docker: a mounted volume." xml:space="preserve"><value>Waar solver-invoer naartoe geschreven wordt. In Docker: een gekoppeld volume.</value></data>
+  <data name="Absolute path the planner writes solve-input files to. It must exist; in Docker it must be inside a mounted volume, otherwise the files are lost when the container restarts." xml:space="preserve"><value>Absoluut pad waar de planner solver-invoerbestanden naartoe schrijft. Het moet bestaan; in Docker moet het in een gekoppeld volume liggen, anders zijn de bestanden weg als de container herstart.</value></data>
+  <data name="Developer options" xml:space="preserve"><value>Ontwikkelaarsopties</value></data>
+  <data name="Default: Off. Shows developer-only tooling (the Plan dump tab)." xml:space="preserve"><value>Standaard: uit. Toont gereedschap voor ontwikkelaars (het tabblad Plan-dump).</value></data>
+  <data name="When on, the Plan dump tab becomes visible, with its plan snapshot and the past solve-input reconstruction. Off hides the whole tab." xml:space="preserve"><value>Als dit aan staat, wordt het tabblad Plan-dump zichtbaar, met de plan-momentopname en de reconstructie van eerdere solver-invoer. Uit verbergt het hele tabblad.</value></data>
+  <data name="Advanced planning parameters" xml:space="preserve"><value>Geavanceerde planningsparameters</value></data>
+  <data name="Cycle cost source" xml:space="preserve"><value>Bron cycluskosten</value></data>
+  <data name="On = derive from investments. Off = use the fixed value." xml:space="preserve"><value>Aan = afleiden uit investeringen. Uit = vaste waarde gebruiken.</value></data>
+  <data name="On: the wear cost per kWh is derived from the battery investments (cost / capacity / cycles). Off: the planner uses the fixed cycle cost below — set it to 0 to disable the wear cost entirely and trade on every profitable spread." xml:space="preserve"><value>Aan: de slijtagekosten per kWh worden afgeleid uit de batterij-investeringen (kosten / capaciteit / cycli). Uit: de planner gebruikt de vaste cycluskosten hieronder — zet die op 0 om slijtagekosten helemaal uit te schakelen en op elke winstgevende spread te handelen.</value></data>
+  <data name="Calculate from investments" xml:space="preserve"><value>Berekenen uit investeringen</value></data>
+  <data name="Fixed cycle cost (€/kWh)" xml:space="preserve"><value>Vaste cycluskosten (€/kWh)</value></data>
+  <data name="Default: 0. Used when &#x27;Calculate from investments&#x27; is off." xml:space="preserve"><value>Standaard: 0. Geldt als 'Berekenen uit investeringen' uit staat.</value></data>
+  <data name="Fixed battery wear cost per kWh, used only when &#x27;Calculate from investments&#x27; is off. 0 disables the wear penalty; a higher value makes the planner more cautious about cycling." xml:space="preserve"><value>Vaste slijtagekosten van de batterij per kWh, alleen gebruikt als 'Berekenen uit investeringen' uit staat. 0 schakelt de slijtageboete uit; een hogere waarde maakt de planner voorzichtiger met cycli.</value></data>
+  <data name="Reset to defaults" xml:space="preserve"><value>Standaardwaarden herstellen</value></data>
+  <data name="Planning horizon (hours)" xml:space="preserve"><value>Planningshorizon (uren)</value></data>
+  <data name="0 = no limit. Default: 0." xml:space="preserve"><value>0 = geen grens. Standaard: 0.</value></data>
+  <data name="Quarters beyond this many hours are ignored by the solver, so discharge cannot be deferred to a distant peak. Typical values are 24 or 36; 0 uses every quarter with a known price." xml:space="preserve"><value>Kwartieren verder dan dit aantal uren negeert de solver, zodat ontladen niet uitgesteld kan worden naar een verre piek. Gangbare waarden zijn 24 of 36; 0 gebruikt elk kwartier met een bekende prijs.</value></data>
+  <data name="Use predicted prices in the solver" xml:space="preserve"><value>Voorspelde prijzen in de solver gebruiken</value></data>
+  <data name="Default: Off." xml:space="preserve"><value>Standaard: uit.</value></data>
+  <data name="Off uses published prices only, which keeps the horizon short; predicted quarters still extend it for night coverage but are never traded. Soft trades predicted quarters with a risk margin, so only wide spreads are acted on. Full trusts predicted prices exactly like published ones." xml:space="preserve"><value>Uit gebruikt alleen gepubliceerde prijzen, wat de horizon kort houdt; voorspelde kwartieren verlengen die nog wel voor de nachtdekking, maar er wordt niet op gehandeld. Zacht handelt op voorspelde kwartieren met een risicomarge, zodat alleen grote spreads benut worden. Volledig vertrouwt voorspelde prijzen net als gepubliceerde.</value></data>
+  <data name="Predicted price risk margin (€/kWh)" xml:space="preserve"><value>Risicomarge voorspelde prijs (€/kWh)</value></data>
+  <data name="Default: 0.05." xml:space="preserve"><value>Standaard: 0,05.</value></data>
+  <data name="Widens the spread on predicted quarters: their buy price is raised and their sell price lowered by this amount, so the solver only arbitrages a predicted quarter when the gain is comfortably larger than the price uncertainty." xml:space="preserve"><value>Vergroot de spread op voorspelde kwartieren: hun inkoopprijs gaat met dit bedrag omhoog en hun verkoopprijs omlaag, zodat de solver een voorspeld kwartier alleen benut als de winst ruim groter is dan de prijsonzekerheid.</value></data>
+  <data name="Future value discount (%/hour)" xml:space="preserve"><value>Disconto toekomstige waarde (%/uur)</value></data>
+  <data name="Time preference. 0 = off. Default: 0.3." xml:space="preserve"><value>Tijdsvoorkeur. 0 = uit. Standaard: 0,3.</value></data>
+  <data name=" · learned nightly" xml:space="preserve"><value> · 's nachts geleerd</value></data>
+  <data name="How much less a quarter is worth per hour of distance when the planner decides where to send stored energy: a peak 24h out has to be that much better to still beat an equally reachable one tonight. Only affects planning — the executed plan and the reported profit use real prices. 0 turns it off, and a single distant peak can claim the whole battery again. The default of 0.3% comes from measured plan stability: 94-97% of planned modes still hold up to 18h ahead. Raise it if you switch predicted prices on for trading, because beyond 24h plans hold only 23-63%. With self-learning on, the nightly fit replaces this value as soon as it has 21 days of forecasts to measure; until then whatever you set here is kept." xml:space="preserve"><value>Hoeveel minder een kwartier waard is per uur afstand als de planner bepaalt waar opgeslagen energie heen gaat: een piek over 24 uur moet zoveel beter zijn om een even bereikbare piek vanavond nog te verslaan. Werkt alleen op de planning — het uitgevoerde plan en de gerapporteerde winst gebruiken echte prijzen. 0 zet het uit, en dan kan één verre piek weer de hele batterij opeisen. De standaard van 0,3% komt uit gemeten planstabiliteit: 94-97% van de geplande modi houdt tot 18 uur vooruit stand. Verhoog het als je voorspelde prijzen aanzet om te handelen, want voorbij 24 uur houden plannen maar 23-63% stand. Met zelflerend aan vervangt de nachtelijke fit deze waarde zodra er 21 dagen voorspellingen te meten zijn; tot dan blijft wat je hier instelt.</value></data>
+  <data name="Allow carry-forward past the horizon" xml:space="preserve"><value>Doorschuiven voorbij de horizon toestaan</value></data>
+  <data name="Lets the planner charge purely to hold energy past the end of its horizon, valued at the measured replacement cost. Without it every charge must be paired with a discharge the planner can already see, so a cheap or negative price whose payoff lies further out is worth nothing to it. Changes what the battery buys, so it is off unless you switch it on." xml:space="preserve"><value>Laat de planner laden alleen om energie voorbij het einde van zijn horizon vast te houden, gewaardeerd tegen de gemeten vervangingswaarde. Zonder dit moet elke keer laden gekoppeld zijn aan een ontlading die de planner al ziet, dus een goedkope of negatieve prijs met een opbrengst verderop is voor hem niets waard. Verandert wat de batterij inkoopt, dus het staat uit tot je het aanzet.</value></data>
+  <data name="Charge now for a payoff beyond the plan. Default: off." xml:space="preserve"><value>Nu laden voor een opbrengst voorbij het plan. Standaard: uit.</value></data>
+  <data name="Replacement cost window (days)" xml:space="preserve"><value>Venster vervangingswaarde (dagen)</value></data>
+  <data name="Default: 30." xml:space="preserve"><value>Standaard: 30.</value></data>
+  <data name="Trailing window the cheapest all-in buy price of each day is taken from. Longer means a steadier number that reacts slowly to a change of season; shorter follows the current market but is noisier. Days with an incomplete set of prices are skipped." xml:space="preserve"><value>Terugkijkend venster waaruit de goedkoopste totale inkoopprijs van elke dag komt. Langer geeft een stabieler getal dat traag reageert op een seizoenswisseling; korter volgt de huidige markt maar is onrustiger. Dagen met onvolledige prijzen worden overgeslagen.</value></data>
+  <data name="Replacement cost percentile" xml:space="preserve"><value>Percentiel vervangingswaarde</value></data>
+  <data name="Keep it low. Default: 25." xml:space="preserve"><value>Houd het laag. Standaard: 25.</value></data>
+  <data name="Which percentile of those daily cheapest prices becomes the replacement cost. It answers the question: on most days, how cheaply can I buy a kWh? Low on purpose — set too high, charging is always attractive and selling never is, and the battery ends up full and idle. The result is additionally capped at the median buy price of the same window." xml:space="preserve"><value>Welk percentiel van die dagelijkse goedkoopste prijzen de vervangingswaarde wordt. Het beantwoordt de vraag: hoe goedkoop kan ik op de meeste dagen een kWh kopen? Bewust laag — te hoog ingesteld is laden altijd aantrekkelijk en verkopen nooit, en staat de batterij vol en stil. Het resultaat wordt bovendien begrensd op de mediane inkoopprijs van hetzelfde venster.</value></data>
+  <data name="Allow moving discharge between quarters" xml:space="preserve"><value>Ontladen verschuiven tussen kwartieren toestaan</value></data>
+  <data name="Lets the planner sell stored energy in an expensive quarter and, in return, not cover the house from the battery in a cheaper quarter later (the house then imports). The energy is already stored, so no round trip is lost; the planner only does it when it pays at least 1 cent per kWh after the efficiency loss of low-power quarters. Side effect: the battery reaches the minimum reserve more often and earlier in the evening, and quarters given up show as Hold reserve. Off unless you switch it on." xml:space="preserve"><value>Laat de planner opgeslagen energie in een duur kwartier verkopen en in ruil daarvoor het huis in een later, goedkoper kwartier niet uit de batterij voeden (het huis neemt dan af van het net). De energie is al opgeslagen, dus er gaat geen heen-en-terug verloren; de planner doet het alleen als het minstens 1 cent per kWh oplevert na het rendementsverlies van kwartieren met laag vermogen. Bijeffect: de batterij bereikt vaker en eerder op de avond de minimale reserve, en opgegeven kwartieren tonen als Reserve vasthouden. Staat uit tot je het aanzet.</value></data>
+  <data name="Sell in the peak, import for the house when it is cheaper. Default: off." xml:space="preserve"><value>Verkopen in de piek, voor het huis afnemen als het goedkoper is. Standaard: uit.</value></data>
+  <data name="Learn the future value discount from measured forecast error" xml:space="preserve"><value>Disconto toekomstige waarde leren uit gemeten voorspelfout</value></data>
+  <data name="Runs once a night over 21 days of stored forecasts and what actually happened, and overwrites the future value discount above. The discount comes from how much the combined solar and consumption forecast drifts with lead time. Until there is enough history it writes nothing at all and the field keeps whatever you set, so you can still tune it by hand in the meantime. A learned value that lands on its bound is reported under Tips and Checks instead of being applied silently." xml:space="preserve"><value>Draait elke nacht over 21 dagen opgeslagen voorspellingen en wat er echt gebeurde, en overschrijft het disconto toekomstige waarde hierboven. Het disconto volgt uit hoeveel de gecombineerde zon- en verbruiksvoorspelling afdrijft met de vooruitlooptijd. Zolang er niet genoeg historie is, schrijft het niets en houdt het veld wat je instelde, zodat je het intussen nog met de hand kunt afstellen. Een geleerde waarde die op haar grens uitkomt, wordt onder Tips &amp; controles gemeld in plaats van stilletjes toegepast.</value></data>
+  <data name="Nightly fit; overwrites the discount above once it has data. Default: off." xml:space="preserve"><value>Nachtelijke fit; overschrijft het disconto hierboven zodra er data is. Standaard: uit.</value></data>
+  <data name="Last learned" xml:space="preserve"><value>Laatst geleerd</value></data>
+  <data name="Estimated home energy needs per day (Wh), per month" xml:space="preserve"><value>Geschatte energiebehoefte van het huis per dag (Wh), per maand</value></data>
+  <data name="Statistics" xml:space="preserve"><value>Statistieken</value></data>
+  <data name="Statistics from date (optional)" xml:space="preserve"><value>Statistieken vanaf datum (optioneel)</value></data>
+  <data name="— all history —" xml:space="preserve"><value>— alle historie —</value></data>
+  <data name="Save" xml:space="preserve"><value>Opslaan</value></data>
+  <data name="✓ Saved" xml:space="preserve"><value>✓ Opgeslagen</value></data>
+  <data name="User interface" xml:space="preserve"><value>Gebruikersinterface</value></data>
+  <data name="Navigation menu" xml:space="preserve"><value>Navigatiemenu</value></data>
+  <data name="Keep the menu expanded after clicking an item" xml:space="preserve"><value>Menu uitgeklapt laten na een klik op een item</value></data>
+  <data name="With this on, the menu stays as you left it with the toggle above it: expanded menus keep showing their labels while you move from page to page. With it off, every click folds the menu back to icons only, which is how it worked before. On a phone the expanded menu covers part of the page, so switch it off there if the icons suit you better." xml:space="preserve"><value>Als dit aan staat, blijft het menu zoals je het met de knop erboven achterliet: uitgeklapte menu's houden hun labels terwijl je van pagina naar pagina gaat. Staat het uit, dan klapt elke klik het menu terug naar alleen iconen, zoals het vroeger werkte. Op een telefoon bedekt het uitgeklapte menu een deel van de pagina, dus zet het daar uit als de iconen je beter bevallen.</value></data>
+  <data name="Default: on. Applies to every browser that opens this application." xml:space="preserve"><value>Standaard: aan. Geldt voor elke browser die deze applicatie opent.</value></data>
+  <data name="Investment Groups" xml:space="preserve"><value>Investeringsgroepen</value></data>
+  <data name="Add group" xml:space="preserve"><value>Groep toevoegen</value></data>
+  <data name="Name" xml:space="preserve"><value>Naam</value></data>
+  <data name="Category" xml:space="preserve"><value>Categorie</value></data>
+  <data name="Description" xml:space="preserve"><value>Omschrijving</value></data>
+  <data name="Cancel" xml:space="preserve"><value>Annuleren</value></data>
+  <data name="Delete" xml:space="preserve"><value>Verwijderen</value></data>
+  <data name="Investments" xml:space="preserve"><value>Investeringen</value></data>
+  <data name="Add investment" xml:space="preserve"><value>Investering toevoegen</value></data>
+  <data name="Total:" xml:space="preserve"><value>Totaal:</value></data>
+  <data name="Subsidies:" xml:space="preserve"><value>Subsidies:</value></data>
+  <data name="Net:" xml:space="preserve"><value>Netto:</value></data>
+  <data name="Group" xml:space="preserve"><value>Groep</value></data>
+  <data name="— no group —" xml:space="preserve"><value>— geen groep —</value></data>
+  <data name="Purchase date" xml:space="preserve"><value>Aankoopdatum</value></data>
+  <data name="Amount (€)" xml:space="preserve"><value>Bedrag (€)</value></data>
+  <data name="Subsidy (€)" xml:space="preserve"><value>Subsidie (€)</value></data>
+  <data name="Net (€)" xml:space="preserve"><value>Netto (€)</value></data>
+  <data name="Lifetime (yr)" xml:space="preserve"><value>Levensduur (jr)</value></data>
+  <data name="Capacity (Wh)" xml:space="preserve"><value>Capaciteit (Wh)</value></data>
+  <data name="Cycles" xml:space="preserve"><value>Cycli</value></data>
+  <data name="Est. savings (€/yr)" xml:space="preserve"><value>Gesch. besparing (€/jr)</value></data>
+  <data name="Savings description" xml:space="preserve"><value>Omschrijving besparing</value></data>
+  <data name="Notes" xml:space="preserve"><value>Notities</value></data>
+  <data name="Add new row after this row" xml:space="preserve"><value>Nieuwe rij na deze rij toevoegen</value></data>
+  <data name="Taxes" xml:space="preserve"><value>Belastingen</value></data>
+  <data name="Add taxes" xml:space="preserve"><value>Belastingen toevoegen</value></data>
+  <data name="Time" xml:space="preserve"><value>Tijd</value></data>
+  <data name="Energy tax" xml:space="preserve"><value>Energiebelasting</value></data>
+  <data name="Value added tax" xml:space="preserve"><value>Btw</value></data>
+  <data name="Tax reduction" xml:space="preserve"><value>Heffingskorting</value></data>
+  <data name="Purchase compensation" xml:space="preserve"><value>Inkoopvergoeding</value></data>
+  <data name="Return delivery costs (positive)" xml:space="preserve"><value>Terugleverkosten (positief)</value></data>
+  <data name="Solar bonus (%)" xml:space="preserve"><value>Zonnebonus (%)</value></data>
+  <data name="Net management cost" xml:space="preserve"><value>Netbeheerkosten</value></data>
+  <data name="Fixed transport fee" xml:space="preserve"><value>Vaste transportkosten</value></data>
+  <data name="Capacity transport fee" xml:space="preserve"><value>Capaciteitstarief transport</value></data>
+  <data name="Netting" xml:space="preserve"><value>Salderen</value></data>
+  <data name="Gas energy tax (€/m³)" xml:space="preserve"><value>Energiebelasting gas (€/m³)</value></data>
+  <data name="Gas supplier markup (€/m³)" xml:space="preserve"><value>Opslag leverancier gas (€/m³)</value></data>
+  <data name="Gas VAT (%)" xml:space="preserve"><value>Btw gas (%)</value></data>
+  <data name="Who&#x27;s in control" xml:space="preserve"><value>Wie heeft de regie</value></data>
+  <data name="Status" xml:space="preserve"><value>Status</value></data>
+  <data name="Tips &amp; Checks" xml:space="preserve"><value>Tips &amp; controles</value></data>
+  <data name="All checks passed — no issues found." xml:space="preserve"><value>Alle controles geslaagd — geen problemen gevonden.</value></data>
+  <data name="Notifications" xml:space="preserve"><value>Meldingen</value></data>
+  <data name="Mark all read" xml:space="preserve"><value>Alles als gelezen markeren</value></data>
+  <data name="Delete all" xml:space="preserve"><value>Alles verwijderen</value></data>
+  <data name="All severities" xml:space="preserve"><value>Alle ernstniveaus</value></data>
+  <data name="All categories" xml:space="preserve"><value>Alle categorieën</value></data>
+  <data name="No notifications." xml:space="preserve"><value>Geen meldingen.</value></data>
+  <data name="No notifications match the filter." xml:space="preserve"><value>Geen meldingen voldoen aan het filter.</value></data>
+  <data name="Occurred {0} times" xml:space="preserve"><value>{0} keer voorgekomen</value></data>
+  <data name="Delete this notification" xml:space="preserve"><value>Deze melding verwijderen</value></data>
+  <data name="Plan dump" xml:space="preserve"><value>Plan-dump</value></data>
+  <data name="Downloads a JSON snapshot with everything needed to analyse a plan for the chosen period: planner settings, EPEX prices, taxes, planned quarters, actual quarters and measured facts. The file is built in memory and offered for download — it is never written to disk." xml:space="preserve"><value>Downloadt een JSON-momentopname met alles wat nodig is om een plan voor de gekozen periode te analyseren: plannerinstellingen, EPEX-prijzen, belastingen, geplande kwartieren, werkelijke kwartieren en gemeten feiten. Het bestand wordt in het geheugen opgebouwd en als download aangeboden — het wordt nooit naar schijf geschreven.</value></data>
+  <data name="From" xml:space="preserve"><value>Van</value></data>
+  <data name="To" xml:space="preserve"><value>Tot</value></data>
+  <data name="Download dump" xml:space="preserve"><value>Dump downloaden</value></data>
+  <data name="Reconstruct a past solve-input" xml:space="preserve"><value>Eerdere solver-invoer reconstrueren</value></data>
+  <data name="Rebuilds the planner input for the period above from the database and downloads it, to replay a plan that ran before solve-input recording was on." xml:space="preserve"><value>Bouwt de plannerinvoer voor de periode hierboven opnieuw op uit de database en downloadt die, om een plan af te spelen dat draaide voordat het vastleggen van solver-invoer aan stond.</value></data>
+  <data name="Approximate: prices, net load and the reserve floor are exact from the stored plan, and the initial SOC from the measurement, but the battery spec and planner options are the CURRENT ones, not as they were then. Only reaches back as far as the plan history goes." xml:space="preserve"><value>Bij benadering: prijzen, netto belasting en de reservegrens zijn exact uit het opgeslagen plan, en de begin-SoC uit de meting, maar de batterijspecificatie en planneropties zijn de HUIDIGE, niet die van toen. Gaat maar zo ver terug als de planhistorie.</value></data>
+  <data name="Reconstruct &amp; download" xml:space="preserve"><value>Reconstrueren &amp; downloaden</value></data>
+  <data name="SQL Console" xml:space="preserve"><value>SQL-console</value></data>
+  <data name="Direct SQL access. Everything is allowed — be careful!" xml:space="preserve"><value>Directe SQL-toegang. Alles is toegestaan — wees voorzichtig!</value></data>
+  <data name="Multiple statements separated by semicolons run in order on one connection and inside one transaction, so temp tables carry over and a failure halfway rolls everything back. sqlite3 dot-commands and BEGIN/COMMIT are skipped. The grid shows the last result set. Take a backup before running anything destructive." xml:space="preserve"><value>Meerdere statements gescheiden door puntkomma's draaien op volgorde op één verbinding en binnen één transactie, dus tijdelijke tabellen blijven bestaan en een fout halverwege draait alles terug. sqlite3-puntcommando's en BEGIN/COMMIT worden overgeslagen. Het raster toont de laatste resultaatset. Maak een back-up voordat je iets destructiefs uitvoert.</value></data>
+  <data name="SELECT * FROM QuarterlyMeasurements WHERE SolarProductionKwh &gt; 100;" xml:space="preserve"><value>SELECT * FROM QuarterlyMeasurements WHERE SolarProductionKwh &gt; 100;</value></data>
+  <data name="Execute" xml:space="preserve"><value>Uitvoeren</value></data>
+  <data name="Backup" xml:space="preserve"><value>Back-up</value></data>
+  <data name="Writes a VACUUM INTO copy of the database to the backup directory. Do this before running anything destructive." xml:space="preserve"><value>Schrijft een VACUUM INTO-kopie van de database naar de back-upmap. Doe dit voordat je iets destructiefs uitvoert.</value></data>
+  <data name="Clear" xml:space="preserve"><value>Wissen</value></data>
+  <data name="CSV" xml:space="preserve"><value>CSV</value></data>
+  <data name="Excel" xml:space="preserve"><value>Excel</value></data>
+  <data name="Credits" xml:space="preserve"><value>Credits</value></data>
+  <data name="Hard- and software" xml:space="preserve"><value>Hard- en software</value></data>
+  <data name="Hardware" xml:space="preserve"><value>Hardware</value></data>
+  <data name="Charged B.V." xml:space="preserve"><value>Charged B.V.</value></data>
+  <data name="Battery communication" xml:space="preserve"><value>Communicatie met de batterij</value></data>
+  <data name="Sessy" xml:space="preserve"><value>Sessy</value></data>
+  <data name="NET development" xml:space="preserve"><value>NET-ontwikkeling</value></data>
+  <data name="Microsoft" xml:space="preserve"><value>Microsoft</value></data>
+  <data name="UI web components" xml:space="preserve"><value>UI-webcomponenten</value></data>
+  <data name="Radzen (free)" xml:space="preserve"><value>Radzen (gratis)</value></data>
+  <data name="Online services" xml:space="preserve"><value>Onlinediensten</value></data>
+  <data name="Weather service" xml:space="preserve"><value>Weerdienst</value></data>
+  <data name="Weeronline" xml:space="preserve"><value>Weeronline</value></data>
+  <data name="Gas price feed" xml:space="preserve"><value>Gasprijsbron</value></data>
+  <data name="Enever.nl" xml:space="preserve"><value>Enever.nl</value></data>
+  <data name="Container log" xml:space="preserve"><value>Containerlog</value></data>
+  <data name="Auto-scroll" xml:space="preserve"><value>Automatisch scrollen</value></data>
+  <data name="Level" xml:space="preserve"><value>Niveau</value></data>
+  <data name="Copy" xml:space="preserve"><value>Kopiëren</value></data>
+  <data name="Export" xml:space="preserve"><value>Exporteren</value></data>
+  <data name="History" xml:space="preserve"><value>Historie</value></data>
+  <data name="Battery:" xml:space="preserve"><value>Batterij:</value></data>
+  <data name="Select battery" xml:space="preserve"><value>Kies batterij</value></data>
+  <data name="Start time" xml:space="preserve"><value>Starttijd</value></data>
+  <data name="End time" xml:space="preserve"><value>Eindtijd</value></data>
+  <data name="Duration" xml:space="preserve"><value>Duur</value></data>
+  <data name="Details" xml:space="preserve"><value>Details</value></data>
+  <data name="Planner analysis" xml:space="preserve"><value>Planneranalyse</value></data>
+  <data name="Refresh" xml:space="preserve"><value>Vernieuwen</value></data>
+  <data name="Loading…" xml:space="preserve"><value>Bezig met laden…</value></data>
+  <data name="There is no planned quarter from now. Wait for the next planner cycle." xml:space="preserve"><value>Er is vanaf nu geen gepland kwartier. Wacht op de volgende plannerronde.</value></data>
+  <data name="Summary" xml:space="preserve"><value>Samenvatting</value></data>
+  <data name="Period {0:dd-MM-yyyy HH:mm} – {1:dd-MM-yyyy HH:mm} · capacity {2:F1} kWh" xml:space="preserve"><value>Periode {0:dd-MM-yyyy HH:mm} – {1:dd-MM-yyyy HH:mm} · capaciteit {2:F1} kWh</value></data>
+  <data name="Charge {0}" xml:space="preserve"><value>Laden {0}</value></data>
+  <data name="Discharge→grid {0}" xml:space="preserve"><value>Ontladen→net {0}</value></data>
+  <data name="ZeroNetHome {0}" xml:space="preserve"><value>Nul op de meter {0}</value></data>
+  <data name="Off {0}" xml:space="preserve"><value>Uit {0}</value></data>
+  <data name="Hold reserve {0}" xml:space="preserve"><value>Reserve vasthouden {0}</value></data>
+  <data name="Improvements {0}" xml:space="preserve"><value>Verbeterpunten {0}</value></data>
+  <data name="Plan per quarter" xml:space="preserve"><value>Plan per kwartier</value></data>
+  <data name="Expand a row for the reason, the improvement points and the calculations of that quarter." xml:space="preserve"><value>Klap een rij open voor de reden, de verbeterpunten en de berekeningen van dat kwartier.</value></data>
+  <data name="Why this mode" xml:space="preserve"><value>Waarom deze modus</value></data>
+  <data name="Solar export" xml:space="preserve"><value>Teruglevering zon</value></data>
+  <data name="Improvement points" xml:space="preserve"><value>Verbeterpunten</value></data>
+  <data name="Calculations &amp; data" xml:space="preserve"><value>Berekeningen &amp; gegevens</value></data>
+  <data name="Mode" xml:space="preserve"><value>Modus</value></data>
+  <data name="Price" xml:space="preserve"><value>Prijs</value></data>
+  <data name="Buy €" xml:space="preserve"><value>Inkoop €</value></data>
+  <data name="Sell €" xml:space="preserve"><value>Verkoop €</value></data>
+  <data name="Spread €" xml:space="preserve"><value>Spread €</value></data>
+  <data name="Charge W" xml:space="preserve"><value>Laden W</value></data>
+  <data name="Discharge W" xml:space="preserve"><value>Ontladen W</value></data>
+  <data name="SOC %" xml:space="preserve"><value>SoC %</value></data>
+  <data name="Solar Wh" xml:space="preserve"><value>Zon Wh</value></data>
+  <data name="Cons. W" xml:space="preserve"><value>Verbr. W</value></data>
+  <data name="Net load Wh" xml:space="preserve"><value>Netto belasting Wh</value></data>
+  <data name="Remarks" xml:space="preserve"><value>Opmerkingen</value></data>
+  <data name="Planner parameters that produced this plan" xml:space="preserve"><value>Plannerparameters waarmee dit plan tot stand kwam</value></data>
+  <data name="Parameter" xml:space="preserve"><value>Parameter</value></data>
+  <data name="Value" xml:space="preserve"><value>Waarde</value></data>
+  <data name="EPEX prices" xml:space="preserve"><value>EPEX-prijzen</value></data>
+  <data name="Add energy data" xml:space="preserve"><value>Energiedata toevoegen</value></data>
+  <data name="Id" xml:space="preserve"><value>Id</value></data>
+  <data name="Sessy battery" xml:space="preserve"><value>Sessy-batterij</value></data>
+  <data name="Sessy slimme onafhankelijke thuisbatterij" xml:space="preserve"><value>Sessy slimme onafhankelijke thuisbatterij</value></data>
+  <data name="NET Development environment" xml:space="preserve"><value>NET-ontwikkelomgeving</value></data>
+  <data name="Radzen components (free version)" xml:space="preserve"><value>Radzen-componenten (gratis versie)</value></data>
+  <data name="Data Editor" xml:space="preserve"><value>Data-editor</value></data>
+  <data name="Table" xml:space="preserve"><value>Tabel</value></data>
+  <data name="Filter (WHERE clause)" xml:space="preserve"><value>Filter (WHERE-clausule)</value></data>
+  <data name="e.g. Time &gt; &#x27;2026-05-01&#x27; AND SolarProductionKWh &gt; 1" xml:space="preserve"><value>bijv. Time &gt; '2026-05-01' AND SolarProductionKWh &gt; 1</value></data>
+  <data name="Load" xml:space="preserve"><value>Laden</value></data>
+  <data name="Date" xml:space="preserve"><value>Datum</value></data>
+  <data name="Cost" xml:space="preserve"><value>Kosten</value></data>
+  <data name="Inverter" xml:space="preserve"><value>Omvormer</value></data>
+  <data name="SHUTDOWN" xml:space="preserve"><value>UITGESCHAKELD</value></data>
+  <data name="ZERO EXPORT" xml:space="preserve"><value>GEEN TERUGLEVERING</value></data>
+  <data name="THROTTLE" xml:space="preserve"><value>BEGRENSD</value></data>
+  <data name="Actual: {0:F0} %" xml:space="preserve"><value>Werkelijk: {0:F0} %</value></data>
+  <data name="Battery (plan)" xml:space="preserve"><value>Batterij (plan)</value></data>
+  <data name="SOC dev: {0:F1}%" xml:space="preserve"><value>SoC-afw.: {0:F1}%</value></data>
+  <data name="Zero Net Home" xml:space="preserve"><value>Nul op de meter</value></data>
+  <data name="Idle" xml:space="preserve"><value>Rust</value></data>
+  <data name="↑ charging {0:F0} W" xml:space="preserve"><value>↑ laden {0:F0} W</value></data>
+  <data name="↓ discharging {0:F0} W" xml:space="preserve"><value>↓ ontladen {0:F0} W</value></data>
+  <data name="Battery (actual)" xml:space="preserve"><value>Batterij (werkelijk)</value></data>
+  <data name="With grid-target steering the battery strategy stays Zero Net Home (NOM). Charging and discharging are driven by the P1 grid target, so the plan can read Charging while the hardware strategy shows Zero Net Home." xml:space="preserve"><value>Bij sturing via het netdoel blijft de batterijstrategie Nul op de meter (NOM). Laden en ontladen worden gestuurd door het P1-netdoel, dus het plan kan Laden tonen terwijl de hardwarestrategie Nul op de meter laat zien.</value></data>
+  <data name="via P1 grid target" xml:space="preserve"><value>via P1-netdoel</value></data>
+  <data name="Heartbeat" xml:space="preserve"><value>Hartslag</value></data>
+  <data name="Control" xml:space="preserve"><value>Regie</value></data>
+  <data name="Manual mode" xml:space="preserve"><value>Handmatige modus</value></data>
+  <data name="SessyWeb in control" xml:space="preserve"><value>SessyWeb heeft de regie</value></data>
+  <data name="Provider has control" xml:space="preserve"><value>Leverancier heeft de regie</value></data>
+  <data name="Show all" xml:space="preserve"><value>Alles tonen</value></data>
+  <data name="Show all data of today" xml:space="preserve"><value>Alle data van vandaag tonen</value></data>
+  <data name="Select a plan" xml:space="preserve"><value>Kies een plan</value></data>
+  <data name="Batteries" xml:space="preserve"><value>Batterijen</value></data>
+  <data name="Storage" xml:space="preserve"><value>Opslag</value></data>
+  <data name="Statuses" xml:space="preserve"><value>Statussen</value></data>
+  <data name="No solar inverter configured" xml:space="preserve"><value>Geen zonne-omvormer ingesteld</value></data>
+  <data name="This page shows measurements read from a solar inverter. Add a &lt;b&gt;PowerSystems&lt;/b&gt; section to appsettings.json to enable it." xml:space="preserve"><value>Deze pagina toont metingen van een zonne-omvormer. Voeg een sectie &lt;b&gt;PowerSystems&lt;/b&gt; toe aan appsettings.json om haar in te schakelen.</value></data>
+  <data name="Solar power" xml:space="preserve"><value>Zonnevermogen</value></data>
+  <data name="Select provider" xml:space="preserve"><value>Kies leverancier</value></data>
+  <data name="Show labels" xml:space="preserve"><value>Labels tonen</value></data>
+  <data name="Show markers" xml:space="preserve"><value>Markeringen tonen</value></data>
+  <data name="Total solar power: {0:N2} kWh" xml:space="preserve"><value>Totaal zonnevermogen: {0:N2} kWh</value></data>
+  <data name="Grid target (P1)" xml:space="preserve"><value>Netdoel (P1)</value></data>
+  <data name="Measurements" xml:space="preserve"><value>Metingen</value></data>
+  <data name="Battery (W)" xml:space="preserve"><value>Batterij (W)</value></data>
+  <data name="SOC (Wh)" xml:space="preserve"><value>SoC (Wh)</value></data>
+  <data name="Buy (€/kWh)" xml:space="preserve"><value>Inkoop (€/kWh)</value></data>
+  <data name="Sell (€/kWh)" xml:space="preserve"><value>Verkoop (€/kWh)</value></data>
+  <data name="Reliable" xml:space="preserve"><value>Betrouwbaar</value></data>
+  <data name="Meter readings" xml:space="preserve"><value>Meterstanden</value></data>
+  <data name="Consumed T1 (Wh)" xml:space="preserve"><value>Verbruikt T1 (Wh)</value></data>
+  <data name="Consumed T2 (Wh)" xml:space="preserve"><value>Verbruikt T2 (Wh)</value></data>
+  <data name="Produced T1 (Wh)" xml:space="preserve"><value>Teruggeleverd T1 (Wh)</value></data>
+  <data name="Produced T2 (Wh)" xml:space="preserve"><value>Teruggeleverd T2 (Wh)</value></data>
+  <data name="Tariff indicator" xml:space="preserve"><value>Tariefindicator</value></data>
+  <data name="Temperature" xml:space="preserve"><value>Temperatuur</value></data>
+  <data name="Energy Statistics" xml:space="preserve"><value>Energiestatistieken</value></data>
+  <data name="Overview" xml:space="preserve"><value>Overzicht</value></data>
+  <data name="Financial" xml:space="preserve"><value>Financieel</value></data>
+  <data name="Planner" xml:space="preserve"><value>Planner</value></data>
+  <data name="Consumption" xml:space="preserve"><value>Verbruik</value></data>
+  <data name="Battery" xml:space="preserve"><value>Batterij</value></data>
+  <data name="Financial results" xml:space="preserve"><value>Financiële resultaten</value></data>
+  <data name="YearMonth" xml:space="preserve"><value>Jaar-maand</value></data>
+  <data name="Day" xml:space="preserve"><value>Dag</value></data>
+  <data name="Total monthly cost: {0:C}" xml:space="preserve"><value>Totale kosten deze maand: {0:C}</value></data>
+  <data name=" — consumed: {0:N1} kWh" xml:space="preserve"><value> — verbruikt: {0:N1} kWh</value></data>
+  <data name="Total cost: {0:C}" xml:space="preserve"><value>Totale kosten: {0:C}</value></data>
+  <data name=" — total consumed: {0:N1} kWh" xml:space="preserve"><value> — totaal verbruikt: {0:N1} kWh</value></data>
+  <data name="Show weather" xml:space="preserve"><value>Weer tonen</value></data>
+  <data name="Compare:" xml:space="preserve"><value>Vergelijken:</value></data>
+  <data name="Temperature {0}" xml:space="preserve"><value>Temperatuur {0}</value></data>
+  <data name="Global radiation" xml:space="preserve"><value>Globale straling</value></data>
+  <data name="Humidity" xml:space="preserve"><value>Luchtvochtigheid</value></data>
+  <data name="Wh" xml:space="preserve"><value>Wh</value></data>
+  <data name="Celsius" xml:space="preserve"><value>Celsius</value></data>
+  <data name="Watt / m2" xml:space="preserve"><value>Watt / m2</value></data>
+  <data name="Percentage" xml:space="preserve"><value>Percentage</value></data>
+  <data name="Avg. global radiation" xml:space="preserve"><value>Gem. globale straling</value></data>
+  <data name="Avg. humidity" xml:space="preserve"><value>Gem. luchtvochtigheid</value></data>
+  <data name="Month" xml:space="preserve"><value>Maand</value></data>
+  <data name="Consumption {0}" xml:space="preserve"><value>Verbruik {0}</value></data>
+  <data name="Avg. temperature {0}" xml:space="preserve"><value>Gem. temperatuur {0}</value></data>
+  <data name="vs. previous year" xml:space="preserve"><value>t.o.v. vorig jaar</value></data>
+  <data name="Total Consumption:" xml:space="preserve"><value>Totaal verbruik:</value></data>
+  <data name="Avg. temperature:" xml:space="preserve"><value>Gem. temperatuur:</value></data>
+  <data name="Consumption vs. prev. year:" xml:space="preserve"><value>Verbruik t.o.v. vorig jaar:</value></data>
+  <data name="Energy System Savings" xml:space="preserve"><value>Besparing energiesysteem</value></data>
+  <data name="Annual savings" xml:space="preserve"><value>Jaarlijkse besparing</value></data>
+  <data name="€ {0:F2}/year" xml:space="preserve"><value>€ {0:F2}/jaar</value></data>
+  <data name="Period savings" xml:space="preserve"><value>Besparing in periode</value></data>
+  <data name="Export revenue" xml:space="preserve"><value>Opbrengst teruglevering</value></data>
+  <data name="Arbitrage profit (realized)" xml:space="preserve"><value>Arbitragewinst (gerealiseerd)</value></data>
+  <data name="Arbitrage profit (planned)" xml:space="preserve"><value>Arbitragewinst (gepland)</value></data>
+  <data name="Buy / sell price (avg)" xml:space="preserve"><value>Inkoop- / verkoopprijs (gem.)</value></data>
+  <data name="Solar production" xml:space="preserve"><value>Zonne-opbrengst</value></data>
+  <data name="Self-sufficiency" xml:space="preserve"><value>Zelfvoorzienendheid</value></data>
+  <data name="Self-consumption" xml:space="preserve"><value>Eigen verbruik</value></data>
+  <data name="Performance ratio" xml:space="preserve"><value>Prestatieverhouding</value></data>
+  <data name="Avg / peak daily solar" xml:space="preserve"><value>Gem. / piek zon per dag</value></data>
+  <data name="Charged / discharged" xml:space="preserve"><value>Geladen / ontladen</value></data>
+  <data name="Round-trip efficiency (measured)" xml:space="preserve"><value>Rendement heen-en-terug (gemeten)</value></data>
+  <data name="Cycles (total / avg per battery)" xml:space="preserve"><value>Cycli (totaal / gem. per batterij)</value></data>
+  <data name="Cycles per day / avg SOC" xml:space="preserve"><value>Cycli per dag / gem. SoC</value></data>
+  <data name="{0:F2}/day — {1:F1} %" xml:space="preserve"><value>{0:F2}/dag — {1:F1} %</value></data>
+  <data name="Cycle cost (derived)" xml:space="preserve"><value>Cycluskosten (afgeleid)</value></data>
+  <data name="Derived from battery investments: net purchase price divided by expected energy throughput (capacity × expected total cycles). Used by the planner as the arbitrage threshold." xml:space="preserve"><value>Afgeleid uit de batterij-investeringen: netto aankoopprijs gedeeld door de verwachte energiedoorvoer (capaciteit × verwacht totaal aantal cycli). De planner gebruikt dit als drempel voor arbitrage.</value></data>
+  <data name="Annual savings = seasonal monthly averages (all historical data). Period savings = actual measured savings in the selected period ({0:F0} days)." xml:space="preserve"><value>Jaarlijkse besparing = seizoensgemiddelden per maand (alle historische data). Besparing in periode = werkelijk gemeten besparing in de gekozen periode ({0:F0} dagen).</value></data>
+  <data name="Solar and battery are treated as one integrated system." xml:space="preserve"><value>Zonnepanelen en batterij worden als één geïntegreerd systeem behandeld.</value></data>
+  <data name="Planner Accuracy" xml:space="preserve"><value>Nauwkeurigheid planner</value></data>
+  <data name="Quarters compared" xml:space="preserve"><value>Vergeleken kwartieren</value></data>
+  <data name="Avg SOC deviation" xml:space="preserve"><value>Gem. afwijking SoC</value></data>
+  <data name="Mode accuracy" xml:space="preserve"><value>Nauwkeurigheid modus</value></data>
+  <data name="Curtailment quarters" xml:space="preserve"><value>Kwartieren met afregeling</value></data>
+  <data name="Planned SOC (%)" xml:space="preserve"><value>Geplande SoC (%)</value></data>
+  <data name="Actual SOC (%)" xml:space="preserve"><value>Werkelijke SoC (%)</value></data>
+  <data name="No plan vs actual data available for the selected period." xml:space="preserve"><value>Geen gegevens gepland tegenover werkelijk voor de gekozen periode.</value></data>
+  <data name="🗓️ Consumption pattern" xml:space="preserve"><value>🗓️ Verbruikspatroon</value></data>
+  <data name="No consumption measured in this period." xml:space="preserve"><value>Geen verbruik gemeten in deze periode.</value></data>
+  <data name="🎯 Consumption forecast: planner vs. model" xml:space="preserve"><value>🎯 Verbruiksvoorspelling: planner tegenover model</value></data>
+  <data name="Not enough data yet: needs complete days for which the planner stored a forecast {0} hours ahead." xml:space="preserve"><value>Nog niet genoeg data: nodig zijn volledige dagen waarvoor de planner {0} uur vooraf een voorspelling opsloeg.</value></data>
+  <data name="Model" xml:space="preserve"><value>Model</value></data>
+  <data name="Measured" xml:space="preserve"><value>Gemeten</value></data>
+  <data name="Planner (a day ahead)" xml:space="preserve"><value>Planner (een dag vooraf)</value></data>
+  <data name="Model (actual temperature)" xml:space="preserve"><value>Model (werkelijke temperatuur)</value></data>
+  <data name="kWh / day" xml:space="preserve"><value>kWh / dag</value></data>
+  <data name="🌙 Base load at night" xml:space="preserve"><value>🌙 Basislast 's nachts</value></data>
+  <data name="Not enough data yet: needs nights with consumption measured." xml:space="preserve"><value>Nog niet genoeg data: nodig zijn nachten met gemeten verbruik.</value></data>
+  <data name="Base load" xml:space="preserve"><value>Basislast</value></data>
+  <data name="Week" xml:space="preserve"><value>Week</value></data>
+  <data name="Chart Guide" xml:space="preserve"><value>Uitleg grafiek</value></data>
+  <data name="SessyWeb — Home Energy Management" xml:space="preserve"><value>SessyWeb — energiebeheer thuis</value></data>
+  <data name="Why this plan" xml:space="preserve"><value>Waarom dit plan</value></data>
+  <data name="Price Series" xml:space="preserve"><value>Prijsreeksen</value></data>
+  <data name="Solar &amp; Consumption" xml:space="preserve"><value>Zon &amp; verbruik</value></data>
+  <data name="Other" xml:space="preserve"><value>Overig</value></data>
+  <data name="Battery &amp; Plan" xml:space="preserve"><value>Batterij &amp; plan</value></data>
+  <data name="Header Indicators" xml:space="preserve"><value>Indicatoren in de kop</value></data>
+  <data name="Reconstructed" xml:space="preserve"><value>Gereconstrueerd</value></data>
+  <data name="Estimated" xml:space="preserve"><value>Geschat</value></data>
+  <data name="Total cycles" xml:space="preserve"><value>Totaal cycli</value></data>
+  <data name="Cycles per month" xml:space="preserve"><value>Cycli per maand</value></data>
+  <data name="Total" xml:space="preserve"><value>Totaal</value></data>
+  <data name="💶 Financial forecast for next year" xml:space="preserve"><value>💶 Financiële prognose voor volgend jaar</value></data>
+  <data name="Reload (the planner replay runs once a week)" xml:space="preserve"><value>Opnieuw laden (het opnieuw afspelen door de planner draait eens per week)</value></data>
+  <data name="Not enough data: needs meter readings for the last 12 months and a Taxes row valid next year." xml:space="preserve"><value>Niet genoeg data: nodig zijn meterstanden van de afgelopen 12 maanden en een belastingrij die volgend jaar geldt.</value></data>
+  <data name="All amounts incl. VAT, at the market prices of the last 12 full months and the tariffs from the Taxes page. &lt;b&gt;Last 12 months&lt;/b&gt;: measured grid import and export at the tariffs that applied. &lt;b&gt;Planner replay&lt;/b&gt;: the planner replans that year day by day at the tariffs valid on 1 January {0} (netting {1}), from the measured house load and solar; this is what to expect. It runs once a week in the background (a few minutes)." xml:space="preserve"><value>Alle bedragen incl. btw, tegen de marktprijzen van de afgelopen 12 volle maanden en de tarieven van de belastingpagina. &lt;b&gt;Laatste 12 maanden&lt;/b&gt;: gemeten net-import en net-export tegen de tarieven die toen golden. &lt;b&gt;Opnieuw afgespeeld door de planner&lt;/b&gt;: de planner plant dat jaar dag voor dag opnieuw tegen de tarieven die op 1 januari {0} gelden (salderen {1}), uit de gemeten huislast en zon; dit is wat je kunt verwachten. Het draait eens per week op de achtergrond (een paar minuten).</value></data>
+  <data name="On" xml:space="preserve"><value>Aan</value></data>
+  <data name="Off" xml:space="preserve"><value>Uit</value></data>
+  <data name="Difference" xml:space="preserve"><value>Verschil</value></data>
+  <data name="Measured vs expected per month" xml:space="preserve"><value>Gemeten tegenover verwacht per maand</value></data>
+  <data name="Expected" xml:space="preserve"><value>Verwacht</value></data>
+  <data name="Cumulative difference" xml:space="preserve"><value>Cumulatief verschil</value></data>
+  <data name="Cumulative kWh" xml:space="preserve"><value>Cumulatief kWh</value></data>
+  <data name="Difference with last year per {0}" xml:space="preserve"><value>Verschil met vorig jaar per {0}</value></data>
+  <data name="kWh (more →, ← less)" xml:space="preserve"><value>kWh (meer →, ← minder)</value></data>
+  <data name="📉 Throttling report" xml:space="preserve"><value>📉 Begrenzingsrapport</value></data>
+  <data name="All" xml:space="preserve"><value>Alle</value></data>
+  <data name="How much power the batteries really deliver when SessyWeb asks for (nearly) full power. Only quarters count in which SessyWeb was in control, asked at least 90% of nameplate, and the quarter before was already in the same mode, so a slow start or another controller does not count against the batteries. Power is the batteries&#x27; own AC reading: per SOC band the median, as a percentage of nameplate ({0} charging, {1} discharging). 100% means no throttling. &lt;b&gt;Full charge / discharge&lt;/b&gt; is the time a 0-100% pass takes at the measured powers, next to the time it would take at nameplate." xml:space="preserve"><value>Hoeveel vermogen de batterijen echt leveren als SessyWeb om (bijna) vol vermogen vraagt. Alleen kwartieren tellen mee waarin SessyWeb de regie had, minstens 90% van nominaal vroeg en het kwartier ervoor al in dezelfde modus stond, zodat een trage start of een andere regelaar de batterijen niet wordt aangerekend. Vermogen is de eigen AC-meting van de batterijen: per SoC-band de mediaan, als percentage van nominaal ({0} laden, {1} ontladen). 100% betekent geen begrenzing. &lt;b&gt;Volledig laden / ontladen&lt;/b&gt; is de tijd die een doorgang van 0-100% kost bij de gemeten vermogens, naast de tijd bij nominaal vermogen.</value></data>
+  <data name="No full-power quarters in this period." xml:space="preserve"><value>Geen kwartieren op vol vermogen in deze periode.</value></data>
+  <data name="Charge delivered" xml:space="preserve"><value>Laden geleverd</value></data>
+  <data name="Delivered over requested energy in full-power charging quarters." xml:space="preserve"><value>Geleverde gedeeld door gevraagde energie in kwartieren met laden op vol vermogen.</value></data>
+  <data name="Discharge delivered" xml:space="preserve"><value>Ontladen geleverd</value></data>
+  <data name="Delivered over requested energy in full-power discharging quarters." xml:space="preserve"><value>Geleverde gedeeld door gevraagde energie in kwartieren met ontladen op vol vermogen.</value></data>
+  <data name="Full charge (measured / nameplate)" xml:space="preserve"><value>Volledig laden (gemeten / nominaal)</value></data>
+  <data name="Full discharge (measured / nameplate)" xml:space="preserve"><value>Volledig ontladen (gemeten / nominaal)</value></data>
+  <data name="SOC" xml:space="preserve"><value>SoC</value></data>
+  <data name="Charge quarters" xml:space="preserve"><value>Laadkwartieren</value></data>
+  <data name="Discharge quarters" xml:space="preserve"><value>Ontlaadkwartieren</value></data>
+  <data name="Charge" xml:space="preserve"><value>Laden</value></data>
+  <data name="Discharge" xml:space="preserve"><value>Ontladen</value></data>
+  <data name="State of charge" xml:space="preserve"><value>Laadtoestand</value></data>
+  <data name="% of nameplate" xml:space="preserve"><value>% van nominaal</value></data>
+  <data name="Loss per full cycle ({0:F1} kWh)" xml:space="preserve"><value>Verlies per volledige cyclus ({0:F1} kWh)</value></data>
+  <data name="One cycle is the battery charged from empty to full and discharged again. &lt;b&gt;Efficiency&lt;/b&gt; is energy really lost as heat while charging and discharging (the measured round trip over the same period). &lt;b&gt;Throttling&lt;/b&gt; is not lost energy: it is the part of a full charge or discharge that does not fit in the time nameplate power would need. That is capacity you cannot use when a cheap or an expensive price window is short. The &lt;b&gt;total&lt;/b&gt; therefore shows how much of each cycle you miss, not what it costs." xml:space="preserve"><value>Eén cyclus is de batterij van leeg naar vol laden en weer ontladen. &lt;b&gt;Rendement&lt;/b&gt; is energie die bij laden en ontladen echt als warmte verloren gaat (het gemeten heen-en-terug over dezelfde periode). &lt;b&gt;Begrenzing&lt;/b&gt; is geen verloren energie: het is het deel van volledig laden of ontladen dat niet past in de tijd die nominaal vermogen nodig zou hebben. Dat is capaciteit die je niet kunt gebruiken als een goedkoop of duur prijsvenster kort is. Het &lt;b&gt;totaal&lt;/b&gt; laat dus zien hoeveel van elke cyclus je mist, niet wat het kost.</value></data>
+  <data name="Efficiency (round trip {0})" xml:space="preserve"><value>Rendement (heen-en-terug {0})</value></data>
+  <data name="Energy really lost in charging and discharging." xml:space="preserve"><value>Energie die bij laden en ontladen echt verloren gaat.</value></data>
+  <data name="Charge throttling" xml:space="preserve"><value>Begrenzing laden</value></data>
+  <data name="Energy not stored in the time nameplate power needs for a full charge." xml:space="preserve"><value>Energie die niet opgeslagen wordt in de tijd die nominaal vermogen nodig heeft voor volledig laden.</value></data>
+  <data name="Discharge throttling" xml:space="preserve"><value>Begrenzing ontladen</value></data>
+  <data name="Energy not delivered in the time nameplate power needs for a full discharge." xml:space="preserve"><value>Energie die niet geleverd wordt in de tijd die nominaal vermogen nodig heeft voor volledig ontladen.</value></data>
+  <data name="Consumed" xml:space="preserve"><value>Verbruikt</value></data>
+  <data name="Produced" xml:space="preserve"><value>Teruggeleverd</value></data>
+  <data name="Grid" xml:space="preserve"><value>Net</value></data>
+  <data name="🔋 Battery power vs state of charge" xml:space="preserve"><value>🔋 Batterijvermogen tegenover laadtoestand</value></data>
+  <data name="Recompute from the measured models" xml:space="preserve"><value>Opnieuw berekenen uit de gemeten modellen</value></data>
+  <data name="The power the planner assumes per quarter at each state of charge, from the same calculation the plan uses, at the current {0:F0} °C. &lt;b&gt;Charge&lt;/b&gt;: {1}. &lt;b&gt;Discharge&lt;/b&gt;: {2}. Dashed lines are nameplate." xml:space="preserve"><value>Het vermogen dat de planner per kwartier aanneemt bij elke laadtoestand, uit dezelfde berekening die het plan gebruikt, bij de huidige {0:F0} °C. &lt;b&gt;Laden&lt;/b&gt;: {1}. &lt;b&gt;Ontladen&lt;/b&gt;: {2}. Gestreepte lijnen zijn nominaal.</value></data>
+  <data name="Warm batteries cannot shed their heat and deliver less. &lt;b&gt;Charge&lt;/b&gt;: {0}. &lt;b&gt;Discharge&lt;/b&gt;: {1}. Dotted lines show power at the coolest and warmest measured temperature; outside that range the nearest edge is used, so a dotted line can coincide with the current one." xml:space="preserve"><value>Warme batterijen raken hun warmte niet kwijt en leveren minder. &lt;b&gt;Laden&lt;/b&gt;: {0}. &lt;b&gt;Ontladen&lt;/b&gt;: {1}. Gestippelde lijnen tonen het vermogen bij de koelste en warmste gemeten temperatuur; buiten dat bereik geldt de dichtstbijzijnde rand, dus een gestippelde lijn kan samenvallen met de huidige.</value></data>
+  <data name="No battery configured." xml:space="preserve"><value>Geen batterij ingesteld.</value></data>
+  <data name="Charge at {0:F0} °C" xml:space="preserve"><value>Laden bij {0:F0} °C</value></data>
+  <data name="Discharge at {0:F0} °C" xml:space="preserve"><value>Ontladen bij {0:F0} °C</value></data>
+  <data name="Charge nameplate" xml:space="preserve"><value>Laden nominaal</value></data>
+  <data name="Discharge nameplate" xml:space="preserve"><value>Ontladen nominaal</value></data>
+  <data name="Power" xml:space="preserve"><value>Vermogen</value></data>
+  <data name="Period:" xml:space="preserve"><value>Periode:</value></data>
+  <data name="Duration:" xml:space="preserve"><value>Duur:</value></data>
+  <data name="Select Date:" xml:space="preserve"><value>Kies datum:</value></data>
+  <data name="Today" xml:space="preserve"><value>Vandaag</value></data>
+  <data name="💶 Price capture" xml:space="preserve"><value>💶 Behaalde prijs (price capture)</value></data>
+  <data name="Not enough data yet: needs days on which the battery charged and discharged." xml:space="preserve"><value>Nog niet genoeg data: nodig zijn dagen waarop de batterij laadde en ontlaadde.</value></data>
+  <data name="Best possible spread" xml:space="preserve"><value>Best mogelijke spread</value></data>
+  <data name="Captured spread" xml:space="preserve"><value>Behaalde spread</value></data>
+  <data name="Captured share" xml:space="preserve"><value>Behaald aandeel</value></data>
+  <data name="€ / kWh" xml:space="preserve"><value>€ / kWh</value></data>
+  <data name="Loading..." xml:space="preserve"><value>Bezig met laden...</value></data>
+  <data name="Strategy" xml:space="preserve"><value>Strategie</value></data>
+  <data name="Power status" xml:space="preserve"><value>Vermogensstatus</value></data>
+  <data name="Setpoint" xml:space="preserve"><value>Setpoint</value></data>
+  <data name="Requested setpoint" xml:space="preserve"><value>Gevraagd setpoint</value></data>
+  <data name="System state" xml:space="preserve"><value>Systeemstatus</value></data>
+  <data name="System state details" xml:space="preserve"><value>Details systeemstatus</value></data>
+  <data name="Strategy overriden" xml:space="preserve"><value>Strategie overschreven</value></data>
+  <data name="Strategy set" xml:space="preserve"><value>Strategie ingesteld</value></data>
+  <data name="Inverted current in mAmpere" xml:space="preserve"><value>Omvormerstroom in mA</value></data>
+  <data name="Frequency" xml:space="preserve"><value>Frequentie</value></data>
+  <data name="Renewable phase 1 power" xml:space="preserve"><value>Vermogen hernieuwbaar fase 1</value></data>
+  <data name="Renewable phase 2 power" xml:space="preserve"><value>Vermogen hernieuwbaar fase 2</value></data>
+  <data name="Renewable phase 3 power" xml:space="preserve"><value>Vermogen hernieuwbaar fase 3</value></data>
+  <data name="Energy" xml:space="preserve"><value>Energie</value></data>
+  <data name="Cost / kWh stored" xml:space="preserve"><value>Kosten / kWh opgeslagen</value></data>
+  <data name="Cost / kWh delivered" xml:space="preserve"><value>Kosten / kWh geleverd</value></data>
+  <data name="Source" xml:space="preserve"><value>Bron</value></data>
+  <data name="Return on Investment" xml:space="preserve"><value>Rendement op investering</value></data>
+  <data name="Projection from {0:dd-MM-yyyy}" xml:space="preserve"><value>Projectie vanaf {0:dd-MM-yyyy}</value></data>
+  <data name="Insufficient historical data — savings before this date are extrapolated using seasonal monthly averages." xml:space="preserve"><value>Onvoldoende historische data — besparingen vóór deze datum zijn geëxtrapoleerd met seizoensgemiddelden per maand.</value></data>
+  <data name="Total investment" xml:space="preserve"><value>Totale investering</value></data>
+  <data name="Realized savings" xml:space="preserve"><value>Gerealiseerde besparing</value></data>
+  <data name="Projected total savings" xml:space="preserve"><value>Verwachte totale besparing</value></data>
+  <data name="Remaining to recover" xml:space="preserve"><value>Nog terug te verdienen</value></data>
+  <data name="Recovered" xml:space="preserve"><value>Terugverdiend</value></data>
+  <data name="Projected annual savings" xml:space="preserve"><value>Verwachte jaarlijkse besparing</value></data>
+  <data name="Payback period" xml:space="preserve"><value>Terugverdientijd</value></data>
+  <data name="{0:F1} years" xml:space="preserve"><value>{0:F1} jaar</value></data>
+  <data name="Break-even date" xml:space="preserve"><value>Terugverdiendatum</value></data>
+  <data name="Unknown" xml:space="preserve"><value>Onbekend</value></data>
+  <data name="Battery life" xml:space="preserve"><value>Levensduur batterijen</value></data>
+  <data name="Used" xml:space="preserve"><value>Gebruikt</value></data>
+  <data name="Remaining" xml:space="preserve"><value>Resterend</value></data>
+  <data name="Years since purchase" xml:space="preserve"><value>Jaren sinds aankoop</value></data>
+  <data name="Per component" xml:space="preserve"><value>Per onderdeel</value></data>
+  <data name="Component" xml:space="preserve"><value>Onderdeel</value></data>
+  <data name="Since" xml:space="preserve"><value>Sinds</value></data>
+  <data name="Savings (€/yr)" xml:space="preserve"><value>Besparing (€/jr)</value></data>
+  <data name="Total saved (€)" xml:space="preserve"><value>Totaal bespaard (€)</value></data>
+  <data name="Recovered (%)" xml:space="preserve"><value>Terugverdiend (%)</value></data>
+  <data name="Payback (yr)" xml:space="preserve"><value>Terugverdientijd (jr)</value></data>
+  <data name="Break-even" xml:space="preserve"><value>Terugverdiend op</value></data>
+  <data name="Battery cycles" xml:space="preserve"><value>Batterijcycli</value></data>
+  <data name="Expected end of life" xml:space="preserve"><value>Verwacht einde levensduur</value></data>
+  <data name="Savings basis" xml:space="preserve"><value>Basis besparing</value></data>
+  <data name="Heat Pump Savings" xml:space="preserve"><value>Besparing warmtepomp</value></data>
+  <data name="Gas price" xml:space="preserve"><value>Gasprijs</value></data>
+  <data name="Annual gas (before heat pump)" xml:space="preserve"><value>Gas per jaar (vóór warmtepomp)</value></data>
+  <data name="{0:F0} m³/year" xml:space="preserve"><value>{0:F0} m³/jaar</value></data>
+  <data name="Annual gas cost saved" xml:space="preserve"><value>Bespaarde gaskosten per jaar</value></data>
+  <data name="Standing charge saved" xml:space="preserve"><value>Bespaard vastrecht</value></data>
+  <data name="Heat pump electricity" xml:space="preserve"><value>Stroom warmtepomp</value></data>
+  <data name="{0:F0} kWh/year" xml:space="preserve"><value>{0:F0} kWh/jaar</value></data>
+  <data name="Electricity price (avg)" xml:space="preserve"><value>Stroomprijs (gem.)</value></data>
+  <data name="Annual electricity cost" xml:space="preserve"><value>Stroomkosten per jaar</value></data>
+  <data name="Net annual savings" xml:space="preserve"><value>Netto besparing per jaar</value></data>
+  <data name="🔋 Battery use and efficiency" xml:space="preserve"><value>🔋 Batterijgebruik en rendement</value></data>
+  <data name="Not enough data yet: no battery measurements stored." xml:space="preserve"><value>Nog niet genoeg data: geen batterijmetingen opgeslagen.</value></data>
+  <data name="Lifetime forecast" xml:space="preserve"><value>Levensduurprognose</value></data>
+  <data name="Cycles used" xml:space="preserve"><value>Gebruikte cycli</value></data>
+  <data name="Pace / year" xml:space="preserve"><value>Tempo / jaar</value></data>
+  <data name="Cycles used up" xml:space="preserve"><value>Cycli op</value></data>
+  <data name="Rated age reached" xml:space="preserve"><value>Opgegeven levensduur bereikt</value></data>
+  <data name="Capacity" xml:space="preserve"><value>Capaciteit</value></data>
+  <data name="Energy and round-trip efficiency per month" xml:space="preserve"><value>Energie en rendement heen-en-terug per maand</value></data>
+  <data name="Charged" xml:space="preserve"><value>Geladen</value></data>
+  <data name="Discharged" xml:space="preserve"><value>Ontladen</value></data>
+  <data name="Round-trip efficiency" xml:space="preserve"><value>Rendement heen-en-terug</value></data>
+  <data name="Full cycles" xml:space="preserve"><value>Volledige cycli</value></data>
+  <data name="Include estimate" xml:space="preserve"><value>Inclusief schatting</value></data>
+  <data name="Measured capacity per month" xml:space="preserve"><value>Gemeten capaciteit per maand</value></data>
+  <data name="Usable capacity" xml:space="preserve"><value>Bruikbare capaciteit</value></data>
+  <data name="Arbitrage: Planned vs Realized" xml:space="preserve"><value>Arbitrage: gepland tegenover gerealiseerd</value></data>
+  <data name="No arbitrage in this period." xml:space="preserve"><value>Geen arbitrage in deze periode.</value></data>
+  <data name="Planned" xml:space="preserve"><value>Gepland</value></data>
+  <data name="Realized" xml:space="preserve"><value>Gerealiseerd</value></data>
+  <data name="Charge cost basis (FIFO)" xml:space="preserve"><value>Kostprijs lading (FIFO)</value></data>
+  <data name="Recompute from latest measurements" xml:space="preserve"><value>Opnieuw berekenen uit de laatste metingen</value></data>
+  <data name="Stored energy" xml:space="preserve"><value>Opgeslagen energie</value></data>
+  <data name="Cost basis delivered" xml:space="preserve"><value>Kostprijs geleverd</value></data>
+  <data name="Cost basis stored" xml:space="preserve"><value>Kostprijs opgeslagen</value></data>
+  <data name="Layers" xml:space="preserve"><value>Lagen</value></data>
+  <data name="FIFO layers, oldest first. Energy covered by solar surplus costs € 0.0000; energy that crossed the meter carries its real buying price. Stored is what a kWh cost to put in; delivered is what it must fetch to break even. This is bookkeeping only — it does not drive the planner." xml:space="preserve"><value>FIFO-lagen, oudste eerst. Energie uit zonne-overschot kost € 0,0000; energie die over de meter kwam draagt haar werkelijke inkoopprijs. Opgeslagen is wat een kWh kostte om erin te stoppen; geleverd is wat die moet opbrengen om quitte te spelen. Dit is alleen boekhouding — de planner stuurt er niet op.</value></data>
+  <data name="Battery is empty — no cost-basis layers." xml:space="preserve"><value>Batterij is leeg — geen kostprijslagen.</value></data>
+  <data name="Projected — end of plan horizon" xml:space="preserve"><value>Prognose — einde planningshorizon</value></data>
+  <data name="No plan has been built yet — nothing to project." xml:space="preserve"><value>Er is nog geen plan gemaakt — niets te voorspellen.</value></data>
+  <data name="Stored at end of horizon" xml:space="preserve"><value>Opgeslagen aan einde horizon</value></data>
+  <data name="Planned grid charge" xml:space="preserve"><value>Gepland laden van het net</value></data>
+  <data name="Planned grid charge cost" xml:space="preserve"><value>Kosten gepland laden van het net</value></data>
+  <data name="Average buy price" xml:space="preserve"><value>Gemiddelde inkoopprijs</value></data>
+  <data name="The current layers rolled forward through the plan, up to {0}. &#x27;Planned grid charge&#x27; is what the plan intends to buy over that horizon; the free part of the charging is solar surplus and is not counted there. Projection built at {1:dd-MM HH:mm}." xml:space="preserve"><value>De huidige lagen doorgerekend door het plan, tot {0}. 'Gepland laden van het net' is wat het plan over die horizon wil inkopen; het gratis deel van het laden is zonne-overschot en telt daar niet mee. Prognose gemaakt om {1:dd-MM HH:mm}.</value></data>
+  <data name="The plan empties the battery before the end of the horizon." xml:space="preserve"><value>Het plan maakt de batterij leeg vóór het einde van de horizon.</value></data>
+  <data name="Buy / Sell" xml:space="preserve"><value>Inkoop / verkoop</value></data>
+  <data name="Market" xml:space="preserve"><value>Markt</value></data>
+  <data name="Revenue" xml:space="preserve"><value>Opbrengst</value></data>
+  <data name="Solar / radiation" xml:space="preserve"><value>Zon / straling</value></data>
+  <data name="Charge left" xml:space="preserve"><value>Resterende lading</value></data>
+  <data name="Charge needed" xml:space="preserve"><value>Benodigde lading</value></data>
+  <data name="Actual power" xml:space="preserve"><value>Werkelijk vermogen</value></data>
+  <data name="Requested" xml:space="preserve"><value>Gevraagd</value></data>
+  <data name="Planned SOC" xml:space="preserve"><value>Geplande SoC</value></data>
+  <data name="Charged = Sessy&#x27;s own cloud strategy (the battery manufacturer)" xml:space="preserve"><value>Charged = de eigen cloudstrategie van Sessy (de batterijfabrikant)</value></data>
+  <data name="charging ·" xml:space="preserve"><value>laden ·</value></data>
+  <data name="discharging ·" xml:space="preserve"><value>ontladen ·</value></data>
+  <data name="Charged SOC" xml:space="preserve"><value>SoC volgens Charged</value></data>
+  <data name="&lt;b&gt;Charged&lt;/b&gt; is in control — the &lt;span style=&quot;color:#7fd1ff;&quot;&gt;blue areas&lt;/span&gt; are the batteries&#x27; own schedule." xml:space="preserve"><value>&lt;b&gt;Charged&lt;/b&gt; heeft de regie — de &lt;span style="color:#7fd1ff;"&gt;blauwe vlakken&lt;/span&gt; zijn het eigen schema van de batterijen.</value></data>
+  <data name="&lt;b&gt;Charged&lt;/b&gt; is in control — the orange/green areas are the SessyWeb plan." xml:space="preserve"><value>&lt;b&gt;Charged&lt;/b&gt; heeft de regie — de oranje/groene vlakken zijn het plan van SessyWeb.</value></data>
+  <data name="&lt;b&gt;SessyWeb&lt;/b&gt; is in control — the orange/green areas are our plan." xml:space="preserve"><value>&lt;b&gt;SessyWeb&lt;/b&gt; heeft de regie — de oranje/groene vlakken zijn ons plan.</value></data>
+  <data name="SessyWeb&#x27;s plan is the dashed orange/green line." xml:space="preserve"><value>Het plan van SessyWeb is de gestreepte oranje/groene lijn.</value></data>
+  <data name="The dashed &lt;span style=&quot;color:#7fd1ff;&quot;&gt;blue line&lt;/span&gt; is what Charged would have done." xml:space="preserve"><value>De gestreepte &lt;span style="color:#7fd1ff;"&gt;blauwe lijn&lt;/span&gt; is wat Charged gedaan zou hebben.</value></data>
+  <data name="Charged&#x27;s schedule read at {0:HH:mm}." xml:space="preserve"><value>Schema van Charged gelezen om {0:HH:mm}.</value></data>
+  <data name="No schedule received from the batteries yet." xml:space="preserve"><value>Nog geen schema van de batterijen ontvangen.</value></data>
+  <data name="Show {0}" xml:space="preserve"><value>{0} tonen</value></data>
+  <data name="Buying price (€/kWh)" xml:space="preserve"><value>Inkoopprijs (€/kWh)</value></data>
+  <data name="↑ Prices are predicted, plan will be calculated after EPEX prices arrive →" xml:space="preserve"><value>↑ Prijzen zijn voorspeld, het plan wordt berekend zodra de EPEX-prijzen binnen zijn →</value></data>
+  <data name="← now" xml:space="preserve"><value>← nu</value></data>
+  <data name="Selling price (€/kWh)" xml:space="preserve"><value>Verkoopprijs (€/kWh)</value></data>
+  <data name="Cost basis delivered (€/kWh)" xml:space="preserve"><value>Kostprijs geleverd (€/kWh)</value></data>
+  <data name="Revenue (€/quarter)" xml:space="preserve"><value>Opbrengst (€/kwartier)</value></data>
+  <data name="Hold reserve" xml:space="preserve"><value>Reserve vasthouden</value></data>
+  <data name="Throttle loss charge (kW)" xml:space="preserve"><value>Begrenzingsverlies laden (kW)</value></data>
+  <data name="Throttle loss discharge (kW)" xml:space="preserve"><value>Begrenzingsverlies ontladen (kW)</value></data>
+  <data name="Planned charge (kW)" xml:space="preserve"><value>Gepland laden (kW)</value></data>
+  <data name="Planned discharge (kW)" xml:space="preserve"><value>Gepland ontladen (kW)</value></data>
+  <data name="⟨Charged⟩ charge (kW)" xml:space="preserve"><value>⟨Charged⟩ laden (kW)</value></data>
+  <data name="⟨Charged⟩ discharge (kW)" xml:space="preserve"><value>⟨Charged⟩ ontladen (kW)</value></data>
+  <data name="⟨SessyWeb⟩ charge (kW)" xml:space="preserve"><value>⟨SessyWeb⟩ laden (kW)</value></data>
+  <data name="⟨SessyWeb⟩ discharge (kW)" xml:space="preserve"><value>⟨SessyWeb⟩ ontladen (kW)</value></data>
+  <data name="Charge power actual (kW)" xml:space="preserve"><value>Laadvermogen werkelijk (kW)</value></data>
+  <data name="Discharge power actual (kW)" xml:space="preserve"><value>Ontlaadvermogen werkelijk (kW)</value></data>
+  <data name="Smoothed buying price (€/kWh)" xml:space="preserve"><value>Afgevlakte inkoopprijs (€/kWh)</value></data>
+  <data name="Smoothed selling price (€/kWh)" xml:space="preserve"><value>Afgevlakte verkoopprijs (€/kWh)</value></data>
+  <data name="⟨SessyWeb⟩ charge remaining (kWh)" xml:space="preserve"><value>⟨SessyWeb⟩ resterende lading (kWh)</value></data>
+  <data name="⟨Charged⟩ charge remaining (kWh)" xml:space="preserve"><value>⟨Charged⟩ resterende lading (kWh)</value></data>
+  <data name="Solar power (kWh/quarter)" xml:space="preserve"><value>Zonnevermogen (kWh/kwartier)</value></data>
+  <data name="Charge needed (kWh)" xml:space="preserve"><value>Benodigde lading (kWh)</value></data>
+  <data name="Est. consumption (W)" xml:space="preserve"><value>Gesch. verbruik (W)</value></data>
+  <data name="Delta lowest price (€/kWh)" xml:space="preserve"><value>Verschil met laagste prijs (€/kWh)</value></data>
+  <data name="Plan history (kW)" xml:space="preserve"><value>Planhistorie (kW)</value></data>
+  <data name="Energy Flows" xml:space="preserve"><value>Energiestromen</value></data>
+  <data name="starts at the configured &#x27;Statistics from date&#x27;" xml:space="preserve"><value>begint bij de ingestelde 'Statistieken vanaf datum'</value></data>
+  <data name="Total consumption" xml:space="preserve"><value>Totaal verbruik</value></data>
+  <data name="Grid import" xml:space="preserve"><value>Net-import</value></data>
+  <data name="Grid export" xml:space="preserve"><value>Net-export</value></data>
+  <data name="Self sufficiency" xml:space="preserve"><value>Zelfvoorzienendheid</value></data>
+  <data name="Avg daily" xml:space="preserve"><value>Gem. per dag</value></data>
+  <data name="{0:F1} kWh/day" xml:space="preserve"><value>{0:F1} kWh/dag</value></data>
+  <data name="Peak daily" xml:space="preserve"><value>Piek per dag</value></data>
+  <data name="Weekday" xml:space="preserve"><value>Doordeweeks</value></data>
+  <data name="Weekend" xml:space="preserve"><value>Weekend</value></data>
+  <data name="Loading data…" xml:space="preserve"><value>Data laden…</value></data>
+  <data name="🌦️ Consumption and weather" xml:space="preserve"><value>🌦️ Verbruik en weer</value></data>
+  <data name="Not enough data: needs at least a few complete days in the Consumption table." xml:space="preserve"><value>Niet genoeg data: nodig zijn minstens een paar volledige dagen in de verbruikstabel.</value></data>
+  <data name="One dot per complete day ({0} days, {1:dd-MM-yyyy} to {2:dd-MM-yyyy}): the day&#x27;s house consumption against its average weather, coloured per season. The line is the least-squares fit over all days. The three are linked — sunny days tend to be warmer, damp days colder — so a correlation with radiation or humidity can partly be the temperature effect." xml:space="preserve"><value>Eén stip per volledige dag ({0} dagen, {1:dd-MM-yyyy} tot {2:dd-MM-yyyy}): het verbruik van het huis die dag tegenover het gemiddelde weer, gekleurd per seizoen. De lijn is de kleinste-kwadratenfit over alle dagen. De drie hangen samen — zonnige dagen zijn vaak warmer, vochtige dagen kouder — dus een verband met straling of luchtvochtigheid kan deels het temperatuureffect zijn.</value></data>
+  <data name="Fit" xml:space="preserve"><value>Fit</value></data>
+  <data name="🏠 Self-sufficiency per month" xml:space="preserve"><value>🏠 Zelfvoorzienendheid per maand</value></data>
+  <data name="Not enough data yet." xml:space="preserve"><value>Nog niet genoeg data.</value></data>
+  <data name="From the grid" xml:space="preserve"><value>Van het net</value></data>
+  <data name="Solar used at home" xml:space="preserve"><value>Zelf gebruikte zonnestroom</value></data>
+  <data name="Current Plan" xml:space="preserve"><value>Huidig plan</value></data>
+  <data name="Restored from database" xml:space="preserve"><value>Hersteld uit database</value></data>
+  <data name="Clear plan" xml:space="preserve"><value>Plan wissen</value></data>
+  <data name="Removes the current plan from memory and database. A fresh plan will be built on the next cycle." xml:space="preserve"><value>Verwijdert het huidige plan uit het geheugen en de database. In de volgende ronde wordt een nieuw plan gemaakt.</value></data>
+  <data name="Force new plan" xml:space="preserve"><value>Nieuw plan forceren</value></data>
+  <data name="Solves again right now and keeps the result, even when the current plan would normally be kept." xml:space="preserve"><value>Rekent direct opnieuw en houdt het resultaat, ook als het huidige plan normaal behouden zou blijven.</value></data>
+  <data name="Last generated" xml:space="preserve"><value>Laatst gemaakt</value></data>
+  <data name="Restored from DB" xml:space="preserve"><value>Hersteld uit DB</value></data>
+  <data name="Plan horizon" xml:space="preserve"><value>Planningshorizon</value></data>
+  <data name="Expected profit" xml:space="preserve"><value>Verwachte winst</value></data>
+  <data name="Next charge" xml:space="preserve"><value>Volgende keer laden</value></data>
+  <data name="Next discharge" xml:space="preserve"><value>Volgende keer ontladen</value></data>
+  <data name="Quarters: charge / discharge / NZH" xml:space="preserve"><value>Kwartieren: laden / ontladen / NOM</value></data>
+  <data name="Future quarters" xml:space="preserve"><value>Komende kwartieren</value></data>
+  <data name="{0} ({1:F1} hrs)" xml:space="preserve"><value>{0} ({1:F1} uur)</value></data>
+  <data name="Minimum reserve" xml:space="preserve"><value>Minimale reserve</value></data>
+  <data name="Expected profit covers all {0} future quarters ({1:F1} hrs). The Arbitrage chart shows daily realized vs planned profit for past days only." xml:space="preserve"><value>De verwachte winst omvat alle {0} komende kwartieren ({1:F1} uur). De arbitragegrafiek toont alleen voor afgelopen dagen de gerealiseerde tegenover de geplande winst.</value></data>
+  <data name="Minimum reserve is the floor the plan never discharges below, set on the Settings page. The planner covers the night itself; the batteries&#x27; BMS protects the cells." xml:space="preserve"><value>De minimale reserve is de ondergrens waar het plan nooit onder ontlaadt, in te stellen op de Settings-pagina. De planner zorgt zelf voor de nacht; het BMS van de batterijen beschermt de cellen.</value></data>
+  <data name="Plan history" xml:space="preserve"><value>Planhistorie</value></data>
+  <data name="Generated at" xml:space="preserve"><value>Gemaakt op</value></data>
+  <data name="Reason" xml:space="preserve"><value>Reden</value></data>
+  <data name="Quarters" xml:space="preserve"><value>Kwartieren</value></data>
+  <data name="Horizon" xml:space="preserve"><value>Horizon</value></data>
+  <data name="Theme:" xml:space="preserve"><value>Thema:</value></data>
+  <data name="TEST" xml:space="preserve"><value>TEST</value></data>
+  <data name="Charging hours" xml:space="preserve"><value>Laaduren</value></data>
+  <data name="Status history" xml:space="preserve"><value>Statushistorie</value></data>
+  <data name="Sessy energy history" xml:space="preserve"><value>Sessy-energiehistorie</value></data>
+  <data name="Sessy financial results" xml:space="preserve"><value>Sessy financiële resultaten</value></data>
+  <data name="Self consumption" xml:space="preserve"><value>Eigen verbruik</value></data>
+  <data name="Balanced" xml:space="preserve"><value>Gebalanceerd</value></data>
+  <data name="Battery saving" xml:space="preserve"><value>Batterijsparend</value></data>
+  <data name="Profit maximization" xml:space="preserve"><value>Winstmaximalisatie</value></data>
+  <data name="None" xml:space="preserve"><value>Geen</value></data>
+  <data name="Previous year" xml:space="preserve"><value>Vorig jaar</value></data>
+  <data name="All years" xml:space="preserve"><value>Alle jaren</value></data>
+  <data name="{0:+0.0;-0.0;0.0} % (weather-corrected {1:+0.0;-0.0;0.0} %, {2} days)" xml:space="preserve"><value>{0:+0.0;-0.0;0.0} % (weergecorrigeerd {1:+0.0;-0.0;0.0} %, {2} dagen)</value></data>
+  <data name="Week {0} {1}" xml:space="preserve"><value>Week {0} {1}</value></data>
+  <data name="Not enough complete days yet to fit the consumption model." xml:space="preserve"><value>Nog niet genoeg volledige dagen om het verbruiksmodel te fitten.</value></data>
+  <data name="{0:dd/MM/yyyy} - {1:dd/MM/yyyy} vs a year earlier" xml:space="preserve"><value>{0:dd/MM/yyyy} - {1:dd/MM/yyyy} t.o.v. een jaar eerder</value></data>
+  <data name="{0}: no complete days to compare with last year." xml:space="preserve"><value>{0}: geen volledige dagen om met vorig jaar te vergelijken.</value></data>
+  <data name="Planned power" xml:space="preserve"><value>Gepland vermogen</value></data>
+  <data name="Unthrottled power" xml:space="preserve"><value>Onbegrensd vermogen</value></data>
+  <data name="Reserve floor" xml:space="preserve"><value>Reservegrens</value></data>
+  <data name="Solar forecast" xml:space="preserve"><value>Zonvoorspelling</value></data>
+  <data name="Consumption forecast" xml:space="preserve"><value>Verbruiksvoorspelling</value></data>
+  <data name="Net load" xml:space="preserve"><value>Netto belasting</value></data>
+  <data name="Cost basis" xml:space="preserve"><value>Kostprijs</value></data>
+  <data name="Highest buy price ahead" xml:space="preserve"><value>Hoogste inkoopprijs vooruit</value></data>
+  <data name="Charge this quarter" xml:space="preserve"><value>Laden dit kwartier</value></data>
+  <data name="Discharge→grid this quarter" xml:space="preserve"><value>Ontladen→net dit kwartier</value></data>
+  <data name="Self-consumption this quarter" xml:space="preserve"><value>Eigen verbruik dit kwartier</value></data>
+  <data name="avoided purchase" xml:space="preserve"><value>vermeden inkoop</value></data>
+  <data name="P1 grid target (NOM)" xml:space="preserve"><value>P1-netdoel (NOM)</value></data>
+  <data name="Setpoint per battery (Open API)" xml:space="preserve"><value>Setpoint per batterij (Open API)</value></data>
+  <data name="Off — known prices only" xml:space="preserve"><value>Uit — alleen bekende prijzen</value></data>
+  <data name="Soft — predicted with risk margin" xml:space="preserve"><value>Zacht — voorspeld met risicomarge</value></data>
+  <data name="Full — trust predicted prices" xml:space="preserve"><value>Volledig — voorspelde prijzen vertrouwen</value></data>
+  <data name="Pick a start and end date first." xml:space="preserve"><value>Kies eerst een begin- en einddatum.</value></data>
+  <data name="The end date must be after the start date." xml:space="preserve"><value>De einddatum moet na de begindatum liggen.</value></data>
+  <data name="Plan dump failed: {0}" xml:space="preserve"><value>Plan-dump mislukt: {0}</value></data>
+  <data name="Reconstruction failed: {0}" xml:space="preserve"><value>Reconstructie mislukt: {0}</value></data>
+  <data name="Backup written to {0}" xml:space="preserve"><value>Back-up geschreven naar {0}</value></data>
+  <data name="Backup failed: {0}" xml:space="preserve"><value>Back-up mislukt: {0}</value></data>
+  <data name="Nothing to execute — the script contains only comments." xml:space="preserve"><value>Niets uit te voeren — het script bevat alleen commentaar.</value></data>
+  <data name="1 statement executed." xml:space="preserve"><value>1 statement uitgevoerd.</value></data>
+  <data name="{0} statements executed." xml:space="preserve"><value>{0} statements uitgevoerd.</value></data>
+  <data name="{0} row(s) affected." xml:space="preserve"><value>{0} rij(en) gewijzigd.</value></data>
+  <data name="1 result set." xml:space="preserve"><value>1 resultaatset.</value></data>
+  <data name="{0} result sets — the grid shows the last one." xml:space="preserve"><value>{0} resultaatsets — het raster toont de laatste.</value></data>
+  <data name="Skipped: {0}." xml:space="preserve"><value>Overgeslagen: {0}.</value></data>
+  <data name="CSV export failed: {0}" xml:space="preserve"><value>CSV-export mislukt: {0}</value></data>
+  <data name="Excel export failed: {0}" xml:space="preserve"><value>Excel-export mislukt: {0}</value></data>
+  <data name="Charge {0:0.00} kWh @ {1} (import) — {2} cheapest of {3} quarters." xml:space="preserve"><value>Laden {0:0.00} kWh @ {1} (inkoop) — {2} goedkoopste van {3} kwartieren.</value></data>
+  <data name=" Later this energy avoids importing at up to {0}" xml:space="preserve"><value> Later voorkomt deze energie inkoop tegen tot {0}</value></data>
+  <data name=" or earns feed-in up to {0}." xml:space="preserve"><value> of levert teruglevering op tot {0}.</value></data>
+  <data name="Charged from the grid: this is one of the cheapest hours, and the stored energy is worth more later than it costs now." xml:space="preserve"><value>Geladen van het net: dit is een van de goedkoopste uren, en de opgeslagen energie is later meer waard dan ze nu kost.</value></data>
+  <data name="Discharging to cover the house — not exported, because the feed-in price is negative." xml:space="preserve"><value>Ontladen voor het huis — niet teruggeleverd, want de terugleverprijs is negatief.</value></data>
+  <data name="Discharge {0:0.00} kWh; feed-in {1} is negative, so this energy goes to your own use." xml:space="preserve"><value>Ontladen {0:0.00} kWh; teruglevering {1} is negatief, dus deze energie gaat naar eigen gebruik.</value></data>
+  <data name="Discharge {0:0.00} kWh @ {1} (feed-in) — {2} most expensive of {3}." xml:space="preserve"><value>Ontladen {0:0.00} kWh @ {1} (teruglevering) — {2} duurste van {3}.</value></data>
+  <data name=" Holding does not pay: the best later feed-in is {0}." xml:space="preserve"><value> Vasthouden loont niet: de beste latere teruglevering is {0}.</value></data>
+  <data name=" {0} later quarter(s) import for the house instead, where buying is cheaper than this sale." xml:space="preserve"><value> {0} later(e) kwartier(en) nemen in plaats daarvan voor het huis af van het net, waar inkopen goedkoper is dan deze verkoop.</value></data>
+  <data name="Sold to the grid: this is one of the most expensive hours, and selling now earns more than holding the energy." xml:space="preserve"><value>Verkocht aan het net: dit is een van de duurste uren, en nu verkopen levert meer op dan de energie vasthouden.</value></data>
+  <data name="Battery off: its energy went to a more expensive sale earlier, so the house imports here." xml:space="preserve"><value>Batterij uit: de energie ging eerder naar een duurdere verkoop, dus het huis neemt hier af van het net.</value></data>
+  <data name="No surplus to export; import @ {0} is cheaper than the sale this energy was used for." xml:space="preserve"><value>Geen overschot om terug te leveren; inkoop @ {0} is goedkoper dan de verkoop waarvoor deze energie gebruikt is.</value></data>
+  <data name="Solar export @ {0}." xml:space="preserve"><value>Teruglevering zon @ {0}.</value></data>
+  <data name=" Storing would only pay off later (up to {0}), and after round-trip losses and wear that is less than selling now." xml:space="preserve"><value> Opslaan betaalt zich pas later uit (tot {0}), en na verliezen heen-en-terug en slijtage is dat minder dan nu verkopen.</value></data>
+  <data name="Surplus solar goes straight to the grid: selling it now is better than storing it for later." xml:space="preserve"><value>Zonne-overschot gaat direct naar het net: nu verkopen is beter dan bewaren voor later.</value></data>
+  <data name="SOC {0:0.00} kWh is at the reserve ({1:0.00} kWh): covering the house would go below it." xml:space="preserve"><value>SoC {0:0.00} kWh staat op de reserve ({1:0.00} kWh): het huis voeden zou daaronder gaan.</value></data>
+  <data name="SOC {0:0.00} kWh is kept for later" xml:space="preserve"><value>SoC {0:0.00} kWh wordt bewaard voor later</value></data>
+  <data name=" (feed-in up to {0}" xml:space="preserve"><value> (teruglevering tot {0}</value></data>
+  <data name=", house cover up to {0})" xml:space="preserve"><value>, huis voeden tot {0})</value></data>
+  <data name="; importing now costs {0}." xml:space="preserve"><value>; nu inkopen kost {0}.</value></data>
+  <data name=" Surplus solar is still stored ({0:0.00} kWh)." xml:space="preserve"><value> Zonne-overschot wordt nog wel opgeslagen ({0:0.00} kWh).</value></data>
+  <data name="Hold reserve: the battery stores surplus solar if there is any, but does not cover the house — that energy is kept back, so the house imports." xml:space="preserve"><value>Reserve vasthouden: de batterij slaat zonne-overschot op als dat er is, maar voedt het huis niet — die energie wordt achtergehouden, dus het huis neemt af van het net.</value></data>
+  <data name="The battery covers household use, so no (more expensive) power has to be imported from the grid." xml:space="preserve"><value>De batterij dekt het huishoudelijk verbruik, dus er hoeft geen (duurdere) stroom van het net te komen.</value></data>
+  <data name="Self-consumption {0:0.00} kWh; avoids importing @ {1}. Actively buying or selling does not pay here." xml:space="preserve"><value>Eigen verbruik {0:0.00} kWh; voorkomt inkoop @ {1}. Actief inkopen of verkopen loont hier niet.</value></data>
+  <data name="Storing solar ({0:0.00} kWh); feeding it in now would only earn {1}." xml:space="preserve"><value>Zonnestroom opslaan ({0:0.00} kWh); nu terugleveren zou maar {1} opleveren.</value></data>
+  <data name=" Later this energy is worth up to {0}." xml:space="preserve"><value> Later is deze energie tot {0} waard.</value></data>
+  <data name="Surplus solar is stored for later; that is worth more than feeding it in now." xml:space="preserve"><value>Zonne-overschot wordt opgeslagen voor later; dat is meer waard dan nu terugleveren.</value></data>
+  <data name="Import {0}, feed-in {1}; the spread does not cover the cycle cost (wear/round-trip)." xml:space="preserve"><value>Inkoop {0}, teruglevering {1}; de spread dekt de cycluskosten (slijtage/heen-en-terug) niet.</value></data>
+  <data name=" Cheaper charging is available later ({0})." xml:space="preserve"><value> Later kan goedkoper geladen worden ({0}).</value></data>
+  <data name="No trade: no charge or sell action pays off after costs, so the battery stays balanced." xml:space="preserve"><value>Geen handel: na kosten loont laden noch verkopen, dus de batterij blijft in balans.</value></data>
+  <data name="The plan charges {0:0.0} kWh in the cheapest hours (avg {1}) and sells {2:0.0} kWh in the most expensive (avg {3}). It also covers {4:0.0} kWh of household use from the battery" xml:space="preserve"><value>Het plan laadt {0:0.0} kWh in de goedkoopste uren (gem. {1}) en verkoopt {2:0.0} kWh in de duurste (gem. {3}). Daarnaast dekt het {4:0.0} kWh huishoudelijk verbruik uit de batterij</value></data>
+  <data name=" and feeds surplus solar straight back in {0} quarters" xml:space="preserve"><value> en levert het zonne-overschot in {0} kwartieren direct terug</value></data>
+  <data name="; in {0} quarters it holds its energy (hold reserve) and the house imports" xml:space="preserve"><value>; in {0} kwartieren houdt het zijn energie vast (reserve vasthouden) en neemt het huis af van het net</value></data>
+  <data name=". At the end of the window {0:0.0} kWh is left in the battery as reserve. In short: buy when it is cheap, sell when it is expensive, and use the rest to avoid importing." xml:space="preserve"><value>. Aan het einde van het venster blijft {0:0.0} kWh als reserve in de batterij. Kortom: inkopen als het goedkoop is, verkopen als het duur is, en de rest gebruiken om inkoop te voorkomen.</value></data>
+  <data name="Window: {0} quarters, import min {1}, feed-in max {2}." xml:space="preserve"><value>Venster: {0} kwartieren, inkoop min {1}, teruglevering max {2}.</value></data>
+  <data name="Grid charge: {0:0.0} kWh @ avg {1} (cost €{2:0.00}) across {3} quarters." xml:space="preserve"><value>Laden van het net: {0:0.0} kWh @ gem. {1} (kosten €{2:0.00}) over {3} kwartieren.</value></data>
+  <data name="Sold: {0:0.0} kWh @ avg {1} (revenue €{2:0.00}) across {3} quarters." xml:space="preserve"><value>Verkocht: {0:0.0} kWh @ gem. {1} (opbrengst €{2:0.00}) over {3} kwartieren.</value></data>
+  <data name="Self-consumption: {0:0.0} kWh (avoided import ≈ €{1:0.00}) across {2} quarters." xml:space="preserve"><value>Eigen verbruik: {0:0.0} kWh (vermeden inkoop ≈ €{1:0.00}) over {2} kwartieren.</value></data>
+  <data name="Solar export / battery off: {0} quarters." xml:space="preserve"><value>Teruglevering zon / batterij uit: {0} kwartieren.</value></data>
+  <data name="Hold reserve (hold energy, store surplus, no house cover): {0} quarters." xml:space="preserve"><value>Reserve vasthouden (energie vasthouden, overschot opslaan, huis niet voeden): {0} kwartieren.</value></data>
+  <data name="End SOC (reserve): {0:0.0} kWh." xml:space="preserve"><value>Eind-SoC (reserve): {0:0.0} kWh.</value></data>
+  <data name="Rough trade margin (sold − charged): €{0:0.00}, plus ≈ €{1:0.00} saved via self-consumption." xml:space="preserve"><value>Ruwe handelsmarge (verkocht − geladen): €{0:0.00}, plus ≈ €{1:0.00} bespaard via eigen verbruik.</value></data>
+  <data name="Per battery: the years since purchase and the years left until the expected end of life, the earliest of rated cycles at the current pace, rated age and measured capacity reaching 70 %. Details on the Battery tab." xml:space="preserve"><value>Per batterij: de jaren sinds aankoop en de resterende jaren tot het verwachte einde van de levensduur — het vroegste van: opgegeven cycli in het huidige tempo, opgegeven levensduur en gemeten capaciteit op 70 %. Details op het tabblad Batterij.</value></data>
+  <data name="How to read these charts: every dot is one day. Left to right is the weather that day, bottom to top is how much electricity the house used that day (kWh). The colour is the season. The dashed line is the average trend through all dots: the steeper it runs, the more your consumption follows the weather. R² tells how much of the difference between days this one weather factor explains: 0.34 means 34%; the rest comes from everything else (washing, cooking, who is home)." xml:space="preserve"><value>Zo lees je deze grafieken: elke stip is één dag. Van links naar rechts het weer die dag, van onder naar boven hoeveel stroom het huis die dag gebruikte (kWh). De kleur is het seizoen. De stippellijn is de gemiddelde trend door alle stippen: hoe steiler, hoe meer je verbruik het weer volgt. R² geeft aan hoeveel van het verschil tussen dagen deze ene weerfactor verklaart: 0,34 betekent 34%; de rest komt door al het andere (wassen, koken, wie er thuis is).</value></data>
+  <data name="Consumption against the day&#x27;s average outside temperature. Cold days on the left usually sit high: heating takes a lot of electricity. If the dots rise again on the far right, warm days cost extra too (cooling). The slope below the title says how many kWh a day one degree warmer saves (negative) on average." xml:space="preserve"><value>Verbruik tegenover de gemiddelde buitentemperatuur van de dag. Koude dagen links liggen meestal hoog: verwarmen kost veel stroom. Stijgen de stippen helemaal rechts weer, dan kosten warme dagen ook extra (koeling). De helling onder de titel zegt hoeveel kWh per dag één graad warmer gemiddeld bespaart (negatief).</value></data>
+  <data name="Consumption against the day&#x27;s average sunshine (global radiation, W/m²): left is grey, right is sunny. Sunny days are usually also warmer, so part of what you see here is really the temperature effect. Solar panels do not show here: this is what the house used, not what came from the grid." xml:space="preserve"><value>Verbruik tegenover de gemiddelde zonneschijn van de dag (globale straling, W/m²): links is grijs, rechts is zonnig. Zonnige dagen zijn meestal ook warmer, dus een deel van wat je hier ziet is eigenlijk het temperatuureffect. Zonnepanelen zie je hier niet: dit is wat het huis gebruikte, niet wat van het net kwam.</value></data>
+  <data name="Consumption against the day&#x27;s average relative humidity (%). Damp days are usually also cold and grey, so a rising line here mostly reflects winter. Humidity on its own rarely drives consumption much; a low R² is the expected outcome." xml:space="preserve"><value>Verbruik tegenover de gemiddelde relatieve luchtvochtigheid van de dag (%). Vochtige dagen zijn meestal ook koud en grijs, dus een stijgende lijn weerspiegelt hier vooral de winter. Luchtvochtigheid alleen drijft het verbruik zelden veel op; een lage R² is de verwachte uitkomst.</value></data>
+  <data name="Not enough data" xml:space="preserve"><value>Niet genoeg data</value></data>
+  <data name="r = {0:F2}, R² = {1:F2} ({2:F0}% of the day-to-day variation), {3:F2} kWh per {4}, {5} days" xml:space="preserve"><value>r = {0:F2}, R² = {1:F2} ({2:F0}% van de variatie tussen dagen), {3:F2} kWh per {4}, {5} dagen</value></data>
+  <data name="Bars: what the house used and what came from the grid, per month. Self-sufficiency: the share of the consumption covered by your own solar panels and battery. Solar used at home: the share of the solar production used in the house or stored in the battery instead of exported. Summer months are naturally high, winter months low; compare a month with the same month a year earlier." xml:space="preserve"><value>Staven: wat het huis verbruikte en wat van het net kwam, per maand. Zelfvoorzienendheid: het deel van het verbruik dat je eigen zonnepanelen en batterij dekken. Zelf gebruikte zonnestroom: het deel van de zonne-opbrengst dat in huis gebruikt of in de batterij opgeslagen werd in plaats van teruggeleverd. Zomermaanden liggen vanzelf hoog, wintermaanden laag; vergelijk een maand met dezelfde maand een jaar eerder.</value></data>
+  <data name="The base load is what the house draws when nobody is doing anything: fridge, freezer, router, standby devices. Per night between 00:00 and 06:00 the quietest hour is taken; per week the middle (median) of those nights is shown, so one restless night does not count. A line that creeps up means devices were added that are always on. Every 10 W more is about 88 kWh a year." xml:space="preserve"><value>De basislast is wat het huis trekt als niemand iets doet: koelkast, vriezer, router, apparaten op stand-by. Per nacht tussen 00:00 en 06:00 wordt het rustigste uur genomen; per week staat het midden (de mediaan) van die nachten, zodat één onrustige nacht niet meetelt. Een lijn die omhoog kruipt betekent dat er apparaten bij zijn gekomen die altijd aan staan. Elke 10 W meer is ongeveer 88 kWh per jaar.</value></data>
+  <data name="Last four weeks: {0:0} W." xml:space="preserve"><value>Laatste vier weken: {0:0} W.</value></data>
+  <data name="a year ago" xml:space="preserve"><value>een jaar geleden</value></data>
+  <data name="at the start of recording" xml:space="preserve"><value>bij het begin van de metingen</value></data>
+  <data name=" Four weeks {0}: {1:0} W ({2:+0;-0;0} W, about {3:+0;-0;0} kWh a year)." xml:space="preserve"><value> Vier weken {0}: {1:0} W ({2:+0;-0;0} W, ongeveer {3:+0;-0;0} kWh per jaar).</value></data>
+  <data name="Charging" xml:space="preserve"><value>Laden</value></data>
+  <data name="Discharging" xml:space="preserve"><value>Ontladen</value></data>
+  <data name="Disabled" xml:space="preserve"><value>Uit</value></data>
+  <data name="measured per SOC band, taper/floor where a band has no data" xml:space="preserve"><value>gemeten per SoC-band, afbouw/ondergrens waar een band geen data heeft</value></data>
+  <data name="measured taper with floor" xml:space="preserve"><value>gemeten afbouw met ondergrens</value></data>
+  <data name="not measured yet, {0:F0}% of nameplate" xml:space="preserve"><value>nog niet gemeten, {0:F0}% van nominaal</value></data>
+  <data name="measured plateau and knee" xml:space="preserve"><value>gemeten plateau en knik</value></data>
+  <data name="no temperature effect measured yet" xml:space="preserve"><value>nog geen temperatuureffect gemeten</value></data>
+  <data name="{0:+0;-0} W per °C warmer, measured between {1:F1} and {2:F1} °C" xml:space="preserve"><value>{0:+0;-0} W per °C warmer, gemeten tussen {1:F1} en {2:F1} °C</value></data>
+  <data name="Measured round-trip efficiency: discharged energy divided by charged energy, SOC-corrected over the period. This is the real hardware efficiency including all charge/discharge (Charging, Discharging and ZeroNetHome)." xml:space="preserve"><value>Gemeten rendement heen-en-terug: ontladen energie gedeeld door geladen energie, gecorrigeerd voor de SoC over de periode. Dit is het werkelijke rendement van de hardware, inclusief al het laden en ontladen (laden, ontladen en nul op de meter).</value></data>
+  <data name="Planned: what the plan expected to earn by charging cheap and discharging dear. Realized: what the measured battery flows earned at the actual prices. Short periods show days, longer ones weeks or months so the bars stay readable; hover a bar for the amounts." xml:space="preserve"><value>Gepland: wat het plan verwachtte te verdienen door goedkoop te laden en duur te ontladen. Gerealiseerd: wat de gemeten batterijstromen opleverden tegen de werkelijke prijzen. Korte perioden tonen dagen, langere weken of maanden zodat de staven leesbaar blijven; ga met de muis over een staaf voor de bedragen.</value></data>
+  <data name="&#x27;wk&#x27; dd-MM" xml:space="preserve"><value>'wk' dd-MM</value></data>
+  <data name="Week (starting Monday)" xml:space="preserve"><value>Week (vanaf maandag)</value></data>
+  <data name="Planned € {0:F2}, realized € {1:F2} ({2:0} % of plan)." xml:space="preserve"><value>Gepland € {0:F2}, gerealiseerd € {1:F2} ({2:0} % van het plan).</value></data>
+  <data name="Planned € {0:F2}, realized € {1:F2}." xml:space="preserve"><value>Gepland € {0:F2}, gerealiseerd € {1:F2}.</value></data>
+  <data name="Last 30 Days" xml:space="preserve"><value>Laatste 30 dagen</value></data>
+  <data name="Last 90 Days" xml:space="preserve"><value>Laatste 90 dagen</value></data>
+  <data name="Last 365 Days" xml:space="preserve"><value>Laatste 365 dagen</value></data>
+  <data name="Every square is one hour of one weekday: the average power the house drew then, in kW, over the chosen period. The darker the square, the higher the load. You see at a glance when the house uses most, for example the evening peak or the washing machine on Saturday morning. Hover a square for the exact value." xml:space="preserve"><value>Elk vakje is één uur van één weekdag: het gemiddelde vermogen dat het huis toen trok, in kW, over de gekozen periode. Hoe donkerder het vakje, hoe hoger de belasting. Je ziet in één oogopslag wanneer het huis het meest gebruikt, bijvoorbeeld de avondpiek of de wasmachine op zaterdagochtend. Ga met de muis over een vakje voor de precieze waarde.</value></data>
+  <data name="{0} {1:00}:00 – no data" xml:space="preserve"><value>{0} {1:00}:00 – geen data</value></data>
+  <data name="{0} {1:00}:00 – {2:0} W average over {3} quarters" xml:space="preserve"><value>{0} {1:00}:00 – gemiddeld {2:0} W over {3} kwartieren</value></data>
+  <data name="{0:dd-MM-yyyy} to {1:dd-MM-yyyy}, average kW per hour." xml:space="preserve"><value>{0:dd-MM-yyyy} tot {1:dd-MM-yyyy}, gemiddeld kW per uur.</value></data>
+  <data name="Left: last year&#x27;s consumption over the compared days. Right: this year&#x27;s. In between, the difference is split up. Temperature: what the model expects the colder or warmer weather to cost or save. Other: what is left, the part you influence yourself (appliances, habits, who is home). Red adds, green saves. Small amounts of &#x27;other&#x27; are normal day-to-day variation." xml:space="preserve"><value>Links: het verbruik van vorig jaar over de vergeleken dagen. Rechts: dat van dit jaar. Daartussen is het verschil opgesplitst. Temperatuur: wat het model verwacht dat het koudere of warmere weer kost of bespaart. Overig: wat overblijft, het deel dat je zelf beïnvloedt (apparaten, gewoonten, wie er thuis is). Rood telt op, groen bespaart. Kleine hoeveelheden 'overig' zijn normale variatie tussen dagen.</value></data>
+  <data name="Per day or month, how much more (right) or less (left) was used than last year, built from the temperature part and the other part. Hover a bar for the numbers. Days that are not complete in both years are left out." xml:space="preserve"><value>Per dag of maand hoeveel meer (rechts) of minder (links) er gebruikt is dan vorig jaar, opgebouwd uit het temperatuurdeel en het overige deel. Ga met de muis over een staaf voor de getallen. Dagen die niet in beide jaren volledig zijn, tellen niet mee.</value></data>
+  <data name="Bars: what the house used per month. Line: what the model expects for that month&#x27;s weather and calendar. The cumulative difference adds up measured minus expected; a line that keeps rising or falling means a lasting change, for example a new appliance or a different way of living." xml:space="preserve"><value>Staven: wat het huis per maand gebruikte. Lijn: wat het model verwacht bij het weer en de kalender van die maand. Het cumulatieve verschil telt gemeten min verwacht op; een lijn die blijft stijgen of dalen betekent een blijvende verandering, bijvoorbeeld een nieuw apparaat of een andere leefwijze.</value></data>
+  <data name="Last year" xml:space="preserve"><value>Vorig jaar</value></data>
+  <data name="This year" xml:space="preserve"><value>Dit jaar</value></data>
+  <data name="Compared: {0:dd-MM-yyyy} – {1:dd-MM-yyyy} against the same days a year earlier ({2} days). Only days that are complete in both years count; today is left out until it is complete." xml:space="preserve"><value>Vergeleken: {0:dd-MM-yyyy} – {1:dd-MM-yyyy} met dezelfde dagen een jaar eerder ({2} dagen). Alleen dagen die in beide jaren volledig zijn tellen mee; vandaag telt pas mee als hij volledig is.</value></data>
+  <data name="within the normal day-to-day variation" xml:space="preserve"><value>binnen de normale variatie tussen dagen</value></data>
+  <data name="more than normal variation explains" xml:space="preserve"><value>meer dan normale variatie verklaart</value></data>
+  <data name="less than normal variation explains" xml:space="preserve"><value>minder dan normale variatie verklaart</value></data>
+  <data name="Other: {0} ({1:+0.0;-0.0;0.0} % of what the weather leads to expect), {2} (±{3:0} kWh)." xml:space="preserve"><value>Overig: {0} ({1:+0.0;-0.0;0.0} % van wat het weer doet verwachten), {2} (±{3:0} kWh).</value></data>
+  <data name="Model: {0:0.0} kWh/day base, +{1:0.00} kWh per °C below {2} °C, +{3:0.00} kWh per °C above {4} °C, {5:+0.0;-0.0} kWh on weekend days; fitted on {6:dd-MM-yyyy} – {7:dd-MM-yyyy} ({8} days, R² {9:0.00})." xml:space="preserve"><value>Model: {0:0.0} kWh/dag basis, +{1:0.00} kWh per °C onder {2} °C, +{3:0.00} kWh per °C boven {4} °C, {5:+0.0;-0.0} kWh op weekenddagen; gefit op {6:dd-MM-yyyy} – {7:dd-MM-yyyy} ({8} dagen, R² {9:0.00}).</value></data>
+  <data name="Grid import (kWh)" xml:space="preserve"><value>Net-import (kWh)</value></data>
+  <data name="Grid export (kWh)" xml:space="preserve"><value>Net-export (kWh)</value></data>
+  <data name="Net (kWh)" xml:space="preserve"><value>Netto (kWh)</value></data>
+  <data name="Electricity bought" xml:space="preserve"><value>Ingekochte stroom</value></data>
+  <data name="Feed-in revenue" xml:space="preserve"><value>Opbrengst teruglevering</value></data>
+  <data name="Grid operator and transport" xml:space="preserve"><value>Netbeheer en transport</value></data>
+  <data name="Energy tax reduction" xml:space="preserve"><value>Heffingskorting energiebelasting</value></data>
+  <data name="Total per year" xml:space="preserve"><value>Totaal per jaar</value></data>
+  <data name="Per month" xml:space="preserve"><value>Per maand</value></data>
+  <data name="Planner replay: calculating ({0}/365 days)" xml:space="preserve"><value>Opnieuw afspelen door de planner: bezig ({0}/365 dagen)</value></data>
+  <data name="Planner replay: pending" xml:space="preserve"><value>Opnieuw afspelen door de planner: in de wachtrij</value></data>
+  <data name="Bars: what the house used each day. Pink line: what the planner expected for that day, a day in advance; this is the estimate the battery plan is built on. Orange line: what the consumption model predicts from that day&#x27;s measured temperature and the day of the week. The model gets the real temperature, as if the weather forecast were perfect, so it has a head start. Mean error: how far off a forecast is on average. Bias: whether it is structurally too high (+) or too low (−). The planner&#x27;s forecasts are kept 40 days." xml:space="preserve"><value>Staven: wat het huis per dag gebruikte. Roze lijn: wat de planner een dag vooraf voor die dag verwachtte; dit is de schatting waarop het batterijplan rust. Oranje lijn: wat het verbruiksmodel voorspelt uit de gemeten temperatuur van die dag en de dag van de week. Het model krijgt de werkelijke temperatuur, alsof de weersverwachting perfect was, en heeft dus een voorsprong. Gemiddelde fout: hoe ver een voorspelling er gemiddeld naast zit. Systematische afwijking: of die structureel te hoog (+) of te laag (−) is. De voorspellingen van de planner worden 40 dagen bewaard.</value></data>
+  <data name="{0} complete days, {1:dd-MM-yyyy} to {2:dd-MM-yyyy}." xml:space="preserve"><value>{0} volledige dagen, {1:dd-MM-yyyy} tot {2:dd-MM-yyyy}.</value></data>
+  <data name="{0}: not available." xml:space="preserve"><value>{0}: niet beschikbaar.</value></data>
+  <data name="{0}: mean error {1:0.0} %, bias {2:+0.0;-0.0;0.0} %." xml:space="preserve"><value>{0}: gemiddelde fout {1:0.0} %, systematische afwijking {2:+0.0;-0.0;0.0} %.</value></data>
+  <data name="Spread: the difference between the price at which the battery discharged and the price at which it charged, per kWh (buying prices incl. taxes). Captured is what the battery achieved. Best possible is what the same charged and discharged kWh would have given in the cheapest and most expensive quarters, each at most the day&#x27;s largest quarter, of that day. The line shows the captured share. 100 % is out of reach in practice: the battery cannot do everything at once, the plan works with forecasts and solar charging follows the sun, not the price." xml:space="preserve"><value>Spread: het verschil tussen de prijs waarop de batterij ontlaadde en de prijs waarop hij laadde, per kWh (inkoopprijzen incl. belastingen). Behaald is wat de batterij haalde. Best mogelijk is wat dezelfde geladen en ontladen kWh hadden opgeleverd in de goedkoopste en duurste kwartieren van die dag, elk hoogstens het grootste kwartier van de dag. De lijn toont het behaalde aandeel. 100 % is in de praktijk onhaalbaar: de batterij kan niet alles tegelijk, het plan werkt met voorspellingen en laden met zon volgt de zon, niet de prijs.</value></data>
+  <data name="Last 12 months: captured € {0:0.000} of a possible € {1:0.000} per kWh ({2:0} %), over {3} days and {4:0} kWh discharged." xml:space="preserve"><value>Laatste 12 maanden: € {0:0.000} behaald van een mogelijke € {1:0.000} per kWh ({2:0} %), over {3} dagen en {4:0} kWh ontladen.</value></data>
+  <data name="How hard the batteries work and how much energy they lose. A full cycle is charging and discharging the whole capacity once; two half discharges count as one cycle. Only quarters marked as reliable are counted." xml:space="preserve"><value>Hoe hard de batterijen werken en hoeveel energie ze verliezen. Een volledige cyclus is de hele capaciteit één keer laden en ontladen; twee halve ontladingen tellen als één cyclus. Alleen kwartieren die als betrouwbaar gemarkeerd zijn tellen mee.</value></data>
+  <data name="Bars: energy that went into the batteries and came out, per month. Line: round-trip efficiency, the share of the energy put in that came out again, corrected for what was still stored at the start and end of the month. Months with less than 20 kWh charged show no efficiency: too little to measure." xml:space="preserve"><value>Staven: energie die per maand de batterijen in ging en er weer uit kwam. Lijn: rendement heen-en-terug, het deel van de ingestopte energie dat er weer uit kwam, gecorrigeerd voor wat aan het begin en einde van de maand nog opgeslagen was. Maanden met minder dan 20 kWh geladen tonen geen rendement: te weinig om te meten.</value></data>
+  <data name="Full-cycle equivalents per month (discharged energy ÷ capacity in use), since the batteries were bought. Measured: the batteries&#x27; own readings. Reconstructed: the energy balance, consumption − solar − grid, where no battery reading was stored (a few % high). Estimated: the measured average per quarter, where no data exists at all. A single battery counts as measured only from its own readings; before those it follows the whole bank: reconstructed where the bank has data, estimated where it has none. Line: all cycles added up. Switch the estimate off to see only what the data supports." xml:space="preserve"><value>Volledige-cyclusequivalenten per maand (ontladen energie ÷ capaciteit in gebruik), sinds de aankoop van de batterijen. Gemeten: de eigen metingen van de batterijen. Gereconstrueerd: de energiebalans, verbruik − zon − net, waar geen batterijmeting is opgeslagen (een paar % te hoog). Geschat: het gemeten gemiddelde per kwartier, waar helemaal geen data is. Een losse batterij telt alleen als gemeten vanaf haar eigen metingen; daarvoor volgt ze het geheel: gereconstrueerd waar het geheel data heeft, geschat waar niet. Lijn: alle cycli opgeteld. Zet de schatting uit om alleen te zien wat de data onderbouwt.</value></data>
+  <data name="Per battery: the rated cycles (entered with the battery investment on the Settings page) divided by the current pace, and the purchase date plus the rated lifetime in years. Whichever comes first is the expected end of life. The pace is the last twelve complete months, so summer and winter both count; with less than a year of history it is the average so far, marked with *, which follows the season it covers. Follows the estimate switch. Capacity: the measured usable capacity of the last months against the first measured months, and the fade per year; the battery counts as worn out at 70 % (the usual warranty threshold). The fade needs half a year of measurements before it gives a date." xml:space="preserve"><value>Per batterij: de opgegeven cycli (in te vullen bij de batterij-investering op de Settings-pagina) gedeeld door het huidige tempo, en de aankoopdatum plus de opgegeven levensduur in jaren. Wat het eerst komt, is het verwachte einde van de levensduur. Het tempo komt uit de laatste twaalf volle maanden, zodat zomer en winter allebei meetellen; met minder dan een jaar historie is het het gemiddelde tot nu toe, gemarkeerd met *, dat het seizoen volgt dat het beslaat. Volgt de schakelaar voor de schatting. Capaciteit: de gemeten bruikbare capaciteit van de laatste maanden tegenover de eerste gemeten maanden, en het verlies per jaar; de batterij geldt als versleten bij 70 % (de gangbare garantiegrens). Het verlies heeft een half jaar metingen nodig voordat het een datum geeft.</value></data>
+  <data name="Usable capacity per month: the energy a long discharge delivered (at least 40 % of the state of charge) ÷ the share of the state of charge it took, median of the month. Measured after the inverter, so below the nominal capacity; the trend is what counts. Rough per discharge (one reading per quarter), months with fewer than three discharges are left out of the trend. Only meaningful if the battery reports its state of charge against its real, aged capacity." xml:space="preserve"><value>Bruikbare capaciteit per maand: de energie die een lange ontlading leverde (minstens 40 % van de laadtoestand) ÷ het deel van de laadtoestand dat het kostte, mediaan van de maand. Gemeten na de omvormer, dus onder de nominale capaciteit; de trend is wat telt. Ruw per ontlading (één meting per kwartier); maanden met minder dan drie ontladingen tellen niet mee in de trend. Alleen zinvol als de batterij haar laadtoestand meet tegen haar werkelijke, verouderde capaciteit.</value></data>
+  <data name="{0:0} % reached" xml:space="preserve"><value>{0:0} % bereikt</value></data>
+  <data name="{0:0} full cycles since {1:dd-MM-yyyy}{2}; measured pace {3:0} per year, on {4:0.0} kWh capacity." xml:space="preserve"><value>{0:0} volledige cycli sinds {1:dd-MM-yyyy}{2}; gemeten tempo {3:0} per jaar, op {4:0.0} kWh capaciteit.</value></data>
+  <data name=" (incl. estimate)" xml:space="preserve"><value> (incl. schatting)</value></data>
+  <data name=" (data only, without estimate)" xml:space="preserve"><value> (alleen data, zonder schatting)</value></data>
+  <data name="{0:0} full cycles since {1:dd-MM-yyyy} ({2:0} per year) on {3:0.0} kWh capacity." xml:space="preserve"><value>{0:0} volledige cycli sinds {1:dd-MM-yyyy} ({2:0} per jaar) op {3:0.0} kWh capaciteit.</value></data>
+  <data name="{0}: {1:0} full cycles since {2:dd-MM-yyyy} on {3:0.0} kWh{4}." xml:space="preserve"><value>{0}: {1:0} volledige cycli sinds {2:dd-MM-yyyy} op {3:0.0} kWh{4}.</value></data>
+  <data name=", of which {0:0} estimated" xml:space="preserve"><value>, waarvan {0:0} geschat</value></data>
+  <data name="Enter the expected cycles and lifetime with the battery investments on the Settings page to see a lifetime forecast." xml:space="preserve"><value>Vul bij de batterij-investeringen op de Settings-pagina de verwachte cycli en levensduur in voor een levensduurprognose.</value></data>
+  <data name="{0:0} of {1} rated cycles used ({2:0.0} %)" xml:space="preserve"><value>{0:0} van {1} opgegeven cycli gebruikt ({2:0.0} %)</value></data>
+  <data name="first expected end of life: {0} in {1:MMMM yyyy} ({2})" xml:space="preserve"><value>eerste verwachte einde levensduur: {0} in {1:MMMM yyyy} ({2})</value></data>
+  <data name="{0:0} / {1} ({2:0} %)" xml:space="preserve"><value>{0:0} / {1} ({2:0} %)</value></data>
+  <data name="{0:0}" xml:space="preserve"><value>{0:0}</value></data>
+  <data name="{0:0}{1}" xml:space="preserve"><value>{0:0}{1}</value></data>
+  <data name="{0:0} %{1}" xml:space="preserve"><value>{0:0} %{1}</value></data>
+  <data name=" ({0:+0.0;−0.0} %/yr)" xml:space="preserve"><value> ({0:+0.0;−0.0} %/jr)</value></data>
+  <data name="{0:MMM yyyy} ({1:0.0} yr)" xml:space="preserve"><value>{0:MMM yyyy} ({1:0.0} jr)</value></data>
+  <data name="{0} error(s), {1} warning(s)" xml:space="preserve"><value>{0} fout(en), {1} waarschuwing(en)</value></data>
+  <data name="{0} warning(s)" xml:space="preserve"><value>{0} waarschuwing(en)</value></data>
+  <data name="{0} notification(s)" xml:space="preserve"><value>{0} melding(en)</value></data>
+  <data name="Charging with solar surplus (storing own generation)." xml:space="preserve"><value>Laden met zonne-overschot (eigen opwek opslaan).</value></data>
+  <data name="Charging from the grid: cheap quarter, saved for a dearer later moment." xml:space="preserve"><value>Laden van het net: goedkoop kwartier, bewaard voor een later, duurder moment.</value></data>
+  <data name="Discharging to the grid: price high enough to sell." xml:space="preserve"><value>Ontladen naar het net: prijs hoog genoeg om te verkopen.</value></data>
+  <data name="Self-consumption from the battery: household deficit covered, SOC above the reserve." xml:space="preserve"><value>Eigen verbruik uit de batterij: tekort van het huis gedekt, SoC boven de reserve.</value></data>
+  <data name="Battery idle (no deficit to cover, or at the reserve floor)." xml:space="preserve"><value>Batterij in rust (geen tekort te dekken, of op de reservegrens).</value></data>
+  <data name="Battery holds its energy (reserve reached, or the plan keeps it for later): stores solar surplus when there is any, never discharges; the house imports otherwise." xml:space="preserve"><value>Batterij houdt haar energie vast (reserve bereikt, of het plan bewaart die voor later): slaat zonne-overschot op als dat er is, ontlaadt nooit; anders neemt het huis af van het net.</value></data>
+  <data name="Off: solar surplus goes to the grid (storing does not pay here)." xml:space="preserve"><value>Uit: zonne-overschot gaat naar het net (opslaan loont hier niet).</value></data>
+  <data name="Off: no trade planned for this quarter." xml:space="preserve"><value>Uit: geen handel gepland voor dit kwartier.</value></data>
+  <data name="Discharges at a low price (€{0:F3}) while a dearer quarter is ahead (€{1:F3}). Saving energy for the peak may earn more." xml:space="preserve"><value>Ontlaadt bij een lage prijs (€{0:F3}) terwijl er een duurder kwartier aankomt (€{1:F3}). Energie bewaren voor de piek levert mogelijk meer op.</value></data>
+  <data name="Solar surplus not stored while a dearer quarter is ahead (€{0:F3}) and there is SOC headroom." xml:space="preserve"><value>Zonne-overschot niet opgeslagen terwijl er een duurder kwartier aankomt (€{0:F3}) en er SoC-ruimte is.</value></data>
+  <data name="Battery idle in an expensive quarter (€{0:F3}) while SOC is available." xml:space="preserve"><value>Batterij in rust in een duur kwartier (€{0:F3}) terwijl er SoC beschikbaar is.</value></data>
+  <data name="Charges from the grid at a price above the median (€{0:F3} &gt; €{1:F3})." xml:space="preserve"><value>Laadt van het net tegen een prijs boven de mediaan (€{0:F3} &gt; €{1:F3}).</value></data>
+  <data name="Discharges to the grid below the median buy price (sell €{0:F3})." xml:space="preserve"><value>Ontlaadt naar het net onder de mediane inkoopprijs (verkoop €{0:F3}).</value></data>
+  <data name="Solar is used directly for the household load; there is no surplus to export this quarter." xml:space="preserve"><value>Zonnestroom gaat direct naar het huishouden; er is dit kwartier geen overschot om terug te leveren.</value></data>
+  <data name="Solar surplus is exported now: selling at €{0:F3} beats keeping it (store value €{1:F3} ≈ {2:F0}% round-trip × best later price €{3:F3}, minus wear €{4:F3})." xml:space="preserve"><value>Zonne-overschot wordt nu teruggeleverd: verkopen tegen €{0:F3} wint van bewaren (opslagwaarde €{1:F3} ≈ {2:F0}% heen-en-terug × beste latere prijs €{3:F3}, min slijtage €{4:F3}).</value></data>
+  <data name="Solar surplus is stored / self-consumed, not exported, because a later moment pays more: storing is worth €{0:F3} ({1:F0}% round-trip × best later price €{2:F3}) versus exporting now at €{3:F3} — so keeping it wins." xml:space="preserve"><value>Zonne-overschot wordt opgeslagen / zelf gebruikt, niet teruggeleverd, omdat een later moment meer oplevert: opslaan is €{0:F3} waard ({1:F0}% heen-en-terug × beste latere prijs €{2:F3}) tegenover nu terugleveren tegen €{3:F3} — bewaren wint dus.</value></data>
+  <data name="Solar surplus is kept, but exporting now (€{0:F3}) would beat storing it (€{1:F3}); no dearer moment is ahead, so exporting could be better here." xml:space="preserve"><value>Zonne-overschot wordt bewaard, maar nu terugleveren (€{0:F3}) zou winnen van opslaan (€{1:F3}); er komt geen duurder moment, dus terugleveren zou hier beter kunnen zijn.</value></data>
+  <data name="Solar surplus stored while exporting now (€{0:F3}) would pay more than keeping it (€{1:F3})." xml:space="preserve"><value>Zonne-overschot opgeslagen terwijl nu terugleveren (€{0:F3}) meer zou opleveren dan bewaren (€{1:F3}).</value></data>
+  <data name="The plan does not actively trade on the grid (no charge or sell quarters); it mainly covers self-consumption." xml:space="preserve"><value>Het plan handelt niet actief op het net (geen laad- of verkoopkwartieren); het dekt vooral eigen verbruik.</value></data>
+  <data name="The plan charges in {0} and discharges to the grid in {1} quarters." xml:space="preserve"><value>Het plan laadt in {0} en ontlaadt naar het net in {1} kwartieren.</value></data>
+  <data name="Plan over {0} quarters. {1} Total charged {2:F1} kWh, discharged {3:F1} kWh. Buy price ranges from €{4:F3} to €{5:F3} (median €{6:F3}, spread €{7:F3}). Self-consumption in {8} quarters, off in {9}. " xml:space="preserve"><value>Plan over {0} kwartieren. {1} Totaal geladen {2:F1} kWh, ontladen {3:F1} kWh. Inkoopprijs van €{4:F3} tot €{5:F3} (mediaan €{6:F3}, spread €{7:F3}). Eigen verbruik in {8} kwartieren, uit in {9}. </value></data>
+  <data name="{0} improvement point(s) flagged." xml:space="preserve"><value>{0} verbeterpunt(en) gesignaleerd.</value></data>
+  <data name="No improvement points flagged." xml:space="preserve"><value>Geen verbeterpunten gesignaleerd.</value></data>
+  <data name="Optimisation strategy" xml:space="preserve"><value>Optimalisatiestrategie</value></data>
+  <data name="Derived from investments" xml:space="preserve"><value>Afgeleid uit investeringen</value></data>
+  <data name="Cycle cost (derived/fixed)" xml:space="preserve"><value>Cycluskosten (afgeleid/vast)</value></data>
+  <data name="€ {0:F4}/kWh" xml:space="preserve"><value>€ {0:F4}/kWh</value></data>
+  <data name="Cycle cost effective" xml:space="preserve"><value>Cycluskosten effectief</value></data>
+  <data name="€ {0:F4}/kWh (Balanced ×1.5)" xml:space="preserve"><value>€ {0:F4}/kWh (gebalanceerd ×1,5)</value></data>
+  <data name="Predicted price mode" xml:space="preserve"><value>Modus voorspelde prijzen</value></data>
+  <data name="Predicted price risk margin" xml:space="preserve"><value>Risicomarge voorspelde prijs</value></data>
+  <data name="€ {0:F3}/kWh" xml:space="preserve"><value>€ {0:F3}/kWh</value></data>
+  <data name="0 (no limit)" xml:space="preserve"><value>0 (geen grens)</value></data>
+  <data name="Shift discharge" xml:space="preserve"><value>Ontladen verschuiven</value></data>
+  <data name="Control method" xml:space="preserve"><value>Aansturingsmethode</value></data>
+  <data name="Setpoint per battery" xml:space="preserve"><value>Setpoint per batterij</value></data>
+  <data name="P1 grid target" xml:space="preserve"><value>P1-netdoel</value></data>
+  <data name="Annual solar production" xml:space="preserve"><value>Jaaropbrengst zon</value></data>
+  <data name="Valid from" xml:space="preserve"><value>Geldig vanaf</value></data>
+  <data name="€ {0:F5}/kWh" xml:space="preserve"><value>€ {0:F5}/kWh</value></data>
+  <data name="Return delivery costs" xml:space="preserve"><value>Terugleverkosten</value></data>
+  <data name="Reload" xml:space="preserve"><value>Opnieuw laden</value></data>
+  <data name="Edit" xml:space="preserve"><value>Bewerken</value></data>
+  <data name="Year" xml:space="preserve"><value>Jaar</value></data>
+  <data name="Custom" xml:space="preserve"><value>Aangepast</value></data>
+  <data name="Last 7 Days" xml:space="preserve"><value>Laatste 7 dagen</value></data>
+  <data name="Last 180 Days" xml:space="preserve"><value>Laatste 180 dagen</value></data>
+  <data name="Buying price" xml:space="preserve"><value>Inkoopprijs</value></data>
+  <data name="Tariff paid per kWh from grid (incl. taxes &amp;amp; transport)" xml:space="preserve"><value>Tarief per kWh van het net (incl. belastingen &amp;amp; transport)</value></data>
+  <data name="Selling price" xml:space="preserve"><value>Verkoopprijs</value></data>
+  <data name="Tariff received per kWh exported to the grid" xml:space="preserve"><value>Tarief per kWh teruggeleverd aan het net</value></data>
+  <data name="Smoothed buying" xml:space="preserve"><value>Afgevlakte inkoop</value></data>
+  <data name="Rolling average of the price, shown to make the trend easier to read" xml:space="preserve"><value>Voortschrijdend gemiddelde van de prijs, om de trend makkelijker te lezen</value></data>
+  <data name="Smoothed selling" xml:space="preserve"><value>Afgevlakte verkoop</value></data>
+  <data name="Rolling average of selling price" xml:space="preserve"><value>Voortschrijdend gemiddelde van de verkoopprijs</value></data>
+  <data name="Prices predicted →" xml:space="preserve"><value>Prijzen voorspeld →</value></data>
+  <data name="Day-Ahead forecast from this point onward" xml:space="preserve"><value>Day-ahead-voorspelling vanaf dit punt</value></data>
+  <data name="What the stored energy cost per delivered kWh" xml:space="preserve"><value>Wat de opgeslagen energie kostte per geleverde kWh</value></data>
+  <data name="Measured (past) or forecast (future) solar production" xml:space="preserve"><value>Gemeten (verleden) of voorspelde (toekomst) zonne-opbrengst</value></data>
+  <data name="Est. consumption" xml:space="preserve"><value>Gesch. verbruik</value></data>
+  <data name="Forecast home consumption per quarter-hour" xml:space="preserve"><value>Voorspeld huisverbruik per kwartier</value></data>
+  <data name="Battery balances home load — net grid flow ≈ 0" xml:space="preserve"><value>Batterij vangt de huislast op — netstroom ≈ 0</value></data>
+  <data name="Battery stores solar surplus but does not cover the house" xml:space="preserve"><value>Batterij slaat zonne-overschot op maar voedt het huis niet</value></data>
+  <data name="Delta lowest price" xml:space="preserve"><value>Verschil met laagste prijs</value></data>
+  <data name="Gap between current price and the day&#x27;s lowest price" xml:space="preserve"><value>Verschil tussen de huidige prijs en de laagste prijs van de dag</value></data>
+  <data name="Now  ▏" xml:space="preserve"><value>Nu  ▏</value></data>
+  <data name="Current quarter marker — visible in Show All mode" xml:space="preserve"><value>Markering huidig kwartier — zichtbaar bij Alles tonen</value></data>
+  <data name="Charge remaining" xml:space="preserve"><value>Resterende lading</value></data>
+  <data name="Planned State of Charge (SOC) curve over time" xml:space="preserve"><value>Geplande laadtoestand (SoC) in de tijd</value></data>
+  <data name="Minimum SOC to cover future home consumption" xml:space="preserve"><value>Minimale SoC om het toekomstige huisverbruik te dekken</value></data>
+  <data name="Charge power" xml:space="preserve"><value>Laadvermogen</value></data>
+  <data name="Planned charging energy per quarter-hour (kWh)" xml:space="preserve"><value>Geplande laadenergie per kwartier (kWh)</value></data>
+  <data name="Discharge power" xml:space="preserve"><value>Ontlaadvermogen</value></data>
+  <data name="Planned discharging energy per quarter-hour (kWh)" xml:space="preserve"><value>Geplande ontlaadenergie per kwartier (kWh)</value></data>
+  <data name="Revenue per quarter" xml:space="preserve"><value>Opbrengst per kwartier</value></data>
+  <data name="Realised arbitrage profit per 15-min slot (€)" xml:space="preserve"><value>Gerealiseerde arbitragewinst per kwartier (€)</value></data>
+  <data name="Throttle loss" xml:space="preserve"><value>Begrenzingsverlies</value></data>
+  <data name="Power the battery could not take or give because of throttling" xml:space="preserve"><value>Vermogen dat de batterij door begrenzing niet kon opnemen of afgeven</value></data>
+  <data name="⟨Charged⟩" xml:space="preserve"><value>⟨Charged⟩</value></data>
+  <data name="What the batteries plan for themselves (Charged)" xml:space="preserve"><value>Wat de batterijen zelf plannen (Charged)</value></data>
+  <data name="Earlier plans for the same quarters" xml:space="preserve"><value>Eerdere plannen voor dezelfde kwartieren</value></data>
+  <data name="Planned SOC%, active planned mode and SOC deviation" xml:space="preserve"><value>Geplande SoC%, actieve geplande modus en SoC-afwijking</value></data>
+  <data name="Live hardware strategy and actual power in watts" xml:space="preserve"><value>Actuele hardwarestrategie en werkelijk vermogen in watt</value></data>
+  <data name="Current throttle % and last inverter setpoint (W)" xml:space="preserve"><value>Huidige begrenzing % en laatste setpoint omvormer (W)</value></data>
+  <data name="Curtailment" xml:space="preserve"><value>Afregeling</value></data>
+  <data name="ZeroExport · Throttle · Shutdown · ForceCharge" xml:space="preserve"><value>ZeroExport · Throttle · Shutdown · ForceCharge</value></data>
+  <data name="Age" xml:space="preserve"><value>Leeftijd</value></data>
+  <data name="Fade" xml:space="preserve"><value>Capaciteitsverlies</value></data>
+  <data name="{0}st" xml:space="preserve"><value>{0}e</value></data>
+  <data name="{0}nd" xml:space="preserve"><value>{0}e</value></data>
+  <data name="{0}rd" xml:space="preserve"><value>{0}e</value></data>
+  <data name="{0}th" xml:space="preserve"><value>{0}e</value></data>
+  <data name="Reserve" xml:space="preserve"><value>Reserve</value></data>
+  <data name="Arbitrage" xml:space="preserve"><value>Arbitrage</value></data>
+  <data name="Learning" xml:space="preserve"><value>Leren</value></data>
+  <data name="Fixed" xml:space="preserve"><value>Vast</value></data>
+  <data name="never" xml:space="preserve"><value>nooit</value></data>
+  <data name="VAT" xml:space="preserve"><value>Btw</value></data>
+  <data name="Carry-forward" xml:space="preserve"><value>Doorschuiven</value></data>
+  <data name="Self-learning" xml:space="preserve"><value>Zelflerend</value></data>
+  <data name="Cheap" xml:space="preserve"><value>Goedkoop</value></data>
+  <data name="Average" xml:space="preserve"><value>Gemiddeld</value></data>
+  <data name="Expensive" xml:space="preserve"><value>Duur</value></data>
+  <data name="Winter" xml:space="preserve"><value>Winter</value></data>
+  <data name="Spring" xml:space="preserve"><value>Lente</value></data>
+  <data name="Summer" xml:space="preserve"><value>Zomer</value></data>
+  <data name="Autumn" xml:space="preserve"><value>Herfst</value></data>
+  <data name="Heating-degree-day weighted average of {0} days: market avg={1:F4} EUR/m³, all-in={2:F4} EUR/m³ (incl. energy tax + VAT)" xml:space="preserve"><value>Naar graaddagen gewogen gemiddelde over {0} dagen: markt gem.={1:F4} EUR/m³, totaal={2:F4} EUR/m³ (incl. energiebelasting + btw)</value></data>
+  <data name="Live TTF day-ahead via Enever.nl, all-in incl. energy tax + VAT" xml:space="preserve"><value>Actuele TTF day-ahead via Enever.nl, totaal incl. energiebelasting + btw</value></data>
+  <data name="Configured fallback (no live feed or history available — add Enever:Token to appsettings.json): € {0:F4}/m³" xml:space="preserve"><value>Ingestelde terugvalwaarde (geen actuele bron of historie — voeg Enever:Token toe aan appsettings.json): € {0:F4}/m³</value></data>
+</root>

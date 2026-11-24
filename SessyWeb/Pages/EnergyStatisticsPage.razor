@@ -21,14 +21,14 @@
 <RadzenLayout Style="height: 80vh;">
     <RadzenHeader Style="height: 100%; margin: 0px; padding: 0px;">
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Style="height:100%; margin: 0px; padding: 0px;">
-            <RadzenLabel Text="Energy Statistics" class="h4 m-2" />
+            <RadzenLabel Text="@T("Energy Statistics")" class="h4 m-2" />
         </RadzenStack>
     </RadzenHeader>
 
     <RadzenBody Style="margin: 8px; padding: 0px; overflow-y: auto;">
         <RadzenTabs RenderMode="TabRenderMode.Server">
             <Tabs>
-                <RadzenTabsItem Text="Overview">
+                <RadzenTabsItem Text="@T("Overview")">
                     @if (IsLoading)
                     {
                         <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
@@ -72,7 +72,7 @@
                         </RadzenRow>
                     }
                 </RadzenTabsItem>
-                <RadzenTabsItem Text="Financial">
+                <RadzenTabsItem Text="@T("Financial")">
                     <RadzenRow Gap="12px" RowGap="12px" AlignItems="AlignItems.Stretch">
 
                         <RadzenColumn Size="12" class="rz-display-flex">
@@ -96,7 +96,7 @@
 
                     </RadzenRow>
                 </RadzenTabsItem>
-                <RadzenTabsItem Text="Planner">
+                <RadzenTabsItem Text="@T("Planner")">
                     <RadzenRow Gap="12px" RowGap="12px" AlignItems="AlignItems.Stretch">
 
                         @if (IsLoading)
@@ -120,7 +120,7 @@
 
                     </RadzenRow>
                 </RadzenTabsItem>
-                <RadzenTabsItem Text="Consumption">
+                <RadzenTabsItem Text="@T("Consumption")">
                     <RadzenRow Gap="12px" RowGap="12px" AlignItems="AlignItems.Stretch">
 
                         <RadzenColumn Size="12" class="rz-display-flex">
@@ -141,7 +141,7 @@
 
                     </RadzenRow>
                 </RadzenTabsItem>
-                <RadzenTabsItem Text="Battery">
+                <RadzenTabsItem Text="@T("Battery")">
                     <RadzenRow Gap="12px" RowGap="12px" AlignItems="AlignItems.Stretch">
 
                         <RadzenColumn Size="12" class="rz-display-flex">

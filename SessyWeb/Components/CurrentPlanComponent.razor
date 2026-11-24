@@ -2,73 +2,72 @@
 @using SessyWeb.Components
 @using Radzen
 @using Radzen.Blazor
+@inherits BaseComponent
 
 <RadzenCard>
     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
-        <RadzenText TextStyle="TextStyle.H6">🗓️ Current Plan</RadzenText>
+        <RadzenText TextStyle="TextStyle.H6">🗓️ @T("Current Plan")</RadzenText>
         @if (Dashboard!.Plan!.IsRestoredFromDb)
         {
-            <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="Restored from database" />
+            <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="@T("Restored from database")" />
         }
-        <RadzenButton Text="Clear plan" Icon="delete"
+        <RadzenButton Text="@T("Clear plan")" Icon="delete"
                       ButtonStyle="ButtonStyle.Danger"
                       Size="ButtonSize.Small"
                       Click="@OnClearPlanAsync"
-                      title="Removes the current plan from memory and database. A fresh plan will be built on the next cycle." />
-        <RadzenButton Text="Force new plan" Icon="refresh"
+                      title="@T("Removes the current plan from memory and database. A fresh plan will be built on the next cycle.")" />
+        <RadzenButton Text="@T("Force new plan")" Icon="refresh"
                       ButtonStyle="ButtonStyle.Primary"
                       Size="ButtonSize.Small"
                       Click="@OnForceNewPlanAsync"
-                      title="Solves again right now and keeps the result, even when the current plan would normally be kept." />
+                      title="@T("Solves again right now and keeps the result, even when the current plan would normally be kept.")" />
     </RadzenStack>
     <RadzenRow Gap="8px">
         <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Last generated"
-                               Value="@(Dashboard!.Plan!.LastBuildTime.HasValue ? Dashboard.Plan.LastBuildTime.Value.ToString("dd-MM-yyyy HH:mm") : "Restored from DB")"
+            <StatCardComponent Title="@T("Last generated")"
+                               Value="@(Dashboard!.Plan!.LastBuildTime.HasValue ? Dashboard.Plan.LastBuildTime.Value.ToString("dd-MM-yyyy HH:mm") : T("Restored from DB"))"
                                Highlight="@(Dashboard!.Plan.LastBuildTime.HasValue)" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Plan horizon"
+            <StatCardComponent Title="@T("Plan horizon")"
                                Value="@(Dashboard!.Plan!.PlanHorizon.HasValue ? Dashboard.Plan.PlanHorizon.Value.ToString("dd-MM-yyyy HH:mm") : "—")" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Expected profit"
+            <StatCardComponent Title="@T("Expected profit")"
                                Value="@($"€ {Dashboard!.Plan!.ExpectedProfitEur:F2}")"
                                Highlight="true" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Next charge"
+            <StatCardComponent Title="@T("Next charge")"
                                Value="@(Dashboard!.Plan!.NextChargeTime.HasValue ? Dashboard!.Plan.NextChargeTime.Value.ToString("HH:mm") : "—")" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Next discharge"
+            <StatCardComponent Title="@T("Next discharge")"
                                Value="@(Dashboard!.Plan!.NextDischargeTime.HasValue ? Dashboard!.Plan.NextDischargeTime.Value.ToString("HH:mm") : "—")" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Quarters: charge / discharge / NZH"
+            <StatCardComponent Title="@T("Quarters: charge / discharge / NZH")"
                                Value="@($"{Dashboard!.Plan!.ChargingQuarters} / {Dashboard.Plan.DischargingQuarters} / {Dashboard.Plan.NzhQuarters}")" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Future quarters"
-                               Value="@($"{Dashboard!.Plan!.TotalFutureQuarters} ({Dashboard.Plan.TotalFutureQuarters / 4.0:F1} hrs)")" />
+            <StatCardComponent Title="@T("Future quarters")"
+                               Value="@T("{0} ({1:F1} hrs)", Dashboard!.Plan!.TotalFutureQuarters, Dashboard.Plan.TotalFutureQuarters / 4.0)" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Minimum reserve"
+            <StatCardComponent Title="@T("Minimum reserve")"
                                Value="@($"{Dashboard!.Plan!.NightReservePct:F1} % ({Dashboard.Plan.NightReserveWh / 1000.0:F1} kWh)")" />
         </RadzenColumn>
     </RadzenRow>
     <RadzenText TextStyle="TextStyle.Caption" Style="margin-top: 0.75rem; opacity: 0.7;">
-        Expected profit covers all @Dashboard!.Plan!.TotalFutureQuarters future quarters (@($"{Dashboard.Plan.TotalFutureQuarters / 4.0:F1}") hrs).
-        The Arbitrage chart shows daily realized vs planned profit for past days only.
+        @T("Expected profit covers all {0} future quarters ({1:F1} hrs). The Arbitrage chart shows daily realized vs planned profit for past days only.", Dashboard!.Plan!.TotalFutureQuarters, Dashboard.Plan.TotalFutureQuarters / 4.0)
     </RadzenText>
     <RadzenText TextStyle="TextStyle.Caption" Style="opacity: 0.7;">
-        Minimum reserve is the floor the plan never discharges below, set on the Settings page. The
-        planner covers the night itself; the batteries' BMS protects the cells.
+        @T("Minimum reserve is the floor the plan never discharges below, set on the Settings page. The planner covers the night itself; the batteries' BMS protects the cells.")
     </RadzenText>
 
     @if (Dashboard!.Plan!.RecentHistory.Any())
     {
-        <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mt-4">Plan history</RadzenText>
+        <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mt-4">@T("Plan history")</RadzenText>
         <RadzenDataGrid Data="@Dashboard.Plan.RecentHistory"
                         TItem="SessyData.Services.PlanHistoryEntry"
                         Density="Density.Compact"
@@ -76,17 +75,17 @@
                         AllowFiltering="false"
                         AllowPaging="false">
             <Columns>
-                <RadzenDataGridColumn TItem="SessyData.Services.PlanHistoryEntry" Title="Generated at">
+                <RadzenDataGridColumn TItem="SessyData.Services.PlanHistoryEntry" Title="@T("Generated at")">
                     <Template Context="h">@h.SavedAt.ToString("dd-MM-yyyy HH:mm")</Template>
                 </RadzenDataGridColumn>
-                <RadzenDataGridColumn Property="@nameof(SessyData.Services.PlanHistoryEntry.Reason)" Title="Reason" />
-                <RadzenDataGridColumn TItem="SessyData.Services.PlanHistoryEntry" Title="Expected profit">
+                <RadzenDataGridColumn Property="@nameof(SessyData.Services.PlanHistoryEntry.Reason)" Title="@T("Reason")" />
+                <RadzenDataGridColumn TItem="SessyData.Services.PlanHistoryEntry" Title="@T("Expected profit")">
                     <Template Context="h">€ @h.ObjectiveEur.ToString("F2")</Template>
                 </RadzenDataGridColumn>
-                <RadzenDataGridColumn TItem="SessyData.Services.PlanHistoryEntry" Title="Quarters">
-                    <Template Context="h">@h.QuarterCount (@($"{h.QuarterCount / 4.0:F1}") hrs)</Template>
+                <RadzenDataGridColumn TItem="SessyData.Services.PlanHistoryEntry" Title="@T("Quarters")">
+                    <Template Context="h">@T("{0} ({1:F1} hrs)", h.QuarterCount, h.QuarterCount / 4.0)</Template>
                 </RadzenDataGridColumn>
-                <RadzenDataGridColumn TItem="SessyData.Services.PlanHistoryEntry" Title="Horizon">
+                <RadzenDataGridColumn TItem="SessyData.Services.PlanHistoryEntry" Title="@T("Horizon")">
                     <Template Context="h">@h.PlanHorizon.ToString("dd-MM HH:mm")</Template>
                 </RadzenDataGridColumn>
             </Columns>

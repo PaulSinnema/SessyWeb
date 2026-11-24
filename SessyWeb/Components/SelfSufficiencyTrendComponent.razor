@@ -3,15 +3,15 @@
 @using Radzen.Blazor
 @inherits BaseComponent
 
-<StatisticsCard Title="🏠 Self-sufficiency per month" Info="@HowToRead" OnRefresh="@LoadAsync" Loading="@Loading" IsEmpty="@(_months.Count == 0)">
-    <EmptyContent>Not enough data yet.</EmptyContent>
+<StatisticsCard Title="@T("🏠 Self-sufficiency per month")" Info="@HowToRead" OnRefresh="@LoadAsync" Loading="@Loading" IsEmpty="@(_months.Count == 0)">
+    <EmptyContent>@T("Not enough data yet.")</EmptyContent>
     <ChildContent>
         <RadzenChart Style="width: 100%; height: 40vh; min-height: 340px;">
             <RadzenChartTooltipOptions Shared="true" />
             <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
 
             <RadzenColumnSeries Data="@_months"
-                                Title="Consumption"
+                                Title="@T("Consumption")"
                                 CategoryProperty="Label"
                                 ValueProperty="ConsumptionKWh"
                                 Fill="var(--sessy-consumption-area)"
@@ -19,7 +19,7 @@
                                 StrokeWidth="2" />
 
             <RadzenColumnSeries Data="@_months"
-                                Title="From the grid"
+                                Title="@T("From the grid")"
                                 CategoryProperty="Label"
                                 ValueProperty="GridImportKWh"
                                 Fill="var(--sessy-year-1-area)"
@@ -27,7 +27,7 @@
                                 StrokeWidth="2" />
 
             <RadzenLineSeries Data="@_months"
-                              Title="Self-sufficiency"
+                              Title="@T("Self-sufficiency")"
                               CategoryProperty="Label"
                               ValueProperty="SelfSufficiencyPct"
                               ValueAxisName="share"
@@ -37,7 +37,7 @@
             @if (_hasSolar)
             {
                 <RadzenLineSeries Data="@_months"
-                                  Title="Solar used at home"
+                                  Title="@T("Solar used at home")"
                                   CategoryProperty="Label"
                                   ValueProperty="SelfConsumptionPct"
                                   ValueAxisName="share"
@@ -46,7 +46,7 @@
             }
 
             <RadzenCategoryAxis LabelAutoRotation="-45">
-                <RadzenAxisTitle Text="Month" />
+                <RadzenAxisTitle Text="@T("Month")" />
             </RadzenCategoryAxis>
             <RadzenValueAxis Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
                 <RadzenGridLines Visible="true" />

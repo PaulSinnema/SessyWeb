@@ -2,33 +2,34 @@
 @using SessyWeb.Components
 @using Radzen
 @using Radzen.Blazor
+@inherits BaseComponent
 
 <RadzenCard>
-    <RadzenText TextStyle="TextStyle.H6">⚡ Energy System Savings</RadzenText>
+    <RadzenText TextStyle="TextStyle.H6">⚡ @T("Energy System Savings")</RadzenText>
     <RadzenRow Gap="8px">
         <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Annual savings"
-                               Value="@($"€ {Dashboard!.EnergySystemAnnualSavingsEur:F2}/year")"
+            <StatCardComponent Title="@T("Annual savings")"
+                               Value="@T("€ {0:F2}/year", Dashboard!.EnergySystemAnnualSavingsEur)"
                                Highlight="true" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Period savings"
+            <StatCardComponent Title="@T("Period savings")"
                                Value="@($"€ {Dashboard!.Period.TotalSavingsEur:F2}")" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Export revenue"
+            <StatCardComponent Title="@T("Export revenue")"
                                Value="@($"€ {Dashboard!.Period.GridExportRevenueEur:F2} ({Dashboard.Period.TotalGridExportKWh:F1} kWh)")" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Arbitrage profit (realized)"
+            <StatCardComponent Title="@T("Arbitrage profit (realized)")"
                                Value="@($"€ {Dashboard!.Period.ArbitrageProfitEur:F2}")" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Arbitrage profit (planned)"
+            <StatCardComponent Title="@T("Arbitrage profit (planned)")"
                                Value="@($"€ {Dashboard!.Period.PlannedArbitrageProfitEur:F2}")" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Buy / sell price (avg)"
+            <StatCardComponent Title="@T("Buy / sell price (avg)")"
                                Value="@($"€ {Dashboard!.Period.WeightedAvgBuyPriceEurPerKWh:F4} / € {Dashboard.Period.WeightedAvgSellPriceEurPerKWh:F4}/kWh")" />
         </RadzenColumn>
         @* Five solar figures. Without an inverter they can only read zero, and self-sufficiency
@@ -36,56 +37,56 @@
         @if (Dashboard!.SolarIsConfigured)
         {
             <RadzenColumn Size="6" SizeMD="3">
-                <StatCardComponent Title="Solar production"
+                <StatCardComponent Title="@T("Solar production")"
                                    Value="@($"{Dashboard!.Period.TotalSolarProductionKWh:F1} kWh")" />
             </RadzenColumn>
             <RadzenColumn Size="6" SizeMD="3">
-                <StatCardComponent Title="Self-sufficiency"
+                <StatCardComponent Title="@T("Self-sufficiency")"
                                    Value="@($"{Dashboard!.Period.SelfSufficiencyPct:F1} %")"
                                    Highlight="true" />
             </RadzenColumn>
             <RadzenColumn Size="6" SizeMD="3">
-                <StatCardComponent Title="Self-consumption"
+                <StatCardComponent Title="@T("Self-consumption")"
                                    Value="@($"{Dashboard!.Period.SelfConsumptionPct:F1} %")"
                                    Highlight="true" />
             </RadzenColumn>
             <RadzenColumn Size="6" SizeMD="3">
-                <StatCardComponent Title="Performance ratio"
+                <StatCardComponent Title="@T("Performance ratio")"
                                    Value="@($"{Dashboard!.Period.SolarPerformanceRatio * 100:F1} %")" />
             </RadzenColumn>
             <RadzenColumn Size="6" SizeMD="3">
-                <StatCardComponent Title="Avg / peak daily solar"
+                <StatCardComponent Title="@T("Avg / peak daily solar")"
                                    Value="@($"{Dashboard!.Period.AvgDailySolarProductionKWh:F1} / {Dashboard.Period.PeakDailySolarProductionKWh:F1} kWh")" />
             </RadzenColumn>
         }
         <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Charged / discharged"
+            <StatCardComponent Title="@T("Charged / discharged")"
                                Value="@($"{Dashboard!.Period.TotalBatteryChargedKWh:F1} / {Dashboard.Period.TotalBatteryDischargedKWh:F1} kWh")" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Round-trip efficiency (measured)"
+            <StatCardComponent Title="@T("Round-trip efficiency (measured)")"
                                Value="@RoundTripEfficiencyValue"
                                InfoTooltip="@RoundTripEfficiencyTooltip" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Cycles (total / avg per battery)"
+            <StatCardComponent Title="@T("Cycles (total / avg per battery)")"
                                Value="@($"{Dashboard!.Period.BatteryCycles:F1} / {AvgCyclesPerBattery}")" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Cycles per day / avg SOC"
-                               Value="@($"{Dashboard!.Period.BatteryCyclesPerDay:F2}/day — {Dashboard.Period.AverageSocPct:F1} %")" />
+            <StatCardComponent Title="@T("Cycles per day / avg SOC")"
+                               Value="@T("{0:F2}/day — {1:F1} %", Dashboard!.Period.BatteryCyclesPerDay, Dashboard.Period.AverageSocPct)" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Cycle cost (derived)"
+            <StatCardComponent Title="@T("Cycle cost (derived)")"
                                Value="@($"€ {Dashboard!.CycleCostEurPerKWh:F4}/kWh")"
-                               InfoTooltip="Derived from battery investments: net purchase price divided by expected energy throughput (capacity × expected total cycles). Used by the planner as the arbitrage threshold." />
+                               InfoTooltip="@T("Derived from battery investments: net purchase price divided by expected energy throughput (capacity × expected total cycles). Used by the planner as the arbitrage threshold.")" />
         </RadzenColumn>
     </RadzenRow>
     <RadzenText TextStyle="TextStyle.Caption" Style="margin-top: 0.75rem; opacity: 0.7;">
-        Annual savings = seasonal monthly averages (all historical data). Period savings = actual measured savings in the selected period (@($"{Dashboard!.Period.PeriodDays:F0}") days).
+        @T("Annual savings = seasonal monthly averages (all historical data). Period savings = actual measured savings in the selected period ({0:F0} days).", Dashboard!.Period.PeriodDays)
         @if (Dashboard!.SolarIsConfigured)
         {
-            <text>Solar and battery are treated as one integrated system.</text>
+            @T("Solar and battery are treated as one integrated system.")
         }
     </RadzenText>
 </RadzenCard>

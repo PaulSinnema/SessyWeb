@@ -9,12 +9,11 @@ namespace SessyWeb.Components
         [Inject]
         private ForecastAccuracyService? ForecastAccuracyService { get; set; }
 
-        private const string HowToRead =
-            "Bars: what the house used each day. Pink line: what the planner expected for that day, a day in advance; " +
+        private string HowToRead => T("Bars: what the house used each day. Pink line: what the planner expected for that day, a day in advance; " +
             "this is the estimate the battery plan is built on. Orange line: what the consumption model predicts from " +
             "that day's measured temperature and the day of the week. The model gets the real temperature, as if the " +
             "weather forecast were perfect, so it has a head start. Mean error: how far off a forecast is on average. " +
-            "Bias: whether it is structurally too high (+) or too low (−). The planner's forecasts are kept 40 days.";
+            "Bias: whether it is structurally too high (+) or too low (−). The planner's forecasts are kept 40 days.");
 
         private ForecastAccuracyResult? _result;
 
@@ -34,13 +33,12 @@ namespace SessyWeb.Components
             });
         }
 
-        private string SummaryText() => string.Format(GetFormatProvider(),
-            "{0} complete days, {1:dd-MM-yyyy} to {2:dd-MM-yyyy}.",
+        private string SummaryText() => T("{0} complete days, {1:dd-MM-yyyy} to {2:dd-MM-yyyy}.",
             _result!.Days.Count, _result.Days[0].Date, _result.Days[^1].Date);
 
         private string ErrorText(string name, ForecastError? error) => error == null
-            ? $"{name}: not available."
-            : string.Format(GetFormatProvider(), "{0}: mean error {1:0.0} %, bias {2:+0.0;-0.0;0.0} %.",
+            ? T("{0}: not available.", name)
+            : T("{0}: mean error {1:0.0} %, bias {2:+0.0;-0.0;0.0} %.",
                 name, error.MeanAbsolutePercent, error.BiasPercent);
     }
 }

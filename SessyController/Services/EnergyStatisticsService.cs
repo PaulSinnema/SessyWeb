@@ -173,7 +173,7 @@ namespace SessyController.Services
         /// 2. Live price from EPEXPricesService (today's value, all-in)
         /// 3. Configured fallback from HeatPumpConfig (appsettings.json)
         /// </summary>
-        private async Task<(double price, string source)> GetEffectiveGasPriceAsync()
+        private async Task<(double price, string source, object[] args)> GetEffectiveGasPriceAsync()
         {
             // Try heating-degree-day weighted historical average — most accurate.
             // Colder days (more heating demand) carry more weight in the average,
@@ -191,21 +191,22 @@ namespace SessyController.Services
                 double? allInAvg = await _calculationService.CalculateGasPriceAsync(avgMarketPrice.Value);
                 double price = allInAvg ?? avgMarketPrice.Value;
                 int days = (await _gasPricesDataService.GetAllAsync()).Count;
-                string src = $"Heating-degree-day weighted average of {days} days: market avg={avgMarketPrice.Value:F4} EUR/m³, all-in={price:F4} EUR/m³ (incl. energiebelasting + BTW)";
-                return (price, src);
+                // Format and arguments apart, so the page can show the text in its own language.
+                return (price, "Heating-degree-day weighted average of {0} days: market avg={1:F4} EUR/m³, all-in={2:F4} EUR/m³ (incl. energy tax + VAT)",
+                        new object[] { days, avgMarketPrice.Value, price });
             }
 
             // Fall back to today's live price.
             if (_epexPricesService.CurrentGasPriceEurPerM3.HasValue)
             {
                 double price = _epexPricesService.CurrentGasPriceEurPerM3.Value;
-                string src = $"Live TTF day-ahead via Enever.nl, all-in incl. energiebelasting + BTW";
-                return (price, src);
+                return (price, "Live TTF day-ahead via Enever.nl, all-in incl. energy tax + VAT", Array.Empty<object>());
             }
 
             // Last resort: configured value.
             return (_heatPumpConfig.GasPriceEurPerM3,
-                    $"Configured fallback (no live feed or history available — add Enever:Token to appsettings.json): € {_heatPumpConfig.GasPriceEurPerM3:F4}/m³");
+                    "Configured fallback (no live feed or history available — add Enever:Token to appsettings.json): € {0:F4}/m³",
+                    new object[] { _heatPumpConfig.GasPriceEurPerM3 });
         }
 
         /// <summary>
@@ -462,7 +463,7 @@ namespace SessyController.Services
         /// </summary>
         public async Task<HeatPumpStatistics> GetHeatPumpStatisticsAsync()
         {
-            var (gasPrice, source) = await GetEffectiveGasPriceAsync();
+            var (gasPrice, source, sourceArgs) = await GetEffectiveGasPriceAsync();
 
             // Cache for use in synchronous callers (GetAnnualSavingsEur, CalculateHeatPumpSavings).
             _cachedEffectiveGasPrice = gasPrice;
@@ -501,6 +502,7 @@ namespace SessyController.Services
                 AnnualGasCostSavedEur = gasCostSaved,
                 NetAnnualSavingsEur = netSavings,
                 GasPriceSource = source,
+                GasPriceSourceArgs = sourceArgs,
             };
         }
 

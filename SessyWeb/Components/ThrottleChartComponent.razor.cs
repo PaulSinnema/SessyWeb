@@ -115,24 +115,24 @@ namespace SessyWeb.Components
                     })
                     .ToList();
 
-                _chargeSource = chargeCapability.Samples > 0 ? "measured per SOC band, taper/floor where a band has no data"
-                    : taper.Samples > 0 ? "measured taper with floor"
-                    : $"not measured yet, {fallback * 100.0:F0}% of nameplate";
-                _dischargeSource = dischargeCapability.Samples > 0 ? "measured plateau and knee"
-                    : $"not measured yet, {fallback * 100.0:F0}% of nameplate";
+                _chargeSource = chargeCapability.Samples > 0 ? T("measured per SOC band, taper/floor where a band has no data")
+                    : taper.Samples > 0 ? T("measured taper with floor")
+                    : T("not measured yet, {0:F0}% of nameplate", fallback * 100.0);
+                _dischargeSource = dischargeCapability.Samples > 0 ? T("measured plateau and knee")
+                    : T("not measured yet, {0:F0}% of nameplate", fallback * 100.0);
 
                 _chargeTemperatureText = chargeCapability.HasTemperatureSlope
                     ? SlopeText(chargeCapability.TemperatureSlopeWPerC, chargeCapability.MinTemperatureC, chargeCapability.MaxTemperatureC)
-                    : "no temperature effect measured yet";
+                    : T("no temperature effect measured yet");
                 _dischargeTemperatureText = dischargeCapability.HasTemperatureSlope
                     ? SlopeText(dischargeCapability.TemperatureSlopeWPerC, dischargeCapability.MinTemperatureC, dischargeCapability.MaxTemperatureC)
-                    : "no temperature effect measured yet";
+                    : T("no temperature effect measured yet");
             });
 
             StateHasChanged();
         }
 
-        private static string SlopeText(double slopeWPerC, double minC, double maxC)
-            => $"{slopeWPerC:+0;-0} W per °C warmer, measured between {minC:F1} and {maxC:F1} °C";
+        private string SlopeText(double slopeWPerC, double minC, double maxC)
+            => T("{0:+0;-0} W per °C warmer, measured between {1:F1} and {2:F1} °C", slopeWPerC, minC, maxC);
     }
 }

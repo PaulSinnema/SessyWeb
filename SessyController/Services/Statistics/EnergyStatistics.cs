@@ -362,8 +362,11 @@ namespace SessyController.Services.Statistics
         /// <summary>Net annual savings: gas saved + standing charge - electricity cost (EUR/year).</summary>
         public double NetAnnualSavingsEur { get; set; }
 
-        /// <summary>Human-readable description of the gas price source.</summary>
+        /// <summary>Description of the gas price source: an English format string, filled with GasPriceSourceArgs.</summary>
         public string GasPriceSource { get; set; } = string.Empty;
+
+        /// <summary>Arguments for the GasPriceSource format string.</summary>
+        public object[] GasPriceSourceArgs { get; set; } = Array.Empty<object>();
     }
 
     /// <summary>

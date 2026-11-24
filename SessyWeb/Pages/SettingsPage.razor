@@ -7,7 +7,7 @@
 <RadzenLayout Style="height: 80vh;">
     <RadzenHeader Style="height: 100%; margin: 0px; padding: 0px;">
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Style="height:100%; margin: 0px; padding: 0px;">
-            <RadzenLabel Text="Settings" class="h4 m-2" />
+            <RadzenLabel Text="@T("Settings")" class="h4 m-2" />
         </RadzenStack>
     </RadzenHeader>
 
@@ -17,7 +17,7 @@
             @* ── Investment Groups ─────────────────────────────────────────── *@
             <Tabs>
                 @* ── Management Settings ───────────────────────────────────── *@
-                <RadzenTabsItem Text="Management Settings" Icon="settings">
+                <RadzenTabsItem Text="@T("Management Settings")" Icon="settings">
                     <RadzenStack Orientation="Orientation.Vertical" Gap="1rem" Style="padding: 1rem; max-width: 900px;">
 
                         @if (_settings == null)
@@ -27,38 +27,38 @@
                         else
                         {
                             @* ── Location ────────────────────────────────────── *@
-                            <RadzenFieldset Text="Location">
+                            <RadzenFieldset Text="@T("Location")">
                                 <RadzenRow Gap="1rem">
                                     <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Latitude" />
+                                        <RadzenLabel Text="@T("Latitude")" />
                                         <RadzenNumeric @bind-Value="_settings.Latitude" Format="F6" Style="width:100%" />
                                     </RadzenColumn>
                                     <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Longitude" />
+                                        <RadzenLabel Text="@T("Longitude")" />
                                         <RadzenNumeric @bind-Value="_settings.Longitude" Format="F6" Style="width:100%" />
                                     </RadzenColumn>
                                     <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Timezone" />
+                                        <RadzenLabel Text="@T("Timezone")" />
                                         <RadzenTextBox @bind-Value="_settings.TimeZone" Style="width:100%" />
                                     </RadzenColumn>
                                 </RadzenRow>
                             </RadzenFieldset>
 
                             @* ── Solar ───────────────────────────────────────── *@
-                            <RadzenFieldset Text="Solar">
+                            <RadzenFieldset Text="@T("Solar")">
                                 <RadzenRow Gap="1rem">
                                     <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Annual production (kWh)" />
+                                        <RadzenLabel Text="@T("Annual production (kWh)")" />
                                         <RadzenNumeric @bind-Value="_settings.SolarAnnualProductionKWh" Format="F0" Style="width:100%" />
                                     </RadzenColumn>
                                 </RadzenRow>
                             </RadzenFieldset>
 
                             @* ── Battery control ──────────────────────────────── *@
-                            <RadzenFieldset Text="Battery control">
+                            <RadzenFieldset Text="@T("Battery control")">
                                 <RadzenRow Gap="1rem">
                                     <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Optimization strategy" />
+                                        <RadzenLabel Text="@T("Optimization strategy")" />
                                         <RadzenDropDown @bind-Value="_settings.Strategy"
                                                         Data="@_strategies"
                                                         TextProperty="Text"
@@ -66,49 +66,49 @@
                                                         Style="width:100%" />
                                     </RadzenColumn>
                                     <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Battery control method" />
+                                        <RadzenLabel Text="@T("Battery control method")" />
                                         <RadzenDropDown @bind-Value="_settings.BatteryControlMethod"
                                                         Data="@_controlMethods"
                                                         TextProperty="Text"
                                                         ValueProperty="Value"
                                                         Style="width:100%" />
                                         <RadzenText TextStyle="TextStyle.Caption">
-                                            Default: P1 grid target — balances the batteries.
-                                            <InfoTipComponent Text="P1 grid target (recommended): every battery runs in NOM and follows the grid target on the P1 meter. The Sessy firmware then divides the power over all batteries itself and keeps them in balance, and it follows the real house load in real time. Setpoint per battery: SessyWeb sends each battery a fixed share of the power (by nameplate) on the Open API. Nothing balances the batteries then, so their state of charge can drift apart and one battery runs full or empty before the others; the setpoint also only changes once per control cycle, so changes in house load in between are not followed. Zero Net Home stays NOM in both methods; Hold reserve follows the solar surplus every 5 seconds in both." />
+                                            @T("Default: P1 grid target — balances the batteries.")
+                                            <InfoTipComponent Text="@T("P1 grid target (recommended): every battery runs in NOM and follows the grid target on the P1 meter. The Sessy firmware then divides the power over all batteries itself and keeps them in balance, and it follows the real house load in real time. Setpoint per battery: SessyWeb sends each battery a fixed share of the power (by nameplate) on the Open API. Nothing balances the batteries then, so their state of charge can drift apart and one battery runs full or empty before the others; the setpoint also only changes once per control cycle, so changes in house load in between are not followed. Zero Net Home stays NOM in both methods; Hold reserve follows the solar surplus every 5 seconds in both.")" />
                                         </RadzenText>
                                     </RadzenColumn>
                                     <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Minimum reserve (%)" />
+                                        <RadzenLabel Text="@T("Minimum reserve (%)")" />
                                         <RadzenNumeric TValue="double" @bind-Value="_settings.FixedNightReservePct" Format="F0" Min="0" Max="100" Style="width:100%" />
                                         <RadzenText TextStyle="TextStyle.Caption">
-                                            Default 0. Never discharge below this.
-                                            <InfoTipComponent Text="Percent of capacity the planner never discharges below. Not needed to protect the cells — the batteries' BMS already does that — and not needed for the night either: the planner weighs covering the house at night against selling in the evening peak itself. Set it only if you want energy held back on purpose, for example as a buffer. Every percent above 0 is capacity the planner cannot use." />
+                                            @T("Default 0. Never discharge below this.")
+                                            <InfoTipComponent Text="@T("Percent of capacity the planner never discharges below. Not needed to protect the cells — the batteries' BMS already does that — and not needed for the night either: the planner weighs covering the house at night against selling in the evening peak itself. Set it only if you want energy held back on purpose, for example as a buffer. Every percent above 0 is capacity the planner cannot use.")" />
                                         </RadzenText>
                                     </RadzenColumn>
                                     <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Throttle fallback (%)" />
+                                        <RadzenLabel Text="@T("Throttle fallback (%)")" />
                                         <RadzenNumeric TValue="double" @bind-Value="_settings.ThrottleFallbackPct" Format="F0" Min="0" Max="100" Style="width:100%" />
                                         <RadzenText TextStyle="TextStyle.Caption">
                                             0 = 80%
-                                            <InfoTipComponent Text="Power cap used only while the throttle at the current temperature has not been measured yet. Once samples exist the measured ratio takes over. Assuming no throttle at all would make the planner ask for power the battery cannot deliver." />
+                                            <InfoTipComponent Text="@T("Power cap used only while the throttle at the current temperature has not been measured yet. Once samples exist the measured ratio takes over. Assuming no throttle at all would make the planner ask for power the battery cannot deliver.")" />
                                         </RadzenText>
                                     </RadzenColumn>
                                     <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Round-trip efficiency fallback (%)" />
+                                        <RadzenLabel Text="@T("Round-trip efficiency fallback (%)")" />
                                         <RadzenNumeric TValue="double" @bind-Value="_settings.RoundTripEfficiencyFallbackPct" Format="F0" Min="0" Max="100" Style="width:100%" />
                                         <RadzenText TextStyle="TextStyle.Caption">
                                             0 = 90%
-                                            <InfoTipComponent Text="Round-trip energy efficiency used until enough charging and discharging has been measured. This is how much of the stored energy comes back out, which decides whether arbitrage pays at all — a different quantity from the throttle, which limits power. The planner derives the one-way efficiencies as the square root of this." />
+                                            <InfoTipComponent Text="@T("Round-trip energy efficiency used until enough charging and discharging has been measured. This is how much of the stored energy comes back out, which decides whether arbitrage pays at all — a different quantity from the throttle, which limits power. The planner derives the one-way efficiencies as the square root of this.")" />
                                         </RadzenText>
                                     </RadzenColumn>
                                     <RadzenColumn Size="12" SizeMD="4" Style="display:flex; flex-direction:column; gap:8px; justify-content:flex-end;">
                                         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
                                             <RadzenCheckBox @bind-Value="_settings.ChargedInControl" />
-                                            <RadzenLabel Text="Charged in control" />
+                                            <RadzenLabel Text="@T("Charged in control")" />
                                         </RadzenStack>
                                         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
                                             <RadzenCheckBox @bind-Value="_settings.ManualOverride" />
-                                            <RadzenLabel Text="Manual override" />
+                                            <RadzenLabel Text="@T("Manual override")" />
                                         </RadzenStack>
                                     </RadzenColumn>
                                 </RadzenRow>
@@ -116,27 +116,27 @@
                                 {
                                     <RadzenRow Gap="1rem" Style="margin-top:1rem;">
                                         <RadzenColumn Size="12" SizeMD="4">
-                                            <RadzenLabel Text="Manual charging hours" />
+                                            <RadzenLabel Text="@T("Manual charging hours")" />
                                             <RadzenDropDown @bind-Value="_chargingHours"
                                                             Data="@_allHours"
                                                             Multiple="true" AllowClear="true"
-                                                            Placeholder="— select hours —" Style="width:100%"
+                                                            Placeholder="@T("— select hours —")" Style="width:100%"
                                                             Change="@(() => OnChargingHoursChanged())" />
                                         </RadzenColumn>
                                         <RadzenColumn Size="12" SizeMD="4">
-                                            <RadzenLabel Text="Manual discharging hours" />
+                                            <RadzenLabel Text="@T("Manual discharging hours")" />
                                             <RadzenDropDown @bind-Value="_dischargingHours"
                                                             Data="@_allHours"
                                                             Multiple="true" AllowClear="true"
-                                                            Placeholder="— select hours —" Style="width:100%"
+                                                            Placeholder="@T("— select hours —")" Style="width:100%"
                                                             Change="@(() => OnDischargingHoursChanged())" />
                                         </RadzenColumn>
                                         <RadzenColumn Size="12" SizeMD="4">
-                                            <RadzenLabel Text="Manual Zero Net Home hours" />
+                                            <RadzenLabel Text="@T("Manual Zero Net Home hours")" />
                                             <RadzenDropDown @bind-Value="_nzhHours"
                                                             Data="@_allHours"
                                                             Multiple="true" AllowClear="true"
-                                                            Placeholder="— select hours —" Style="width:100%"
+                                                            Placeholder="@T("— select hours —")" Style="width:100%"
                                                             Change="@(() => OnNzhHoursChanged())" />
                                         </RadzenColumn>
                                     </RadzenRow>
@@ -144,100 +144,100 @@
                             </RadzenFieldset>
 
                             @* ── Planner tuning parameters ────────────────────── *@
-                            <RadzenFieldset Text="Diagnostics">
+                            <RadzenFieldset Text="@T("Diagnostics")">
                                 <RadzenRow Gap="1rem">
                                     <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Record planner solve inputs" />
+                                        <RadzenLabel Text="@T("Record planner solve inputs")" />
                                         <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">
-                                            Default: Off. Writes one JSON file per rebuild to the export directory.
-                                            <InfoTipComponent Text="When on, the planner saves its exact solve input (prices, battery spec, options, SOC bounds) to the export directory on every rebuild, so a suspect plan can be replayed. The export directory must exist and, in Docker, be a mounted volume — otherwise the files land inside the container and are lost on restart. The SESSY_RECORD_SOLVE_INPUTS environment variable forces this on regardless of this switch." />
+                                            @T("Default: Off. Writes one JSON file per rebuild to the export directory.")
+                                            <InfoTipComponent Text="@T("When on, the planner saves its exact solve input (prices, battery spec, options, SOC bounds) to the export directory on every rebuild, so a suspect plan can be replayed. The export directory must exist and, in Docker, be a mounted volume — otherwise the files land inside the container and are lost on restart. The SESSY_RECORD_SOLVE_INPUTS environment variable forces this on regardless of this switch.")" />
                                         </RadzenText>
                                         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
                                             <RadzenCheckBox @bind-Value="_settings.RecordSolveInputs" />
-                                            <RadzenLabel Text="Enabled" />
+                                            <RadzenLabel Text="@T("Enabled")" />
                                         </RadzenStack>
                                     </RadzenColumn>
                                     <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Solve inputs to keep" />
+                                        <RadzenLabel Text="@T("Solve inputs to keep")" />
                                         <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">
-                                            Oldest files are pruned. Default: 20.
-                                            <InfoTipComponent Text="How many solve-input files to keep in the export directory; the oldest are deleted beyond this count. 0 or less falls back to 20." />
+                                            @T("Oldest files are pruned. Default: 20.")
+                                            <InfoTipComponent Text="@T("How many solve-input files to keep in the export directory; the oldest are deleted beyond this count. 0 or less falls back to 20.")" />
                                         </RadzenText>
                                         <RadzenNumeric @bind-Value="_settings.SolveInputKeepFiles" Min="1" Max="500" Style="width:100%" />
                                     </RadzenColumn>
                                     <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Charged schedule history (days)" />
+                                        <RadzenLabel Text="@T("Charged schedule history (days)")" />
                                         <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">
-                                            Older quarters are pruned once a day. Default: 30.
-                                            <InfoTipComponent Text="Every time Charged's schedule is read from the batteries, the quarters that changed are stored in the database, so Charged's plan can be compared with ours afterwards (Plan dump). This sets how many days of that history are kept. 0 or less falls back to 30." />
+                                            @T("Older quarters are pruned once a day. Default: 30.")
+                                            <InfoTipComponent Text="@T("Every time Charged's schedule is read from the batteries, the quarters that changed are stored in the database, so Charged's plan can be compared with ours afterwards (Plan dump). This sets how many days of that history are kept. 0 or less falls back to 30.")" />
                                         </RadzenText>
                                         <RadzenNumeric @bind-Value="_settings.ChargedScheduleKeepDays" Min="1" Max="365" Style="width:100%" />
                                     </RadzenColumn>
                                     <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Export directory" />
+                                        <RadzenLabel Text="@T("Export directory")" />
                                         <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">
-                                            Where solve inputs are written. In Docker: a mounted volume.
-                                            <InfoTipComponent Text="Absolute path the planner writes solve-input files to. It must exist; in Docker it must be inside a mounted volume, otherwise the files are lost when the container restarts." />
+                                            @T("Where solve inputs are written. In Docker: a mounted volume.")
+                                            <InfoTipComponent Text="@T("Absolute path the planner writes solve-input files to. It must exist; in Docker it must be inside a mounted volume, otherwise the files are lost when the container restarts.")" />
                                         </RadzenText>
                                         <RadzenTextBox @bind-Value="_settings.ExportDirectory" Style="width:100%" />
                                     </RadzenColumn>
                                     <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Developer options" />
+                                        <RadzenLabel Text="@T("Developer options")" />
                                         <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">
-                                            Default: Off. Shows developer-only tooling (the Plan dump tab).
-                                            <InfoTipComponent Text="When on, the Plan dump tab becomes visible, with its plan snapshot and the past solve-input reconstruction. Off hides the whole tab." />
+                                            @T("Default: Off. Shows developer-only tooling (the Plan dump tab).")
+                                            <InfoTipComponent Text="@T("When on, the Plan dump tab becomes visible, with its plan snapshot and the past solve-input reconstruction. Off hides the whole tab.")" />
                                         </RadzenText>
                                         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
                                             <RadzenCheckBox @bind-Value="_settings.DeveloperOptions" Change="@((bool _) => StateHasChanged())" />
-                                            <RadzenLabel Text="Enabled" />
+                                            <RadzenLabel Text="@T("Enabled")" />
                                         </RadzenStack>
                                     </RadzenColumn>
                                 </RadzenRow>
                             </RadzenFieldset>
 
                             @* ── Planner tuning parameters ────────────────────── *@
-                            <RadzenFieldset Text="Advanced planning parameters">
+                            <RadzenFieldset Text="@T("Advanced planning parameters")">
                                 <RadzenRow Gap="1rem">
                                     <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Cycle cost source" />
+                                        <RadzenLabel Text="@T("Cycle cost source")" />
                                         <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">
-                                            On = derive from investments. Off = use the fixed value.
-                                            <InfoTipComponent Text="On: the wear cost per kWh is derived from the battery investments (cost / capacity / cycles). Off: the planner uses the fixed cycle cost below — set it to 0 to disable the wear cost entirely and trade on every profitable spread." />
+                                            @T("On = derive from investments. Off = use the fixed value.")
+                                            <InfoTipComponent Text="@T("On: the wear cost per kWh is derived from the battery investments (cost / capacity / cycles). Off: the planner uses the fixed cycle cost below — set it to 0 to disable the wear cost entirely and trade on every profitable spread.")" />
                                         </RadzenText>
                                         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
                                             <RadzenCheckBox @bind-Value="_settings.UseCalculatedCycleCost" />
-                                            <RadzenLabel Text="Calculate from investments" />
+                                            <RadzenLabel Text="@T("Calculate from investments")" />
                                         </RadzenStack>
                                     </RadzenColumn>
                                     <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Fixed cycle cost (€/kWh)" />
+                                        <RadzenLabel Text="@T("Fixed cycle cost (€/kWh)")" />
                                         <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">
-                                            Default: 0. Used when 'Calculate from investments' is off.
-                                            <InfoTipComponent Text="Fixed battery wear cost per kWh, used only when 'Calculate from investments' is off. 0 disables the wear penalty; a higher value makes the planner more cautious about cycling." />
+                                            @T("Default: 0. Used when 'Calculate from investments' is off.")
+                                            <InfoTipComponent Text="@T("Fixed battery wear cost per kWh, used only when 'Calculate from investments' is off. 0 disables the wear penalty; a higher value makes the planner more cautious about cycling.")" />
                                         </RadzenText>
                                         <RadzenNumeric TValue="double" @bind-Value="_settings.FixedCycleCostEurPerKWh" Format="0.000" Min="0" Max="1" Step="0.01" Style="width:100%" />
                                     </RadzenColumn>
                                 </RadzenRow>
                                 <RadzenRow Gap="1rem">
                                     <RadzenColumn Size="12">
-                                        <RadzenButton Text="Reset to defaults" Icon="restart_alt" ButtonStyle="ButtonStyle.Secondary" Size="ButtonSize.Small"
+                                        <RadzenButton Text="@T("Reset to defaults")" Icon="restart_alt" ButtonStyle="ButtonStyle.Secondary" Size="ButtonSize.Small"
                                                       Click="@ResetPlannerDefaults" Style="margin-bottom:0.75rem" />
                                     </RadzenColumn>
                                 </RadzenRow>
                                 <RadzenRow Gap="1rem">
                                     <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Planning horizon (hours)" />
+                                        <RadzenLabel Text="@T("Planning horizon (hours)")" />
                                         <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">
-                                            0 = no limit. Default: 0.
-                                            <InfoTipComponent Text="Quarters beyond this many hours are ignored by the solver, so discharge cannot be deferred to a distant peak. Typical values are 24 or 36; 0 uses every quarter with a known price." />
+                                            @T("0 = no limit. Default: 0.")
+                                            <InfoTipComponent Text="@T("Quarters beyond this many hours are ignored by the solver, so discharge cannot be deferred to a distant peak. Typical values are 24 or 36; 0 uses every quarter with a known price.")" />
                                         </RadzenText>
                                         <RadzenNumeric @bind-Value="_settings.PlanningHorizonHours" Style="width:100%" />
                                     </RadzenColumn>
                                     <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Use predicted prices in the solver" />
+                                        <RadzenLabel Text="@T("Use predicted prices in the solver")" />
                                         <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">
-                                            Default: Off.
-                                            <InfoTipComponent Text="Off uses published prices only, which keeps the horizon short; predicted quarters still extend it for night coverage but are never traded. Soft trades predicted quarters with a risk margin, so only wide spreads are acted on. Full trusts predicted prices exactly like published ones." />
+                                            @T("Default: Off.")
+                                            <InfoTipComponent Text="@T("Off uses published prices only, which keeps the horizon short; predicted quarters still extend it for night coverage but are never traded. Soft trades predicted quarters with a risk margin, so only wide spreads are acted on. Full trusts predicted prices exactly like published ones.")" />
                                         </RadzenText>
                                         <RadzenDropDown @bind-Value="_settings.PredictedPriceMode"
                                                         Data="@_predictedPriceModes"
@@ -249,10 +249,10 @@
                                     @if (_settings.PredictedPriceMode == PredictedPriceMode.SoftMargin)
                                     {
                                         <RadzenColumn Size="12" SizeMD="4">
-                                            <RadzenLabel Text="Predicted price risk margin (€/kWh)" />
+                                            <RadzenLabel Text="@T("Predicted price risk margin (€/kWh)")" />
                                             <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">
-                                                Default: 0.05.
-                                                <InfoTipComponent Text="Widens the spread on predicted quarters: their buy price is raised and their sell price lowered by this amount, so the solver only arbitrages a predicted quarter when the gain is comfortably larger than the price uncertainty." />
+                                                @T("Default: 0.05.")
+                                                <InfoTipComponent Text="@T("Widens the spread on predicted quarters: their buy price is raised and their sell price lowered by this amount, so the solver only arbitrages a predicted quarter when the gain is comfortably larger than the price uncertainty.")" />
                                             </RadzenText>
                                             <RadzenNumeric @bind-Value="_settings.PredictedPriceRiskMarginEur" Format="F4" Step="0.01" Min="0" Style="width:100%" />
                                         </RadzenColumn>
@@ -260,10 +260,10 @@
                                 </RadzenRow>
                                 <RadzenRow Gap="1rem">
                                     <RadzenColumn Size="12" SizeMD="4">
-                                        <RadzenLabel Text="Future value discount (%/hour)" />
+                                        <RadzenLabel Text="@T("Future value discount (%/hour)")" />
                                         <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">
-                                            Time preference. 0 = off. Default: 0.3.@(_settings.SelfLearningEnabled ? " · learned nightly" : "")
-                                            <InfoTipComponent Text="How much less a quarter is worth per hour of distance when the planner decides where to send stored energy: a peak 24h out has to be that much better to still beat an equally reachable one tonight. Only affects planning — the executed plan and the reported profit use real prices. 0 turns it off, and a single distant peak can claim the whole battery again. The default of 0.3% comes from measured plan stability: 94-97% of planned modes still hold up to 18h ahead. Raise it if you switch predicted prices on for trading, because beyond 24h plans hold only 23-63%. With self-learning on, the nightly fit replaces this value as soon as it has 21 days of forecasts to measure; until then whatever you set here is kept." />
+                                            @T("Time preference. 0 = off. Default: 0.3.")@(_settings.SelfLearningEnabled ? T(" · learned nightly") : "")
+                                            <InfoTipComponent Text="@T("How much less a quarter is worth per hour of distance when the planner decides where to send stored energy: a peak 24h out has to be that much better to still beat an equally reachable one tonight. Only affects planning — the executed plan and the reported profit use real prices. 0 turns it off, and a single distant peak can claim the whole battery again. The default of 0.3% comes from measured plan stability: 94-97% of planned modes still hold up to 18h ahead. Raise it if you switch predicted prices on for trading, because beyond 24h plans hold only 23-63%. With self-learning on, the nightly fit replaces this value as soon as it has 21 days of forecasts to measure; until then whatever you set here is kept.")" />
                                         </RadzenText>
                                         <RadzenNumeric TValue="double" Value="@(_settings.FutureValueDiscountPerHour * 100.0)"
                                                        ValueChanged="@(v => _settings.FutureValueDiscountPerHour = v / 100.0)"
@@ -276,26 +276,26 @@
                                     <RadzenColumn Size="12" SizeMD="4">
                                         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
                                             <RadzenCheckBox @bind-Value="_settings.CarryForwardEnabled" Change="@((bool _) => StateHasChanged())" />
-                                            <RadzenLabel Text="Allow carry-forward past the horizon" />
-                                            <InfoTipComponent Text="Lets the planner charge purely to hold energy past the end of its horizon, valued at the measured replacement cost. Without it every charge must be paired with a discharge the planner can already see, so a cheap or negative price whose payoff lies further out is worth nothing to it. Changes what the battery buys, so it is off unless you switch it on." />
+                                            <RadzenLabel Text="@T("Allow carry-forward past the horizon")" />
+                                            <InfoTipComponent Text="@T("Lets the planner charge purely to hold energy past the end of its horizon, valued at the measured replacement cost. Without it every charge must be paired with a discharge the planner can already see, so a cheap or negative price whose payoff lies further out is worth nothing to it. Changes what the battery buys, so it is off unless you switch it on.")" />
                                         </RadzenStack>
-                                        <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">Charge now for a payoff beyond the plan. Default: off.</RadzenText>
+                                        <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">@(T("Charge now for a payoff beyond the plan. Default: off."))</RadzenText>
                                     </RadzenColumn>
                                     @if (_settings.CarryForwardEnabled)
                                     {
                                         <RadzenColumn Size="12" SizeMD="4">
-                                            <RadzenLabel Text="Replacement cost window (days)" />
+                                            <RadzenLabel Text="@T("Replacement cost window (days)")" />
                                             <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">
-                                                Default: 30.
-                                                <InfoTipComponent Text="Trailing window the cheapest all-in buy price of each day is taken from. Longer means a steadier number that reacts slowly to a change of season; shorter follows the current market but is noisier. Days with an incomplete set of prices are skipped." />
+                                                @T("Default: 30.")
+                                                <InfoTipComponent Text="@T("Trailing window the cheapest all-in buy price of each day is taken from. Longer means a steadier number that reacts slowly to a change of season; shorter follows the current market but is noisier. Days with an incomplete set of prices are skipped.")" />
                                             </RadzenText>
                                             <RadzenNumeric @bind-Value="_settings.ReplacementCostWindowDays" Min="7" Style="width:100%" />
                                         </RadzenColumn>
                                         <RadzenColumn Size="12" SizeMD="4">
-                                            <RadzenLabel Text="Replacement cost percentile" />
+                                            <RadzenLabel Text="@T("Replacement cost percentile")" />
                                             <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">
-                                                Keep it low. Default: 25.
-                                                <InfoTipComponent Text="Which percentile of those daily cheapest prices becomes the replacement cost. It answers the question: on most days, how cheaply can I buy a kWh? Low on purpose — set too high, charging is always attractive and selling never is, and the battery ends up full and idle. The result is additionally capped at the median buy price of the same window." />
+                                                @T("Keep it low. Default: 25.")
+                                                <InfoTipComponent Text="@T("Which percentile of those daily cheapest prices becomes the replacement cost. It answers the question: on most days, how cheaply can I buy a kWh? Low on purpose — set too high, charging is always attractive and selling never is, and the battery ends up full and idle. The result is additionally capped at the median buy price of the same window.")" />
                                             </RadzenText>
                                             <RadzenNumeric @bind-Value="_settings.ReplacementCostPercentile" Format="F0" Min="1" Max="99" Style="width:100%" />
                                         </RadzenColumn>
@@ -307,10 +307,10 @@
                                     <RadzenColumn Size="12" SizeMD="8">
                                         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
                                             <RadzenCheckBox @bind-Value="_settings.ShiftDischargeEnabled" />
-                                            <RadzenLabel Text="Allow moving discharge between quarters" />
-                                            <InfoTipComponent Text="Lets the planner sell stored energy in an expensive quarter and, in return, not cover the house from the battery in a cheaper quarter later (the house then imports). The energy is already stored, so no round trip is lost; the planner only does it when it pays at least 1 cent per kWh after the efficiency loss of low-power quarters. Side effect: the battery reaches the minimum reserve more often and earlier in the evening, and quarters given up show as Hold reserve. Off unless you switch it on." />
+                                            <RadzenLabel Text="@T("Allow moving discharge between quarters")" />
+                                            <InfoTipComponent Text="@T("Lets the planner sell stored energy in an expensive quarter and, in return, not cover the house from the battery in a cheaper quarter later (the house then imports). The energy is already stored, so no round trip is lost; the planner only does it when it pays at least 1 cent per kWh after the efficiency loss of low-power quarters. Side effect: the battery reaches the minimum reserve more often and earlier in the evening, and quarters given up show as Hold reserve. Off unless you switch it on.")" />
                                         </RadzenStack>
-                                        <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">Sell in the peak, import for the house when it is cheaper. Default: off.</RadzenText>
+                                        <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">@(T("Sell in the peak, import for the house when it is cheaper. Default: off."))</RadzenText>
                                     </RadzenColumn>
                                 </RadzenRow>
 
@@ -319,17 +319,17 @@
                                     <RadzenColumn Size="12" SizeMD="8">
                                         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
                                             <RadzenCheckBox @bind-Value="_settings.SelfLearningEnabled" Change="@((bool _) => StateHasChanged())" />
-                                            <RadzenLabel Text="Learn the future value discount from measured forecast error" />
-                                            <InfoTipComponent Text="Runs once a night over 21 days of stored forecasts and what actually happened, and overwrites the future value discount above. The discount comes from how much the combined solar and consumption forecast drifts with lead time. Until there is enough history it writes nothing at all and the field keeps whatever you set, so you can still tune it by hand in the meantime. A learned value that lands on its bound is reported under Tips and Checks instead of being applied silently." />
+                                            <RadzenLabel Text="@T("Learn the future value discount from measured forecast error")" />
+                                            <InfoTipComponent Text="@T("Runs once a night over 21 days of stored forecasts and what actually happened, and overwrites the future value discount above. The discount comes from how much the combined solar and consumption forecast drifts with lead time. Until there is enough history it writes nothing at all and the field keeps whatever you set, so you can still tune it by hand in the meantime. A learned value that lands on its bound is reported under Tips and Checks instead of being applied silently.")" />
                                         </RadzenStack>
                                         <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">
-                                            Nightly fit; overwrites the discount above once it has data. Default: off.
+                                            @T("Nightly fit; overwrites the discount above once it has data. Default: off.")
                                         </RadzenText>
                                     </RadzenColumn>
                                     @if (_settings.LastLearnedAt.HasValue)
                                     {
                                         <RadzenColumn Size="12" SizeMD="4">
-                                            <RadzenLabel Text="Last learned" />
+                                            <RadzenLabel Text="@T("Last learned")" />
                                             <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">
                                                 @_settings.LastLearnedAt.Value.ToString("dd-MM-yyyy HH:mm")<br />
                                                 @_settings.LastLearnedSummary
@@ -340,7 +340,7 @@
                             </RadzenFieldset>
 
                             @* ── Energy needs per month ───────────────────────── *@
-                            <RadzenFieldset Text="Estimated home energy needs per day (Wh), per month">
+                            <RadzenFieldset Text="@T("Estimated home energy needs per day (Wh), per month")">
                                 <RadzenRow Gap="0.5rem">
                                     @for (int m = 0; m < 12; m++)
                                     {
@@ -356,14 +356,14 @@
                             </RadzenFieldset>
 
                             @* ── Statistics ───────────────────────────────────── *@
-                            <RadzenFieldset Text="Statistics">
+                            <RadzenFieldset Text="@T("Statistics")">
                                 <RadzenRow Gap="1rem">
                                     <RadzenColumn Size="12" SizeMD="6">
-                                        <RadzenLabel Text="Statistics from date (optional)" />
+                                        <RadzenLabel Text="@T("Statistics from date (optional)")" />
                                         <RadzenDatePicker @bind-Value="_settings.StatisticsFromDate"
                                                           DateFormat="dd-MM-yyyy"
                                                           AllowClear="true"
-                                                          Placeholder="— all history —"
+                                                          Placeholder="@T("— all history —")"
                                                           Style="width:100%" />
                                     </RadzenColumn>
                                 </RadzenRow>
@@ -371,14 +371,14 @@
 
                             <RadzenRow>
                                 <RadzenColumn>
-                                    <RadzenButton Text="Save" Icon="save"
+                                    <RadzenButton Text="@T("Save")" Icon="save"
                                                   ButtonStyle="ButtonStyle.Success"
                                                   Click="@SaveSettingsAsync"
                                                   IsBusy="@_settingsSaving" />
                                     @if (_settingsSaved)
                                     {
                                         <RadzenText TextStyle="TextStyle.Caption" Style="margin-left:1rem; color:var(--sessy-positive-text);">
-                                            ✓ Saved
+                                            @T("✓ Saved")
                                         </RadzenText>
                                     }
                                 </RadzenColumn>
@@ -389,7 +389,7 @@
                 </RadzenTabsItem>
 
                 @* ── User interface ────────────────────────────────────────── *@
-                <RadzenTabsItem Text="User interface" Icon="display_settings">
+                <RadzenTabsItem Text="@T("User interface")" Icon="display_settings">
                     <RadzenStack Orientation="Orientation.Vertical" Gap="1rem" Style="padding: 1rem; max-width: 900px;">
 
                         @if (_settings == null)
@@ -398,16 +398,16 @@
                         }
                         else
                         {
-                            <RadzenFieldset Text="Navigation menu">
+                            <RadzenFieldset Text="@T("Navigation menu")">
                                 <RadzenRow Gap="1rem">
                                     <RadzenColumn Size="12" SizeMD="8">
                                         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
                                             <RadzenCheckBox @bind-Value="_settings.KeepMenuExpanded" />
-                                            <RadzenLabel Text="Keep the menu expanded after clicking an item" />
-                                            <InfoTipComponent Text="With this on, the menu stays as you left it with the toggle above it: expanded menus keep showing their labels while you move from page to page. With it off, every click folds the menu back to icons only, which is how it worked before. On a phone the expanded menu covers part of the page, so switch it off there if the icons suit you better." />
+                                            <RadzenLabel Text="@T("Keep the menu expanded after clicking an item")" />
+                                            <InfoTipComponent Text="@T("With this on, the menu stays as you left it with the toggle above it: expanded menus keep showing their labels while you move from page to page. With it off, every click folds the menu back to icons only, which is how it worked before. On a phone the expanded menu covers part of the page, so switch it off there if the icons suit you better.")" />
                                         </RadzenStack>
                                         <RadzenText TextStyle="TextStyle.Caption" style="color:var(--rz-text-secondary-color)">
-                                            Default: on. Applies to every browser that opens this application.
+                                            @T("Default: on. Applies to every browser that opens this application.")
                                         </RadzenText>
                                     </RadzenColumn>
                                 </RadzenRow>
@@ -415,14 +415,14 @@
 
                             <RadzenRow>
                                 <RadzenColumn>
-                                    <RadzenButton Text="Save" Icon="save"
+                                    <RadzenButton Text="@T("Save")" Icon="save"
                                                   ButtonStyle="ButtonStyle.Success"
                                                   Click="@SaveSettingsAsync"
                                                   IsBusy="@_settingsSaving" />
                                     @if (_settingsSaved)
                                     {
                                         <RadzenText TextStyle="TextStyle.Caption" Style="margin-left:1rem; color:var(--sessy-positive-text);">
-                                            ✓ Saved
+                                            @T("✓ Saved")
                                         </RadzenText>
                                     }
                                 </RadzenColumn>
@@ -432,7 +432,7 @@
                     </RadzenStack>
                 </RadzenTabsItem>
 
-                <RadzenTabsItem Text="Investment Groups" Icon="category">
+                <RadzenTabsItem Text="@T("Investment Groups")" Icon="category">
                     <RadzenDataGrid @ref="groupsGrid"
                                     Data="@GroupList"
                                     TItem="InvestmentGroup"
@@ -451,23 +451,23 @@
                         <HeaderTemplate>
                             <RadzenButton ButtonStyle="ButtonStyle.Success"
                                           Icon="add_circle"
-                                          Text="Add group"
+                                          Text="@T("Add group")"
                                           Click="@groupEditor.Insert" />
                         </HeaderTemplate>
                         <Columns>
-                            <RadzenDataGridColumn Property="@nameof(InvestmentGroup.Name)" Title="Name">
+                            <RadzenDataGridColumn Property="@nameof(InvestmentGroup.Name)" Title="@T("Name")">
                                 <EditTemplate Context="grp">
                                     <RadzenTextBox @bind-Value="grp.Name" Style="width:100%" />
                                 </EditTemplate>
                             </RadzenDataGridColumn>
-                            <RadzenDataGridColumn Property="@nameof(InvestmentGroup.Category)" Title="Category">
+                            <RadzenDataGridColumn Property="@nameof(InvestmentGroup.Category)" Title="@T("Category")">
                                 <EditTemplate Context="grp">
                                     <RadzenDropDown @bind-Value="grp.Category"
                                                     Data="@Categories"
                                                     Style="width:100%" />
                                 </EditTemplate>
                             </RadzenDataGridColumn>
-                            <RadzenDataGridColumn Property="@nameof(InvestmentGroup.Description)" Title="Description">
+                            <RadzenDataGridColumn Property="@nameof(InvestmentGroup.Description)" Title="@T("Description")">
                                 <EditTemplate Context="grp">
                                     <RadzenTextBox @bind-Value="grp.Description" Style="width:100%" />
                                 </EditTemplate>
@@ -485,13 +485,13 @@
                                 </Template>
                                 <EditTemplate Context="grp">
                                     <RadzenButton Icon="check" ButtonStyle="ButtonStyle.Success" Variant="Variant.Flat"
-                                                  Size="ButtonSize.Small" Click="@((args) => groupEditor.Save(grp))" aria-label="Save" />
+                                                  Size="ButtonSize.Small" Click="@((args) => groupEditor.Save(grp))" aria-label="@T("Save")" />
                                     <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
                                                   Size="ButtonSize.Small" class="rz-my-1 rz-ms-1"
-                                                  Click="@((args) => groupEditor.Cancel(grp))" aria-label="Cancel" />
+                                                  Click="@((args) => groupEditor.Cancel(grp))" aria-label="@T("Cancel")" />
                                     <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Flat"
                                                   Size="ButtonSize.Small" Shade="Shade.Lighter" class="rz-my-1 rz-ms-1"
-                                                  Click="@(args => groupEditor.Delete(grp))" aria-label="Delete" />
+                                                  Click="@(args => groupEditor.Delete(grp))" aria-label="@T("Delete")" />
                                 </EditTemplate>
                             </RadzenDataGridColumn>
                         </Columns>
@@ -499,7 +499,7 @@
                 </RadzenTabsItem>
 
                 @* ── Investments ───────────────────────────────────────────── *@
-                <RadzenTabsItem Text="Investments" Icon="payments">
+                <RadzenTabsItem Text="@T("Investments")" Icon="payments">
                     <RadzenDataGrid @ref="investmentsGrid"
                                     Data="@InvestmentList"
                                     TItem="Investment"
@@ -517,15 +517,15 @@
                                     PagerHorizontalAlign="HorizontalAlign.Left">
                         <HeaderTemplate>
                             <RadzenButton ButtonStyle="ButtonStyle.Success" Icon="add_circle"
-                                          Text="Add investment" Click="@investmentEditor.Insert" />
+                                          Text="@T("Add investment")" Click="@investmentEditor.Insert" />
                             <RadzenText TextStyle="TextStyle.Body1" class="rz-ms-4">
-                                Total: <strong>€ @InvestmentList?.Sum(i => i.AmountEur).ToString("F2")</strong> |
-                                Subsidies: <strong>€ @InvestmentList?.Sum(i => i.SubsidyEur).ToString("F2")</strong> |
-                                Net: <strong>€ @InvestmentList?.Sum(i => i.NetAmountEur).ToString("F2")</strong>
+                                @T("Total:") <strong>€ @InvestmentList?.Sum(i => i.AmountEur).ToString("F2")</strong> |
+                                @T("Subsidies:") <strong>€ @InvestmentList?.Sum(i => i.SubsidyEur).ToString("F2")</strong> |
+                                @T("Net:") <strong>€ @InvestmentList?.Sum(i => i.NetAmountEur).ToString("F2")</strong>
                             </RadzenText>
                         </HeaderTemplate>
                         <Columns>
-                            <RadzenDataGridColumn Property="@nameof(Investment.InvestmentGroupId)" Title="Group">
+                            <RadzenDataGridColumn Property="@nameof(Investment.InvestmentGroupId)" Title="@T("Group")">
                                 <Template Context="inv">
                                     @(Groups.FirstOrDefault(g => g.Id == inv.InvestmentGroupId)?.Name ?? "—")
                                 </Template>
@@ -535,60 +535,60 @@
                                                     TextProperty="Name"
                                                     ValueProperty="Id"
                                                     AllowClear="true"
-                                                    Placeholder="— no group —"
+                                                    Placeholder="@T("— no group —")"
                                                     Style="width:100%" />
                                 </EditTemplate>
                             </RadzenDataGridColumn>
-                            <RadzenDataGridColumn Property="@nameof(Investment.Description)" Title="Description">
+                            <RadzenDataGridColumn Property="@nameof(Investment.Description)" Title="@T("Description")">
                                 <EditTemplate Context="inv">
                                     <RadzenTextBox @bind-Value="inv.Description" Style="width:100%" />
                                 </EditTemplate>
                             </RadzenDataGridColumn>
-                            <RadzenDataGridColumn Property="@nameof(Investment.PurchaseDate)" Title="Purchase date"
+                            <RadzenDataGridColumn Property="@nameof(Investment.PurchaseDate)" Title="@T("Purchase date")"
                                                   SortOrder="SortOrder.Ascending" FormatString="{0:dd-MM-yyyy}">
                                 <EditTemplate Context="inv">
                                     <RadzenDatePicker @bind-Value="inv.PurchaseDate" Style="width:100%" />
                                 </EditTemplate>
                             </RadzenDataGridColumn>
-                            <RadzenDataGridColumn Property="@nameof(Investment.AmountEur)" Title="Amount (€)" FormatString="{0:F2}">
+                            <RadzenDataGridColumn Property="@nameof(Investment.AmountEur)" Title="@T("Amount (€)")" FormatString="{0:F2}">
                                 <EditTemplate Context="inv">
                                     <RadzenNumeric @bind-Value="inv.AmountEur" Style="width:100%" />
                                 </EditTemplate>
                             </RadzenDataGridColumn>
-                            <RadzenDataGridColumn Property="@nameof(Investment.SubsidyEur)" Title="Subsidy (€)" FormatString="{0:F2}">
+                            <RadzenDataGridColumn Property="@nameof(Investment.SubsidyEur)" Title="@T("Subsidy (€)")" FormatString="{0:F2}">
                                 <EditTemplate Context="inv">
                                     <RadzenNumeric @bind-Value="inv.SubsidyEur" Style="width:100%" />
                                 </EditTemplate>
                             </RadzenDataGridColumn>
-                            <RadzenDataGridColumn Property="@nameof(Investment.NetAmountEur)" Title="Net (€)" FormatString="{0:F2}">
+                            <RadzenDataGridColumn Property="@nameof(Investment.NetAmountEur)" Title="@T("Net (€)")" FormatString="{0:F2}">
                                 <Template Context="inv">@inv.NetAmountEur.ToString("F2")</Template>
                             </RadzenDataGridColumn>
-                            <RadzenDataGridColumn Property="@nameof(Investment.ExpectedLifetimeYears)" Title="Lifetime (yr)">
+                            <RadzenDataGridColumn Property="@nameof(Investment.ExpectedLifetimeYears)" Title="@T("Lifetime (yr)")">
                                 <EditTemplate Context="inv">
                                     <RadzenNumeric @bind-Value="inv.ExpectedLifetimeYears" Style="width:100%" />
                                 </EditTemplate>
                             </RadzenDataGridColumn>
-                            <RadzenDataGridColumn Property="@nameof(Investment.CapacityWh)" Title="Capacity (Wh)" FormatString="{0:F0}">
+                            <RadzenDataGridColumn Property="@nameof(Investment.CapacityWh)" Title="@T("Capacity (Wh)")" FormatString="{0:F0}">
                                 <EditTemplate Context="inv">
                                     <RadzenNumeric @bind-Value="inv.CapacityWh" Format="F0" Style="width:100%" />
                                 </EditTemplate>
                             </RadzenDataGridColumn>
-                            <RadzenDataGridColumn Property="@nameof(Investment.ExpectedTotalCycles)" Title="Cycles">
+                            <RadzenDataGridColumn Property="@nameof(Investment.ExpectedTotalCycles)" Title="@T("Cycles")">
                                 <EditTemplate Context="inv">
                                     <RadzenNumeric @bind-Value="inv.ExpectedTotalCycles" Style="width:100%" />
                                 </EditTemplate>
                             </RadzenDataGridColumn>
-                            <RadzenDataGridColumn Property="@nameof(Investment.EstimatedAnnualSavingsEur)" Title="Est. savings (€/yr)" FormatString="{0:F2}">
+                            <RadzenDataGridColumn Property="@nameof(Investment.EstimatedAnnualSavingsEur)" Title="@T("Est. savings (€/yr)")" FormatString="{0:F2}">
                                 <EditTemplate Context="inv">
                                     <RadzenNumeric @bind-Value="inv.EstimatedAnnualSavingsEur" Style="width:100%" />
                                 </EditTemplate>
                             </RadzenDataGridColumn>
-                            <RadzenDataGridColumn Property="@nameof(Investment.SavingsDescription)" Title="Savings description">
+                            <RadzenDataGridColumn Property="@nameof(Investment.SavingsDescription)" Title="@T("Savings description")">
                                 <EditTemplate Context="inv">
                                     <RadzenTextBox @bind-Value="inv.SavingsDescription" Style="width:100%" />
                                 </EditTemplate>
                             </RadzenDataGridColumn>
-                            <RadzenDataGridColumn Property="@nameof(Investment.Notes)" Title="Notes">
+                            <RadzenDataGridColumn Property="@nameof(Investment.Notes)" Title="@T("Notes")">
                                 <EditTemplate Context="inv">
                                     <RadzenTextBox @bind-Value="inv.Notes" Style="width:100%" />
                                 </EditTemplate>
@@ -600,7 +600,7 @@
                                     <RadzenButton Icon="add_circle" ButtonStyle="ButtonStyle.Success" Variant="Variant.Flat"
                                                   Size="ButtonSize.Small" Shade="Shade.Lighter"
                                                   Click="@(() => investmentEditor.InsertAfter(inv))"
-                                                  title="Add new row after this row" />
+                                                  title="@T("Add new row after this row")" />
                                     <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
                                                   Size="ButtonSize.Small" class="rz-my-1 rz-ms-1"
                                                   Click="@(args => investmentEditor.Edit(inv))" @onclick:stopPropagation="true" />
@@ -610,13 +610,13 @@
                                 </Template>
                                 <EditTemplate Context="inv">
                                     <RadzenButton Icon="check" ButtonStyle="ButtonStyle.Success" Variant="Variant.Flat"
-                                                  Size="ButtonSize.Small" Click="@((args) => investmentEditor.Save(inv))" aria-label="Save" />
+                                                  Size="ButtonSize.Small" Click="@((args) => investmentEditor.Save(inv))" aria-label="@T("Save")" />
                                     <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
                                                   Size="ButtonSize.Small" class="rz-my-1 rz-ms-1"
-                                                  Click="@((args) => investmentEditor.Cancel(inv))" aria-label="Cancel" />
+                                                  Click="@((args) => investmentEditor.Cancel(inv))" aria-label="@T("Cancel")" />
                                     <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Flat"
                                                   Size="ButtonSize.Small" Shade="Shade.Lighter" class="rz-my-1 rz-ms-1"
-                                                  Click="@(args => investmentEditor.Delete(inv))" aria-label="Delete" />
+                                                  Click="@(args => investmentEditor.Delete(inv))" aria-label="@T("Delete")" />
                                 </EditTemplate>
                             </RadzenDataGridColumn>
                         </Columns>
@@ -624,7 +624,7 @@
                 </RadzenTabsItem>
 
                 @* ── Taxes ─────────────────────────────────────────────────── *@
-                <RadzenTabsItem Text="Taxes" Icon="receipt_long">
+                <RadzenTabsItem Text="@T("Taxes")" Icon="receipt_long">
                     <RadzenDataGrid @ref="taxesGrid"
                                     Data="@TaxesList"
                                     TItem="Taxes"
@@ -642,75 +642,75 @@
                                     PagerHorizontalAlign="HorizontalAlign.Left">
                         <HeaderTemplate>
                             <RadzenButton ButtonStyle="ButtonStyle.Success" Icon="add_circle"
-                                          Text="Add taxes" Click="@taxEditor.Insert" />
+                                          Text="@T("Add taxes")" Click="@taxEditor.Insert" />
                         </HeaderTemplate>
                         <Columns>
-                            <RadzenDataGridColumn Property="@nameof(Taxes.Time)" Title="Time" SortOrder="SortOrder.Ascending">
+                            <RadzenDataGridColumn Property="@nameof(Taxes.Time)" Title="@T("Time")" SortOrder="SortOrder.Ascending">
                                 <EditTemplate Context="t">
                                     <RadzenDatePicker @bind-Value="t.Time" Style="width:100%" />
                                 </EditTemplate>
                             </RadzenDataGridColumn>
-                            <RadzenDataGridColumn Property="@nameof(Taxes.EnergyTax)" Title="Energy tax">
+                            <RadzenDataGridColumn Property="@nameof(Taxes.EnergyTax)" Title="@T("Energy tax")">
                                 <EditTemplate Context="t">
                                     <RadzenNumeric @bind-Value="t.EnergyTax" Style="width:100%" />
                                 </EditTemplate>
                             </RadzenDataGridColumn>
-                            <RadzenDataGridColumn Property="@nameof(Taxes.ValueAddedTax)" Title="Value added tax">
+                            <RadzenDataGridColumn Property="@nameof(Taxes.ValueAddedTax)" Title="@T("Value added tax")">
                                 <EditTemplate Context="t">
                                     <RadzenNumeric @bind-Value="t.ValueAddedTax" Style="width:100%" />
                                 </EditTemplate>
                             </RadzenDataGridColumn>
-                            <RadzenDataGridColumn Property="@nameof(Taxes.TaxReduction)" Title="Tax reduction">
+                            <RadzenDataGridColumn Property="@nameof(Taxes.TaxReduction)" Title="@T("Tax reduction")">
                                 <EditTemplate Context="t">
                                     <RadzenNumeric @bind-Value="t.TaxReduction" Style="width:100%" />
                                 </EditTemplate>
                             </RadzenDataGridColumn>
-                            <RadzenDataGridColumn Property="@nameof(Taxes.PurchaseCompensation)" Title="Purchase compensation">
+                            <RadzenDataGridColumn Property="@nameof(Taxes.PurchaseCompensation)" Title="@T("Purchase compensation")">
                                 <EditTemplate Context="t">
                                     <RadzenNumeric @bind-Value="t.PurchaseCompensation" Style="width:100%" />
                                 </EditTemplate>
                             </RadzenDataGridColumn>
-                            <RadzenDataGridColumn Property="@nameof(Taxes.ReturnDeliveryCompensation)" Title="Return delivery costs (positive)">
+                            <RadzenDataGridColumn Property="@nameof(Taxes.ReturnDeliveryCompensation)" Title="@T("Return delivery costs (positive)")">
                                 <EditTemplate Context="t">
                                     <RadzenNumeric @bind-Value="t.ReturnDeliveryCompensation" Style="width:100%" />
                                 </EditTemplate>
                             </RadzenDataGridColumn>
-                            <RadzenDataGridColumn Property="@nameof(Taxes.SolarBonusPercentage)" Title="Solar bonus (%)">
+                            <RadzenDataGridColumn Property="@nameof(Taxes.SolarBonusPercentage)" Title="@T("Solar bonus (%)")">
                                 <EditTemplate Context="t">
                                     <RadzenNumeric @bind-Value="t.SolarBonusPercentage" Style="width:100%" Format="F1" />
                                 </EditTemplate>
                             </RadzenDataGridColumn>
-                            <RadzenDataGridColumn Property="@nameof(Taxes.NetManagementCost)" Title="Net management cost">
+                            <RadzenDataGridColumn Property="@nameof(Taxes.NetManagementCost)" Title="@T("Net management cost")">
                                 <EditTemplate Context="t">
                                     <RadzenNumeric @bind-Value="t.NetManagementCost" Style="width:100%" />
                                 </EditTemplate>
                             </RadzenDataGridColumn>
-                            <RadzenDataGridColumn Property="@nameof(Taxes.FixedTransportFee)" Title="Fixed transport fee">
+                            <RadzenDataGridColumn Property="@nameof(Taxes.FixedTransportFee)" Title="@T("Fixed transport fee")">
                                 <EditTemplate Context="t">
                                     <RadzenNumeric @bind-Value="t.FixedTransportFee" Style="width:100%" />
                                 </EditTemplate>
                             </RadzenDataGridColumn>
-                            <RadzenDataGridColumn Property="@nameof(Taxes.CapacityTransportFee)" Title="Capacity transport fee">
+                            <RadzenDataGridColumn Property="@nameof(Taxes.CapacityTransportFee)" Title="@T("Capacity transport fee")">
                                 <EditTemplate Context="t">
                                     <RadzenNumeric @bind-Value="t.CapacityTransportFee" Style="width:100%" />
                                 </EditTemplate>
                             </RadzenDataGridColumn>
-                            <RadzenDataGridColumn Property="@nameof(Taxes.Netting)" Title="Netting">
+                            <RadzenDataGridColumn Property="@nameof(Taxes.Netting)" Title="@T("Netting")">
                                 <EditTemplate Context="t">
                                     <RadzenCheckBox @bind-Value="t.Netting" Style="width:10%" />
                                 </EditTemplate>
                             </RadzenDataGridColumn>
-                            <RadzenDataGridColumn Property="@nameof(Taxes.GasEnergyTaxEurPerM3)" Title="Gas energy tax (€/m³)">
+                            <RadzenDataGridColumn Property="@nameof(Taxes.GasEnergyTaxEurPerM3)" Title="@T("Gas energy tax (€/m³)")">
                                 <EditTemplate Context="t">
                                     <RadzenNumeric @bind-Value="t.GasEnergyTaxEurPerM3" Style="width:100%" Format="F4" />
                                 </EditTemplate>
                             </RadzenDataGridColumn>
-                            <RadzenDataGridColumn Property="@nameof(Taxes.GasSupplierMarkupEurPerM3)" Title="Gas supplier markup (€/m³)">
+                            <RadzenDataGridColumn Property="@nameof(Taxes.GasSupplierMarkupEurPerM3)" Title="@T("Gas supplier markup (€/m³)")">
                                 <EditTemplate Context="t">
                                     <RadzenNumeric @bind-Value="t.GasSupplierMarkupEurPerM3" Style="width:100%" Format="F4" />
                                 </EditTemplate>
                             </RadzenDataGridColumn>
-                            <RadzenDataGridColumn Property="@nameof(Taxes.GasValueAddedTaxPct)" Title="Gas VAT (%)">
+                            <RadzenDataGridColumn Property="@nameof(Taxes.GasValueAddedTaxPct)" Title="@T("Gas VAT (%)")">
                                 <EditTemplate Context="t">
                                     <RadzenNumeric @bind-Value="t.GasValueAddedTaxPct" Style="width:100%" Format="F1" />
                                 </EditTemplate>
@@ -722,7 +722,7 @@
                                     <RadzenButton Icon="add_circle" ButtonStyle="ButtonStyle.Success" Variant="Variant.Flat"
                                                   Size="ButtonSize.Small" Shade="Shade.Lighter"
                                                   Click="@(() => taxEditor.InsertAfter(t))"
-                                                  title="Add new row after this row" />
+                                                  title="@T("Add new row after this row")" />
                                     <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
                                                   Size="ButtonSize.Small" class="rz-my-1 rz-ms-1"
                                                   Click="@(args => taxEditor.Edit(t))" @onclick:stopPropagation="true" />
@@ -732,13 +732,13 @@
                                 </Template>
                                 <EditTemplate Context="t">
                                     <RadzenButton Icon="check" ButtonStyle="ButtonStyle.Success" Variant="Variant.Flat"
-                                                  Size="ButtonSize.Small" Click="@((args) => taxEditor.Save(t))" aria-label="Save" />
+                                                  Size="ButtonSize.Small" Click="@((args) => taxEditor.Save(t))" aria-label="@T("Save")" />
                                     <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
                                                   Size="ButtonSize.Small" class="rz-my-1 rz-ms-1"
-                                                  Click="@((args) => taxEditor.Cancel(t))" aria-label="Cancel" />
+                                                  Click="@((args) => taxEditor.Cancel(t))" aria-label="@T("Cancel")" />
                                     <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Flat"
                                                   Size="ButtonSize.Small" Shade="Shade.Lighter" class="rz-my-1 rz-ms-1"
-                                                  Click="@(args => taxEditor.Delete(t))" aria-label="Delete" />
+                                                  Click="@(args => taxEditor.Delete(t))" aria-label="@T("Delete")" />
                                 </EditTemplate>
                             </RadzenDataGridColumn>
                         </Columns>
@@ -746,7 +746,7 @@
                 </RadzenTabsItem>
 
                 @* ── Who's in control ──────────────────────────────────────── *@
-                <RadzenTabsItem Text="Who's in control" Icon="tune">
+                <RadzenTabsItem Text="@T("Who's in control")" Icon="tune">
                     <RadzenDataGrid @ref="controlGrid"
                                     Data="@ControlList"
                                     Context="data"
@@ -760,14 +760,14 @@
                                     Density="Density.Compact"
                                     PagerHorizontalAlign="HorizontalAlign.Center">
                         <Columns>
-                            <RadzenDataGridColumn Property="@nameof(SessyWebControl.Time)" Title="Time" SortOrder="SortOrder.Ascending" />
-                            <RadzenDataGridColumn Property="@nameof(SessyWebControl.Status)" Title="Status" />
+                            <RadzenDataGridColumn Property="@nameof(SessyWebControl.Time)" Title="@T("Time")" SortOrder="SortOrder.Ascending" />
+                            <RadzenDataGridColumn Property="@nameof(SessyWebControl.Status)" Title="@T("Status")" />
                         </Columns>
                     </RadzenDataGrid>
                 </RadzenTabsItem>
 
                 @* ── Tips & Checks ──────────────────────────────────────────── *@
-                <RadzenTabsItem Text="Tips & Checks" Icon="tips_and_updates" data-sessy-badge="@ChecksTabBadge">
+                <RadzenTabsItem Text="@T("Tips & Checks")" Icon="tips_and_updates" data-sessy-badge="@ChecksTabBadge">
                     <RadzenStack Orientation="Orientation.Vertical" Gap="0.75rem" Style="padding: 1rem; max-width: 900px;">
                         @if (_checks == null)
                         {
@@ -775,7 +775,7 @@
                         }
                         else if (!_checks.Any())
                         {
-                            <RadzenText TextStyle="TextStyle.Body1">✅ All checks passed — no issues found.</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Body1">✅ @(T("All checks passed — no issues found."))</RadzenText>
                         }
                         else
                         {
@@ -801,7 +801,7 @@
                 </RadzenTabsItem>
 
                 @* ── Notifications ──────────────────────────────────────────── *@
-                <RadzenTabsItem Text="Notifications" Icon="notifications" data-sessy-badge="@NotificationsTabBadge">
+                <RadzenTabsItem Text="@T("Notifications")" Icon="notifications" data-sessy-badge="@NotificationsTabBadge">
                     <RadzenStack Orientation="Orientation.Vertical" Gap="1rem" Style="padding: 1rem; max-width: 900px;">
 
                         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Gap="0.5rem">
@@ -813,10 +813,10 @@
                                 }
                             </RadzenText>
                             <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
-                                <RadzenButton Text="Mark all read" Icon="mark_email_read" ButtonStyle="ButtonStyle.Light"
+                                <RadzenButton Text="@T("Mark all read")" Icon="mark_email_read" ButtonStyle="ButtonStyle.Light"
                                               Size="ButtonSize.Small" Click="@MarkAllNotificationsReadAsync"
                                               Disabled="@(_notifications == null || NotificationUnread == 0)" />
-                                <RadzenButton Text="Delete all" Icon="delete_sweep" ButtonStyle="ButtonStyle.Danger"
+                                <RadzenButton Text="@T("Delete all")" Icon="delete_sweep" ButtonStyle="ButtonStyle.Danger"
                                               Size="ButtonSize.Small" Click="@DeleteAllNotificationsAsync"
                                               Disabled="@(_notifications == null || !_notifications.Any())" />
                             </RadzenStack>
@@ -827,10 +827,10 @@
                             <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
                                 <RadzenDropDown TValue="SessyData.Model.NotificationSeverity?" @bind-Value="_notifSeverityFilter"
                                                 Data="@(Enum.GetValues<SessyData.Model.NotificationSeverity>())" AllowClear="true"
-                                                Placeholder="All severities" Style="min-width: 180px;" />
+                                                Placeholder="@T("All severities")" Style="min-width: 180px;" />
                                 <RadzenDropDown TValue="string" @bind-Value="_notifCategoryFilter"
                                                 Data="@NotificationCategories" AllowClear="true"
-                                                Placeholder="All categories" Style="min-width: 180px;" />
+                                                Placeholder="@T("All categories")" Style="min-width: 180px;" />
                             </RadzenStack>
                         }
 
@@ -842,14 +842,14 @@
                         {
                             <RadzenStack Orientation="Orientation.Vertical" AlignItems="AlignItems.Center" Gap="0.5rem" Style="padding: 2rem; opacity: 0.7;">
                                 <RadzenIcon Icon="notifications_none" Style="font-size: 3rem;" />
-                                <RadzenText TextStyle="TextStyle.Body1">No notifications.</RadzenText>
+                                <RadzenText TextStyle="TextStyle.Body1">@(T("No notifications."))</RadzenText>
                             </RadzenStack>
                         }
                         else
                         {
                             @if (!FilteredNotifications.Any())
                             {
-                                <RadzenText TextStyle="TextStyle.Body2" Style="opacity: 0.7;">No notifications match the filter.</RadzenText>
+                                <RadzenText TextStyle="TextStyle.Body2" Style="opacity: 0.7;">@(T("No notifications match the filter."))</RadzenText>
                             }
                             @foreach (var n in FilteredNotifications)
                             {
@@ -862,7 +862,7 @@
                                                     <RadzenText TextStyle="TextStyle.Subtitle1" Style="margin: 0;">@n.Title</RadzenText>
                                                     @if (n.Count > 1)
                                                     {
-                                                        <RadzenBadge BadgeStyle="BadgeStyle.Base" IsPill="true" Text="@($"×{n.Count}")" title="@($"Occurred {n.Count} times")" />
+                                                        <RadzenBadge BadgeStyle="BadgeStyle.Base" IsPill="true" Text="@($"×{n.Count}")" title="@T("Occurred {0} times", n.Count)" />
                                                     }
                                                     <RadzenBadge BadgeStyle="@NotificationBadgeStyle(n.Severity)" Text="@n.Severity.ToString()" IsPill="true" />
                                                     @if (!string.IsNullOrEmpty(n.Category))
@@ -877,7 +877,7 @@
                                             </RadzenStack>
                                         </RadzenStack>
                                         <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text"
-                                                      Size="ButtonSize.Small" title="Delete this notification"
+                                                      Size="ButtonSize.Small" title="@T("Delete this notification")"
                                                       Click="@(() => DeleteNotificationAsync(n.Id))" />
                                     </RadzenStack>
                                 </RadzenCard>
@@ -889,24 +889,21 @@
                 @* ── SQL Console ────────────────────────────────────────────── *@
                 @if (_settings?.DeveloperOptions == true)
                 {
-                <RadzenTabsItem Text="Plan dump" Icon="bug_report">
+                <RadzenTabsItem Text="@T("Plan dump")" Icon="bug_report">
                     <div style="display:flex; flex-direction:column; padding:1rem; gap:0.75rem; max-width:640px;">
                         <RadzenText TextStyle="TextStyle.Caption" Style="opacity:0.7; margin:0;">
-                            Downloads a JSON snapshot with everything needed to analyse a plan for the chosen
-                            period: planner settings, EPEX prices, taxes, planned quarters, actual quarters and
-                            measured facts. The file is built in memory and offered for download — it is never
-                            written to disk.
+                            @T("Downloads a JSON snapshot with everything needed to analyse a plan for the chosen period: planner settings, EPEX prices, taxes, planned quarters, actual quarters and measured facts. The file is built in memory and offered for download — it is never written to disk.")
                         </RadzenText>
                         <div style="display:flex; gap:1rem; flex-wrap:wrap; align-items:flex-end;">
                             <div style="display:flex; flex-direction:column; gap:0.25rem;">
-                                <RadzenText TextStyle="TextStyle.Caption" Style="margin:0;">From</RadzenText>
+                                <RadzenText TextStyle="TextStyle.Caption" Style="margin:0;">@(T("From"))</RadzenText>
                                 <RadzenDatePicker @bind-Value="_dumpFrom" ShowTime="true" DateFormat="yyyy-MM-dd HH:mm" />
                             </div>
                             <div style="display:flex; flex-direction:column; gap:0.25rem;">
-                                <RadzenText TextStyle="TextStyle.Caption" Style="margin:0;">To</RadzenText>
+                                <RadzenText TextStyle="TextStyle.Caption" Style="margin:0;">@(T("To"))</RadzenText>
                                 <RadzenDatePicker @bind-Value="_dumpTo" ShowTime="true" DateFormat="yyyy-MM-dd HH:mm" />
                             </div>
-                            <RadzenButton Text="Download dump" Icon="download"
+                            <RadzenButton Text="@T("Download dump")" Icon="download"
                                           ButtonStyle="ButtonStyle.Primary"
                                           Click="@DownloadPlanDumpAsync"
                                           IsBusy="@_dumpBusy" />
@@ -916,14 +913,13 @@
                             <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true">@_dumpError</RadzenAlert>
                         }
 
-                        <RadzenText TextStyle="TextStyle.Subtitle2" Style="margin:1rem 0 0 0;">Reconstruct a past solve-input</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Subtitle2" Style="margin:1rem 0 0 0;">@(T("Reconstruct a past solve-input"))</RadzenText>
                         <RadzenText TextStyle="TextStyle.Caption" Style="opacity:0.7; margin:0;">
-                            Rebuilds the planner input for the period above from the database and downloads it,
-                            to replay a plan that ran before solve-input recording was on.
-                            <InfoTipComponent Text="Approximate: prices, net load and the reserve floor are exact from the stored plan, and the initial SOC from the measurement, but the battery spec and planner options are the CURRENT ones, not as they were then. Only reaches back as far as the plan history goes." />
+                            @T("Rebuilds the planner input for the period above from the database and downloads it, to replay a plan that ran before solve-input recording was on.")
+                            <InfoTipComponent Text="@T("Approximate: prices, net load and the reserve floor are exact from the stored plan, and the initial SOC from the measurement, but the battery spec and planner options are the CURRENT ones, not as they were then. Only reaches back as far as the plan history goes.")" />
                         </RadzenText>
                         <div>
-                            <RadzenButton Text="Reconstruct & download" Icon="history"
+                            <RadzenButton Text="@T("Reconstruct & download")" Icon="history"
                                           ButtonStyle="ButtonStyle.Secondary"
                                           Click="@DownloadReconstructedSolveInputAsync"
                                           IsBusy="@_reconstructBusy" />
@@ -937,35 +933,35 @@
                 }
 
                 @* ── SQL Console ────────────────────────────────────────────── *@
-                <RadzenTabsItem Text="SQL Console" Icon="terminal">
+                <RadzenTabsItem Text="@T("SQL Console")" Icon="terminal">
                     <div style="display:flex; flex-direction:column; padding:1rem; gap:0.5rem;">
                         <RadzenText TextStyle="TextStyle.Caption" Style="opacity:0.7; margin:0;">
-                            Direct SQL access. Everything is allowed — be careful!
-                            <InfoTipComponent Text="Multiple statements separated by semicolons run in order on one connection and inside one transaction, so temp tables carry over and a failure halfway rolls everything back. sqlite3 dot-commands and BEGIN/COMMIT are skipped. The grid shows the last result set. Take a backup before running anything destructive." />
+                            @T("Direct SQL access. Everything is allowed — be careful!")
+                            <InfoTipComponent Text="@T("Multiple statements separated by semicolons run in order on one connection and inside one transaction, so temp tables carry over and a failure halfway rolls everything back. sqlite3 dot-commands and BEGIN/COMMIT are skipped. The grid shows the last result set. Take a backup before running anything destructive.")" />
                         </RadzenText>
                         <div style="display:flex; gap:0.5rem; align-items:flex-start;">
                             <RadzenTextArea @bind-Value="_sqlStatement"
                                             Rows="4"
                                             Style="flex:1; font-family:monospace; resize:vertical;"
-                                            Placeholder="SELECT * FROM QuarterlyMeasurements WHERE SolarProductionKwh > 100;" />
+                                            Placeholder="@T("SELECT * FROM QuarterlyMeasurements WHERE SolarProductionKwh > 100;")" />
                             <div style="display:flex; flex-direction:column; gap:0.5rem;">
-                                <RadzenButton Text="Execute" Icon="play_arrow"
+                                <RadzenButton Text="@T("Execute")" Icon="play_arrow"
                                               ButtonStyle="ButtonStyle.Primary"
                                               Click="@ExecuteSqlAsync"
                                               IsBusy="@_sqlBusy" />
-                                <RadzenButton Text="Backup" Icon="save"
+                                <RadzenButton Text="@T("Backup")" Icon="save"
                                               ButtonStyle="ButtonStyle.Warning"
                                               Click="@BackupDatabaseAsync"
                                               IsBusy="@_sqlBackupBusy"
-                                              title="Writes a VACUUM INTO copy of the database to the backup directory. Do this before running anything destructive." />
-                                <RadzenButton Text="Clear" Icon="clear"
+                                              title="@T("Writes a VACUUM INTO copy of the database to the backup directory. Do this before running anything destructive.")" />
+                                <RadzenButton Text="@T("Clear")" Icon="clear"
                                               ButtonStyle="ButtonStyle.Light"
                                               Click="@(() => { _sqlStatement = string.Empty; _sqlResult = null; _sqlError = null; _sqlBackupMessage = null; })" />
-                                <RadzenButton Text="CSV" Icon="download"
+                                <RadzenButton Text="@T("CSV")" Icon="download"
                                               ButtonStyle="ButtonStyle.Secondary"
                                               Disabled="@(_sqlResult == null || _sqlResult.Count == 0)"
                                               Click="@ExportCsvAsync" />
-                                <RadzenButton Text="Excel" Icon="table_view"
+                                <RadzenButton Text="@T("Excel")" Icon="table_view"
                                               ButtonStyle="ButtonStyle.Secondary"
                                               Disabled="@(_sqlResult == null || _sqlResult.Count == 0)"
                                               Click="@ExportXlsxAsync" />
@@ -1009,61 +1005,61 @@
                 </RadzenTabsItem>
 
                 @* ── Credits ───────────────────────────────────────────────── *@
-                <RadzenTabsItem Text="Credits" Icon="favorite">
+                <RadzenTabsItem Text="@T("Credits")" Icon="favorite">
                     <RadzenStack Orientation="Orientation.Vertical" Gap="2rem" Style="padding: 1.5rem; max-width: 900px;">
 
                         @* -- Section: Hard- and software -- *@
                         <RadzenText TextStyle="TextStyle.H5" Style="margin-bottom: 0.5rem;">
                             <RadzenIcon Icon="devices" Style="vertical-align: middle; margin-right: 6px;" />
-                            Hard- and software
+                            @T("Hard- and software")
                         </RadzenText>
                         <RadzenRow Gap="1rem">
 
                             @* Charged *@
                             <RadzenColumn SizeSM="3">
                                 <RadzenCard class="rz-background-color-primary" Style="height:100%; text-align:center; padding: 1.25rem;">
-                                    <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary" Style="display:block; margin-bottom:0.75rem; opacity:0.7;">Hardware</RadzenText>
+                                    <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary" Style="display:block; margin-bottom:0.75rem; opacity:0.7;">@(T("Hardware"))</RadzenText>
                                     <a href="https://charged.nu/" target="_blank" Style="display:block; margin-bottom:0.75rem;">
                                         <RadzenImage Path="/Images/Charged_transparent_final.png"
                                                      Style="width:90px; height:60px; object-fit:contain; background:transparent;" />
                                     </a>
-                                    <RadzenText TextStyle="TextStyle.Body2" class="rz-color-on-primary"><b>Charged B.V.</b></RadzenText>
+                                    <RadzenText TextStyle="TextStyle.Body2" class="rz-color-on-primary"><b>@(T("Charged B.V."))</b></RadzenText>
                                 </RadzenCard>
                             </RadzenColumn>
 
                             @* Sessy *@
                             <RadzenColumn SizeSM="3">
                                 <RadzenCard class="rz-background-color-primary" Style="height:100%; text-align:center; padding: 1.25rem;">
-                                    <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary" Style="display:block; margin-bottom:0.75rem; opacity:0.7;">Battery communication</RadzenText>
+                                    <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary" Style="display:block; margin-bottom:0.75rem; opacity:0.7;">@(T("Battery communication"))</RadzenText>
                                     <a href="https://sessy.nl/" target="_blank" Style="display:block; margin-bottom:0.75rem;">
                                         <RadzenImage Path="/Images/sessy.svg"
                                                      Style="width:90px; height:60px; object-fit:contain; background:transparent;" />
                                     </a>
-                                    <RadzenText TextStyle="TextStyle.Body2" class="rz-color-on-primary"><b>Sessy</b></RadzenText>
+                                    <RadzenText TextStyle="TextStyle.Body2" class="rz-color-on-primary"><b>@(T("Sessy"))</b></RadzenText>
                                 </RadzenCard>
                             </RadzenColumn>
 
                             @* Microsoft *@
                             <RadzenColumn SizeSM="3">
                                 <RadzenCard class="rz-background-color-primary" Style="height:100%; text-align:center; padding: 1.25rem;">
-                                    <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary" Style="display:block; margin-bottom:0.75rem; opacity:0.7;">.NET development</RadzenText>
+                                    <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary" Style="display:block; margin-bottom:0.75rem; opacity:0.7;">.@(T("NET development"))</RadzenText>
                                     <a href="https://microsoft.com/" target="_blank" Style="display:block; margin-bottom:0.75rem;">
                                         <RadzenImage Path="/Images/Microsoft.jpg"
                                                      Style="width:90px; height:60px; object-fit:contain; background:transparent;" />
                                     </a>
-                                    <RadzenText TextStyle="TextStyle.Body2" class="rz-color-on-primary"><b>Microsoft</b></RadzenText>
+                                    <RadzenText TextStyle="TextStyle.Body2" class="rz-color-on-primary"><b>@(T("Microsoft"))</b></RadzenText>
                                 </RadzenCard>
                             </RadzenColumn>
 
                             @* Radzen *@
                             <RadzenColumn SizeSM="3">
                                 <RadzenCard class="rz-background-color-primary" Style="height:100%; text-align:center; padding: 1.25rem;">
-                                    <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary" Style="display:block; margin-bottom:0.75rem; opacity:0.7;">UI web components</RadzenText>
+                                    <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary" Style="display:block; margin-bottom:0.75rem; opacity:0.7;">@(T("UI web components"))</RadzenText>
                                     <a href="https://radzen.com/" target="_blank" Style="display:block; margin-bottom:0.75rem;">
                                         <RadzenImage Path="/Images/Radzen_transparent_final.png"
                                                      Style="width:50px; height:60px; object-fit:contain; background:transparent;" />
                                     </a>
-                                    <RadzenText TextStyle="TextStyle.Body2" class="rz-color-on-primary"><b>Radzen (free)</b></RadzenText>
+                                    <RadzenText TextStyle="TextStyle.Body2" class="rz-color-on-primary"><b>@(T("Radzen (free)"))</b></RadzenText>
                                 </RadzenCard>
                             </RadzenColumn>
 
@@ -1072,31 +1068,31 @@
                         @* -- Section: Online services -- *@
                         <RadzenText TextStyle="TextStyle.H5" Style="margin-bottom: 0.5rem; margin-top: 0.5rem;">
                             <RadzenIcon Icon="cloud" Style="vertical-align: middle; margin-right: 6px;" />
-                            Online services
+                            @T("Online services")
                         </RadzenText>
                         <RadzenRow Gap="1rem">
 
                             @* Weeronline *@
                             <RadzenColumn SizeSM="3">
                                 <RadzenCard class="rz-background-color-primary" Style="height:100%; text-align:center; padding: 1.25rem;">
-                                    <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary" Style="display:block; margin-bottom:0.75rem; opacity:0.7;">Weather service</RadzenText>
+                                    <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary" Style="display:block; margin-bottom:0.75rem; opacity:0.7;">@(T("Weather service"))</RadzenText>
                                     <a href="https://weeronline.nl" target="_blank" Style="display:block; margin-bottom:0.75rem;">
                                         <RadzenImage Path="/Images/wol_logo_white.svg"
                                                      Style="width:90px; height:60px; object-fit:contain;" />
                                     </a>
-                                    <RadzenText TextStyle="TextStyle.Body2" class="rz-color-on-primary"><b>Weeronline</b></RadzenText>
+                                    <RadzenText TextStyle="TextStyle.Body2" class="rz-color-on-primary"><b>@(T("Weeronline"))</b></RadzenText>
                                 </RadzenCard>
                             </RadzenColumn>
 
                             @* Enever.nl *@
                             <RadzenColumn SizeSM="3">
                                 <RadzenCard class="rz-background-color-primary" Style="height:100%; text-align:center; padding: 1.25rem;">
-                                    <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary" Style="display:block; margin-bottom:0.75rem; opacity:0.7;">Gas price feed</RadzenText>
+                                    <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary" Style="display:block; margin-bottom:0.75rem; opacity:0.7;">@(T("Gas price feed"))</RadzenText>
                                     <a href="https://enever.nl" target="_blank" Style="display:block; margin-bottom:0.75rem;">
                                         <RadzenImage Path="/Images/enever.svg"
                                                      Style="width:120px; height:60px; object-fit:contain; background:transparent;" />
                                     </a>
-                                    <RadzenText TextStyle="TextStyle.Body2" class="rz-color-on-primary"><b>Enever.nl</b></RadzenText>
+                                    <RadzenText TextStyle="TextStyle.Body2" class="rz-color-on-primary"><b>@(T("Enever.nl"))</b></RadzenText>
                                 </RadzenCard>
                             </RadzenColumn>
 
@@ -1105,17 +1101,17 @@
                 </RadzenTabsItem>
 
                 @* ── Container log ─────────────────────────────────────────── *@
-                <RadzenTabsItem Text="Container log" Icon="terminal">
+                <RadzenTabsItem Text="@T("Container log")" Icon="terminal">
                     <RadzenStack Orientation="Orientation.Vertical" Gap="0.5rem" Style="padding: 1rem; height: 70vh;">
                         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
                             <RadzenCheckBox @bind-Value="_logAutoScroll" Name="logAutoScroll" />
-                            <RadzenLabel Text="Auto-scroll" Component="logAutoScroll" />
-                            <RadzenLabel Text="Level" />
+                            <RadzenLabel Text="@T("Auto-scroll")" Component="logAutoScroll" />
+                            <RadzenLabel Text="@T("Level")" />
                             <RadzenDropDown TValue="Microsoft.Extensions.Logging.LogLevel" Data="@_logLevels" @bind-Value="_logMinLevel" Change="@(args => RefreshLogNow())" Style="width: 130px;" />
                             
-                            <RadzenButton Text="Copy" Icon="content_copy" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" Click="@CopyLog" />
-                            <RadzenButton Text="Export" Icon="download" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" Click="@ExportLog" />
-                            <RadzenButton Text="Clear" Icon="delete" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" Click="@ClearLog" />
+                            <RadzenButton Text="@T("Copy")" Icon="content_copy" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" Click="@CopyLog" />
+                            <RadzenButton Text="@T("Export")" Icon="download" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" Click="@ExportLog" />
+                            <RadzenButton Text="@T("Clear")" Icon="delete" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" Click="@ClearLog" />
                         </RadzenStack>
                         <pre @ref="_logContainer" style="flex: 1 1 auto; min-height: 0; overflow: auto; background: var(--sessy-terminal-bg); color: var(--sessy-terminal-fg); font-family: Consolas, 'Courier New', monospace; font-size: 12px; line-height: 1.35; padding: 8px; margin: 0; white-space: pre; border-radius: 4px;">@_logText</pre>
                     </RadzenStack>

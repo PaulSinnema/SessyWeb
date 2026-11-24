@@ -9,7 +9,7 @@
 <RadzenLayout Style="height: 80vh;">
     <RadzenHeader Style="height: 100%;margin: 0px; padding: 0px;">
         <RadzenStack Orientation=Orientation.Horizontal AlignItems="AlignItems.Center" Style="height:100%;margin: 0px; padding: 0px;">
-            <RadzenLabel Text="Financial results" class="h4 m-2" />
+            <RadzenLabel Text="@T("Financial results")" class="h4 m-2" />
 
             <DateChooserComponent SelectionChanged="@((DateArgs d) => SelectionChanged(d))" />
         </RadzenStack>
@@ -32,14 +32,14 @@
                             GroupFootersAlwaysVisible="true"
                             AllGroupsExpanded=@ExpandAllGroups>
                 <Columns>
-                    <RadzenDataGridColumn Property="@nameof(FinancialMonthResult.YearMonth)" Title="YearMonth" Width="100px" Visible=false />
-                    <RadzenDataGridColumn TItem="FinancialMonthResult" Title="Day" Context="MonthResult">
+                    <RadzenDataGridColumn Property="@nameof(FinancialMonthResult.YearMonth)" Title="@T("YearMonth")" Width="100px" Visible=false />
+                    <RadzenDataGridColumn TItem="FinancialMonthResult" Title="@T("Day")" Context="MonthResult">
                         <Template>
                             <FinancialDayResultComponent FinancialResultsList="@MonthResult.FinancialResultsList" ExpandAllGroups=@ExpandAllGroups />
                         </Template>
                         <GroupFooterTemplate>
-                            <b> @String.Format(GetFormatProvider(), "Total monthly cost: {0:C}", GetMonthlyTotalCost(@MonthResult.Data!.Items!.AsQueryable().FirstOrDefault()))</b>
-                            <b> @String.Format(GetFormatProvider(), " — consumed: {0:N1} kWh", GetMonthlyConsumedKWh(@MonthResult.Data!.Items!.AsQueryable().FirstOrDefault()))</b>
+                            <b> @T("Total monthly cost: {0:C}", GetMonthlyTotalCost(@MonthResult.Data!.Items!.AsQueryable().FirstOrDefault()))</b>
+                            <b> @T(" — consumed: {0:N1} kWh", GetMonthlyConsumedKWh(@MonthResult.Data!.Items!.AsQueryable().FirstOrDefault()))</b>
                         </GroupFooterTemplate>
                     </RadzenDataGridColumn>
                 </Columns>
@@ -50,8 +50,8 @@
     <RadzenFooter Style="height: 100%;">
         <RadzenCard Style="height: 100%;margin: 0px; padding: 0px;">
             <RadzenText Style="margin: 0px; padding: 0px;">
-                <b> @String.Format(GetFormatProvider(), "Total cost: {0:C}", TotalCost)</b>
-                <b> @String.Format(GetFormatProvider(), " — total consumed: {0:N1} kWh", TotalConsumedKWh)</b>
+                <b> @T("Total cost: {0:C}", TotalCost)</b>
+                <b> @T(" — total consumed: {0:N1} kWh", TotalConsumedKWh)</b>
             </RadzenText>
         </RadzenCard>
     </RadzenFooter>

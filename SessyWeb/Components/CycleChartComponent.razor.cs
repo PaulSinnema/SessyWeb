@@ -4,7 +4,7 @@ using SessyController.Services.Statistics;
 namespace SessyWeb.Components
 {
     /// <summary>Full cycles per month for one series, stacked by source, with the running total.</summary>
-    public partial class CycleChartComponent : ComponentBase
+    public partial class CycleChartComponent : BaseComponent
     {
         [Parameter, EditorRequired]
         public CycleSeries Series { get; set; } = default!;

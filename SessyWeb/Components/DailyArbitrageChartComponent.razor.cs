@@ -14,10 +14,9 @@ namespace SessyWeb.Components
         private const int MaxDayDays = 31;
         private const int MaxWeekDays = 183;
 
-        private const string HowToRead =
-            "Planned: what the plan expected to earn by charging cheap and discharging dear. Realized: what the measured " +
+        private string HowToRead => T("Planned: what the plan expected to earn by charging cheap and discharging dear. Realized: what the measured " +
             "battery flows earned at the actual prices. Short periods show days, longer ones weeks or months so the bars " +
-            "stay readable; hover a bar for the amounts.";
+            "stay readable; hover a bar for the amounts.");
 
         /// <summary>One bar pair of the chart.</summary>
         public sealed record ArbitrageBucket(DateTime Start, string Label, double PlannedEur, double RealizedEur);
@@ -45,11 +44,11 @@ namespace SessyWeb.Components
             string format;
 
             if (span <= MaxDayDays)
-                (key, format, PeriodTitle) = (d => d.Date, "ddd dd-MM", "Day");
+                (key, format, PeriodTitle) = (d => d.Date, "ddd dd-MM", T("Day"));
             else if (span <= MaxWeekDays)
-                (key, format, PeriodTitle) = (d => d.StartOfIsoWeek(), "'wk' dd-MM", "Week (starting Monday)");
+                (key, format, PeriodTitle) = (d => d.StartOfIsoWeek(), T("'wk' dd-MM"), T("Week (starting Monday)"));
             else
-                (key, format, PeriodTitle) = (d => d.MonthStart(), "MMM yyyy", "Month");
+                (key, format, PeriodTitle) = (d => d.MonthStart(), "MMM yyyy", T("Month"));
 
             Buckets = days
                 .GroupBy(d => key(d.Date))
@@ -63,8 +62,8 @@ namespace SessyWeb.Components
             var realized = days.Sum(d => d.RealizedEur);
 
             SummaryText = planned > 0.0
-                ? string.Format(provider, "Planned € {0:F2}, realized € {1:F2} ({2:0} % of plan).", planned, realized, realized / planned * 100.0)
-                : string.Format(provider, "Planned € {0:F2}, realized € {1:F2}.", planned, realized);
+                ? T("Planned € {0:F2}, realized € {1:F2} ({2:0} % of plan).", planned, realized, realized / planned * 100.0)
+                : T("Planned € {0:F2}, realized € {1:F2}.", planned, realized);
         }
     }
 }

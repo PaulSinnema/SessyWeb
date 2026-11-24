@@ -3,8 +3,8 @@
 @using Radzen.Blazor
 @inherits BaseComponent
 
-<StatisticsCard Title="🌙 Base load at night" Info="@HowToRead" OnRefresh="@LoadAsync" Loading="@Loading" IsEmpty="@(_result == null || _result.Weeks.Count == 0)">
-    <EmptyContent>Not enough data yet: needs nights with consumption measured.</EmptyContent>
+<StatisticsCard Title="@T("🌙 Base load at night")" Info="@HowToRead" OnRefresh="@LoadAsync" Loading="@Loading" IsEmpty="@(_result == null || _result.Weeks.Count == 0)">
+    <EmptyContent>@(T("Not enough data yet: needs nights with consumption measured."))</EmptyContent>
     <ChildContent>
         <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-1">@SummaryText()</RadzenText>
 
@@ -13,14 +13,14 @@
             <RadzenLegend Visible="false" />
 
             <RadzenLineSeries Data="@_result!.Weeks"
-                              Title="Base load"
+                              Title="@T("Base load")"
                               CategoryProperty="Label"
                               ValueProperty="MedianW"
                               Stroke="var(--sessy-consumption-line)"
                               StrokeWidth="2" />
 
             <RadzenCategoryAxis LabelAutoRotation="-45">
-                <RadzenAxisTitle Text="Week" />
+                <RadzenAxisTitle Text="@T("Week")" />
             </RadzenCategoryAxis>
             <RadzenValueAxis Min="@(0.0)" Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
                 <RadzenGridLines Visible="true" />

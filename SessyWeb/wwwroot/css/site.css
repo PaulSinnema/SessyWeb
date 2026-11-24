@@ -350,3 +350,35 @@ a, .btn-link {
 .sessy-text-positive { color: var(--sessy-positive-text); }
 .sessy-text-negative { color: var(--sessy-negative-text); }
 .sessy-text-warning { color: var(--sessy-warning-text); }
+
+/* Language choice in the header: two flags, the active one outlined. */
+.language-flags {
+    display: inline-flex;
+    gap: 6px;
+    margin-left: 12px;
+}
+
+.language-flag {
+    padding: 0;
+    border: 2px solid transparent;
+    border-radius: 3px;
+    background: none;
+    cursor: pointer;
+    line-height: 0;
+}
+
+.language-flag img {
+    width: 28px;
+    height: 18px;
+    object-fit: cover;
+    opacity: 0.5;
+}
+
+.language-flag.active {
+    border-color: var(--rz-primary);
+}
+
+.language-flag.active img,
+.language-flag:hover img {
+    opacity: 1;
+}

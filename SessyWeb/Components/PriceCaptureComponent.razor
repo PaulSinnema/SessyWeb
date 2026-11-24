@@ -3,8 +3,8 @@
 @using Radzen.Blazor
 @inherits BaseComponent
 
-<StatisticsCard Title="💶 Price capture" Info="@HowToRead" OnRefresh="@LoadAsync" Loading="@Loading" IsEmpty="@(_months.Count == 0)">
-    <EmptyContent>Not enough data yet: needs days on which the battery charged and discharged.</EmptyContent>
+<StatisticsCard Title="@T("💶 Price capture")" Info="@HowToRead" OnRefresh="@LoadAsync" Loading="@Loading" IsEmpty="@(_months.Count == 0)">
+    <EmptyContent>@(T("Not enough data yet: needs days on which the battery charged and discharged."))</EmptyContent>
     <ChildContent>
         <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-1">@SummaryText()</RadzenText>
 
@@ -13,7 +13,7 @@
             <RadzenLegend Position="LegendPosition.Bottom" Visible="true" />
 
             <RadzenColumnSeries Data="@_months"
-                                Title="Best possible spread"
+                                Title="@T("Best possible spread")"
                                 CategoryProperty="Label"
                                 ValueProperty="BestEurPerKWh"
                                 Fill="var(--sessy-year-1-area)"
@@ -21,7 +21,7 @@
                                 StrokeWidth="2" />
 
             <RadzenColumnSeries Data="@_months"
-                                Title="Captured spread"
+                                Title="@T("Captured spread")"
                                 CategoryProperty="Label"
                                 ValueProperty="CapturedEurPerKWh"
                                 Fill="var(--sessy-discharge-area)"
@@ -29,7 +29,7 @@
                                 StrokeWidth="2" />
 
             <RadzenLineSeries Data="@CaptureMonths"
-                              Title="Captured share"
+                              Title="@T("Captured share")"
                               CategoryProperty="Label"
                               ValueProperty="CapturePercent"
                               ValueAxisName="share"
@@ -37,11 +37,11 @@
                               StrokeWidth="2" />
 
             <RadzenCategoryAxis LabelAutoRotation="-45">
-                <RadzenAxisTitle Text="Month" />
+                <RadzenAxisTitle Text="@T("Month")" />
             </RadzenCategoryAxis>
             <RadzenValueAxis FormatString="{0:0.00}" Min="@(0.0)" Step="@(0.05)">
                 <RadzenGridLines Visible="true" />
-                <RadzenAxisTitle Text="€ / kWh" />
+                <RadzenAxisTitle Text="@T("€ / kWh")" />
             </RadzenValueAxis>
             <RadzenValueAxis Name="share" Width="100" Min="@(0.0)" Max="@(100.0)" Step="@(25.0)" FormatString="{0:0}">
                 <RadzenAxisTitle Text="%" />

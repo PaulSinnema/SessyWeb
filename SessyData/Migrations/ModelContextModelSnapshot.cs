@@ -691,6 +691,10 @@ namespace SessyData.Migrations
                     b.Property<bool>("KeepMenuExpanded")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("Language")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("LastLearnedAt")
                         .HasColumnType("TEXT");
 

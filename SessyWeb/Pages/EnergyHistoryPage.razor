@@ -5,7 +5,7 @@
 
 <RadzenTabs RenderMode="TabRenderMode.Client">
     <Tabs>
-        <RadzenTabsItem Text="Measurements" Icon="insights">
+        <RadzenTabsItem Text="@T("Measurements")" Icon="insights">
             <RadzenDataGrid @ref="energyGrid"
                             Data="@MeasurementList"
                             Context="data"
@@ -21,20 +21,20 @@
                 <Columns>
                     @if (!HideId)
                     {
-                        <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.Id)" Title="Id" />
+                        <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.Id)" Title="@T("Id")" />
                     }
-                    <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.Time)" Title="Time" SortOrder="SortOrder.Descending" />
-                    <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.BatteryPowerWatts)" Title="Battery (W)" />
-                    <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.BatteryStateOfChargeWh)" Title="SOC (Wh)" />
-                    <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.BatteryMode)" Title="Mode" />
-                    <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.BuyingPriceEur)" Title="Buy (€/kWh)" />
-                    <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.SellingPriceEur)" Title="Sell (€/kWh)" />
-                    <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.IsReliable)" Title="Reliable" />
+                    <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.Time)" Title="@T("Time")" SortOrder="SortOrder.Descending" />
+                    <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.BatteryPowerWatts)" Title="@T("Battery (W)")" />
+                    <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.BatteryStateOfChargeWh)" Title="@T("SOC (Wh)")" />
+                    <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.BatteryMode)" Title="@T("Mode")" />
+                    <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.BuyingPriceEur)" Title="@T("Buy (€/kWh)")" />
+                    <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.SellingPriceEur)" Title="@T("Sell (€/kWh)")" />
+                    <RadzenDataGridColumn Property="@nameof(QuarterlyMeasurement.IsReliable)" Title="@T("Reliable")" />
                 </Columns>
             </RadzenDataGrid>
         </RadzenTabsItem>
 
-        <RadzenTabsItem Text="Meter readings" Icon="speed">
+        <RadzenTabsItem Text="@T("Meter readings")" Icon="speed">
             <RadzenDataGrid @ref="meterGrid"
                             Data="@MeterReadingsList"
                             Context="reading"
@@ -50,15 +50,15 @@
                 <Columns>
                     @if (!HideId)
                     {
-                        <RadzenDataGridColumn Property="@nameof(EnergyHistory.Id)" Title="Id" />
+                        <RadzenDataGridColumn Property="@nameof(EnergyHistory.Id)" Title="@T("Id")" />
                     }
-                    <RadzenDataGridColumn Property="@nameof(EnergyHistory.Time)" Title="Time" SortOrder="SortOrder.Descending" />
-                    <RadzenDataGridColumn Property="@nameof(EnergyHistory.ConsumedTariff1)" Title="Consumed T1 (Wh)" />
-                    <RadzenDataGridColumn Property="@nameof(EnergyHistory.ConsumedTariff2)" Title="Consumed T2 (Wh)" />
-                    <RadzenDataGridColumn Property="@nameof(EnergyHistory.ProducedTariff1)" Title="Produced T1 (Wh)" />
-                    <RadzenDataGridColumn Property="@nameof(EnergyHistory.ProducedTariff2)" Title="Produced T2 (Wh)" />
-                    <RadzenDataGridColumn Property="@nameof(EnergyHistory.TarrifIndicator)" Title="Tariff indicator" />
-                    <RadzenDataGridColumn Property="@nameof(EnergyHistory.Temperature)" Title="Temperature" />
+                    <RadzenDataGridColumn Property="@nameof(EnergyHistory.Time)" Title="@T("Time")" SortOrder="SortOrder.Descending" />
+                    <RadzenDataGridColumn Property="@nameof(EnergyHistory.ConsumedTariff1)" Title="@T("Consumed T1 (Wh)")" />
+                    <RadzenDataGridColumn Property="@nameof(EnergyHistory.ConsumedTariff2)" Title="@T("Consumed T2 (Wh)")" />
+                    <RadzenDataGridColumn Property="@nameof(EnergyHistory.ProducedTariff1)" Title="@T("Produced T1 (Wh)")" />
+                    <RadzenDataGridColumn Property="@nameof(EnergyHistory.ProducedTariff2)" Title="@T("Produced T2 (Wh)")" />
+                    <RadzenDataGridColumn Property="@nameof(EnergyHistory.TarrifIndicator)" Title="@T("Tariff indicator")" />
+                    <RadzenDataGridColumn Property="@nameof(EnergyHistory.Temperature)" Title="@T("Temperature")" />
                 </Columns>
             </RadzenDataGrid>
         </RadzenTabsItem>

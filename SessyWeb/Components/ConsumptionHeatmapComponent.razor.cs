@@ -12,15 +12,14 @@ namespace SessyWeb.Components
 
         public sealed record Period(int Days, string Text);
 
-        private static readonly List<Period> Periods = [new(30, "Last 30 days"), new(90, "Last 90 days"), new(365, "Last 365 days")];
+        private List<Period> Periods => [new(30, T("Last 30 Days")), new(90, T("Last 90 Days")), new(365, T("Last 365 Days"))];
 
         private static readonly DayOfWeek[] Days =
             [DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday, DayOfWeek.Saturday, DayOfWeek.Sunday];
 
-        private const string HowToRead =
-            "Every square is one hour of one weekday: the average power the house drew then, in kW, over the chosen " +
+        private string HowToRead => T("Every square is one hour of one weekday: the average power the house drew then, in kW, over the chosen " +
             "period. The darker the square, the higher the load. You see at a glance when the house uses most, for " +
-            "example the evening peak or the washing machine on Saturday morning. Hover a square for the exact value.";
+            "example the evening peak or the washing machine on Saturday morning. Hover a square for the exact value.");
 
         private int _days = 90;
         private HeatmapResult? _result;
@@ -45,7 +44,7 @@ namespace SessyWeb.Components
 
         private HeatmapCell? Cell(DayOfWeek day, int hour) => _cells.TryGetValue((day, hour), out var cell) ? cell : null;
 
-        private string DayName(DayOfWeek day) => CultureInfo.InvariantCulture.DateTimeFormat.GetAbbreviatedDayName(day);
+        private string DayName(DayOfWeek day) => UiCulture.DateTimeFormat.GetAbbreviatedDayName(day);
 
         private string CellStyle(HeatmapCell? cell)
         {
@@ -64,10 +63,10 @@ namespace SessyWeb.Components
         private string CellText(HeatmapCell? cell) => cell == null ? string.Empty : (cell.AverageW / 1000.0).ToString("0.0", GetFormatProvider());
 
         private string CellTitle(DayOfWeek day, int hour, HeatmapCell? cell) => cell == null
-            ? $"{DayName(day)} {hour:00}:00 – no data"
-            : string.Format(GetFormatProvider(), "{0} {1:00}:00 – {2:0} W average over {3} quarters", DayName(day), hour, cell.AverageW, cell.Quarters);
+            ? T("{0} {1:00}:00 – no data", DayName(day), hour)
+            : T("{0} {1:00}:00 – {2:0} W average over {3} quarters", DayName(day), hour, cell.AverageW, cell.Quarters);
 
-        private string RangeText() => string.Format(GetFormatProvider(), "{0:dd-MM-yyyy} to {1:dd-MM-yyyy}, average kW per hour.",
+        private string RangeText() => T("{0:dd-MM-yyyy} to {1:dd-MM-yyyy}, average kW per hour.",
             _result!.From, _result.To.AddDays(-1));
     }
 }

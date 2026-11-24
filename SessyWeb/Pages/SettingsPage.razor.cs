@@ -237,7 +237,7 @@ namespace SessyWeb.Pages
             {
                 await _js.InvokeVoidAsync("sessyLog.copy", _logText);
             }
-            catch (JSDisconnectedException)
+            catch (Exception ex) when (ex is JSDisconnectedException or TaskCanceledException)
             {
                 // Circuit gone (page navigated away/closed); nothing to copy to.
             }
@@ -252,7 +252,7 @@ namespace SessyWeb.Pages
                 await _js.InvokeVoidAsync("sessyLog.download",
                     $"sessy-log-{DateTime.Now:yyyyMMdd-HHmmss}.txt", _logText);
             }
-            catch (JSDisconnectedException)
+            catch (Exception ex) when (ex is JSDisconnectedException or TaskCanceledException)
             {
                 // Circuit gone (page navigated away/closed); nothing to export to.
             }
@@ -401,7 +401,7 @@ namespace SessyWeb.Pages
                     {
                         await _js.InvokeVoidAsync("sessyLog.scrollToBottom", _logContainer);
                     }
-                    catch (JSDisconnectedException)
+                    catch (Exception ex) when (ex is JSDisconnectedException or TaskCanceledException)
                     {
                         // Circuit gone (page navigated away/closed); nothing to scroll.
                     }
@@ -517,29 +517,29 @@ namespace SessyWeb.Pages
 
         private record StrategyItem(string Text, OptimizationStrategy Value);
 
-        private readonly List<StrategyItem> _strategies =
+        private List<StrategyItem> _strategies =>
         [
-            new("Profit maximization", OptimizationStrategy.ProfitMaximization),
-            new("Self-consumption", OptimizationStrategy.SelfConsumption),
-            new("Balanced", OptimizationStrategy.Balanced),
-            new("Battery saving", OptimizationStrategy.BatterySaving),
+            new(T("Profit maximization"), OptimizationStrategy.ProfitMaximization),
+            new(T("Self-consumption"), OptimizationStrategy.SelfConsumption),
+            new(T("Balanced"), OptimizationStrategy.Balanced),
+            new(T("Battery saving"), OptimizationStrategy.BatterySaving),
         ];
 
         private record ControlMethodItem(string Text, BatteryControlMethod Value);
 
-        private readonly List<ControlMethodItem> _controlMethods =
+        private List<ControlMethodItem> _controlMethods =>
         [
-            new("P1 grid target (NOM)", BatteryControlMethod.P1GridTarget),
-            new("Setpoint per battery (Open API)", BatteryControlMethod.BatterySetpoint),
+            new(T("P1 grid target (NOM)"), BatteryControlMethod.P1GridTarget),
+            new(T("Setpoint per battery (Open API)"), BatteryControlMethod.BatterySetpoint),
         ];
 
         private record PredictedPriceItem(string Text, PredictedPriceMode Value);
 
-        private readonly List<PredictedPriceItem> _predictedPriceModes =
+        private List<PredictedPriceItem> _predictedPriceModes =>
         [
-            new("Off — known prices only", PredictedPriceMode.Off),
-            new("Soft — predicted with risk margin", PredictedPriceMode.SoftMargin),
-            new("Full — trust predicted prices", PredictedPriceMode.Full),
+            new(T("Off — known prices only"), PredictedPriceMode.Off),
+            new(T("Soft — predicted with risk margin"), PredictedPriceMode.SoftMargin),
+            new(T("Full — trust predicted prices"), PredictedPriceMode.Full),
         ];
 
         private void ResetPlannerDefaults()
@@ -617,6 +617,7 @@ namespace SessyWeb.Pages
         private async Task SaveSettingsAsync()
         {
             if (_settings == null) return;
+
 
             _settingsSaving = true;
             _settingsSaved = false;
@@ -712,13 +713,13 @@ namespace SessyWeb.Pages
 
             if (_dumpFrom == null || _dumpTo == null)
             {
-                _dumpError = "Pick a start and end date first.";
+                _dumpError = T("Pick a start and end date first.");
                 return;
             }
 
             if (_dumpTo <= _dumpFrom)
             {
-                _dumpError = "The end date must be after the start date.";
+                _dumpError = T("The end date must be after the start date.");
                 return;
             }
 
@@ -737,7 +738,7 @@ namespace SessyWeb.Pages
             }
             catch (Exception ex)
             {
-                _dumpError = $"Plan dump failed: {ex.Message}";
+                _dumpError = T("Plan dump failed: {0}", ex.Message);
             }
             finally
             {
@@ -751,13 +752,13 @@ namespace SessyWeb.Pages
 
             if (_dumpFrom == null || _dumpTo == null)
             {
-                _reconstructError = "Pick a start and end date first.";
+                _reconstructError = T("Pick a start and end date first.");
                 return;
             }
 
             if (_dumpTo <= _dumpFrom)
             {
-                _reconstructError = "The end date must be after the start date.";
+                _reconstructError = T("The end date must be after the start date.");
                 return;
             }
 
@@ -776,7 +777,7 @@ namespace SessyWeb.Pages
             }
             catch (Exception ex)
             {
-                _reconstructError = $"Reconstruction failed: {ex.Message}";
+                _reconstructError = T("Reconstruction failed: {0}", ex.Message);
             }
             finally
             {
@@ -799,13 +800,13 @@ namespace SessyWeb.Pages
             {
                 // Goes through the backup routine, which raises the success/failure notification.
                 var path = await _backupRunner!.BackupNowAsync();
-                _sqlBackupMessage = $"Backup written to {path}";
+                _sqlBackupMessage = T("Backup written to {0}", path);
 
                 await LoadNotificationsAsync();
             }
             catch (Exception ex)
             {
-                _sqlError = $"Backup failed: {ex.RootMessage()}";
+                _sqlError = T("Backup failed: {0}", ex.RootMessage());
 
                 await LoadNotificationsAsync();
             }
@@ -835,7 +836,7 @@ namespace SessyWeb.Pages
 
             if (statements.Count == 0)
             {
-                _sqlError = "Nothing to execute — the script contains only comments.";
+                _sqlError = T("Nothing to execute — the script contains only comments.");
                 _sqlResult = null;
                 return;
             }
@@ -934,25 +935,25 @@ namespace SessyWeb.Pages
             }
         }
 
-        private static string BuildSqlSummary(int executed, int affected, int resultSets, List<string> skipped)
+        private string BuildSqlSummary(int executed, int affected, int resultSets, List<string> skipped)
         {
             var parts = new List<string>
             {
-                executed == 1 ? "1 statement executed." : $"{executed} statements executed."
+                executed == 1 ? T("1 statement executed.") : T("{0} statements executed.", executed)
             };
 
             if (affected > 0)
-                parts.Add($"{affected} row(s) affected.");
+                parts.Add(T("{0} row(s) affected.", affected));
 
             if (resultSets > 0)
             {
                 parts.Add(resultSets == 1
-                    ? "1 result set."
-                    : $"{resultSets} result sets — the grid shows the last one.");
+                    ? T("1 result set.")
+                    : T("{0} result sets — the grid shows the last one.", resultSets));
             }
 
             if (skipped.Count > 0)
-                parts.Add($"Skipped: {string.Join(", ", skipped)}.");
+                parts.Add(T("Skipped: {0}.", string.Join(", ", skipped)));
 
             return string.Join(" ", parts);
         }
@@ -983,7 +984,7 @@ namespace SessyWeb.Pages
             }
             catch (Exception ex)
             {
-                _sqlError = $"CSV export failed: {ex.Message}";
+                _sqlError = T("CSV export failed: {0}", ex.Message);
             }
         }
 
@@ -1046,7 +1047,7 @@ namespace SessyWeb.Pages
             }
             catch (Exception ex)
             {
-                _sqlError = $"Excel export failed: {ex.Message}";
+                _sqlError = T("Excel export failed: {0}", ex.Message);
             }
         }
     }

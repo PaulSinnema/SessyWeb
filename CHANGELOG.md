@@ -11,6 +11,81 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.215] — 2026-11-24
+
+### Changed
+- **Dutch translation completed for texts the services build**: the plan explanation ("Why this plan" and the
+  reason per quarter in the chart tooltip), the Planner analysis summary, reasons, remarks and parameters, and the
+  gas price source on the heat pump card. Battery modes (Charging, Hold reserve, …), price positions (Cheap,
+  Average, Expensive) and the seasons in the weather charts follow the interface language too.
+- `ServiceText` (SessyCommon) carries a page's translator into a service call (`Tx`/`Tf`), so a singleton service
+  answers each page in its own language.
+
+## [v1.0.214] — 2026-11-24
+
+### Changed
+- **The whole interface is now available in Dutch**: Settings (all tabs), Charging hours with its chart, tooltip
+  and chart guide, Consumption with the comparison against last year, Solar power, Planner analysis, Data editor
+  and the financial forecast. Still English: texts the services build themselves (the plan explanation "Why this
+  plan", plan reasons and remarks, check and notification texts), Radzen's own texts (grid filters, paging) and
+  the logs.
+
+## [v1.0.213] — 2026-11-24
+
+### Changed
+- The version number now sits to the right of the language flags, and there is more room between the Sessy logo and "Theme".
+- **Dutch translation extended**: Batteries, Sessy energy history, Sessy financial results, Status history, EPEX
+  prices and Credits, and the date chooser (period and duration choices) used on those pages.
+
+## [v1.0.212] — 2026-11-24
+
+### Fixed
+- **Dutch texts threw "MissingManifestResourceException".** The resource lookup needs neutral (English) resources in
+  the main assembly to fall back on; there were none. An empty `Texts.resx` now provides them, and a missing
+  resource shows the English text instead of breaking the page.
+
+## [v1.0.211] — 2026-11-24
+
+### Changed
+- **Switching the language no longer reloads the page.** A flag click stores the choice and redraws the open page
+  in the new language; no data is fetched again. The Dutch flag comes first.
+- **Dutch translation extended**: the navigation menu and all Energy Statistics tabs (Financial, Planner,
+  Consumption, Battery), including the explanations behind the ⓘ icons. Weekday names follow the interface language.
+
+### Note
+- Some texts are computed once when a card loads (for example the source lines of the battery power chart); those
+  switch at the next refresh of that card.
+
+## [v1.0.210] — 2026-11-24
+
+### Changed
+- **Language choice moved to the header bar**: a British and a Dutch flag next to the version, the active one
+  outlined; a click stores the choice with the settings and reloads the page. The dropdown on Settings → User
+  interface is gone.
+
+## [v1.0.209] — 2026-11-24
+
+### Fixed
+- **Settings could throw while reloading after a language change.** Scrolling the log and the other browser calls of
+  the page were cancelled by the reload; only a closed connection was caught, a cancelled call was not.
+
+## [v1.0.208] — 2026-11-24
+
+### Fixed
+- **Choosing a language on Settings crashed the page.** The list of languages was a list of tuples, whose members
+  are fields; Radzen's dropdown reads properties and failed casting the whole tuple to text. It is now a list of
+  records.
+
+## [v1.0.207] — 2026-11-24
+
+### Added
+- **Dutch interface (first part).** Settings → User interface → Language chooses English or Nederlands; the choice
+  is stored with the settings and applies to every browser (the page reloads after saving). Numbers and dates keep
+  the Dutch format. Translated so far: the Energy Statistics page header and tabs, and the whole Overview tab
+  (Return on Investment, Heat Pump Savings, Energy System Savings, Current Plan, Energy Flows, Self-sufficiency per
+  month). Other pages stay English until they are translated. Terms follow the new GLOSSARY.md.
+- Database: new column `Settings.Language` (migration `AddLanguageSetting`, English by default).
+
 ## [v1.0.206] — 2026-11-24
 
 ### Fixed

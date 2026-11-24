@@ -3,14 +3,11 @@
 @using Radzen.Blazor
 @inherits BaseComponent
 
-<StatisticsCard Title="🌦️ Consumption and weather" Info="@HowToRead" OnRefresh="@LoadAsync" Loading="@Loading" IsEmpty="@(_dayCount < 3)">
-    <EmptyContent>Not enough data: needs at least a few complete days in the Consumption table.</EmptyContent>
+<StatisticsCard Title="@T("🌦️ Consumption and weather")" Info="@HowToRead" OnRefresh="@LoadAsync" Loading="@Loading" IsEmpty="@(_dayCount < 3)">
+    <EmptyContent>@(T("Not enough data: needs at least a few complete days in the Consumption table."))</EmptyContent>
     <ChildContent>
         <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-1">
-            One dot per complete day (@_dayCount days, @_firstDay?.ToString("dd-MM-yyyy") to @_lastDay?.ToString("dd-MM-yyyy")):
-            the day's house consumption against its average weather, coloured per season. The line is the
-            least-squares fit over all days. The three are linked — sunny days tend to be warmer, damp days
-            colder — so a correlation with radiation or humidity can partly be the temperature effect.
+            @T("One dot per complete day ({0} days, {1:dd-MM-yyyy} to {2:dd-MM-yyyy}): the day's house consumption against its average weather, coloured per season. The line is the least-squares fit over all days. The three are linked — sunny days tend to be warmer, damp days colder — so a correlation with radiation or humidity can partly be the temperature effect.", _dayCount, _firstDay, _lastDay)
         </RadzenText>
 
         <RadzenRow Gap="2rem" class="rz-mt-2">
@@ -26,7 +23,7 @@
                         @foreach (var season in panel.Seasons)
                         {
                             <RadzenLineSeries Data="@season.Points"
-                                              Title="@season.Season.ToString()"
+                                              Title="@T(season.Season.ToString())"
                                               CategoryProperty="X"
                                               ValueProperty="Y"
                                               Stroke="@season.Color"
@@ -39,7 +36,7 @@
                         @if (panel.Trend.Count == 2)
                         {
                             <RadzenLineSeries Data="@panel.Trend"
-                                              Title="Fit"
+                                              Title="@T("Fit")"
                                               CategoryProperty="X"
                                               ValueProperty="Y"
                                               Stroke="var(--rz-text-color)"
@@ -53,7 +50,7 @@
                         </RadzenCategoryAxis>
                         <RadzenValueAxis Formatter="@Helpers.Formatters.FormatAsRoundedNumberWithZeroSuppression">
                             <RadzenGridLines Visible="true" />
-                            <RadzenAxisTitle Text="kWh / day" />
+                            <RadzenAxisTitle Text="@T("kWh / day")" />
                         </RadzenValueAxis>
                     </RadzenChart>
                 </RadzenColumn>

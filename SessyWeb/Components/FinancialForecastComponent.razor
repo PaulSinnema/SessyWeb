@@ -3,15 +3,11 @@
 @using Radzen.Blazor
 @inherits BaseComponent
 
-<StatisticsCard Title="💶 Financial forecast for next year" OnRefresh="@LoadAsync" RefreshTitle="Reload (the planner replay runs once a week)" Loading="@Loading" IsEmpty="@(_lastYear == null || _nextYear == null)">
-    <EmptyContent>Not enough data: needs meter readings for the last 12 months and a Taxes row valid next year.</EmptyContent>
+<StatisticsCard Title="@T("💶 Financial forecast for next year")" OnRefresh="@LoadAsync" RefreshTitle="@T("Reload (the planner replay runs once a week)")" Loading="@Loading" IsEmpty="@(_lastYear == null || _nextYear == null)">
+    <EmptyContent>@(T("Not enough data: needs meter readings for the last 12 months and a Taxes row valid next year."))</EmptyContent>
     <ChildContent>
         <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-1">
-            All amounts incl. VAT, at the market prices of the last 12 full months and the tariffs from the Taxes page.
-            <b>Last 12 months</b>: measured grid import and export at the tariffs that applied.
-            <b>Planner replay</b>: the planner replans that year day by day at the tariffs valid on 1 January
-            @_nextYear!.From.Year (netting @(_nextYear.Netting ? "on" : "off")), from the measured house load and
-            solar; this is what to expect. It runs once a week in the background (a few minutes).
+            @TM("All amounts incl. VAT, at the market prices of the last 12 full months and the tariffs from the Taxes page. <b>Last 12 months</b>: measured grid import and export at the tariffs that applied. <b>Planner replay</b>: the planner replans that year day by day at the tariffs valid on 1 January {0} (netting {1}), from the measured house load and solar; this is what to expect. It runs once a week in the background (a few minutes).", _nextYear!.From.Year, (_nextYear.Netting ? T("On") : T("Off")).ToLowerInvariant())
         </RadzenText>
 
         <div style="width: 100%; overflow-x: auto;" class="rz-mt-2">
@@ -21,7 +17,7 @@
                         <th style="text-align: left;"></th>
                         <th style="text-align: right;">@_lastYear!.Label</th>
                         <th style="text-align: right;">@ReplayHeader</th>
-                        <th style="text-align: right;">Difference</th>
+                        <th style="text-align: right;">@(T("Difference"))</th>
                     </tr>
                 </thead>
                 <tbody>

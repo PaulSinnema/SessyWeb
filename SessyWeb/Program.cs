@@ -286,6 +286,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<BatteryManagementController>();
 
 builder.Services.AddControllers();
+builder.Services.AddScoped<SessyWeb.Services.LanguageState>();
 builder.Services.AddScoped<SessyController.Services.DataEditorService>();
 builder.Services.AddRadzenComponents();
 

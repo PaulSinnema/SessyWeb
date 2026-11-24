@@ -3,7 +3,7 @@
 
 @if (powerStatus == null)
 {
-    <p>Bezig met laden...</p>
+    <p>@(T("Loading..."))</p>
 }
 else
 {
@@ -24,58 +24,58 @@ else
             <RadzenStack Orientation="Orientation.Vertical" AlignItems="AlignItems.Normal" Style="width: 100%; max-width: 1000px;">
                 <RadzenCard class="rz-background-color-primary-light rz-shadow-0 rz-border-radius-0 rz-p-8 rz-border-radius-2" style="margin: 1rem calc(-1 * var(--rz-card-padding));">
                     <RadzenText TextStyle="TextStyle.H6" class="rz-color-on-primary-light"><strong>@Battery!.GetName()</strong></RadzenText>
-                    <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Strategy</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">@(T("Strategy"))</RadzenText>
                     <RadzenText TextStyle="TextStyle.H6" class="rz-color-on-primary-light"><strong>@ActivePowerStrategy?.StrategyVisual</strong></RadzenText>
                     <RadzenRow RowGap="0">
                         <RadzenColumn SizeSM="4">
-                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Power status</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">@(T("Power status"))</RadzenText>
                             <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@powerStatus?.Status</b></RadzenText>
 
-                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Setpoint</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">@(T("Setpoint"))</RadzenText>
                             <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b> @powerStatus?.Sessy?.PowerSetpoint</b></RadzenText>
 
                             @if (UseSetpoints)
                             {
-                                <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Requested setpoint</RadzenText>
+                                <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">@(T("Requested setpoint"))</RadzenText>
                                 <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@Battery!.SetpointRequested.ToString("F0")</b></RadzenText>
                             }
 
-                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Power</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">@(T("Power"))</RadzenText>
                             <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@powerStatus?.Sessy?.Power</b></RadzenText>
                         </RadzenColumn>
 
                         <RadzenColumn SizeSM="4">
-                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">State of charge</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">@(T("State of charge"))</RadzenText>
                             <RadzenProgressBarCircular ProgressBarStyle="ProgressBarStyle.Success" value=@(powerStatus.Sessy == null ? 0.0 : powerStatus.Sessy.StateOfCharge100) />
                         </RadzenColumn>
 
                         <RadzenColumn SizeSM="4">
-                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">System state</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">@(T("System state"))</RadzenText>
 
                             <RadzenText TextStyle="TextStyle.Body1" style=@style>@powerStatus?.Sessy?.SystemStateString</RadzenText>
-                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">System state details</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">@(T("System state details"))</RadzenText>
                             <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@powerStatus?.Sessy?.SystemStateDetails</b></RadzenText>
-                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Strategy overriden</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">@(T("Strategy overriden"))</RadzenText>
                             <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@powerStatus?.Sessy?.StrategyOverridden</b></RadzenText>
-                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Strategy set</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">@(T("Strategy set"))</RadzenText>
                             <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@(ActivePowerStrategy?.Strategy ?? "??")</b></RadzenText>
                         </RadzenColumn>
 
                         <RadzenColumn SizeSM="4">
-                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Inverted current in mAmpere</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">@(T("Inverted current in mAmpere"))</RadzenText>
                             <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@powerStatus?.Sessy?.InverterCurrentMa</b></RadzenText>
-                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Frequency</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">@(T("Frequency"))</RadzenText>
                             <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@powerStatus?.Sessy?.Frequency</b></RadzenText>
                         </RadzenColumn>
 
                         <RadzenColumn SizeSM="4">
-                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Renewable phase 1 power</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">@(T("Renewable phase 1 power"))</RadzenText>
                             <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@powerStatus?.RenewableEnergyPhase1?.Power</b></RadzenText>
 
-                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Renewable phase 2 power</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">@(T("Renewable phase 2 power"))</RadzenText>
                             <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@powerStatus?.RenewableEnergyPhase2?.Power</b></RadzenText>
 
-                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">Renewable phase 3 power</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-on-primary-light rz-display-flex rz-mt-4 rz-mb-0">@(T("Renewable phase 3 power"))</RadzenText>
                             <RadzenText TextStyle="TextStyle.Body1" class="rz-color-on-primary-light"><b>@powerStatus?.RenewableEnergyPhase3?.Power</b></RadzenText>
                         </RadzenColumn>
                     </RadzenRow>

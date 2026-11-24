@@ -15,9 +15,9 @@ namespace SessyWeb.Components
         private string RoundTripEfficiencyValue =>
             $"{Dashboard?.Period.BatteryRoundTripEfficiencyPct:F1} %";
 
-        private string RoundTripEfficiencyTooltip =>
+        private string RoundTripEfficiencyTooltip => T(
             "Measured round-trip efficiency: discharged energy divided by charged energy, "
             + "SOC-corrected over the period. This is the real hardware efficiency including "
-            + "all charge/discharge (Charging, Discharging and ZeroNetHome).";
+            + "all charge/discharge (Charging, Discharging and ZeroNetHome).");
     }
 }

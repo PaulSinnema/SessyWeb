@@ -26,32 +26,31 @@
         @if (ChargedHasTheAreas)
         {
             <text>
-                <b>Charged</b> is in control — the <span style="color:#7fd1ff;">blue areas</span> are
-                the batteries' own schedule.
+                @TM("<b>Charged</b> is in control — the <span style=\"color:#7fd1ff;\">blue areas</span> are the batteries' own schedule.")
             </text>
         }
         else if (ChargedInControl)
         {
             <text>
-                <b>Charged</b> is in control — the orange/green areas are the SessyWeb plan.
+                @TM("<b>Charged</b> is in control — the orange/green areas are the SessyWeb plan.")
             </text>
         }
         else
         {
             <text>
-                <b>SessyWeb</b> is in control — the orange/green areas are our plan.
+                @TM("<b>SessyWeb</b> is in control — the orange/green areas are our plan.")
             </text>
         }
 
         @if (ShowOurShadow)
         {
-            <text> SessyWeb's plan is the dashed orange/green line.</text>
+            <text> @(T("SessyWeb's plan is the dashed orange/green line."))</text>
         }
 
         @if (ShowChargedShadow)
         {
             <text>
-                The dashed <span style="color:#7fd1ff;">blue line</span> is what Charged would have done.
+                @TM("The dashed <span style=\"color:#7fd1ff;\">blue line</span> is what Charged would have done.")
             </text>
         }
 
@@ -61,11 +60,11 @@
         {
             @if (ChargedScheduleFetchedAt != null)
             {
-                <text> Charged's schedule read at @ChargedScheduleFetchedAt.Value.ToString("HH:mm").</text>
+                <text> @T("Charged's schedule read at {0:HH:mm}.", ChargedScheduleFetchedAt.Value)</text>
             }
             else
             {
-                <text> No schedule received from the batteries yet.</text>
+                <text> @(T("No schedule received from the batteries yet."))</text>
             }
         }
     </span>
@@ -75,7 +74,7 @@
                     TValue="bool"
                     Change="@((bool value) => ToggleOther(value))"
                     Name="showOther" />
-    <RadzenLabel Text="@($"Show {OtherName}")" Component="showOther" Style="font-size: 0.85em;" />
+    <RadzenLabel Text="@T("Show {0}", OtherName)" Component="showOther" Style="font-size: 0.85em;" />
 </div>
 
 <div class="now-chart" style="width: 100%; overflow: auto;">
@@ -85,7 +84,7 @@
 
         <RadzenColumnSeries Data="@QuarterlyInfos"
                             CategoryProperty="Time"
-                            Title="Buying price (€/kWh)"
+                            Title="@T("Buying price (€/kWh)")"
                             Fill="#324ab2"
                             Stroke="#324ab2"
                             ValueProperty="BuyingPrice">
@@ -98,7 +97,7 @@
                 @if (IsExpected(QuarterlyInfos))
                 {
                     <RadzenSeriesAnnotation Data="@QuarterlyInfos.First(q => q.IsPriceExpected)"
-                                            Text="↑ Prices are predicted, plan will be calculated after EPEX prices arrive →"
+                                            Text="@T("↑ Prices are predicted, plan will be calculated after EPEX prices arrive →")"
                                             OffsetX="220"
                                             OffsetY="300"
                                             Fill="orange" />
@@ -106,7 +105,7 @@
                 @if (ShowAll && NowQuarter != null)
                 {
                     <RadzenSeriesAnnotation Data="@NowQuarter"
-                                            Text="← now"
+                                            Text="@T("← now")"
                                             OffsetX="50"
                                             OffsetY="-150"
                                             Fill="white" />
@@ -116,7 +115,7 @@
 
         <RadzenColumnSeries Data="@QuarterlyInfos"
                             CategoryProperty="Time"
-                            Title="Selling price (€/kWh)"
+                            Title="@T("Selling price (€/kWh)")"
                             Fill="#00aae4"
                             Stroke="#00aae4"
                             LineType="LineType.Dashed"
@@ -132,7 +131,7 @@
 
         <RadzenColumnSeries Data="@QuarterlyInfos"
                             CategoryProperty="Time"
-                            Title="Cost basis delivered (€/kWh)"
+                            Title="@T("Cost basis delivered (€/kWh)")"
                             Fill="#9b59b6"
                             Stroke="#9b59b6"
                             ValueProperty="ProjectedCostBasisDeliveredEur">
@@ -148,7 +147,7 @@
                             Data="@QuarterlyInfos"
                             Stroke="green"
                             Fill="orange"
-                            Title="Revenue (€/quarter)"
+                            Title="@T("Revenue (€/quarter)")"
                             CategoryProperty="Time"
                             ValueProperty="Profit">
             <TooltipTemplate Context="data">
@@ -182,7 +181,7 @@
                           CategoryProperty="Time"
                           Fill="rgba(255, 215, 0, 0.5)"
                           Stroke="#ffd700"
-                          Title="Zero net home"
+                          Title="@T("Zero Net Home")"
                           ValueProperty="ZeroNetHomeVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
@@ -199,7 +198,7 @@
                           CategoryProperty="Time"
                           Fill="rgba(76, 175, 80, 0.45)"
                           Stroke="#4caf50"
-                          Title="Hold reserve"
+                          Title="@T("Hold reserve")"
                           ValueProperty="HoldReserveVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
@@ -217,7 +216,7 @@
                           Fill="rgba(255, 0, 0, 0.45)"
                           Stroke="red"
                           StrokeWidth="1.5"
-                          Title="Throttle loss charge (kW)"
+                          Title="@T("Throttle loss charge (kW)")"
                           ValueProperty="UnthrottledChargePowerVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
@@ -235,7 +234,7 @@
                           Fill="rgba(255, 0, 0, 0.45)"
                           Stroke="red"
                           StrokeWidth="1.5"
-                          Title="Throttle loss discharge (kW)"
+                          Title="@T("Throttle loss discharge (kW)")"
                           ValueProperty="UnthrottledDischargePowerVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
@@ -255,7 +254,7 @@
                           CategoryProperty="Time"
                           Fill="rgba(255, 102, 0, 0.5)"
                           Stroke="#ff6600"
-                          Title="Planned charge (kW)"
+                          Title="@T("Planned charge (kW)")"
                           ValueProperty="PlannedChargePowerVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
@@ -272,7 +271,7 @@
                           CategoryProperty="Time"
                           Fill="rgba(0, 204, 68, 0.5)"
                           Stroke="#00cc44"
-                          Title="Planned discharge (kW)"
+                          Title="@T("Planned discharge (kW)")"
                           ValueProperty="PlannedDischargePowerVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
@@ -291,7 +290,7 @@
                           CategoryProperty="Time"
                           Fill="rgba(127, 209, 255, 0.45)"
                           Stroke="#7fd1ff"
-                          Title="⟨Charged⟩ charge (kW)"
+                          Title="@T("⟨Charged⟩ charge (kW)")"
                           ValueProperty="ChargedChargePowerVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
@@ -308,7 +307,7 @@
                           CategoryProperty="Time"
                           Fill="rgba(127, 209, 255, 0.45)"
                           Stroke="#7fd1ff"
-                          Title="⟨Charged⟩ discharge (kW)"
+                          Title="@T("⟨Charged⟩ discharge (kW)")"
                           ValueProperty="ChargedDischargePowerVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
@@ -328,7 +327,7 @@
                           Stroke="#7fd1ff"
                           StrokeWidth="2"
                           LineType="LineType.Dashed"
-                          Title="⟨Charged⟩ charge (kW)"
+                          Title="@T("⟨Charged⟩ charge (kW)")"
                           ValueProperty="ChargedChargePowerVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
@@ -346,7 +345,7 @@
                           Stroke="#7fd1ff"
                           StrokeWidth="2"
                           LineType="LineType.Dotted"
-                          Title="⟨Charged⟩ discharge (kW)"
+                          Title="@T("⟨Charged⟩ discharge (kW)")"
                           ValueProperty="ChargedDischargePowerVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
@@ -365,7 +364,7 @@
                           Stroke="#ff6600"
                           StrokeWidth="1"
                           LineType="LineType.Dashed"
-                          Title="⟨SessyWeb⟩ charge (kW)"
+                          Title="@T("⟨SessyWeb⟩ charge (kW)")"
                           ValueProperty="PlannedChargePowerVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
@@ -383,7 +382,7 @@
                           Stroke="#00cc44"
                           StrokeWidth="1"
                           LineType="LineType.Dashed"
-                          Title="⟨SessyWeb⟩ discharge (kW)"
+                          Title="@T("⟨SessyWeb⟩ discharge (kW)")"
                           ValueProperty="PlannedDischargePowerVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
@@ -402,7 +401,7 @@
                           CategoryProperty="Time"
                           Fill="rgba(255, 102, 0, 0.5)"
                           Stroke="#ff6600"
-                          Title="Charge power actual (kW)"
+                          Title="@T("Charge power actual (kW)")"
                           ValueProperty="ChargePowerVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
@@ -420,7 +419,7 @@
                           CategoryProperty="Time"
                           Fill="rgba(0, 204, 68, 0.5)"
                           Stroke="#00cc44"
-                          Title="Discharge power actual (kW)"
+                          Title="@T("Discharge power actual (kW)")"
                           ValueProperty="DischargePowerVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
@@ -435,7 +434,7 @@
                           Smooth="true"
                           CategoryProperty="Time"
                           Stroke="#324ab2"
-                          Title="Smoothed buying price (€/kWh)"
+                          Title="@T("Smoothed buying price (€/kWh)")"
                           LineType="LineType.Solid"
                           ValueProperty="SmoothedBuyingPrice">
             <TooltipTemplate Context="data">
@@ -451,7 +450,7 @@
                           Smooth="true"
                           CategoryProperty="Time"
                           Stroke="#00aae4"
-                          Title="Smoothed selling price (€/kWh)"
+                          Title="@T("Smoothed selling price (€/kWh)")"
                           LineType="LineType.Solid"
                           ValueProperty="SmoothedSellingPrice">
             <TooltipTemplate Context="data">
@@ -475,7 +474,7 @@
                           CategoryProperty="Time"
                           Stroke="@(ShowOurShadow ? "#7fd1ff" : "red")"
                           LineType="@(ShowOurShadow ? LineType.Dotted : LineType.Solid)"
-                          Title="⟨SessyWeb⟩ charge remaining (kWh)"
+                          Title="@T("⟨SessyWeb⟩ charge remaining (kWh)")"
                           ValueProperty="ChargeLeftVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
@@ -492,7 +491,7 @@
                           CategoryProperty="Time"
                           Stroke="@(ChargedHasTheAreas ? "red" : "#7fd1ff")"
                           LineType="@(ChargedHasTheAreas ? LineType.Solid : LineType.Dotted)"
-                          Title="⟨Charged⟩ charge remaining (kWh)"
+                          Title="@T("⟨Charged⟩ charge remaining (kWh)")"
                           ValueProperty="ChargedChargeLeftVisual">
             <TooltipTemplate Context="data">
                 <ChargingHoursTooltip QuarterlyInfo=@data />
@@ -507,7 +506,7 @@
                           Smooth="true"
                           CategoryProperty="Time"
                           Stroke="gold"
-                          Title="Solar power (kWh/quarter)"
+                          Title="@T("Solar power (kWh/quarter)")"
                           LineType="LineType.Solid"
                           ValueProperty="SmoothedSolarPowerVisual">
             <TooltipTemplate Context="data">
@@ -524,7 +523,7 @@
                           Smooth="true"
                           CategoryProperty="Time"
                           Stroke="#b06500"
-                          Title="Charge needed (kWh)"
+                          Title="@T("Charge needed (kWh)")"
                           LineType="LineType.Solid"
                           ValueProperty="ChargeNeededVisual">
             <TooltipTemplate Context="data">
@@ -540,7 +539,7 @@
                           Smooth="true"
                           CategoryProperty="Time"
                           Stroke="#9575cd"
-                          Title="Est. consumption (W)"
+                          Title="@T("Est. consumption (W)")"
                           LineType="LineType.Solid"
                           ValueProperty="SmoothedConsumptionVisual">
             <TooltipTemplate Context="data">
@@ -556,7 +555,7 @@
                           Smooth="true"
                           CategoryProperty="Time"
                           Stroke="#90a4ae"
-                          Title="Delta lowest price (€/kWh)"
+                          Title="@T("Delta lowest price (€/kWh)")"
                           LineType="LineType.Solid"
                           ValueProperty="DeltaLowestPrice">
             <TooltipTemplate Context="data">
@@ -575,7 +574,7 @@
                           Stroke="#ff33cc"
                           StrokeWidth="3.5"
                           LineType="LineType.Solid"
-                          Title="Plan history (kW)"
+                          Title="@T("Plan history (kW)")"
                           ValueProperty="PlanPowerVisual">
             <ChildContent>
                 <RadzenMarkers Visible="false" />
@@ -600,12 +599,12 @@
 
         <RadzenCategoryAxis Padding="40" Formatter="@Formatters.FormatAsDayHour" TickDistance="152">
             <RadzenGridLines Visible="true" />
-            <RadzenAxisTitle Text="Time" />
+            <RadzenAxisTitle Text="@T("Time")" />
         </RadzenCategoryAxis>
 
         <RadzenValueAxis Formatter="@Formatters.FormatAsPrice" Min="@ChartMin" Max="@ChartMax" Step="0.10">
             <RadzenGridLines Visible="true" />
-            <RadzenAxisTitle Text="Price" />
+            <RadzenAxisTitle Text="@T("Price")" />
         </RadzenValueAxis>
 
         <RadzenBarOptions Radius="5" />

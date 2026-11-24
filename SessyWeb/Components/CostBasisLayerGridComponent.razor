@@ -1,6 +1,7 @@
 @using Radzen
 @using Radzen.Blazor
 @using SessyController.Services
+@inherits BaseComponent
 
 @* Renders one FIFO stack (oldest first). Shared by the measured and the projected block. *@
 
@@ -12,24 +13,24 @@
                 @(layer.Index + 1)
             </Template>
         </RadzenDataGridColumn>
-        <RadzenDataGridColumn TItem="ChargeCostBasisService.CostBasisLayerInfo" Title="Energy">
+        <RadzenDataGridColumn TItem="ChargeCostBasisService.CostBasisLayerInfo" Title="@T("Energy")">
             <Template Context="layer">@($"{layer.Wh / 1000.0:F3} kWh")</Template>
         </RadzenDataGridColumn>
-        <RadzenDataGridColumn TItem="ChargeCostBasisService.CostBasisLayerInfo" Title="Cost / kWh stored">
+        <RadzenDataGridColumn TItem="ChargeCostBasisService.CostBasisLayerInfo" Title="@T("Cost / kWh stored")">
             <Template Context="layer">@($"€ {layer.CostEurPerKWh:F4}")</Template>
         </RadzenDataGridColumn>
-        <RadzenDataGridColumn TItem="ChargeCostBasisService.CostBasisLayerInfo" Title="Cost / kWh delivered">
+        <RadzenDataGridColumn TItem="ChargeCostBasisService.CostBasisLayerInfo" Title="@T("Cost / kWh delivered")">
             <Template Context="layer">@($"€ {layer.CostEurPerKWhDelivered:F4}")</Template>
         </RadzenDataGridColumn>
-        <RadzenDataGridColumn TItem="ChargeCostBasisService.CostBasisLayerInfo" Title="Source">
+        <RadzenDataGridColumn TItem="ChargeCostBasisService.CostBasisLayerInfo" Title="@T("Source")">
             <Template Context="layer">
                 @if (layer.IsSolar)
                 {
-                    <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="Solar" />
+                    <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="@T("Solar")" />
                 }
                 else
                 {
-                    <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="Grid" />
+                    <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="@T("Grid")" />
                 }
             </Template>
         </RadzenDataGridColumn>

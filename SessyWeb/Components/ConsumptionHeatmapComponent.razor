@@ -3,12 +3,12 @@
 @using Radzen.Blazor
 @inherits BaseComponent
 
-<StatisticsCard Title="🗓️ Consumption pattern" Info="@HowToRead" Loading="@Loading" IsEmpty="@(_result == null || _result.Cells.Count == 0)">
+<StatisticsCard Title="@T("🗓️ Consumption pattern")" Info="@HowToRead" Loading="@Loading" IsEmpty="@(_result == null || _result.Cells.Count == 0)">
     <HeaderContent>
         <RadzenDropDown TValue="int" Data="@Periods" TextProperty="Text" ValueProperty="Days"
                         @bind-Value="@_days" Change="@(_ => LoadAsync())" Style="width: 160px;" />
     </HeaderContent>
-    <EmptyContent>No consumption measured in this period.</EmptyContent>
+    <EmptyContent>@(T("No consumption measured in this period."))</EmptyContent>
     <ChildContent>
         <RadzenText TextStyle="TextStyle.Caption" class="rz-mt-1">@RangeText()</RadzenText>
 

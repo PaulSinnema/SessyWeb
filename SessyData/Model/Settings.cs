@@ -202,6 +202,9 @@ namespace SessyData.Model
         /// </summary>
         public bool KeepMenuExpanded { get; set; } = true;
 
+        /// <summary>Language of the user interface: "en" or "nl". Numbers and dates keep the Dutch format either way.</summary>
+        public string Language { get; set; } = "en";
+
         // ── Statistics ────────────────────────────────────────────────────────
         public DateTime? StatisticsFromDate { get; set; }
 

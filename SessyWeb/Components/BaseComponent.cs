@@ -77,5 +77,41 @@ namespace SessyWeb.Components
         {
             return new System.Globalization.CultureInfo("nl-NL");
         }
+
+        [Inject]
+        private SessyWeb.Services.LanguageState? LanguageState { get; set; }
+
+        /// <summary>Cascaded by MainLayout; a change re-renders every component in the new language.</summary>
+        [CascadingParameter(Name = "Language")]
+        public string? LanguageCode { get; set; }
+
+        /// <summary>Culture of the interface language, for day and month names.</summary>
+        protected System.Globalization.CultureInfo UiCulture => LanguageState?.Culture ?? System.Globalization.CultureInfo.InvariantCulture;
+
+        /// <summary>The text in the chosen language; the English text is the key.</summary>
+        protected string T(string text) => LanguageState?.Translate(text) ?? text;
+
+        /// <summary>The translated format string filled in with Dutch number and date formatting.</summary>
+        protected string T(string format, params object?[] args) => string.Format(GetFormatProvider(), T(format), args);
+
+        /// <summary>A battery mode ("HoldReserve", "Hold reserve", "Charging", ...) in the interface language.</summary>
+        protected string ModeText(string? mode) => (mode ?? string.Empty).Replace(" ", string.Empty).ToLowerInvariant() switch
+        {
+            "" => string.Empty,
+            "charging" => T("Charging"),
+            "discharging" => T("Discharging"),
+            "zeronethome" => T("Zero Net Home"),
+            "holdreserve" => T("Hold reserve"),
+            "disabled" => T("Disabled"),
+            _ => T(mode!)
+        };
+
+        /// <summary>What decides a battery's end of life, in the interface language.</summary>
+        protected string LimitText(SessyController.Services.Statistics.LifeLimit limit) =>
+            T(limit == SessyController.Services.Statistics.LifeLimit.Capacity ? "Fade" : limit.ToString()).ToLowerInvariant();
+
+        /// <summary>Translated text that may hold markup such as &lt;b&gt;; the arguments are HTML-encoded.</summary>
+        protected MarkupString TM(string format, params object?[] args) =>
+            new(string.Format(GetFormatProvider(), T(format), args.Select(a => (object?)System.Net.WebUtility.HtmlEncode(Convert.ToString(a, GetFormatProvider()))).ToArray()));
     }
 }

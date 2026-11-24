@@ -93,14 +93,14 @@
     <div class="help-header" style="padding-left: 48px;">
         <span style="font-size:30px;">📊</span>
         <div>
-            <div style="font-size:17px; font-weight:bold; color:var(--sessy-accent-text); line-height:1.2;">Chart Guide</div>
-            <div style="font-size:11px; color:var(--rz-text-secondary-color);">SessyWeb — Home Energy Management</div>
+            <div style="font-size:17px; font-weight:bold; color:var(--sessy-accent-text); line-height:1.2;">@(T("Chart Guide"))</div>
+            <div style="font-size:11px; color:var(--rz-text-secondary-color);">@(T("SessyWeb — Home Energy Management"))</div>
         </div>
     </div>
 
     @if (PlanWhy != null)
     {
-        <div class="help-section-title">🧠 Why this plan</div>
+        <div class="help-section-title">🧠 @(T("Why this plan"))</div>
         <div style="margin-bottom:16px; font-size:13px;">
             <div style="font-weight:600; color:var(--rz-text-title-color, var(--rz-text-color)); margin-bottom:6px;">@PlanWhy.Plain</div>
             <ul style="margin:0; padding-left:18px; color:var(--rz-text-secondary-color);">
@@ -116,7 +116,7 @@
 
         @* ── Left column ── *@
         <div>
-            <div class="help-section-title">💰 Price Series</div>
+            <div class="help-section-title">💰 @(T("Price Series"))</div>
             <table class="help-table">
                 @Row("#324ab2", "Buying price", "Tariff paid per kWh from grid (incl. taxes &amp; transport)")
                 @Row("#00aae4", "Selling price", "Tariff received per kWh exported to the grid")
@@ -126,15 +126,15 @@
                 @Row("#9b59b6", "Cost basis delivered", "What the stored energy cost per delivered kWh")
             </table>
 
-            <div class="help-section-title">☀️ Solar &amp; Consumption</div>
+            <div class="help-section-title">☀️ @(T("Solar & Consumption"))</div>
             <table class="help-table">
                 @Row("gold", "Solar power", "Measured (past) or forecast (future) solar production")
                 @Row("#9575cd", "Est. consumption", "Forecast home consumption per quarter-hour")
-                @Row("#ffd700", "Zero net home", "Battery balances home load — net grid flow ≈ 0")
+                @Row("#ffd700", "Zero Net Home", "Battery balances home load — net grid flow ≈ 0")
                 @Row("#4caf50", "Hold reserve", "Battery stores solar surplus but does not cover the house")
             </table>
 
-            <div class="help-section-title">📌 Other</div>
+            <div class="help-section-title">📌 @(T("Other"))</div>
             <table class="help-table">
                 @Row("#90a4ae", "Delta lowest price", "Gap between current price and the day's lowest price")
                 @Row("white", "Now  ▏", "Current quarter marker — visible in Show All mode")
@@ -143,7 +143,7 @@
 
         @* ── Right column ── *@
         <div>
-            <div class="help-section-title">🔋 Battery &amp; Plan</div>
+            <div class="help-section-title">🔋 @(T("Battery & Plan"))</div>
             <table class="help-table">
                 @Row("red", "Charge remaining", "Planned State of Charge (SOC) curve over time")
                 @Row("#b06500", "Charge needed", "Minimum SOC to cover future home consumption")
@@ -155,7 +155,7 @@
                 @Row("#ff33cc", "Plan history", "Earlier plans for the same quarters")
             </table>
 
-            <div class="help-section-title">🖥️ Header Indicators</div>
+            <div class="help-section-title">🖥️ @(T("Header Indicators"))</div>
             <table class="help-table">
                 @IconRow("Battery (plan)", "Planned SOC%, active planned mode and SOC deviation")
                 @IconRow("Battery (actual)", "Live hardware strategy and actual power in watts")
@@ -177,10 +177,10 @@
         b.AddMarkupContent(3, $"<span style='color:{color};font-size:15px;'>■</span>");
         b.CloseElement();
         b.OpenElement(4, "td"); b.AddAttribute(5, "class", "c-label");
-        b.AddContent(6, label);
+        b.AddContent(6, T(label));
         b.CloseElement();
         b.OpenElement(7, "td"); b.AddAttribute(8, "class", "c-desc");
-        b.AddMarkupContent(9, desc);
+        b.AddMarkupContent(9, T(desc));
         b.CloseElement();
         b.CloseElement();
     };
@@ -192,10 +192,10 @@
         b.AddMarkupContent(3, "<span style='color:var(--sessy-accent-text);font-size:13px;'>⬡</span>");
         b.CloseElement();
         b.OpenElement(4, "td"); b.AddAttribute(5, "class", "c-label");
-        b.AddContent(6, label);
+        b.AddContent(6, T(label));
         b.CloseElement();
         b.OpenElement(7, "td"); b.AddAttribute(8, "class", "c-desc");
-        b.AddContent(9, desc);
+        b.AddContent(9, T(desc));
         b.CloseElement();
         b.CloseElement();
     };

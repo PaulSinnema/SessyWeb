@@ -4,25 +4,20 @@
 @using SessyController.Services.Items
 @inherits BaseComponent
 
-<StatisticsCard Title="🔋 Battery power vs state of charge" OnRefresh="@RefreshAsync" RefreshTitle="Recompute from the measured models" Loading="@Loading" IsEmpty="@(_points.Count == 0)">
+<StatisticsCard Title="@T("🔋 Battery power vs state of charge")" OnRefresh="@RefreshAsync" RefreshTitle="@T("Recompute from the measured models")" Loading="@Loading" IsEmpty="@(_points.Count == 0)">
     <Intro>
     <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-1">
-        The power the planner assumes per quarter at each state of charge, from the same calculation
-        the plan uses, at the current @_temperatureC.ToString("F0") °C. <b>Charge</b>: @_chargeSource.
-        <b>Discharge</b>: @_dischargeSource. Dashed lines are nameplate.
+        @TM("The power the planner assumes per quarter at each state of charge, from the same calculation the plan uses, at the current {0:F0} °C. <b>Charge</b>: {1}. <b>Discharge</b>: {2}. Dashed lines are nameplate.", _temperatureC, _chargeSource, _dischargeSource)
     </RadzenText>
 
     @if (_chargeHasSlope || _dischargeHasSlope)
     {
         <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-1">
-            🌡️ Warm batteries cannot shed their heat and deliver less. <b>Charge</b>: @_chargeTemperatureText.
-            <b>Discharge</b>: @_dischargeTemperatureText. Dotted lines show power at the coolest and warmest
-            measured temperature; outside that range the nearest edge is used, so a dotted line can coincide
-            with the current one.
+            🌡️ @TM("Warm batteries cannot shed their heat and deliver less. <b>Charge</b>: {0}. <b>Discharge</b>: {1}. Dotted lines show power at the coolest and warmest measured temperature; outside that range the nearest edge is used, so a dotted line can coincide with the current one.", _chargeTemperatureText, _dischargeTemperatureText)
         </RadzenText>
     }
     </Intro>
-    <EmptyContent>No battery configured.</EmptyContent>
+    <EmptyContent>@(T("No battery configured."))</EmptyContent>
     <ChildContent>
         <div style="width: 100%; overflow-x: auto;">
             <RadzenChart Style="height: 320px; min-width: 600px; width: 100%;"
@@ -30,7 +25,7 @@
                 <RadzenLineSeries Data="@_points"
                                   CategoryProperty="@nameof(PowerPoint.SocPct)"
                                   ValueProperty="@nameof(PowerPoint.ChargeW)"
-                                  Title="Charge"
+                                  Title="@T("Charge")"
                                   Stroke="var(--sessy-charge-line)"
                                   StrokeWidth="2">
                     <RadzenMarkers MarkerType="MarkerType.Circle" Size="5" />
@@ -38,7 +33,7 @@
                 <RadzenLineSeries Data="@_points"
                                   CategoryProperty="@nameof(PowerPoint.SocPct)"
                                   ValueProperty="@nameof(PowerPoint.DischargeW)"
-                                  Title="Discharge"
+                                  Title="@T("Discharge")"
                                   Stroke="var(--sessy-discharge-line)"
                                   StrokeWidth="2">
                     <RadzenMarkers MarkerType="MarkerType.Circle" Size="5" />
@@ -48,14 +43,14 @@
                     <RadzenLineSeries Data="@_points"
                                       CategoryProperty="@nameof(PowerPoint.SocPct)"
                                       ValueProperty="@nameof(PowerPoint.ChargeColdW)"
-                                      Title="@($"Charge at {_chargeColdC:F0} °C")"
+                                      Title="@T("Charge at {0:F0} °C", _chargeColdC)"
                                       Stroke="var(--sessy-charge-line)"
                                       StrokeWidth="1"
                                       LineType="LineType.Dotted" />
                     <RadzenLineSeries Data="@_points"
                                       CategoryProperty="@nameof(PowerPoint.SocPct)"
                                       ValueProperty="@nameof(PowerPoint.ChargeWarmW)"
-                                      Title="@($"Charge at {_chargeWarmC:F0} °C")"
+                                      Title="@T("Charge at {0:F0} °C", _chargeWarmC)"
                                       Stroke="var(--sessy-charge-line)"
                                       StrokeWidth="1"
                                       LineType="LineType.Dotted" />
@@ -65,14 +60,14 @@
                     <RadzenLineSeries Data="@_points"
                                       CategoryProperty="@nameof(PowerPoint.SocPct)"
                                       ValueProperty="@nameof(PowerPoint.DischargeColdW)"
-                                      Title="@($"Discharge at {_dischargeColdC:F0} °C")"
+                                      Title="@T("Discharge at {0:F0} °C", _dischargeColdC)"
                                       Stroke="var(--sessy-discharge-line)"
                                       StrokeWidth="1"
                                       LineType="LineType.Dotted" />
                     <RadzenLineSeries Data="@_points"
                                       CategoryProperty="@nameof(PowerPoint.SocPct)"
                                       ValueProperty="@nameof(PowerPoint.DischargeWarmW)"
-                                      Title="@($"Discharge at {_dischargeWarmC:F0} °C")"
+                                      Title="@T("Discharge at {0:F0} °C", _dischargeWarmC)"
                                       Stroke="var(--sessy-discharge-line)"
                                       StrokeWidth="1"
                                       LineType="LineType.Dotted" />
@@ -80,23 +75,23 @@
                 <RadzenLineSeries Data="@_points"
                                   CategoryProperty="@nameof(PowerPoint.SocPct)"
                                   ValueProperty="@nameof(PowerPoint.ChargeNameplateW)"
-                                  Title="Charge nameplate"
+                                  Title="@T("Charge nameplate")"
                                   Stroke="var(--sessy-charge-line)"
                                   StrokeWidth="1"
                                   LineType="LineType.Dashed" />
                 <RadzenLineSeries Data="@_points"
                                   CategoryProperty="@nameof(PowerPoint.SocPct)"
                                   ValueProperty="@nameof(PowerPoint.DischargeNameplateW)"
-                                  Title="Discharge nameplate"
+                                  Title="@T("Discharge nameplate")"
                                   Stroke="var(--sessy-discharge-line)"
                                   StrokeWidth="1"
                                   LineType="LineType.Dashed" />
                 <RadzenCategoryAxis FormatString="{0}%">
-                    <RadzenAxisTitle Text="State of charge" />
+                    <RadzenAxisTitle Text="@T("State of charge")" />
                 </RadzenCategoryAxis>
                 <RadzenValueAxis Min="0" FormatString="{0:F0} W">
                     <RadzenGridLines Visible="true" />
-                    <RadzenAxisTitle Text="Power" />
+                    <RadzenAxisTitle Text="@T("Power")" />
                 </RadzenValueAxis>
                 <RadzenLegend Position="LegendPosition.Bottom" />
             </RadzenChart>

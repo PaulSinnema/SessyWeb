@@ -35,11 +35,17 @@ namespace SessyWeb.Pages
 
         // Fills each quarter's "why" (shown in the tooltip) and the overall summary. Recomputes only
         // when a fresh QuarterlyInfos list was built, so it is cheap to call from the markup.
+        private string? _explainedLanguage;
+
         private void EnsureExplanations()
         {
             if (_planExplanation == null || QuarterlyInfos == null) return;
-            if (ReferenceEquals(_explainedFor, QuarterlyInfos)) return;
+            if (ReferenceEquals(_explainedFor, QuarterlyInfos) && _explainedLanguage == LanguageCode) return;
             _explainedFor = QuarterlyInfos;
+            _explainedLanguage = LanguageCode;
+
+            // The explanations come out in the page's language.
+            using var language = SessyCommon.ServiceText.Use(T);
 
             foreach (var v in QuarterlyInfos)
                 v.Why = _planExplanation.ExplainQuarter(v, QuarterlyInfos);
@@ -96,10 +102,10 @@ namespace SessyWeb.Pages
 
         public string OptimizationStrategyName => _settingsService?.Current.Strategy switch
         {
-            SessyData.Model.OptimizationStrategy.SelfConsumption => "Self consumption",
-            SessyData.Model.OptimizationStrategy.Balanced => "Balanced",
-            SessyData.Model.OptimizationStrategy.BatterySaving => "Battery saving",
-            _ => "Profit maximization"
+            SessyData.Model.OptimizationStrategy.SelfConsumption => T("Self consumption"),
+            SessyData.Model.OptimizationStrategy.Balanced => T("Balanced"),
+            SessyData.Model.OptimizationStrategy.BatterySaving => T("Battery saving"),
+            _ => T("Profit maximization")
         };
 
         private CancellationTokenSource _cts = new();

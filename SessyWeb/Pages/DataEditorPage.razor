@@ -7,7 +7,7 @@
 <RadzenLayout Style="height: 80vh;">
     <RadzenHeader Style="height: 100%; margin: 0px; padding: 0px;">
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Style="height:100%; margin: 0px; padding: 0px;">
-            <RadzenLabel Text="Data Editor" class="h4 m-2" />
+            <RadzenLabel Text="@T("Data Editor")" class="h4 m-2" />
         </RadzenStack>
     </RadzenHeader>
 
@@ -17,7 +17,7 @@
             @* ── Table selector + filter ── *@
             <div style="display:flex; gap:0.75rem; align-items:flex-end; flex-wrap:wrap;">
                 <div>
-                    <RadzenLabel Text="Table" />
+                    <RadzenLabel Text="@T("Table")" />
                     <RadzenDropDown @bind-Value="_selectedTable"
                                     Data="@_tables"
                                     TextProperty="DisplayName"
@@ -25,12 +25,12 @@
                                     Change="@OnTableChanged" />
                 </div>
                 <div style="flex:1; min-width:200px;">
-                    <RadzenLabel Text="Filter (WHERE clause)" />
+                    <RadzenLabel Text="@T("Filter (WHERE clause)")" />
                     <RadzenTextBox @bind-Value="_whereClause"
                                    Style="width:100%; font-family:monospace;"
-                                   Placeholder="e.g. Time > '2026-05-01' AND SolarProductionKWh > 1" />
+                                   Placeholder="@T("e.g. Time > '2026-05-01' AND SolarProductionKWh > 1")" />
                 </div>
-                <RadzenButton Text="Load" Icon="search"
+                <RadzenButton Text="@T("Load")" Icon="search"
                               ButtonStyle="ButtonStyle.Primary"
                               Click="@LoadDataAsync"
                               IsBusy="@_loading" />

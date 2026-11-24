@@ -9,7 +9,7 @@ namespace SessyWeb.Components
     /// consumption (temperature and other) and the difference per day or month as diverging stacked bars.
     /// For All it shows measured against expected consumption per month instead.
     /// </summary>
-    public partial class ConsumptionVarianceComponent : ComponentBase
+    public partial class ConsumptionVarianceComponent : BaseComponent
     {
         [Parameter] public ConsumptionModel? Model { get; set; }
 
@@ -32,20 +32,17 @@ namespace SessyWeb.Components
         /// <summary>Flat row for Radzen: it cannot bind to nested properties. Calendar is counted as other.</summary>
         public sealed record DifferenceRow(string Label, double TemperatureKWh, double OtherKWh);
 
-        private const string HowToRead =
-            "Left: last year's consumption over the compared days. Right: this year's. In between, the difference is " +
+        private string HowToRead => T("Left: last year's consumption over the compared days. Right: this year's. In between, the difference is " +
             "split up. Temperature: what the model expects the colder or warmer weather to cost or save. Other: what is " +
             "left, the part you influence yourself (appliances, habits, who is home). Red adds, green saves. Small " +
-            "amounts of 'other' are normal day-to-day variation.";
+            "amounts of 'other' are normal day-to-day variation.");
 
-        private const string DifferenceInfo =
-            "Per day or month, how much more (right) or less (left) was used than last year, built from the temperature " +
-            "part and the other part. Hover a bar for the numbers. Days that are not complete in both years are left out.";
+        private string DifferenceInfo => T("Per day or month, how much more (right) or less (left) was used than last year, built from the temperature " +
+            "part and the other part. Hover a bar for the numbers. Days that are not complete in both years are left out.");
 
-        private const string FitInfo =
-            "Bars: what the house used per month. Line: what the model expects for that month's weather and calendar. " +
+        private string FitInfo => T("Bars: what the house used per month. Line: what the model expects for that month's weather and calendar. " +
             "The cumulative difference adds up measured minus expected; a line that keeps rising or falling means a " +
-            "lasting change, for example a new appliance or a different way of living.";
+            "lasting change, for example a new appliance or a different way of living.");
 
         private List<WaterfallStep> Steps { get; set; } = new();
         private List<DifferenceRow> Rows { get; set; } = new();
@@ -62,10 +59,10 @@ namespace SessyWeb.Components
 
             Steps =
             [
-                new("Last year", total.PreviousKWh, false),
+                new(T("Last year"), total.PreviousKWh, false),
                 new("Temperature", total.TemperatureKWh, false),
                 new("Other", OtherKWh(total), false),
-                new("This year", total.CurrentKWh, true)
+                new(T("This year"), total.CurrentKWh, true)
             ];
 
             // Days or months without data in both years are left out; first category on top.
@@ -86,8 +83,7 @@ namespace SessyWeb.Components
 
         private static string Kwh(double value) => value.ToString("+0.0;-0.0;0.0", CultureInfo.CurrentCulture) + " kWh";
 
-        private string ComparedText() => Result?.From == null ? string.Empty : string.Format(CultureInfo.CurrentCulture,
-            "Compared: {0:dd-MM-yyyy} – {1:dd-MM-yyyy} against the same days a year earlier ({2} days). " +
+        private string ComparedText() => Result?.From == null ? string.Empty : T("Compared: {0:dd-MM-yyyy} – {1:dd-MM-yyyy} against the same days a year earlier ({2} days). " +
             "Only days that are complete in both years count; today is left out until it is complete.",
             Result.From, Result.To, Result.CurrentDays);
 
@@ -98,16 +94,14 @@ namespace SessyWeb.Components
             var expected = total.CurrentKWh - other;
             var percent = expected > 0 ? other / expected * 100.0 : 0.0;
             var verdict = Math.Abs(other) <= Result.NormalVariationKWh
-                ? "within the normal day-to-day variation"
-                : other > 0 ? "more than normal variation explains" : "less than normal variation explains";
+                ? T("within the normal day-to-day variation")
+                : other > 0 ? T("more than normal variation explains") : T("less than normal variation explains");
 
-            return string.Format(CultureInfo.CurrentCulture,
-                "Other: {0} ({1:+0.0;-0.0;0.0} % of what the weather leads to expect), {2} (±{3:0} kWh).",
+            return T("Other: {0} ({1:+0.0;-0.0;0.0} % of what the weather leads to expect), {2} (±{3:0} kWh).",
                 Kwh(other), percent, verdict, Result.NormalVariationKWh);
         }
 
-        private string ModelText() => Model == null ? string.Empty : string.Format(CultureInfo.CurrentCulture,
-            "Model: {0:0.0} kWh/day base, +{1:0.00} kWh per °C below {2} °C, +{3:0.00} kWh per °C above {4} °C, {5:+0.0;-0.0} kWh on weekend days; " +
+        private string ModelText() => Model == null ? string.Empty : T("Model: {0:0.0} kWh/day base, +{1:0.00} kWh per °C below {2} °C, +{3:0.00} kWh per °C above {4} °C, {5:+0.0;-0.0} kWh on weekend days; " +
             "fitted on {6:dd-MM-yyyy} – {7:dd-MM-yyyy} ({8} days, R² {9:0.00}).",
             Model.Base, Model.PerHeatingDegree, Model.HeatingBaseC, Model.PerCoolingDegree, Model.CoolingBaseC, Model.WeekendEffect,
             Model.ReferenceStart, Model.ReferenceEnd.AddDays(-1), Model.Days, Model.RSquared);

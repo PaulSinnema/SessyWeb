@@ -3,7 +3,7 @@
 namespace SessyWeb.Components
 {
     /// <summary>The card around a statistic: title with info tip, refresh button, spinner, empty text and content.</summary>
-    public partial class StatisticsCard : ComponentBase
+    public partial class StatisticsCard : BaseComponent
     {
         [Parameter] public string? Title { get; set; }
 
@@ -20,7 +20,7 @@ namespace SessyWeb.Components
         /// <summary>Text shown above the spinner and the content, also while loading.</summary>
         [Parameter] public RenderFragment? Intro { get; set; }
 
-        [Parameter] public bool Loading { get; set; }
+        [Parameter] public new bool Loading { get; set; }
 
         [Parameter] public bool IsEmpty { get; set; }
 

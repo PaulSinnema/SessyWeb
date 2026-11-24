@@ -2,9 +2,10 @@
 @using SessyWeb.Components
 @using Radzen
 @using Radzen.Blazor
+@inherits BaseComponent
 
 <RadzenCard Style="height: 100%;">
-    <RadzenText TextStyle="TextStyle.H6">⚡ Energy Flows</RadzenText>
+    <RadzenText TextStyle="TextStyle.H6">⚡ @T("Energy Flows")</RadzenText>
 
     @* The window these figures cover is not always the period that was picked: Statistics from
        date cuts off everything before it, and an incomplete first or last day is dropped so the
@@ -14,42 +15,42 @@
         @($"{Dashboard!.Period.ActualDataStart:dd-MM-yyyy} — {Dashboard!.Period.ActualDataEnd:dd-MM-yyyy}")
         @if (Dashboard!.Period.ClampedByStatisticsFromDate)
         {
-            <span> · starts at the configured "Statistics from date"</span>
+            <span> · @T("starts at the configured 'Statistics from date'")</span>
         }
     </RadzenText>
 
     <RadzenRow>
         <RadzenColumn Size="6">
-            <StatCardComponent Title="Total consumption" Value="@($"{Dashboard!.Period.TotalConsumptionKWh:F1} kWh")" />
+            <StatCardComponent Title="@T("Total consumption")" Value="@($"{Dashboard!.Period.TotalConsumptionKWh:F1} kWh")" />
         </RadzenColumn>
         <RadzenColumn Size="6">
-            <StatCardComponent Title="Grid import" Value="@($"{Dashboard!.Period.TotalGridImportKWh:F1} kWh")" />
+            <StatCardComponent Title="@T("Grid import")" Value="@($"{Dashboard!.Period.TotalGridImportKWh:F1} kWh")" />
         </RadzenColumn>
         <RadzenColumn Size="6">
-            <StatCardComponent Title="Grid export" Value="@($"{Dashboard!.Period.TotalGridExportKWh:F1} kWh")" />
+            <StatCardComponent Title="@T("Grid export")" Value="@($"{Dashboard!.Period.TotalGridExportKWh:F1} kWh")" />
         </RadzenColumn>
         @* Own production versus consumption — meaningless without an inverter, where every kWh
            comes from the grid whether the battery is in between or not. *@
         @if (Dashboard!.SolarIsConfigured)
         {
             <RadzenColumn Size="6">
-                <StatCardComponent Title="Self sufficiency" Value="@($"{Dashboard!.Period.SelfSufficiencyPct:F1} %")" />
+                <StatCardComponent Title="@T("Self sufficiency")" Value="@($"{Dashboard!.Period.SelfSufficiencyPct:F1} %")" />
             </RadzenColumn>
         }
     </RadzenRow>
-    <RadzenText TextStyle="TextStyle.H6" Style="margin-top: 12px;">🏠 Consumption</RadzenText>
+    <RadzenText TextStyle="TextStyle.H6" Style="margin-top: 12px;">🏠 @T("Consumption")</RadzenText>
     <RadzenRow>
         <RadzenColumn Size="6">
-            <StatCardComponent Title="Avg daily" Value="@($"{Dashboard!.Period.AvgDailyConsumptionKWh:F1} kWh/day")" />
+            <StatCardComponent Title="@T("Avg daily")" Value="@T("{0:F1} kWh/day", Dashboard!.Period.AvgDailyConsumptionKWh)" />
         </RadzenColumn>
         <RadzenColumn Size="6">
-            <StatCardComponent Title="Peak daily" Value="@($"{Dashboard!.Period.PeakDailyConsumptionKWh:F1} kWh")" />
+            <StatCardComponent Title="@T("Peak daily")" Value="@($"{Dashboard!.Period.PeakDailyConsumptionKWh:F1} kWh")" />
         </RadzenColumn>
         <RadzenColumn Size="6">
-            <StatCardComponent Title="Weekday" Value="@($"{Dashboard!.Period.WeekdayConsumptionKWh:F1} kWh")" />
+            <StatCardComponent Title="@T("Weekday")" Value="@($"{Dashboard!.Period.WeekdayConsumptionKWh:F1} kWh")" />
         </RadzenColumn>
         <RadzenColumn Size="6">
-            <StatCardComponent Title="Weekend" Value="@($"{Dashboard!.Period.WeekendConsumptionKWh:F1} kWh")" />
+            <StatCardComponent Title="@T("Weekend")" Value="@($"{Dashboard!.Period.WeekendConsumptionKWh:F1} kWh")" />
         </RadzenColumn>
     </RadzenRow>
 </RadzenCard>

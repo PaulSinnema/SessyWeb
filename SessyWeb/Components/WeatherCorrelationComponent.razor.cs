@@ -19,27 +19,23 @@ namespace SessyWeb.Components
 
         public sealed record Panel(string Title, string Unit, string Info, List<SeasonSeries> Seasons, List<Point> Trend, LinearFit? Fit);
 
-        private const string HowToRead =
-            "How to read these charts: every dot is one day. Left to right is the weather that day, bottom to top is " +
+        private string HowToRead => T("How to read these charts: every dot is one day. Left to right is the weather that day, bottom to top is " +
             "how much electricity the house used that day (kWh). The colour is the season. The dashed line is the " +
             "average trend through all dots: the steeper it runs, the more your consumption follows the weather. " +
             "R² tells how much of the difference between days this one weather factor explains: 0.34 means 34%; " +
-            "the rest comes from everything else (washing, cooking, who is home).";
+            "the rest comes from everything else (washing, cooking, who is home).");
 
-        private const string TemperatureInfo =
-            "Consumption against the day's average outside temperature. Cold days on the left usually sit high: " +
+        private string TemperatureInfo => T("Consumption against the day's average outside temperature. Cold days on the left usually sit high: " +
             "heating takes a lot of electricity. If the dots rise again on the far right, warm days cost extra too " +
-            "(cooling). The slope below the title says how many kWh a day one degree warmer saves (negative) on average.";
+            "(cooling). The slope below the title says how many kWh a day one degree warmer saves (negative) on average.");
 
-        private const string RadiationInfo =
-            "Consumption against the day's average sunshine (global radiation, W/m²): left is grey, right is sunny. " +
+        private string RadiationInfo => T("Consumption against the day's average sunshine (global radiation, W/m²): left is grey, right is sunny. " +
             "Sunny days are usually also warmer, so part of what you see here is really the temperature effect. " +
-            "Solar panels do not show here: this is what the house used, not what came from the grid.";
+            "Solar panels do not show here: this is what the house used, not what came from the grid.");
 
-        private const string HumidityInfo =
-            "Consumption against the day's average relative humidity (%). Damp days are usually also cold and grey, " +
+        private string HumidityInfo => T("Consumption against the day's average relative humidity (%). Damp days are usually also cold and grey, " +
             "so a rising line here mostly reflects winter. Humidity on its own rarely drives consumption much; a low " +
-            "R² is the expected outcome.";
+            "R² is the expected outcome.");
 
         private static readonly (Season Season, string Color)[] SeasonColors =
         [
@@ -73,9 +69,9 @@ namespace SessyWeb.Components
                 _lastDay = days.LastOrDefault()?.Date;
                 _panels =
                 [
-                    BuildPanel("Temperature", "°C", TemperatureInfo, days, d => d.TemperatureC),
-                    BuildPanel("Global radiation", "W/m²", RadiationInfo, days, d => d.GlobalRadiation),
-                    BuildPanel("Humidity", "%", HumidityInfo, days, d => d.Humidity)
+                    BuildPanel(T("Temperature"), "°C", TemperatureInfo, days, d => d.TemperatureC),
+                    BuildPanel(T("Global radiation"), "W/m²", RadiationInfo, days, d => d.GlobalRadiation),
+                    BuildPanel(T("Humidity"), "%", HumidityInfo, days, d => d.Humidity)
                 ];
             });
         }
@@ -106,10 +102,8 @@ namespace SessyWeb.Components
         }
 
         private string FitText(Panel panel) => panel.Fit == null
-            ? "Not enough data"
-            : $"r = {panel.Fit.R.ToString("F2", GetFormatProvider())}, " +
-              $"R² = {panel.Fit.RSquared.ToString("F2", GetFormatProvider())} " +
-              $"({(panel.Fit.RSquared * 100).ToString("F0", GetFormatProvider())}% of the day-to-day variation), " +
-              $"{panel.Fit.Slope.ToString("F2", GetFormatProvider())} kWh per {panel.Unit}, {panel.Fit.N} days";
+            ? T("Not enough data")
+            : T("r = {0:F2}, R² = {1:F2} ({2:F0}% of the day-to-day variation), {3:F2} kWh per {4}, {5} days",
+                panel.Fit.R, panel.Fit.RSquared, panel.Fit.RSquared * 100, panel.Fit.Slope, panel.Unit, panel.Fit.N);
     }
 }

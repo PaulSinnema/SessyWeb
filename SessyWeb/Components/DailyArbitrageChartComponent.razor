@@ -5,13 +5,13 @@
 
 <RadzenCard>
     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
-        <RadzenText TextStyle="TextStyle.H6" class="rz-m-0">📊 Arbitrage: Planned vs Realized</RadzenText>
+        <RadzenText TextStyle="TextStyle.H6" class="rz-m-0">📊 @(T("Arbitrage: Planned vs Realized"))</RadzenText>
         <InfoTipComponent Text="@HowToRead" />
     </RadzenStack>
 
     @if (Buckets.Count == 0)
     {
-        <RadzenText TextStyle="TextStyle.Body2">No arbitrage in this period.</RadzenText>
+        <RadzenText TextStyle="TextStyle.Body2">@(T("No arbitrage in this period."))</RadzenText>
     }
     else
     {
@@ -24,12 +24,12 @@
             <RadzenColumnSeries Data="@Buckets"
                                 CategoryProperty="@nameof(ArbitrageBucket.Label)"
                                 ValueProperty="@nameof(ArbitrageBucket.PlannedEur)"
-                                Title="Planned"
+                                Title="@T("Planned")"
                                 Fill="var(--sessy-planned)" />
             <RadzenColumnSeries Data="@Buckets"
                                 CategoryProperty="@nameof(ArbitrageBucket.Label)"
                                 ValueProperty="@nameof(ArbitrageBucket.RealizedEur)"
-                                Title="Realized"
+                                Title="@T("Realized")"
                                 Fill="var(--sessy-actual)" />
 
             <RadzenColumnOptions Margin="4" />

@@ -20,9 +20,9 @@ namespace SessyWeb.Components
         /// <summary>One bar of the battery life chart: years used and years left, label with end date and cause.</summary>
         public sealed record BatteryLife(string Label, double UsedYears, double RemainingYears);
 
-        private const string BatteryLifeInfo =
+        private string BatteryLifeInfo => T(
             "Per battery: the years since purchase and the years left until the expected end of life, the earliest of " +
-            "rated cycles at the current pace, rated age and measured capacity reaching 70 %. Details on the Battery tab.";
+            "rated cycles at the current pace, rated age and measured capacity reaching 70 %. Details on the Battery tab.");
 
         /// <summary>Every battery with a known end of life, earliest end first.</summary>
         private List<BatteryLife> BatteryLives
@@ -38,7 +38,7 @@ namespace SessyWeb.Components
                     .Where(l => l.End.HasValue && l.Start.HasValue)
                     .OrderBy(l => l.End)
                     .Select(l => new BatteryLife(
-                        $"{l.Name}: {l.End:MM-yyyy} ({l.LimitedBy.ToString().ToLowerInvariant()})",
+                        $"{l.Name}: {l.End:MM-yyyy} ({LimitText(l.LimitedBy)})",
                         Math.Round(Math.Max(0.0, (now - l.Start!.Value).TotalDays / 365.25), 1),
                         Math.Round(Math.Max(0.0, (l.End!.Value - now).TotalDays / 365.25), 1)))
                     .ToList();
@@ -56,7 +56,7 @@ namespace SessyWeb.Components
             var life = series.Lifetime(withEstimate: true, TimeZoneService.Now);
 
             return life.End.HasValue
-                ? $"{life.End.Value:MM-yyyy} ({life.LimitedBy.ToString().ToLowerInvariant()})"
+                ? $"{life.End.Value:MM-yyyy} ({LimitText(life.LimitedBy)})"
                 : "—";
         }
     }

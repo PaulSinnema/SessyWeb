@@ -13,11 +13,11 @@ namespace SessyWeb.Components
         /// <summary>Flat row for Radzen, which cannot bind to the computed month label of MonthlyTrend.</summary>
         public sealed record Row(string Label, double ConsumptionKWh, double GridImportKWh, double SelfSufficiencyPct, double SelfConsumptionPct);
 
-        private const string HowToRead =
+        private string HowToRead => T(
             "Bars: what the house used and what came from the grid, per month. Self-sufficiency: the share of the " +
             "consumption covered by your own solar panels and battery. Solar used at home: the share of the solar " +
             "production used in the house or stored in the battery instead of exported. Summer months are naturally " +
-            "high, winter months low; compare a month with the same month a year earlier.";
+            "high, winter months low; compare a month with the same month a year earlier.");
 
         private bool _hasSolar;
         private List<Row> _months = new();

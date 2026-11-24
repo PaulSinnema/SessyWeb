@@ -76,11 +76,11 @@ namespace SessyWeb.Pages
 
         public enum CompareModes { None, PreviousYear, AllYears }
         public record CompareOption(CompareModes Mode, string Text);
-        private static readonly List<CompareOption> CompareOptions =
+        private List<CompareOption> CompareOptions =>
         [
-            new(CompareModes.None, "None"),
-            new(CompareModes.PreviousYear, "Previous year"),
-            new(CompareModes.AllYears, "All years")
+            new(CompareModes.None, T("None")),
+            new(CompareModes.PreviousYear, T("Previous year")),
+            new(CompareModes.AllYears, T("All years"))
         ];
         private CompareModes CompareMode { get; set; } = CompareModes.PreviousYear;
         private bool ShowWeather { get; set; } = true;
@@ -101,7 +101,7 @@ namespace SessyWeb.Pages
                 var raw = (total.CurrentKWh - total.PreviousKWh) / total.PreviousKWh * 100.0;
                 var corrected = expected > 0 ? other / expected * 100.0 : 0.0;
 
-                return string.Format(CultureInfo.CurrentCulture, "{0:+0.0;-0.0;0.0} % (weather-corrected {1:+0.0;-0.0;0.0} %, {2} days)",
+                return T("{0:+0.0;-0.0;0.0} % (weather-corrected {1:+0.0;-0.0;0.0} %, {2} days)",
                     raw, corrected, Variance.CurrentDays);
             }
         }
@@ -302,9 +302,9 @@ namespace SessyWeb.Pages
         // Chosen period keeps the temperature colour; earlier years use their year colour.
         private static string TemperatureColor(int offset) => offset == 0 ? "var(--sessy-temperature-line)" : OffsetColor(offset, "line");
 
-        private string ConsumptionTitle(int offset) => $"Consumption {CompareTitles[offset]}";
+        private string ConsumptionTitle(int offset) => T("Consumption {0}", CompareTitles[offset]);
 
-        private string TemperatureTitle(int offset) => $"Avg. temperature {CompareTitles[offset]}";
+        private string TemperatureTitle(int offset) => T("Avg. temperature {0}", CompareTitles[offset]);
 
         public class ConsumptionDisplayCustomData : DisplayBaseData
         {
@@ -367,9 +367,9 @@ namespace SessyWeb.Pages
             return item;
         }
 
-        private static string DayLabel(DateTime date) => $"{date.DayOfWeek.ToString().Substring(0, 2)} {date.Day}";
+        private string DayLabel(DateTime date) => $"{UiCulture.DateTimeFormat.GetAbbreviatedDayName(date.DayOfWeek).Substring(0, 2)} {date.Day}";
 
-        private static string WeekTitle(DateTime start) => $"Week {ISOWeek.GetWeekOfYear(start)} {ISOWeek.GetYear(start)}";
+        private string WeekTitle(DateTime start) => T("Week {0} {1}", ISOWeek.GetWeekOfYear(start), ISOWeek.GetYear(start));
 
         private static ConsumptionDisplayDayData DayItem(ConsumptionRow row, int shiftDays) => new()
         {
@@ -382,7 +382,7 @@ namespace SessyWeb.Pages
         };
 
         // 7 days from start, labelled with the days from labelStart (the chosen week).
-        private static List<ConsumptionDisplayWeekData> BuildWeek(List<ConsumptionRow> rows, DateTime start, DateTime labelStart)
+        private List<ConsumptionDisplayWeekData> BuildWeek(List<ConsumptionRow> rows, DateTime start, DateTime labelStart)
         {
             var byDate = rows.ToLookup(r => r.Time.Date);
 
@@ -397,7 +397,7 @@ namespace SessyWeb.Pages
         }
 
         // 'count' days from start, labelled with the days from labelStart (the chosen month).
-        private static List<ConsumptionDisplayMonthData> BuildDays(List<ConsumptionRow> rows, DateTime start, DateTime labelStart, int count)
+        private List<ConsumptionDisplayMonthData> BuildDays(List<ConsumptionRow> rows, DateTime start, DateTime labelStart, int count)
         {
             var byDate = rows.ToLookup(r => r.Time.Date);
 
@@ -755,7 +755,7 @@ namespace SessyWeb.Pages
 
             if (_model == null)
             {
-                VarianceMessage = "Not enough complete days yet to fit the consumption model.";
+                VarianceMessage = T("Not enough complete days yet to fit the consumption model.");
                 return;
             }
 
@@ -825,7 +825,7 @@ namespace SessyWeb.Pages
                         var end = DateSelectionChosen.End!.Value;
                         var dates = Enumerable.Range(0, (int)Math.Ceiling((end - start).TotalDays)).Select(i => start.AddDays(i)).ToList();
 
-                        VariancePeriodText = $"{start:dd/MM/yyyy} - {dates.Last():dd/MM/yyyy} vs a year earlier";
+                        VariancePeriodText = T("{0:dd/MM/yyyy} - {1:dd/MM/yyyy} vs a year earlier", start, dates.Last());
 
                         if (DateSelectionChosen.DurationChosen is DurationEnums.Last7Days or DurationEnums.Last30Days)
                         {
@@ -850,7 +850,7 @@ namespace SessyWeb.Pages
             Variance = ConsumptionVariance.Combine(model, items);
 
             if (Variance.CurrentDays == 0)
-                VarianceMessage = $"{VariancePeriodText}: no complete days to compare with last year.";
+                VarianceMessage = T("{0}: no complete days to compare with last year.", VariancePeriodText);
         }
 
         private static IEnumerable<DateTime> DatesOfMonth(int year, int month) =>

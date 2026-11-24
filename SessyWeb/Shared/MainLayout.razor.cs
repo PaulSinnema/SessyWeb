@@ -28,6 +28,35 @@ namespace SessyWeb.Shared
         private NavigationManager Navigation { get; set; } = default!;
 
         /// <summary>Gates the developer-only sidebar items (e.g. Planner analyse).</summary>
+        [Inject]
+        private SessyData.Services.SettingsDataService SettingsDataService { get; set; } = default!;
+
+        [Inject]
+        private SessyWeb.Services.LanguageState LanguageState { get; set; } = default!;
+
+        /// <summary>The text in the chosen language; the English text is the key.</summary>
+        private string T(string text) => LanguageState.Translate(text);
+
+        private string CurrentLanguage => LanguageState.Code;
+
+        /// <summary>Stores the language with the settings and switches this page over; no reload, no data fetched again.</summary>
+        private async Task ChangeLanguageAsync(string code)
+        {
+            if (code == CurrentLanguage)
+                return;
+
+            var settings = (await SettingsDataService.GetList(set => Task.FromResult(set.ToList()))).FirstOrDefault();
+            if (settings == null)
+                return;
+
+            settings.Language = code;
+            await SettingsDataService.Update([settings], (item, set) => set.FirstOrDefault(s => s.Id == item.Id));
+            await SettingsService.RefreshAsync();
+
+            LanguageState.Set(code);
+            StateHasChanged();
+        }
+
         private bool DeveloperOptions => SettingsService.Current?.DeveloperOptions ?? false;
 
         // ── Tips & Checks indicator ──────────────────────────────────────────
@@ -47,10 +76,10 @@ namespace SessyWeb.Shared
             ErrorCount > 0 || NotifErrors > 0 ? "error" : WarningCount > 0 || NotifWarnings > 0 ? "warning" : "none";
 
         private string SettingsMenuTitle =>
-            (ErrorCount + NotifErrors) > 0 ? $"{ErrorCount + NotifErrors} error(s), {WarningCount + NotifWarnings} warning(s)"
-            : (WarningCount + NotifWarnings) > 0 ? $"{WarningCount + NotifWarnings} warning(s)"
-            : NotifUnread > 0 ? $"{NotifUnread} notification(s)"
-            : "Settings";
+            (ErrorCount + NotifErrors) > 0 ? string.Format(T("{0} error(s), {1} warning(s)"), ErrorCount + NotifErrors, WarningCount + NotifWarnings)
+            : (WarningCount + NotifWarnings) > 0 ? string.Format(T("{0} warning(s)"), WarningCount + NotifWarnings)
+            : NotifUnread > 0 ? string.Format(T("{0} notification(s)"), NotifUnread)
+            : T("Settings");
 
         /// <summary>
         /// The service is a singleton, so this fires off the circuit — hence InvokeAsync. Every run

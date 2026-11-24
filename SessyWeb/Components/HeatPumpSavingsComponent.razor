@@ -2,47 +2,48 @@
 @using SessyWeb.Components
 @using Radzen
 @using Radzen.Blazor
+@inherits BaseComponent
 
 <RadzenCard>
-    <RadzenText TextStyle="TextStyle.H6">🔥 Heat Pump Savings</RadzenText>
+    <RadzenText TextStyle="TextStyle.H6">🔥 @T("Heat Pump Savings")</RadzenText>
     <RadzenRow Gap="8px">
         <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Gas price"
+            <StatCardComponent Title="@T("Gas price")"
                                Value="@($"€ {Dashboard!.HeatPump.GasPriceEurPerM3:F4}/m³")"
                                Highlight="@Dashboard!.HeatPump.IsLiveGasPrice" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Annual gas (before heat pump)"
-                               Value="@($"{Dashboard!.HeatPump.AnnualGasConsumptionM3:F0} m³/year")" />
+            <StatCardComponent Title="@T("Annual gas (before heat pump)")"
+                               Value="@T("{0:F0} m³/year", Dashboard!.HeatPump.AnnualGasConsumptionM3)" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Annual gas cost saved"
-                               Value="@($"€ {Dashboard!.HeatPump.AnnualGasCostSavedEur:F2}/year")" />
+            <StatCardComponent Title="@T("Annual gas cost saved")"
+                               Value="@T("€ {0:F2}/year", Dashboard!.HeatPump.AnnualGasCostSavedEur)" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Standing charge saved"
-                               Value="@($"€ {Dashboard!.HeatPump.GasStandingChargeEurPerYear:F2}/year")" />
+            <StatCardComponent Title="@T("Standing charge saved")"
+                               Value="@T("€ {0:F2}/year", Dashboard!.HeatPump.GasStandingChargeEurPerYear)" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Heat pump electricity"
-                               Value="@($"{Dashboard!.HeatPump.AnnualElectricityConsumptionKWh:F0} kWh/year")" />
+            <StatCardComponent Title="@T("Heat pump electricity")"
+                               Value="@T("{0:F0} kWh/year", Dashboard!.HeatPump.AnnualElectricityConsumptionKWh)" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Electricity price (avg)"
+            <StatCardComponent Title="@T("Electricity price (avg)")"
                                Value="@($"€ {Dashboard!.HeatPump.EffectiveElectricityPriceEurPerKWh:F4}/kWh")" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Annual electricity cost"
-                               Value="@($"€ {Dashboard!.HeatPump.AnnualElectricityCostEur:F2}/year")" />
+            <StatCardComponent Title="@T("Annual electricity cost")"
+                               Value="@T("€ {0:F2}/year", Dashboard!.HeatPump.AnnualElectricityCostEur)" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Net annual savings"
-                               Value="@($"€ {Dashboard!.HeatPump.NetAnnualSavingsEur:F2}/year")"
+            <StatCardComponent Title="@T("Net annual savings")"
+                               Value="@T("€ {0:F2}/year", Dashboard!.HeatPump.NetAnnualSavingsEur)"
                                Highlight="true" />
         </RadzenColumn>
     </RadzenRow>
     <RadzenText TextStyle="TextStyle.Caption" Style="margin-top: 0.75rem; opacity: 0.7;">
-        @Dashboard!.HeatPump.GasPriceSource
+        @T(Dashboard!.HeatPump.GasPriceSource, Dashboard.HeatPump.GasPriceSourceArgs)
     </RadzenText>
 </RadzenCard>
 

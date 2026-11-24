@@ -5,6 +5,8 @@ using SessyData.Model;
 using SessyData.Services;
 using SessyCommon;
 
+using static SessyCommon.ServiceText;
+
 namespace SessyController.Services
 {
     /// <summary>
@@ -143,19 +145,19 @@ namespace SessyController.Services
             string reason = p.PlannedMode switch
             {
                 "Charging" => surplus
-                    ? "Charging with solar surplus (storing own generation)."
-                    : "Charging from the grid: cheap quarter, saved for a dearer later moment.",
-                "Discharging" => "Discharging to the grid: price high enough to sell.",
+                    ? Tx("Charging with solar surplus (storing own generation).")
+                    : Tx("Charging from the grid: cheap quarter, saved for a dearer later moment."),
+                "Discharging" => Tx("Discharging to the grid: price high enough to sell."),
                 "ZeroNetHome" when discharging =>
-                    "Self-consumption from the battery: household deficit covered, SOC above the reserve.",
+                    Tx("Self-consumption from the battery: household deficit covered, SOC above the reserve."),
                 "ZeroNetHome" =>
-                    "Battery idle (no deficit to cover, or at the reserve floor).",
+                    Tx("Battery idle (no deficit to cover, or at the reserve floor)."),
                 "HoldReserve" =>
-                    "Battery holds its energy (reserve reached, or the plan keeps it for later): stores solar surplus when there is any, never discharges; the house imports otherwise.",
+                    Tx("Battery holds its energy (reserve reached, or the plan keeps it for later): stores solar surplus when there is any, never discharges; the house imports otherwise."),
                 "Disabled" when surplus =>
-                    "Off: solar surplus goes to the grid (storing does not pay here).",
+                    Tx("Off: solar surplus goes to the grid (storing does not pay here)."),
                 "Disabled" =>
-                    "Off: no trade planned for this quarter.",
+                    Tx("Off: no trade planned for this quarter."),
                 _ => p.PlannedMode
             };
 
@@ -164,34 +166,32 @@ namespace SessyController.Services
             // The greedy flaw we measured: spending the battery cheap while a dearer hour is ahead.
             if (discharging && p.BuyingPriceEurKWh < medianBuy && dearerLater)
             {
-                remarks.Add($"Discharges at a low price (€{p.BuyingPriceEurKWh:F3}) while a dearer quarter is " +
-                            $"ahead (€{maxBuyAhead:F3}). Saving energy for the peak may earn more.");
+                remarks.Add(Tf("Discharges at a low price (€{0:F3}) while a dearer quarter is ahead (€{1:F3}). Saving energy for the peak may earn more.", p.BuyingPriceEurKWh, maxBuyAhead));
             }
 
             // Solar surplus exported instead of stored, while a dearer hour is ahead and there is room.
             if (p.PlannedMode == "Disabled" && surplus && roomToCharge && dearerLater)
             {
-                remarks.Add($"Solar surplus not stored while a dearer quarter is ahead (€{maxBuyAhead:F3}) " +
-                            $"and there is SOC headroom.");
+                remarks.Add(Tf("Solar surplus not stored while a dearer quarter is ahead (€{0:F3}) and there is SOC headroom.", maxBuyAhead));
             }
 
             // Idle in an expensive quarter with SOC available above the reserve.
             if (p.PlannedMode == "ZeroNetHome" && !discharging && !charging
                 && p.BuyingPriceEurKWh >= p75Buy && aboveReserve)
             {
-                remarks.Add($"Battery idle in an expensive quarter (€{p.BuyingPriceEurKWh:F3}) while SOC is available.");
+                remarks.Add(Tf("Battery idle in an expensive quarter (€{0:F3}) while SOC is available.", p.BuyingPriceEurKWh));
             }
 
             // Charging at a relatively expensive price.
             if (charging && !surplus && p.BuyingPriceEurKWh > medianBuy)
             {
-                remarks.Add($"Charges from the grid at a price above the median (€{p.BuyingPriceEurKWh:F3} > €{medianBuy:F3}).");
+                remarks.Add(Tf("Charges from the grid at a price above the median (€{0:F3} > €{1:F3}).", p.BuyingPriceEurKWh, medianBuy));
             }
 
             // Exporting below the median price.
             if (p.PlannedMode == "Discharging" && p.SellingPriceEurKWh < medianBuy)
             {
-                remarks.Add($"Discharges to the grid below the median buy price (sell €{p.SellingPriceEurKWh:F3}).");
+                remarks.Add(Tf("Discharges to the grid below the median buy price (sell €{0:F3}).", p.SellingPriceEurKWh));
             }
 
             // Why solar is (not) exported — the motivation users ask about in the morning.
@@ -204,24 +204,20 @@ namespace SessyController.Services
 
                 if (!surplus)
                 {
-                    solarExportNote = "Solar is used directly for the household load; there is no surplus to export this quarter.";
+                    solarExportNote = Tx("Solar is used directly for the household load; there is no surplus to export this quarter.");
                 }
                 else if (p.PlannedMode == "Disabled")
                 {
-                    solarExportNote = $"Solar surplus is exported now: selling at €{exportValue:F3} beats keeping it " +
-                        $"(store value €{storeValue:F3} ≈ {roundTrip * 100.0:F0}% round-trip × best later price €{bestFuture:F3}, minus wear €{cycleCostEff:F3}).";
+                    solarExportNote = Tf("Solar surplus is exported now: selling at €{0:F3} beats keeping it (store value €{1:F3} ≈ {2:F0}% round-trip × best later price €{3:F3}, minus wear €{4:F3}).", exportValue, storeValue, roundTrip * 100.0, bestFuture, cycleCostEff);
                 }
                 else if (storeValue >= exportValue)
                 {
-                    solarExportNote = $"Solar surplus is stored / self-consumed, not exported, because a later moment pays more: " +
-                        $"storing is worth €{storeValue:F3} ({roundTrip * 100.0:F0}% round-trip × best later price €{bestFuture:F3}) " +
-                        $"versus exporting now at €{exportValue:F3} — so keeping it wins.";
+                    solarExportNote = Tf("Solar surplus is stored / self-consumed, not exported, because a later moment pays more: storing is worth €{0:F3} ({1:F0}% round-trip × best later price €{2:F3}) versus exporting now at €{3:F3} — so keeping it wins.", storeValue, roundTrip * 100.0, bestFuture, exportValue);
                 }
                 else
                 {
-                    solarExportNote = $"Solar surplus is kept, but exporting now (€{exportValue:F3}) would beat storing it " +
-                        $"(€{storeValue:F3}); no dearer moment is ahead, so exporting could be better here.";
-                    remarks.Add($"Solar surplus stored while exporting now (€{exportValue:F3}) would pay more than keeping it (€{storeValue:F3}).");
+                    solarExportNote = Tf("Solar surplus is kept, but exporting now (€{0:F3}) would beat storing it (€{1:F3}); no dearer moment is ahead, so exporting could be better here.", exportValue, storeValue);
+                    remarks.Add(Tf("Solar surplus stored while exporting now (€{0:F3}) would pay more than keeping it (€{1:F3}).", exportValue, storeValue));
                 }
             }
 
@@ -304,16 +300,13 @@ namespace SessyController.Services
         private static string BuildDescription(PlanTotals t, int count)
         {
             string trade = (t.ChargingQuarters + t.DischargingQuarters) == 0
-                ? "The plan does not actively trade on the grid (no charge or sell quarters); it mainly covers self-consumption."
-                : $"The plan charges in {t.ChargingQuarters} and discharges to the grid in {t.DischargingQuarters} quarters.";
+                ? Tx("The plan does not actively trade on the grid (no charge or sell quarters); it mainly covers self-consumption.")
+                : Tf("The plan charges in {0} and discharges to the grid in {1} quarters.", t.ChargingQuarters, t.DischargingQuarters);
 
-            return $"Plan over {count} quarters. {trade} " +
-                   $"Total charged {t.ChargeKWh:F1} kWh, discharged {t.DischargeKWh:F1} kWh. " +
-                   $"Buy price ranges from €{t.MinBuyEur:F3} to €{t.MaxBuyEur:F3} (median €{t.MedianBuyEur:F3}, spread €{t.SpreadEur:F3}). " +
-                   $"Self-consumption in {t.ZeroNetHomeQuarters} quarters, off in {t.DisabledQuarters}. " +
+            return Tf("Plan over {0} quarters. {1} Total charged {2:F1} kWh, discharged {3:F1} kWh. Buy price ranges from €{4:F3} to €{5:F3} (median €{6:F3}, spread €{7:F3}). Self-consumption in {8} quarters, off in {9}. ", count, trade, t.ChargeKWh, t.DischargeKWh, t.MinBuyEur, t.MaxBuyEur, t.MedianBuyEur, t.SpreadEur, t.ZeroNetHomeQuarters, t.DisabledQuarters) +
                    (t.RemarkCount > 0
-                        ? $"{t.RemarkCount} improvement point(s) flagged."
-                        : "No improvement points flagged.");
+                        ? Tf("{0} improvement point(s) flagged.", t.RemarkCount)
+                        : Tx("No improvement points flagged."));
         }
 
         private async Task<Taxes?> CurrentTaxesAsync(DateTime now)
@@ -331,41 +324,41 @@ namespace SessyController.Services
 
             var list = new List<PlannerParam>
             {
-                new("Strategy", "Optimisation strategy", s.Strategy.ToString()),
-                new("Strategy", "Cycle cost source", s.UseCalculatedCycleCost ? "Derived from investments" : "Fixed"),
-                new("Strategy", "Cycle cost (derived/fixed)", $"€ {derivedCycle:F4}/kWh"),
-                new("Strategy", "Cycle cost effective", balanced ? $"€ {derivedCycle * 1.5:F4}/kWh (Balanced ×1.5)" : $"€ {derivedCycle:F4}/kWh"),
+                new("Strategy", Tx("Optimisation strategy"), s.Strategy.ToString()),
+                new("Strategy", Tx("Cycle cost source"), s.UseCalculatedCycleCost ? Tx("Derived from investments") : "Fixed"),
+                new("Strategy", Tx("Cycle cost (derived/fixed)"), Tf("€ {0:F4}/kWh", derivedCycle)),
+                new("Strategy", Tx("Cycle cost effective"), balanced ? Tf("€ {0:F4}/kWh (Balanced ×1.5)", derivedCycle * 1.5) : Tf("€ {0:F4}/kWh", derivedCycle)),
 
-                new("Reserve", "Minimum reserve (%)", $"{s.FixedNightReservePct:F1}"),
+                new("Reserve", Tx("Minimum reserve (%)"), $"{s.FixedNightReservePct:F1}"),
 
-                new("Arbitrage", "Future value discount (%/hour)", $"{s.FutureValueDiscountPerHour * 100.0:F2}"),
-                new("Arbitrage", "Predicted price mode", s.PredictedPriceMode.ToString()),
-                new("Arbitrage", "Predicted price risk margin", $"€ {s.PredictedPriceRiskMarginEur:F3}/kWh"),
-                new("Arbitrage", "Planning horizon (hours)", s.PlanningHorizonHours == 0 ? "0 (no limit)" : s.PlanningHorizonHours.ToString()),
+                new("Arbitrage", Tx("Future value discount (%/hour)"), $"{s.FutureValueDiscountPerHour * 100.0:F2}"),
+                new("Arbitrage", Tx("Predicted price mode"), s.PredictedPriceMode.ToString()),
+                new("Arbitrage", Tx("Predicted price risk margin"), Tf("€ {0:F3}/kWh", s.PredictedPriceRiskMarginEur)),
+                new("Arbitrage", Tx("Planning horizon (hours)"), s.PlanningHorizonHours == 0 ? Tx("0 (no limit)") : s.PlanningHorizonHours.ToString()),
                 new("Arbitrage", "Carry-forward", s.CarryForwardEnabled ? "On" : "Off"),
-                new("Arbitrage", "Shift discharge", s.ShiftDischargeEnabled ? "On" : "Off"),
-                new("Arbitrage", "Replacement cost window (days)", s.ReplacementCostWindowDays.ToString()),
-                new("Arbitrage", "Replacement cost percentile", $"{s.ReplacementCostPercentile:F0}"),
+                new("Arbitrage", Tx("Shift discharge"), s.ShiftDischargeEnabled ? "On" : "Off"),
+                new("Arbitrage", Tx("Replacement cost window (days)"), s.ReplacementCostWindowDays.ToString()),
+                new("Arbitrage", Tx("Replacement cost percentile"), $"{s.ReplacementCostPercentile:F0}"),
 
-                new("Battery", "Control method", s.BatteryControlMethod == BatteryControlMethod.BatterySetpoint ? "Setpoint per battery" : "P1 grid target"),
+                new("Battery", Tx("Control method"), s.BatteryControlMethod == BatteryControlMethod.BatterySetpoint ? Tx("Setpoint per battery") : Tx("P1 grid target")),
                 new("Battery", "Capacity", $"{capacityWh / 1000.0:F2} kWh"),
-                new("Battery", "Round-trip efficiency fallback (%)", $"{s.RoundTripEfficiencyFallbackPct:F0}"),
-                new("Battery", "Throttle fallback (%)", $"{s.ThrottleFallbackPct:F0}"),
-                new("Battery", "Annual solar production", $"{s.SolarAnnualProductionKWh:F0} kWh"),
+                new("Battery", Tx("Round-trip efficiency fallback (%)"), $"{s.RoundTripEfficiencyFallbackPct:F0}"),
+                new("Battery", Tx("Throttle fallback (%)"), $"{s.ThrottleFallbackPct:F0}"),
+                new("Battery", Tx("Annual solar production"), $"{s.SolarAnnualProductionKWh:F0} kWh"),
 
                 new("Learning", "Self-learning", s.SelfLearningEnabled ? "On" : "Off"),
-                new("Learning", "Last learned", s.LastLearnedAt?.ToString("dd-MM-yyyy HH:mm") ?? "never"),
+                new("Learning", Tx("Last learned"), s.LastLearnedAt?.ToString("dd-MM-yyyy HH:mm") ?? "never"),
                 new("Learning", "Summary", string.IsNullOrWhiteSpace(s.LastLearnedSummary) ? "—" : s.LastLearnedSummary!),
             };
 
             if (taxes != null)
             {
-                list.Add(new("Taxes", "Valid from", taxes.Time?.ToString("dd-MM-yyyy") ?? "—"));
+                list.Add(new("Taxes", Tx("Valid from"), taxes.Time?.ToString("dd-MM-yyyy") ?? "—"));
                 list.Add(new("Taxes", "Netting", taxes.Netting ? "On" : "Off"));
-                list.Add(new("Taxes", "Energy tax", $"€ {taxes.EnergyTax:F5}/kWh"));
+                list.Add(new("Taxes", Tx("Energy tax"), Tf("€ {0:F5}/kWh", taxes.EnergyTax)));
                 list.Add(new("Taxes", "VAT", $"{taxes.ValueAddedTax:F0}%"));
-                list.Add(new("Taxes", "Purchase compensation", $"€ {taxes.PurchaseCompensation:F5}/kWh"));
-                list.Add(new("Taxes", "Return delivery costs", $"€ {taxes.ReturnDeliveryCompensation:F5}/kWh"));
+                list.Add(new("Taxes", Tx("Purchase compensation"), Tf("€ {0:F5}/kWh", taxes.PurchaseCompensation)));
+                list.Add(new("Taxes", Tx("Return delivery costs"), Tf("€ {0:F5}/kWh", taxes.ReturnDeliveryCompensation)));
             }
 
             return list;

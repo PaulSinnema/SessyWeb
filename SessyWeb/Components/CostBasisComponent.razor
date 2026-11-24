@@ -1,39 +1,37 @@
 ﻿@using Radzen
 @using Radzen.Blazor
 @using SessyController.Services
+@inherits BaseComponent
 @inject ChargeCostBasisService ChargeCostBasisService
 
 <RadzenCard>
     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="8px">
-        <RadzenText TextStyle="TextStyle.H6">🔋 Charge cost basis (FIFO)</RadzenText>
+        <RadzenText TextStyle="TextStyle.H6">🔋 @(T("Charge cost basis (FIFO)"))</RadzenText>
         <RadzenButton Icon="refresh" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
-                      Click="@RefreshAsync" title="Recompute from latest measurements" />
+                      Click="@RefreshAsync" title="@T("Recompute from latest measurements")" />
     </RadzenStack>
 
     <RadzenRow Gap="8px" class="rz-mt-2">
         <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Stored energy"
+            <StatCardComponent Title="@T("Stored energy")"
                                Value="@($"{_snapshot?.TrackedWh / 1000.0:F2} kWh")" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Cost basis delivered"
+            <StatCardComponent Title="@T("Cost basis delivered")"
                                Value="@($"€ {_snapshot?.AverageCostBasisDeliveredEur:F4}")" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Cost basis stored"
+            <StatCardComponent Title="@T("Cost basis stored")"
                                Value="@($"€ {_snapshot?.AverageCostBasisEur:F4}")" />
         </RadzenColumn>
         <RadzenColumn Size="6" SizeMD="3">
-            <StatCardComponent Title="Layers"
+            <StatCardComponent Title="@T("Layers")"
                                Value="@($"{_snapshot?.Layers.Count ?? 0}")" />
         </RadzenColumn>
     </RadzenRow>
 
     <RadzenText TextStyle="TextStyle.Caption" Style="margin-top: 0.75rem; opacity: 0.7;">
-        FIFO layers, oldest first. Energy covered by solar surplus costs € 0.0000; energy that
-        crossed the meter carries its real buying price. Stored is what a kWh cost to put in;
-        delivered is what it must fetch to break even. This is bookkeeping only — it does not
-        drive the planner.
+        @T("FIFO layers, oldest first. Energy covered by solar surplus costs € 0.0000; energy that crossed the meter carries its real buying price. Stored is what a kWh cost to put in; delivered is what it must fetch to break even. This is bookkeeping only — it does not drive the planner.")
     </RadzenText>
 
     @if (_snapshot != null && _snapshot.Layers.Any())
@@ -43,57 +41,51 @@
     else
     {
         <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-2" Style="opacity:0.6;">
-            Battery is empty — no cost-basis layers.
+            @T("Battery is empty — no cost-basis layers.")
         </RadzenText>
     }
 </RadzenCard>
 
 <RadzenCard class="rz-mt-4">
-    <RadzenText TextStyle="TextStyle.H6">🔮 Projected — end of plan horizon</RadzenText>
+    <RadzenText TextStyle="TextStyle.H6">🔮 @(T("Projected — end of plan horizon"))</RadzenText>
 
     @if (_projection == null)
     {
         <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-2" Style="opacity:0.6;">
-            No plan has been built yet — nothing to project.
+            @T("No plan has been built yet — nothing to project.")
         </RadzenText>
     }
     else
     {
         <RadzenRow Gap="8px" class="rz-mt-2">
             <RadzenColumn Size="6" SizeMD="4">
-                <StatCardComponent Title="Stored at end of horizon"
+                <StatCardComponent Title="@T("Stored at end of horizon")"
                                    Value="@($"{EndTrackedWh / 1000.0:F2} kWh")" />
             </RadzenColumn>
             <RadzenColumn Size="6" SizeMD="4">
-                <StatCardComponent Title="Cost basis delivered"
+                <StatCardComponent Title="@T("Cost basis delivered")"
                                    Value="@($"€ {_projection.EndOfHorizonDeliveredEurPerKWh:F4}")" />
             </RadzenColumn>
             <RadzenColumn Size="6" SizeMD="4">
-                <StatCardComponent Title="Cost basis stored"
+                <StatCardComponent Title="@T("Cost basis stored")"
                                    Value="@($"€ {_projection.EndOfHorizonStoredEurPerKWh:F4}")" />
             </RadzenColumn>
             <RadzenColumn Size="6" SizeMD="4">
-                <StatCardComponent Title="Planned grid charge"
+                <StatCardComponent Title="@T("Planned grid charge")"
                                    Value="@($"{_projection.PlannedGridChargeKWh:F2} kWh")" />
             </RadzenColumn>
             <RadzenColumn Size="6" SizeMD="4">
-                <StatCardComponent Title="Planned grid charge cost"
+                <StatCardComponent Title="@T("Planned grid charge cost")"
                                    Value="@($"€ {_projection.PlannedGridChargeCostEur:F2}")" />
             </RadzenColumn>
             <RadzenColumn Size="6" SizeMD="4">
-                <StatCardComponent Title="Average buy price"
+                <StatCardComponent Title="@T("Average buy price")"
                                    Value="@($"€ {_projection.PlannedAverageBuyEurPerKWh:F4}")" />
             </RadzenColumn>
         </RadzenRow>
 
         <RadzenText TextStyle="TextStyle.Caption" Style="margin-top: 0.75rem; opacity: 0.7;">
-            The current layers rolled forward through the plan, up to
-            @(_projection.Quarters.Count > 0
-                ? _projection.Quarters[^1].Time.ToString("dd-MM HH:mm")
-                : "—").
-            "Planned grid charge" is what the plan intends to buy over that horizon; the free
-            part of the charging is solar surplus and is not counted there.
-            Projection built at @_projection.BuiltAt.ToString("dd-MM HH:mm").
+            @T("The current layers rolled forward through the plan, up to {0}. 'Planned grid charge' is what the plan intends to buy over that horizon; the free part of the charging is solar surplus and is not counted there. Projection built at {1:dd-MM HH:mm}.", _projection.Quarters.Count > 0 ? _projection.Quarters[^1].Time.ToString("dd-MM HH:mm") : "—", _projection.BuiltAt)
         </RadzenText>
 
         @if (_projection.EndOfHorizonLayers.Any())
@@ -103,7 +95,7 @@
         else
         {
             <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-2" Style="opacity:0.6;">
-                The plan empties the battery before the end of the horizon.
+                @T("The plan empties the battery before the end of the horizon.")
             </RadzenText>
         }
     }
