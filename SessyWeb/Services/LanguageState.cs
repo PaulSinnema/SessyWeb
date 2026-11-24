@@ -42,6 +42,22 @@ namespace SessyWeb.Services
             }
         }
 
+        /// <summary>The translation of a resource key, or null when there is none (or the language is English).</summary>
+        public string? TranslateOrNull(string key)
+        {
+            if (Code == "en")
+                return null;
+
+            try
+            {
+                return Resources.GetString(key, Culture);
+            }
+            catch (MissingManifestResourceException)
+            {
+                return null;
+            }
+        }
+
         public void Set(string code)
         {
             code = Texts.Normalize(code);

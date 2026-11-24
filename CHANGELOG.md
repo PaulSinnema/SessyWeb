@@ -11,6 +11,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.216] — 2026-11-24
+
+### Changed
+- **Radzen's own texts in Dutch too**: grid filters and operators, paging ("Pagina 1 van 3"), "Geen gegevens om te
+  tonen", the date picker, dropdowns, dialogs and the menu toggle. A `RadzenLocalizer` feeds Radzen the Dutch values
+  from Texts.nl.resx (under Radzen's own resource keys) and follows the language flags without a reload.
+
 ## [v1.0.215] — 2026-11-24
 
 ### Changed

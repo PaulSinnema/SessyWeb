@@ -910,4 +910,98 @@
   <data name="Heating-degree-day weighted average of {0} days: market avg={1:F4} EUR/m³, all-in={2:F4} EUR/m³ (incl. energy tax + VAT)" xml:space="preserve"><value>Naar graaddagen gewogen gemiddelde over {0} dagen: markt gem.={1:F4} EUR/m³, totaal={2:F4} EUR/m³ (incl. energiebelasting + btw)</value></data>
   <data name="Live TTF day-ahead via Enever.nl, all-in incl. energy tax + VAT" xml:space="preserve"><value>Actuele TTF day-ahead via Enever.nl, totaal incl. energiebelasting + btw</value></data>
   <data name="Configured fallback (no live feed or history available — add Enever:Token to appsettings.json): € {0:F4}/m³" xml:space="preserve"><value>Ingestelde terugvalwaarde (geen actuele bron of historie — voeg Enever:Token toe aan appsettings.json): € {0:F4}/m³</value></data>
+  <data name="Alert_CloseAriaLabel" xml:space="preserve"><value>Sluiten</value></data>
+  <data name="DataGrid_AllColumnsText" xml:space="preserve"><value>Alle</value></data>
+  <data name="DataGrid_AndOperatorText" xml:space="preserve"><value>En</value></data>
+  <data name="DataGrid_ApplyFilterText" xml:space="preserve"><value>Toepassen</value></data>
+  <data name="DataGrid_ClearFilterText" xml:space="preserve"><value>Wissen</value></data>
+  <data name="DataGrid_CollapseAllTitle" xml:space="preserve"><value>Alles inklappen</value></data>
+  <data name="DataGrid_ColumnsShowingText" xml:space="preserve"><value>kolommen zichtbaar</value></data>
+  <data name="DataGrid_ColumnsText" xml:space="preserve"><value>Kolommen</value></data>
+  <data name="DataGrid_ContainsText" xml:space="preserve"><value>Bevat</value></data>
+  <data name="DataGrid_CustomText" xml:space="preserve"><value>Aangepast</value></data>
+  <data name="DataGrid_DoesNotContainText" xml:space="preserve"><value>Bevat niet</value></data>
+  <data name="DataGrid_EmptyText" xml:space="preserve"><value>Geen gegevens om te tonen.</value></data>
+  <data name="DataGrid_EndsWithText" xml:space="preserve"><value>Eindigt op</value></data>
+  <data name="DataGrid_EnumFilterSelectText" xml:space="preserve"><value>Kies...</value></data>
+  <data name="DataGrid_EnumNullFilterText" xml:space="preserve"><value>Geen waarde</value></data>
+  <data name="DataGrid_EqualsText" xml:space="preserve"><value>Is gelijk aan</value></data>
+  <data name="DataGrid_ExpandAllTitle" xml:space="preserve"><value>Alles uitklappen</value></data>
+  <data name="DataGrid_ExpandChildItemAriaLabel" xml:space="preserve"><value>Onderliggend item uitklappen</value></data>
+  <data name="DataGrid_ExpandGroupAriaLabel" xml:space="preserve"><value>Groep uitklappen</value></data>
+  <data name="DataGrid_FilterOperatorAriaLabel" xml:space="preserve"><value> filteroperator </value></data>
+  <data name="DataGrid_FilterText" xml:space="preserve"><value>Filter</value></data>
+  <data name="DataGrid_FilterToggleAriaLabel" xml:space="preserve"><value>Wisselen</value></data>
+  <data name="DataGrid_FilterValueAriaLabel" xml:space="preserve"><value> filterwaarde </value></data>
+  <data name="DataGrid_GreaterThanOrEqualsText" xml:space="preserve"><value>Groter dan of gelijk aan</value></data>
+  <data name="DataGrid_GreaterThanText" xml:space="preserve"><value>Groter dan</value></data>
+  <data name="DataGrid_GroupPanelText" xml:space="preserve"><value>Sleep een kolomkop hierheen om op die kolom te groeperen</value></data>
+  <data name="DataGrid_InText" xml:space="preserve"><value>In</value></data>
+  <data name="DataGrid_IsEmptyText" xml:space="preserve"><value>Is leeg</value></data>
+  <data name="DataGrid_IsNotEmptyText" xml:space="preserve"><value>Is niet leeg</value></data>
+  <data name="DataGrid_IsNotNullText" xml:space="preserve"><value>Heeft een waarde</value></data>
+  <data name="DataGrid_IsNullText" xml:space="preserve"><value>Heeft geen waarde</value></data>
+  <data name="DataGrid_LessThanOrEqualsText" xml:space="preserve"><value>Kleiner dan of gelijk aan</value></data>
+  <data name="DataGrid_LessThanText" xml:space="preserve"><value>Kleiner dan</value></data>
+  <data name="DataGrid_LogicalOperatorAriaLabel" xml:space="preserve"><value> logische filteroperator </value></data>
+  <data name="DataGrid_NotEqualsText" xml:space="preserve"><value>Is niet gelijk aan</value></data>
+  <data name="DataGrid_NotInText" xml:space="preserve"><value>Niet in</value></data>
+  <data name="DataGrid_OrOperatorText" xml:space="preserve"><value>Of</value></data>
+  <data name="DataGrid_RemoveGroupAriaLabel" xml:space="preserve"><value>Groep verwijderen</value></data>
+  <data name="DataGrid_SecondFilterOperatorAriaLabel" xml:space="preserve"><value> tweede filteroperator </value></data>
+  <data name="DataGrid_SecondFilterValueAriaLabel" xml:space="preserve"><value> tweede filterwaarde </value></data>
+  <data name="DataGrid_SelectVisibleColumnsAriaLabel" xml:space="preserve"><value>zichtbare kolommen kiezen</value></data>
+  <data name="DataGrid_StartsWithText" xml:space="preserve"><value>Begint met</value></data>
+  <data name="DataList_EmptyText" xml:space="preserve"><value>Geen gegevens om te tonen.</value></data>
+  <data name="DatePicker_CalendarWeekTitle" xml:space="preserve"><value>#</value></data>
+  <data name="DatePicker_ClearAriaLabel" xml:space="preserve"><value>Wissen</value></data>
+  <data name="DatePicker_DisabledAriaLabel" xml:space="preserve"><value>uitgeschakeld</value></data>
+  <data name="DatePicker_HourAriaLabel" xml:space="preserve"><value>Uur</value></data>
+  <data name="DatePicker_MinutesAriaLabel" xml:space="preserve"><value>Minuten</value></data>
+  <data name="DatePicker_NextMonthAriaLabel" xml:space="preserve"><value>Volgende maand</value></data>
+  <data name="DatePicker_OkAriaLabel" xml:space="preserve"><value>OK</value></data>
+  <data name="DatePicker_PopupAriaLabel" xml:space="preserve"><value>Datumkiezer</value></data>
+  <data name="DatePicker_PrevMonthAriaLabel" xml:space="preserve"><value>Vorige maand</value></data>
+  <data name="DatePicker_SecondsAriaLabel" xml:space="preserve"><value>Seconden</value></data>
+  <data name="DatePicker_SelectedAriaLabel" xml:space="preserve"><value>geselecteerd</value></data>
+  <data name="DatePicker_TodayAriaLabel" xml:space="preserve"><value>vandaag</value></data>
+  <data name="DatePicker_ToggleAmPmAriaLabel" xml:space="preserve"><value>AM/PM wisselen</value></data>
+  <data name="DatePicker_ToggleAriaLabel" xml:space="preserve"><value>Openen</value></data>
+  <data name="Dialog_AlertTitle" xml:space="preserve"><value>Bericht</value></data>
+  <data name="Dialog_CancelText" xml:space="preserve"><value>Annuleren</value></data>
+  <data name="Dialog_CloseAriaLabel" xml:space="preserve"><value>Dialoog sluiten</value></data>
+  <data name="Dialog_CloseSideDialogAriaLabel" xml:space="preserve"><value>Zijpaneel sluiten</value></data>
+  <data name="Dialog_ConfirmMessage" xml:space="preserve"><value>Bevestigen?</value></data>
+  <data name="Dialog_ConfirmTitle" xml:space="preserve"><value>Bevestigen</value></data>
+  <data name="Dialog_OkText" xml:space="preserve"><value>OK</value></data>
+  <data name="Dialog_ResizeBarAriaLabel" xml:space="preserve"><value>Zijpaneel van grootte veranderen</value></data>
+  <data name="Dialog_ResizeBarTitle" xml:space="preserve"><value>Sleep om de grootte te wijzigen</value></data>
+  <data name="DropDown_ClearAriaLabel" xml:space="preserve"><value>Wissen</value></data>
+  <data name="DropDown_EmptyAriaLabel" xml:space="preserve"><value>Leeg</value></data>
+  <data name="DropDown_RemoveChipTitle" xml:space="preserve"><value>Verwijderen</value></data>
+  <data name="DropDown_SearchAriaLabel" xml:space="preserve"><value>Zoeken</value></data>
+  <data name="DropDown_SelectedItemsText" xml:space="preserve"><value>items geselecteerd</value></data>
+  <data name="Notification_CloseAriaLabel" xml:space="preserve"><value>Sluiten</value></data>
+  <data name="Numeric_DownAriaLabel" xml:space="preserve"><value>Omlaag</value></data>
+  <data name="Numeric_UpAriaLabel" xml:space="preserve"><value>Omhoog</value></data>
+  <data name="Pager_FirstPageAriaLabel" xml:space="preserve"><value>Naar de eerste pagina.</value></data>
+  <data name="Pager_FirstPageTitle" xml:space="preserve"><value>Eerste pagina</value></data>
+  <data name="Pager_LastPageAriaLabel" xml:space="preserve"><value>Naar de laatste pagina.</value></data>
+  <data name="Pager_LastPageTitle" xml:space="preserve"><value>Laatste pagina</value></data>
+  <data name="Pager_NavigationAriaLabel" xml:space="preserve"><value>Paginering</value></data>
+  <data name="Pager_NextPageAriaLabel" xml:space="preserve"><value>Naar de volgende pagina.</value></data>
+  <data name="Pager_NextPageTitle" xml:space="preserve"><value>Volgende pagina</value></data>
+  <data name="Pager_PageAriaLabelFormat" xml:space="preserve"><value>Naar pagina {0}.</value></data>
+  <data name="Pager_PageSizeText" xml:space="preserve"><value>items per pagina</value></data>
+  <data name="Pager_PageTitleFormat" xml:space="preserve"><value>Pagina {0}</value></data>
+  <data name="Pager_PagingSummaryFormat" xml:space="preserve"><value>Pagina {0} van {1} ({2} items)</value></data>
+  <data name="Pager_PrevPageAriaLabel" xml:space="preserve"><value>Naar de vorige pagina.</value></data>
+  <data name="Pager_PrevPageTitle" xml:space="preserve"><value>Vorige pagina</value></data>
+  <data name="Pager_ReloadAriaLabel" xml:space="preserve"><value>Huidige pagina opnieuw laden.</value></data>
+  <data name="Pager_ReloadTitle" xml:space="preserve"><value>Opnieuw laden</value></data>
+  <data name="PanelMenu_AriaLabel" xml:space="preserve"><value>Menu</value></data>
+  <data name="Panel_CollapseTitle" xml:space="preserve"><value>Inklappen</value></data>
+  <data name="Panel_ExpandTitle" xml:space="preserve"><value>Uitklappen</value></data>
+  <data name="RequiredValidator_Text" xml:space="preserve"><value>Verplicht</value></data>
+  <data name="SidebarToggle_ToggleAriaLabel" xml:space="preserve"><value>Menu openen of sluiten</value></data>
 </root>

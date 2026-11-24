@@ -287,6 +287,8 @@ builder.Services.AddScoped<BatteryManagementController>();
 
 builder.Services.AddControllers();
 builder.Services.AddScoped<SessyWeb.Services.LanguageState>();
+// Radzen's own texts (filters, paging, dialogs) in the interface language; must come before AddRadzenComponents.
+builder.Services.AddScoped<Radzen.ILocalizer, SessyWeb.Services.RadzenLocalizer>();
 builder.Services.AddScoped<SessyController.Services.DataEditorService>();
 builder.Services.AddRadzenComponents();
 
