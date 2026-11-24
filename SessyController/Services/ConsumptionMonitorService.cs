@@ -4,6 +4,7 @@ using SessyCommon.Extensions;
 using SessyCommon.Services;
 using SessyController.Managers;
 using SessyController.Services.Items;
+using SessyController.Services.Statistics;
 using SessyData.Model;
 using SessyData.Services;
 using System.Data;
@@ -398,23 +399,31 @@ namespace SessyController.Services
             var priceLookup = epexPrices
                 .ToDictionary(p => p.Time, p => p.Price!.Value);
 
+            // Beyond the hourly forecast: weather model fitted on the last year, the daily forecast and the weekday profile.
+            var forecast = new ConsumptionForecast(
+                consumptions,
+                ConsumptionModel.Fit(WeatherCorrelationService.ToDays(consumptions)),
+                ConsumptionForecast.DayTemperatures(currentWeather?.WeekVerwachting));
+
             var taskList = quarterlyInfos
-                .Select(qi => CalculateEstimatedConsumptionForAQuarterHour(consumptions, priceLookup, currentWeather, qi))
+                .Select(qi => CalculateEstimatedConsumptionForAQuarterHour(consumptions, priceLookup, currentWeather, forecast, qi))
                 .ToList();
 
             await Task.WhenAll(taskList);
         }
 
         /// <summary>
-        /// Estimates one quarter from comparable historical quarters. Without weather there is
-        /// nothing to compare on, so the monthly profile from Settings is used — that fallback used
-        /// to sit inside the weather branch, which left the estimate at 0 W exactly when no weather
-        /// was available and told the planner the house needs nothing.
+        /// Estimates one quarter. Within the hourly forecast (about 24 hours): from comparable historical
+        /// quarters. Beyond it: the weather model's day total for the daily forecast temperature, shaped
+        /// by the weekday profile. Without either: the monthly figure from Settings for the quarter's own
+        /// month, shaped the same way. The fallback must never be 0 W: that tells the planner the house
+        /// needs nothing.
         /// </summary>
         public async Task CalculateEstimatedConsumptionForAQuarterHour(
             List<Consumption> consumptions,
             Dictionary<DateTime, double> priceLookup,
             WeerData? currentWeather,
+            ConsumptionForecast forecast,
             QuarterlyInfo quarterlyInfo)
         {
             var minHour = quarterlyInfo.Time.Hour - _hourDelta;
@@ -512,7 +521,10 @@ namespace SessyController.Services
                 }
             }
 
-            quarterlyInfo.EstimatedConsumptionPerQuarterInWatts = _settingConfig.EnergyNeedsForCurrentMonth(_timeZoneService.Now.Month - 1) / 24.0; // Wh/day ÷ 24 hours = average Watts
+            var dayKWh = forecast.DayKWh(quarterlyInfo.Time)
+                         ?? _settingConfig.EnergyNeedsForCurrentMonth(quarterlyInfo.Time.Month - 1) / 1000.0; // Wh/day → kWh/day
+
+            quarterlyInfo.EstimatedConsumptionPerQuarterInWatts = forecast.QuarterWatts(quarterlyInfo.Time, dayKWh);
         }
 
         private async Task<List<Consumption>> GetDataForAYear()

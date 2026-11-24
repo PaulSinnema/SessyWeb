@@ -75,11 +75,12 @@ namespace SessyTests.Services
 
             var one = result.Batteries[0].Months.Single();
             Assert.Equal(0.25, one.MeasuredCycles, 6);           // own reading 1 kWh / 4 kWh
-            Assert.Equal(0.5, one.EstimatedCycles, 6);           // 00:00 follows the bank
+            Assert.Equal(0.5, one.ReconstructedCycles, 6);       // 00:00 follows the bank's measurement
+            Assert.Equal(0.0, one.EstimatedCycles, 6);
 
             var two = result.Batteries[1].Months.Single();
             Assert.Equal(0.0, two.MeasuredCycles, 6);
-            Assert.Equal(0.5, two.EstimatedCycles, 6);           // only active from 00:15
+            Assert.Equal(0.5, two.ReconstructedCycles, 6);       // only active from 00:15
         }
 
         private static List<CycleMonth> MonthsOf(DateTime first, int count, double cyclesPerMonth) =>

@@ -113,7 +113,8 @@ namespace SessyController.Services.Statistics
     /// Full cycles since the batteries were bought. Per quarter the discharged energy is taken from the best
     /// source there is: measured (QuarterlyMeasurements), reconstructed (consumption − solar − grid, where the
     /// battery is the remainder of the energy balance) or estimated (the measured average cycles per quarter).
-    /// Per battery only its own readings count as measured; before those, its cycles follow the bank's.
+    /// Per battery only its own readings count as measured; before those its cycles follow the bank's, as
+    /// reconstructed where the bank has data and as estimated where the bank's are an estimate too.
     /// </summary>
     public class CycleHistoryService
     {
@@ -317,20 +318,26 @@ namespace SessyController.Services.Statistics
 
                 // Bank: best source per quarter.
                 double bankCycles;
+                bool bankEstimated = false;
                 if (measuredKWh.TryGetValue(t, out var m))
                     bank.Add(t, measured: bankCycles = m / capacity);
                 else if (reconstructedKWh.TryGetValue(t, out var r))
                     bank.Add(t, reconstructed: bankCycles = r / capacity);
                 else
+                {
                     bank.Add(t, estimated: bankCycles = cyclesPerQuarter);
+                    bankEstimated = true;
+                }
 
-                // Per battery: its own reading, else the bank's cycles for this quarter.
+                // Per battery: its own reading; else the bank's cycles, derived from data unless the bank's are an estimate.
                 foreach (var battery in batteries.Where(b => b.ActiveFrom <= t))
                 {
                     if (perBatteryKWh.TryGetValue(battery.Id, out var readings) && readings.TryGetValue(t, out var kWh))
                         own[battery.Id].Add(t, measured: kWh / battery.CapacityKWh);
-                    else
+                    else if (bankEstimated)
                         own[battery.Id].Add(t, estimated: bankCycles);
+                    else
+                        own[battery.Id].Add(t, reconstructed: bankCycles);
                 }
             }
 

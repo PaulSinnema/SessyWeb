@@ -11,6 +11,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.206] — 2026-11-24
+
+### Fixed
+- **The planner's consumption forecast beyond the next ~24 hours was a flat line.** The hourly weather forecast only
+  covers about a day, and every quarter after it fell back to the monthly figure from Settings ÷ 24 — of the current
+  month, not the quarter's. So tomorrow, planned once the prices arrive around 13:00, got the same flat value whatever
+  the weather or the weekday (Statistics → Consumption → planner vs. model). Beyond the hourly forecast the planner
+  now takes the day total from the weather model (fitted on the last year) at the daily forecast temperature, and
+  spreads it over the day like a usual day of that weekday. The Settings figure remains the last fallback, for the
+  quarter's own month and with the same daily shape.
+
+## [v1.0.205] — 2026-11-24
+
+### Fixed
+- **Cycles per battery were almost empty with the estimate switched off.** Before a battery's own readings (stored
+  only since November 2026) its cycles follow the bank's; these all counted as estimated, so switching the estimate
+  off left only the last week. Where the bank's cycles come from data (measured or reconstructed) the battery's now
+  count as reconstructed; only quarters the bank itself estimates stay estimated.
+
 ## [v1.0.204] — 2026-11-23
 
 ### Changed

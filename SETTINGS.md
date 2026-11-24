@@ -68,9 +68,11 @@ A **Reset to defaults** button restores this whole block. See [PLANNER.md](PLANN
 ### Estimated home energy needs per day (Wh), per month
 
 Twelve values, one per month — your household's expected consumption **per day, in Wh** (e.g. 300 kWh
-in October ≈ 9700 Wh/day). Used as the fallback
-demand profile when live/weather-based consumption is unavailable, so the planner still has a
-sensible consumption forecast.
+in October ≈ 9700 Wh/day). The last fallback of the consumption forecast: within about 24 hours the
+planner uses comparable quarters from the past for the hourly weather forecast; beyond that the weather
+model's day total for the daily forecast temperature. Only when neither is available (no weather, or less
+than 60 days of history) is this value used, for the quarter's own month and spread over the day like a
+usual day of that weekday.
 
 ### Statistics
 

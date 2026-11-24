@@ -26,7 +26,7 @@ namespace SessyWeb.Components
             "Measured: the batteries' own readings. Reconstructed: the energy balance, consumption − solar − grid, where " +
             "no battery reading was stored (a few % high). Estimated: the measured average per quarter, where no data " +
             "exists at all. A single battery counts as measured only from its own readings; before those it follows the " +
-            "whole bank. Line: all cycles added up. Switch the estimate off to see only what the data supports.";
+            "whole bank: reconstructed where the bank has data, estimated where it has none. Line: all cycles added up. Switch the estimate off to see only what the data supports.";
 
         private const string ForecastInfo =
             "Per battery: the rated cycles (entered with the battery investment on the Settings page) divided by the " +
