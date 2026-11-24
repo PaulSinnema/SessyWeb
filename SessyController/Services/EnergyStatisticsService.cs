@@ -413,6 +413,7 @@ namespace SessyController.Services
                 return new InvestmentCategoryStats
                 {
                     Category = inv.Description,
+                    Kind = cat,
                     TotalAmountEur = inv.AmountEur,
                     TotalSubsidyEur = inv.SubsidyEur,
                     ExpectedLifetimeYears = inv.ExpectedLifetimeYears,
@@ -1191,6 +1192,7 @@ namespace SessyController.Services
             var planVsActualPointsTask = Task.Run(() => BuildPlanVsActualChartPointsAsync(now));
             var planVsActualStatsTask = Task.Run(() => _planVsActualService.GetStatsAsync(now.AddDays(-7), now));
             var planTask = Task.Run(() => _milpService.GetPlanStatisticsAsync(now, _hardwareStatusService.CurrentSocWh));
+            var solarHealthTask = Task.Run(() => GetSolarHealthAsync(dataStart, now));
 
             // ── Step 3: Seasonal savings averages ─────────────────────────────
             double energySystemAnnualSavings = (await solarSavingsTask).Values.Sum()
@@ -1223,6 +1225,7 @@ namespace SessyController.Services
 
                 // Plan
                 Plan = await planTask,
+                SolarHealth = await solarHealthTask,
             };
         }
 
@@ -1268,6 +1271,19 @@ namespace SessyController.Services
             => _quarterlyFactsService.GetSolarProductionKWhAsync(start, end);
 
         /// <summary>Solar production in kWh per quarter. One source: InverterMeasurements.</summary>
+        /// <summary>Ageing of the panels over all solar data; null without an inverter.</summary>
+        private async Task<SolarHealth?> GetSolarHealthAsync(DateTime start, DateTime now)
+        {
+            if (InstalledKWp <= 0)
+                return null;
+
+            var solarTask = GetSolarByQuarterAsync(start, now);
+            var radiationTask = GetRadiationByHourAsync(start, now);
+            await Task.WhenAll(solarTask, radiationTask);
+
+            return SolarHealth.Estimate(solarTask.Result, radiationTask.Result, InstalledKWp, now);
+        }
+
         private Task<Dictionary<DateTime, double>> GetSolarByQuarterAsync(DateTime start, DateTime end)
             => _quarterlyFactsService.GetSolarByQuarterAsync(start, end);
 

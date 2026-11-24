@@ -17,47 +17,77 @@ namespace SessyWeb.Components
 
         [Inject] private TimeZoneService? TimeZoneService { get; set; }
 
-        /// <summary>One bar of the battery life chart: years used and years left, label with end date and cause.</summary>
-        public sealed record BatteryLife(string Label, double UsedYears, double RemainingYears);
+        /// <summary>One bar of the life chart: years used and years left, label with end date and cause.</summary>
+        public sealed record ComponentLife(string Label, double UsedYears, double RemainingYears);
 
-        private string BatteryLifeInfo => T(
-            "Per battery: the years since purchase and the years left until the expected end of life, the earliest of " +
-            "rated cycles at the current pace, rated age and measured capacity reaching 70 %. Details on the Battery tab.");
+        private string LifeInfo => T(
+            "Per component: the years since purchase and the years left until the expected end of life. Batteries: the " +
+            "earliest of rated cycles at the current pace, rated age and measured capacity reaching 70 % (details on the " +
+            "Battery tab). Solar panels: the rated age, or earlier when the measured performance ratio falls to 80 %. " +
+            "Everything else: the purchase date plus the lifetime entered with the investment.");
 
-        /// <summary>Every battery with a known end of life, earliest end first.</summary>
-        private List<BatteryLife> BatteryLives
+        /// <summary>Start, expected end and what decides it, for any component; null when unknown.</summary>
+        private (DateTime Start, DateTime End, string Limit)? LifeOf(InvestmentCategoryStats component)
+        {
+            if (TimeZoneService == null)
+                return null;
+
+            var now = TimeZoneService.Now;
+
+            if (Cycles?.Find(component.Category) is CycleSeries series)
+            {
+                var life = series.Lifetime(withEstimate: true, now);
+                return life.End.HasValue && life.Start.HasValue ? (life.Start.Value, life.End.Value, LimitText(life.LimitedBy)) : null;
+            }
+
+            DateTime? ageEnd = component.ExpectedLifetimeYears > 0 ? component.InstallationDate.AddYears(component.ExpectedLifetimeYears) : null;
+            DateTime? fadeEnd = component.Kind == SessyData.Model.InvestmentCategory.Solar ? Dashboard?.SolarHealth?.EndOfLife : null;
+
+            if (fadeEnd.HasValue && (!ageEnd.HasValue || fadeEnd < ageEnd))
+                return (component.InstallationDate, fadeEnd.Value, LimitText(LifeLimit.Capacity));
+
+            return ageEnd.HasValue ? (component.InstallationDate, ageEnd.Value, LimitText(LifeLimit.Age)) : null;
+        }
+
+        /// <summary>Every component with a known end of life, earliest end first.</summary>
+        private List<ComponentLife> ComponentLives
         {
             get
             {
-                if (Cycles == null || TimeZoneService == null)
+                if (Dashboard == null || TimeZoneService == null)
                     return new();
 
                 var now = TimeZoneService.Now;
 
-                return Cycles.Lifetimes(withEstimate: true, now)
-                    .Where(l => l.End.HasValue && l.Start.HasValue)
-                    .OrderBy(l => l.End)
-                    .Select(l => new BatteryLife(
-                        $"{l.Name}: {l.End:MM-yyyy} ({LimitText(l.LimitedBy)})",
-                        Math.Round(Math.Max(0.0, (now - l.Start!.Value).TotalDays / 365.25), 1),
-                        Math.Round(Math.Max(0.0, (l.End!.Value - now).TotalDays / 365.25), 1)))
+                return Dashboard.Investment.ComponentBreakdown
+                    .Select(c => (c.Category, Life: LifeOf(c)))
+                    .Where(x => x.Life.HasValue)
+                    .OrderBy(x => x.Life!.Value.End)
+                    .Select(x => new ComponentLife(
+                        $"{x.Category}: {x.Life!.Value.End:MM-yyyy} ({x.Life.Value.Limit})",
+                        Math.Round(Math.Max(0.0, (now - x.Life.Value.Start).TotalDays / 365.25), 1),
+                        Math.Round(Math.Max(0.0, (x.Life.Value.End - now).TotalDays / 365.25), 1)))
                     .ToList();
             }
         }
 
-        private string BatteryLifeChartStyle => $"width: 100%; height: {80 + 45 * BatteryLives.Count}px;";
+        private string LifeChartStyle => $"width: 100%; height: {80 + 45 * ComponentLives.Count}px;";
 
-        /// <summary>Expected end of life of the battery this investment is (see the Battery tab); "—" for anything else.</summary>
-        private string EndOfLifeText(InvestmentCategoryStats component)
+        /// <summary>The solar panels' measured ageing, or how much data it still needs.</summary>
+        private string SolarHealthText()
         {
-            if (Cycles?.Find(component.Category) is not CycleSeries series || TimeZoneService == null)
-                return "—";
+            if (Dashboard?.SolarHealth is not SolarHealth health)
+                return string.Empty;
 
-            var life = series.Lifetime(withEstimate: true, TimeZoneService.Now);
-
-            return life.End.HasValue
-                ? $"{life.End.Value:MM-yyyy} ({LimitText(life.LimitedBy)})"
-                : "—";
+            return health.FadePercentPerYear is double fade
+                ? T("Solar panels: output {0:0.0} % of the first measured year ({1:+0.0;-0.0} %/year, from {2} months compared with the year before).",
+                    health.CurrentPercent, fade, health.ComparedMonths)
+                : T("Solar panels: the ageing needs {0} months compared with the same month a year earlier; {1} so far.",
+                    SolarHealth.MinComparedMonths, health.ComparedMonths);
         }
+
+        /// <summary>Expected end of life of a component; "—" when unknown.</summary>
+        private string EndOfLifeText(InvestmentCategoryStats component) =>
+            LifeOf(component) is { } life ? $"{life.End:MM-yyyy} ({life.Limit})" : "—";
     }
 }

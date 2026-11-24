@@ -39,6 +39,9 @@ namespace SessyController.Services.Statistics
         /// </summary>
         public bool SolarIsConfigured { get; set; }
 
+        /// <summary>Ageing of the solar panels from the performance ratio; null without solar data.</summary>
+        public SessyController.Services.Statistics.SolarHealth? SolarHealth { get; set; }
+
         /// <summary>True when heat pump configuration is available.</summary>
         public bool HeatPumpIsConfigured { get; set; }
 

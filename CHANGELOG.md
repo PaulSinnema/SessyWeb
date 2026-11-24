@@ -11,6 +11,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.218] — 2026-11-24
+
+### Added
+- **Life of every component in Return on Investment** ("Component life"), not only the batteries. The heat pump and
+  anything else: purchase date plus the lifetime entered with the investment. Solar panels: the same, or earlier
+  when their measured ageing reaches 80 % output. The table column "Expected end of life" is filled for all.
+- **Solar panel ageing**: the monthly performance ratio (production ÷ what the measured radiation and kWp would
+  give) is compared with the same month a year earlier, which cancels the seasons; dark months are left out. The
+  average year-on-year change is the fade per year. Needs six such month pairs, so at least a year and a half of
+  data; a line under the chart shows the result or how much data is still missing.
+
 ## [v1.0.217] — 2026-11-24
 
 ### Changed

@@ -287,6 +287,10 @@ namespace SessyController.Services.Statistics
     public class InvestmentCategoryStats
     {
         public string Category { get; set; } = string.Empty;
+
+        /// <summary>Kind of component (solar, storage, heat pump, ...) from its investment group.</summary>
+        public SessyData.Model.InvestmentCategory Kind { get; set; } = SessyData.Model.InvestmentCategory.Other;
+
         public double TotalAmountEur { get; set; }
         public double TotalSubsidyEur { get; set; }
         public double NetAmountEur => TotalAmountEur - TotalSubsidyEur;
