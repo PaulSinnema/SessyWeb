@@ -3,7 +3,7 @@
 @using SessyData.Model
 @using Radzen
 
-<RadzenTabs RenderMode="TabRenderMode.Client">
+<RadzenTabs class="sticky-tabs" RenderMode="TabRenderMode.Client">
     <Tabs>
         <RadzenTabsItem Text="@T("Measurements")" Icon="insights">
             <RadzenDataGrid @ref="energyGrid"

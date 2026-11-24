@@ -11,6 +11,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.217] — 2026-11-24
+
+### Changed
+- **Tab strips stay in view.** On Energy Statistics, Settings, Sessy energy history and Consumption the tabs stick
+  to the top while the content of the tab scrolls underneath.
+
 ## [v1.0.216] — 2026-11-24
 
 ### Changed

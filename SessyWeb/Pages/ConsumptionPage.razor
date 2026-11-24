@@ -49,7 +49,7 @@
     </RadzenHeader>
 
     <RadzenBody>
-        <RadzenTabs @bind-SelectedIndex="@SelectedTab">
+        <RadzenTabs class="sticky-tabs" @bind-SelectedIndex="@SelectedTab">
             <Tabs>
                 <RadzenTabsItem Text="@T("Consumption")">
                 @if (DateSelectionChosen!.PeriodChosen == PeriodsEnums.Day)

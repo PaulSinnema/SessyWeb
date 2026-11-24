@@ -382,3 +382,11 @@ a, .btn-link {
 .language-flag:hover img {
     opacity: 1;
 }
+
+/* Page-level tabs: the tab strip stays at the top while the tab's content scrolls under it. */
+.sticky-tabs > .rz-tabview-nav {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background-color: var(--rz-body-background-color);
+}
