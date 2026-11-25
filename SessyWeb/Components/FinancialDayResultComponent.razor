@@ -21,7 +21,7 @@
                 PagerHorizontalAlign="HorizontalAlign.Center">
     <Columns>
         <RadzenDataGridColumn Property="@nameof(FinancialResult.YearMonth)" Title="@T("Time")"/>
-        <RadzenDataGridColumn Property="@nameof(FinancialResult.Time)" Title="@T("Time")" />
+        <RadzenDataGridColumn Property="@nameof(FinancialResult.Time)" Title="@T("Time")" FormatString="{0:dd-MM-yyyy HH:mm}" FormatProvider="@GetFormatProvider()" />
         <RadzenDataGridColumn Property="@nameof(FinancialResult.Consumed)" Title="@T("Consumed")" />
         <RadzenDataGridColumn Property="@nameof(FinancialResult.Produced)" Title="@T("Produced")" />
         <RadzenDataGridColumn Property="@nameof(FinancialResult.Grid)" Title="@T("Grid")" />

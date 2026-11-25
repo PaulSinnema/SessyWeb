@@ -152,8 +152,11 @@
             <RadzenBody Style="height: 100%; overflow-y: auto;">
                 @* <RadzenText>Width: @screenWidth height: @screenHeight</RadzenText> *@
                 <div class="rz-p-4">
-                    <CascadingValue Name="Language" Value="@LanguageState.Code">
-                        @Body
+                    @* Radzen formats dates and numbers the European way (dd-MM-yyyy, decimal comma), whatever the server's culture. *@
+                    <CascadingValue Name="DefaultCulture" Value="@EuropeanCulture">
+                        <CascadingValue Name="Language" Value="@LanguageState.Code">
+                            @Body
+                        </CascadingValue>
                     </CascadingValue>
                 </div>
             </RadzenBody>

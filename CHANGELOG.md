@@ -11,6 +11,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries
 **Added**, **Changed**, **Fixed** and **Removed**. Versions before v1.0.78 are documented in
 `CLAUDE.md` and the git history.
 
+## [v1.0.220] — 2026-11-25
+
+### Changed
+- The language flags are files again (`wwwroot/Images/flags/nl.svg` and `gb.svg`), like the other images, instead
+  of data URIs in the code.
+
+### Fixed
+- **Why the flags were missing in production**: the folder is `Images` with a capital I, the code asked for
+  `images/...`. Windows does not mind, the Linux container does (404). The path now matches the folder.
+
+## [v1.0.219] — 2026-11-25
+
+### Fixed
+- **The language flags showed as broken images in production**: the two SVG files had not reached the deployment.
+  The flags are now embedded in the code as data URIs; `wwwroot/images/flags` is no longer used.
+- **Dates showed in American format in production** (11/25/2026), because the server's culture is not Dutch.
+  Radzen's grids, date pickers and number fields now always format the European way (dd-MM-yyyy, decimal comma).
+
 ## [v1.0.218] — 2026-11-24
 
 ### Added

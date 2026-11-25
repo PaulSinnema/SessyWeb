@@ -39,6 +39,9 @@ namespace SessyWeb.Shared
 
         private string CurrentLanguage => LanguageState.Code;
 
+        /// <summary>Culture for Radzen's date and number formatting; the server's own culture may be American.</summary>
+        private static readonly System.Globalization.CultureInfo EuropeanCulture = System.Globalization.CultureInfo.GetCultureInfo("nl-NL");
+
         /// <summary>Stores the language with the settings and switches this page over; no reload, no data fetched again.</summary>
         private async Task ChangeLanguageAsync(string code)
         {
